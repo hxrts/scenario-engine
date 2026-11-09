@@ -534,10 +534,12 @@
             "sp-adapters",
             "sp-checks",
             "sp-core",
+            "sp-effects",
             "sp-game",
             "sp-handlers",
             "sp-schema",
             "sp-settings",
+            "sp-views",
             "spec",
             "transformers"
           ]

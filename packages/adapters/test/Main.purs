@@ -9,7 +9,7 @@ import Schema.Run (emptySpec, RunStatus(..))
 import Adapters.SQLite (configuredBusyTimeout)
 import Handlers.Sql (SqlDevice)
 import Handlers.SqlStore (describedTables, schemaVersion)
-import Testkit.Store (open, storeOver)
+import Testkit.Store (open, playStored, storeOver)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.World (Manifest)
@@ -26,11 +26,11 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message, try)
 import Handlers.Replay (runReplay)
-import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec, setStatus)
+import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec)
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore, runObserve, startRun)
-import Handlers.Simulate (simulate, simulateWith)
+import Handlers.Simulate (simulate)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
 import Test.Adapters.Files (createStoreAtVersion, removeFile, setRawSpec)
@@ -77,11 +77,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         seed = Seed 7
       db <- liftEffect (open ":memory:")
       let port = storeOver db
-      stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "RandomValid" }, manifest })
-        recorder port roundMetrics "run-1" manifest.initial
+      stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "RandomValid" }, manifest: g.manifest })
       _ <- orThrow stored
-      liftEffect (runStore port (setStatus "run-1" Completed Nothing))
       runs <- liftEffect (runObserve port listRuns)
       map _.status runs `shouldEqual` [ Completed ]
       rows <- liftEffect (runObserve port (readRounds "run-1"))
@@ -139,11 +136,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         said = [ { seat: Id "US", text: "I will buy ten energy" } ]
       db <- liftEffect (open ":memory:")
       let port = storeOver db
-      stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
-        save <- recorder port roundMetrics "run-1" manifest.initial
-        pure \r _ -> save r (if r.record.round == 1 then said else [])
-      _ <- orThrow stored
+      played <- orThrow (simulate seed g)
+      liftEffect do
+        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "transcripts", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest: g.manifest })
+        save <- recorder port roundMetrics "run-1" g.manifest.initial
+        for_ played.records \r -> save r (if r.record.round == 1 then said else [])
       rows <- liftEffect (runObserve port (readRounds "run-1"))
       map _.transcripts rows `shouldEqual` [ Right said, Right [] ]
 
@@ -161,9 +158,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         seed = Seed 1
       db <- liftEffect (open ":memory:")
       let port = storeOver db
-      stored <- liftEffect $ simulateWith seed g \manifest -> do
-        runStore port (createRun { owner: "server:1:0", id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
-        recorder port roundMetrics "run-1" manifest.initial
+      stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest: g.manifest })
       _ <- orThrow stored
       manifest <- manifestOf
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x", source = Just "run-1" }, manifest })

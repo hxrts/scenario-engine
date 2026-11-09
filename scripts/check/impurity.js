@@ -90,6 +90,27 @@ if (process.argv.includes("--samples")) {
   process.exit(0);
 }
 
+// A program's row is enforced by the compiler: a read program that writes must fail on the `store` row, and the
+// same program reading must compile. Runs after `spago build`, against a copy of its output.
+if (process.argv.includes("--compile")) {
+  const { spawnSync } = require("child_process");
+  const os = require("os");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "impurity-"));
+  fs.cpSync(path.join(root, "output"), tmp, { recursive: true });
+  const dir = "scripts/check/samples/impurity/compile";
+  const compile = (sample) => spawnSync("purs", ["compile", "--output", tmp, "packages/*/src/**/*.purs", "apps/*/src/**/*.purs", ".spago/p/*/src/**/*.purs", `${dir}/${sample}`], { cwd: root, encoding: "utf8" });
+  const reads = compile("reads.purs");
+  const writes = compile("writes.purs");
+  fs.rmSync(tmp, { recursive: true });
+  const problems = [];
+  if (reads.status !== 0) problems.push(`reads.purs should compile:\n${reads.stdout}${reads.stderr}`);
+  const said = writes.stdout + writes.stderr;
+  if (writes.status === 0 || !said.includes("TypesDoNotUnify") || !said.includes("store :: StoreF")) problems.push(`writes.purs should fail on the store row:\n${said}`);
+  if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+  console.log("impurity compile probes ok");
+  process.exit(0);
+}
+
 const files = sourceFiles((n) => /\.(purs|js)$/.test(n)).map((f) => path.relative(root, f));
 const hits = rules.flatMap((rule) => files.flatMap((f) => hitsIn(rule, f, fs.readFileSync(path.join(root, f), "utf8"))));
 if (process.argv.includes("--list")) { for (const h of hits) console.log(`${h.rule} ${h.file}:${h.n}`); console.log(`${hits.length} hits`); process.exit(0); }

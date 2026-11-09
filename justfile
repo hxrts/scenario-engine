@@ -42,6 +42,7 @@ _layout:
 _impurity:
     node scripts/check/impurity.js --samples
     node scripts/check/impurity.js
+    node scripts/check/impurity.js --compile
 
 # Manual implementations of what should be derived (docs/07 §3)
 _derived:

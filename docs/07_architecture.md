@@ -64,7 +64,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `adapters` | `handlers` (the device types of `Handlers.Sql` only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, settings, any handler function |
 | `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `handlers`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
 | `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure `Handlers.Simulate` only) | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
-| `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
+| `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 

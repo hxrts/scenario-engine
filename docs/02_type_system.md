@@ -150,7 +150,7 @@ Each term is defined once, in the doc of the layer that owns it. This table hold
 | **Capacity** | A use of a Resource, not a kind of one: a Resource that Transformations draw on from its holder, or that a recurring flow reads as an amount held, rather than consume. A setting usually declares one `NonTransferable` with no Market ([03 §5.1](03_gameboard.md#51-resources)). |
 | **Holder** | The Entity that a `HolderOf` draw or a holding Rule on a Resource answers to: the Entity with a positive holding of it, else the first in id order with an account for it. Only a Resource that a `HolderOf` draw names, a delayed flow changes, or a recurring flow reads as an amount held has one. |
 | **Residual** | The accounts and behavior of a population remaining in an Aggregate after explicitly modeled accounts are assigned elsewhere. |
-| **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers no ownership, and agency only in procedures the member holds no weight in (§2.2). |
+| **Membership** | An Aggregate's `members` list: classification or organizational belonging. It confers no ownership ([§2.2](#22-three-projections-of-an-entity)). |
 | **Collective procedure** | An Aggregate's weighted-signature rule for Proposals made in its name ([§2.2](#22-three-projections-of-an-entity)). |
 | **Procedure Proposal** | A Proposal authored by an Aggregate under one of its collective procedures. It executes when the signed weight exceeds the procedure's threshold. |
 | **Rule** | An institutional condition the engine interprets: a flows Rule (`{ kind, scope, effect }`, its effect `Levy` or `Block`) or a holding Rule (`{ kind, resource, reduce }`). The `kind` names a declared Rule kind, which fixes the form and who governs; the engine reads the rest, never the kind ([§3](#3-intents-and-economic-actions)). A setting that declares no kinds has no Rules. |
@@ -176,20 +176,14 @@ Each term is defined once, in the doc of the layer that owns it. This table hold
 | **Cause** | Structurally, what produced a settlement: an Intent of a Proposal (with the mechanism that settled it), a declared Rule kind, or a recurring-flow rule. A setting's names live on the thing the cause points at. |
 | **Recurring flow** | One rule of the recurring cycle: a source, a destination, a Resource, an amount, and what a shortfall does ([§6](#6-economic-circulation)). |
 | **Delivery** | A scheduled change to a holding, applied at the start of the round it is due. |
-| **Economic cycle** | The recurring production, exchange, income and expenditure, and capacity-renewal flows of [§6](#6-economic-circulation). |
 | **Behavior domain** | The part of an Aggregate's baseline it may adjust ([§7.2](#72-representation-and-estimators)). |
 | **Observation** | The admissible proposed buy quantity a Representation reads from its Actor's validated Proposals ([§7.3](#73-representation-pipeline)). |
 | **Estimator** | The configured function that turns a representative's observed behavior into an adjustment factor ([§7.4](#74-estimation-semantics)). |
 | **Adjustment factor** | The stored multiplier an Aggregate's baseline is scaled by in the following round ([§7.4](#74-estimation-semantics)). |
-| **Fallback** | The declared resolution of an Actor definition that is not made explicit. |
-| **Resolution** | A choice of which parts of a Gameboard's world are explicit and which are aggregate. |
-| **Manifest** | The immutable record of a game's resolved configuration and initial World State, including the draw version. |
-| **Round record** | The append-only record of one round's inputs, proposed and executed actions, and events. |
 | **Effect** | A declared impure operation, interpreted by a handler ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
 | **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
-| **Template** | A Strategy clause's proposal pattern: an Intent or Proposal whose quantities are expressions, or a combinator (`Choose`, `NoAction`, `Mirror`) ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Joint Proposal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
 | **Offer** | A joint Proposal as its author publishes it, before the other signers answer. |
 | **Unilateral action** | A Proposal that needs no signature but its author's. |
@@ -197,7 +191,7 @@ Each term is defined once, in the doc of the layer that owns it. This table hold
 
 ## 3. Intents and Economic Actions
 
-Intents are the only input to the engine, and every executed Intent came from a signed Proposal ([INV-01](#inv-01)). The engine never authors or rewrites an Intent, and it never knows how an Intent was produced ([§4](#4-policies)). The engine is an accountant: it checks authority and signatures and keeps the books balanced. Negotiation happens out of band.
+Intents are the only input to the engine, and every executed Intent came from a signed Proposal ([INV-01](#inv-01)). The engine never authors or rewrites an Intent, and it never knows how an Intent was produced ([§4](#4-policies)). The engine is an accountant: it checks authority and signatures and keeps the books balanced.
 
 The Intent algebra has four categories:
 
@@ -242,7 +236,7 @@ type Proposal =
   }
 ```
 
-A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers. Gameboard visibility rules may make it more public. Intents are carried by Proposals and are never applied directly to state.
+A Proposal binds Intents to the Entities asked to sign them. Each Intent is executed by the signer whose resources or authority it uses. A Proposal is visible to its signers. Gameboard visibility rules that make it more public are **Planned** ([03 §10.3](03_gameboard.md#103-information-visibility)). Intents are carried by Proposals and are never applied directly to state.
 
 An Intent's economic meaning does not depend on who generated it: a seat, NPC, or Aggregate can all propose a Trade, and the engine determines whether it is permitted, feasible, and executable. Each Proposal records its author, the Entity whose seat or Policy produced it, in the round record.
 
@@ -268,10 +262,7 @@ Infeasible actions are rejected or partially executed by deterministic rules. Th
 
 ### 3.3 Proposals and signatures
 
-Every Intent reaches the engine inside a Proposal. Each round the round runner (`Effects.Round`) runs two steps against the same Snapshot ([§8.1](#81-canonical-resolution-sequence)):
-
-- **Propose.** Every Policy publishes Proposals. The Proposal set is frozen at the end of this step.
-- **Sign.** Every signer sees the Snapshot and the Proposals that name it as a signer, and signs those it endorses. Publishing implies the author's signature.
+Every Intent reaches the engine inside a Proposal. Each round the Proposals are published and then signed, against the same Snapshot, in the phases of [§8.1](#81-canonical-resolution-sequence). Publishing implies the author's signature.
 
 A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule) has its author as the only required signer. An **offer** also requires its counterparties: a Proposal whose Transfers go both ways, with both parties as signers, is an offer, and the counterparty's signature is the acceptance. An N-party joint Proposal requires N signers.
 

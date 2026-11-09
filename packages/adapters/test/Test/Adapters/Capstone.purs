@@ -6,7 +6,7 @@ module Test.Adapters.Capstone (spec) where
 import Schema.Run (emptySpec)
 import Prelude
 
-import Testkit.Store (open, storeOver)
+import Testkit.Store (open, playStored, storeOver)
 import Views.Metrics (roundMetrics)
 import Core.Draw (Seed(..))
 import Data.Argonaut.Core (stringify)
@@ -19,14 +19,13 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Traversable (traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effects.Store (createRun)
 import Effects.Observe (readRounds)
 import Game.Types (Game)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
-import Handlers.Store (recorder, runStore, runObserve)
+import Handlers.Store (runObserve)
 import Settings.Meridian.Capstone as C
-import Handlers.Simulate (simulate, simulateWith)
+import Handlers.Simulate (simulate)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
@@ -43,9 +42,7 @@ spec = describe "Capstone: the Run Store" do
       seed = Seed C.playerSeed
     db <- liftEffect (open ":memory:")
     let port = storeOver db
-    stored <- liftEffect $ simulateWith seed g \manifest -> do
-      runStore port (createRun { owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "capstone" }, manifest })
-      recorder port roundMetrics "capstone" manifest.initial
+    stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "capstone", name: "capstone", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "capstone" }, manifest: g.manifest })
     _ <- orThrow stored
     rows <- liftEffect (runObserve port (readRounds "capstone"))
     length rows `shouldEqual` C.rounds

@@ -27,7 +27,7 @@ const allowed = {
   experiments: ["core", "schema", "checks", "views", "game", "handlers"],
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge
-  testkit: ["core", "schema", "settings", "game", "adapters", "handlers", "checks"],
+  testkit: ["core", "schema", "settings", "game", "adapters", "handlers", "checks", "views", "effects"],
   // the flag parser the apps read their arguments with: no workspace dependency, and no effect library (in `pure`)
   flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
