@@ -117,6 +117,8 @@ emptyWorld =
   , rules: Map.empty
   , scheduled: Map.empty
   , deliveries: []
+  , pending: []
+  , templates: Map.empty
   , factors: Map.empty
   , recurring: []
   , events: []

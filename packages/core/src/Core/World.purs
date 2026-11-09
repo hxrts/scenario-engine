@@ -5,11 +5,12 @@ module Core.World where
 import Prelude
 
 import Core.Draw (Seed(..), drawVersion)
+import Core.Kernel.Types (KernelShapes, Pending, Template, TemplateId, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Core.Types (BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Core.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -17,10 +18,45 @@ import Data.Const (Const(..))
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe)
-import Data.Newtype (un, unwrap)
+import Data.Newtype (class Newtype, un, unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Data.Show.Generic (genericShow)
+
+-- | A spawned coupling and a template, over what this World carries.
+newtype PendingCoupling = PendingCoupling (Pending Capability Rule LegQuery RejectReason Cause)
+
+newtype WorldTemplate = WorldTemplate (Template Capability Rule LegQuery RejectReason Cause)
+
+derive instance Newtype PendingCoupling _
+derive instance Newtype WorldTemplate _
+derive instance Eq PendingCoupling
+derive instance Eq WorldTemplate
+
+derive newtype instance Show PendingCoupling
+
+derive newtype instance Show WorldTemplate
+
+instance EncodeJson PendingCoupling where
+  encodeJson = encodeWith Snapshot pendingCouplingShape
+
+instance DecodeJson PendingCoupling where
+  decodeJson = decodeJsonWith Snapshot pendingCouplingShape
+
+instance EncodeJson WorldTemplate where
+  encodeJson = encodeWith Snapshot worldTemplateShape
+
+instance DecodeJson WorldTemplate where
+  decodeJson = decodeJsonWith Snapshot worldTemplateShape
+
+worldKernelShapes :: KernelShapes Capability Rule LegQuery RejectReason Cause
+worldKernelShapes = { cap: capabilityShape, law: ruleShape, query: legQueryShape, reason: rejectReasonShape, cause: causeShape }
+
+pendingCouplingShape :: Shape PendingCoupling
+pendingCouplingShape = iso PendingCoupling unwrap (pendingShape worldKernelShapes)
+
+worldTemplateShape :: Shape WorldTemplate
+worldTemplateShape = iso WorldTemplate unwrap (templateShape worldKernelShapes)
 
 -- | The condition on a Transfer of one Resource: whether parties who share a Market for it are exempt,
 -- | and the Transformation a sender's orders of which must carry it. A Transfer that is exempt is also
@@ -44,6 +80,8 @@ type WorldFields r =
   , rules :: Map RuleId Rule -- Rules in force
   , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
   , deliveries :: Array Delivery -- due at Prepare
+  , pending :: Array PendingCoupling -- spawned couplings, each due in a later round
+  , templates :: Map TemplateId WorldTemplate -- what a spawn may instantiate
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
   , recurring :: Array RecurringFlow -- the recurring cycle, in the order the engine evaluates it
   , events :: Array Event -- public history
@@ -276,6 +314,7 @@ type View =
   , events :: Array Event
   , factors :: Map BehaviorDomain Ratio
   , toSign :: Array Proposal
+  , pending :: Array PendingCoupling -- the spawned couplings this Entity owes or is owed
   , markets :: Array Venue -- the Markets the Entity has access to, in id order
   , entities :: Array EntityId -- the known Entities, in id order
   , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
@@ -519,6 +558,7 @@ viewShape = recordOf "View"
       &. field @"events" "the public history" (arrayOf eventShape)
       &. field @"factors" "the factors of each behaviour domain" (mapOf idShape qShape)
       &. field @"toSign" "the Proposals the Entity is asked to sign" (arrayOf proposalShape)
+      &. field @"pending" "the spawned couplings the Entity owes or is owed" (arrayOf pendingCouplingShape)
       &. field @"markets" "the Markets the Entity has access to" (arrayOf venueShape)
       &. field @"entities" "the known Entities" (arrayOf idShape)
       &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
@@ -657,7 +697,7 @@ flowGateShape :: Shape FlowGate
 flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), pending: (arrayOf pendingCouplingShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

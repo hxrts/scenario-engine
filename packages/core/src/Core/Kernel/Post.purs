@@ -22,18 +22,20 @@ import Core.Num as Q
 import Core.Query (lookupQ)
 import Core.Types (EntityId, MarketId, ResourceId)
 import Core.World (Endpoint(..), Flow)
+import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
+import Data.Show.Generic (genericShow)
 import Data.Tuple (Tuple(..))
 
 data Account = Ent EntityId | Mkt MarketId
 
 derive instance Eq Account
 derive instance Ord Account
+derive instance Generic Account _
 instance Show Account where
-  show (Ent e) = "Ent " <> show e
-  show (Mkt m) = "Mkt " <> show m
+  show = genericShow
 
 -- | Net changes to every account for the round, applied together at commit.
 type Ledger = Map (Tuple Account ResourceId) Q
@@ -44,9 +46,9 @@ type Opening = Account -> ResourceId -> Q
 data Outcome = PostedWhole | PostedShort
 
 derive instance Eq Outcome
+derive instance Generic Outcome _
 instance Show Outcome where
-  show PostedWhole = "PostedWhole"
-  show PostedShort = "PostedShort"
+  show = genericShow
 
 type Posted = { flow :: Flow, outcome :: Outcome, ledger :: Ledger }
 

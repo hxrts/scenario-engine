@@ -8,7 +8,7 @@ import Core.Engine.Commit (EngineError, resolveRound)
 
 import Core.Num as Q
 import Core.Query (holding, reserveOf)
-import Core.Types (Capability(..), Direction(..), Entity, EntityKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ProposalId, ResourceId, RuleF(..), SignedProposal, Transformation, proposalId)
+import Core.Types (Capability(..), Direction(..), Entity, EntityKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Payment, ProposalId, ResourceId, RuleF(..), SignedProposal, Transformation, proposalId)
 import Core.World (Cause(..), Endpoint(..), Event(..), Flow, Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), WorldState, coupled, lapse, orderRemoved, rejection)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM)
@@ -51,7 +51,7 @@ converted :: ProposalId -> String -> String -> Cause
 converted proposal t units = OfIntent { proposal, intent: 0, mechanism: Conversion { by: a, transformation: Id t, units: q units } }
 
 recurring :: String -> Cause
-recurring rule = OfRecurring { rule: Id rule, kind: Id "k" }
+recurring name = OfRecurring { rule: Id name, kind: Id "k" }
 
 events :: Either EngineError RoundResult -> Array Event
 events = either (const []) _.record.events
@@ -76,7 +76,7 @@ withFacility t es = (world es) { transformations = Map.singleton t.id t }
 may :: String -> Array Capability
 may t = [ MayTransform (Id t) ]
 
-flat :: String -> { curve :: _, resource :: ResourceId, to :: Id _ }
+flat :: String -> Payment
 flat p = { curve: { intercept: q p, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, resource: m, to: b }
 
 order :: String -> String -> Intent

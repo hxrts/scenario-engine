@@ -10,8 +10,10 @@ import Core.Types (Capability(..), Id(..), Rule, EntityId, ResourceId, MarketId)
 import Core.World (Cause(..), Mechanism(..), RejectReason(..))
 import Data.Array (length)
 import Data.Array as Array
+import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
+import Data.Show.Generic (genericShow)
 import Test.Core.Build (q)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -57,8 +59,8 @@ held = HeldBy <<< Named
 
 trade :: Cp
 trade = coupling
-  [ ob "base" a (leg (Reserve mkt) (held a) good "2") [ gd (PriceWithin (AtMost (q "3"))) LimitPriceNotMet, { condition: Performed 1 (Proportional (q "1")), reason: Nothing } ] Reject
-  , ob "quote" a (leg (held a) (Reserve mkt) money "2") [ { condition: Performed 0 (Proportional (q "1")), reason: Nothing } ] Reject
+  [ ob "base" a (leg (Reserve mkt) (held a) good "2") [ gd (PriceWithin (AtMost (q "3"))) LimitPriceNotMet, { condition: Performed { index: 1, bond: Proportional (q "1") }, reason: Nothing } ] Reject
+  , ob "quote" a (leg (held a) (Reserve mkt) money "2") [ { condition: Performed { index: 0, bond: Proportional (q "1") }, reason: Nothing } ] Reject
   ]
   [ { party: Named a, resource: money, amount: Exactly (q "6") } ]
   (Just (Clearing { market: mkt }))
@@ -70,8 +72,8 @@ route = trade { solver = Just (Routing { base: good, quote: money, limit: q "3",
 
 transform :: Cp
 transform = coupling
-  [ ob "input" a (leg (held a) Destroyed good "4") [ gd (StockAtLeast { at: held a, resource: good } (Exactly (q "4"))) (InputsNotHeld (Id "t")) ] Reject
-  , ob "output" a (leg Created (held a) (Id "G") "2") [ { condition: Performed 0 Whole, reason: Nothing }, gd (QuantityAtLeast (Exactly (q "1"))) (BelowMinimum (Id "t")), gd (Holds (Named a) (MayTransform (Id "t"))) (NotAuthorized a) ] Reject
+  [ ob "input" a (leg (held a) Destroyed good "4") [ gd (StockAtLeast { stock: { at: held a, resource: good }, amount: Exactly (q "4") }) (InputsNotHeld (Id "t")) ] Reject
+  , ob "output" a (leg Created (held a) (Id "G") "2") [ { condition: Performed { index: 0, bond: Whole }, reason: Nothing }, gd (QuantityAtLeast (Exactly (q "1"))) (BelowMinimum (Id "t")), gd (Holds { party: Named a, capability: MayTransform (Id "t") }) (NotAuthorized a) ] Reject
   , ob "payment" a (leg (held a) (held b) money "6") [] Cap
   ]
   [ { party: Named b, resource: Id "C", amount: Exactly (q "2") } ]
@@ -87,8 +89,8 @@ transfer = coupling [ ob "t" a (leg (held a) (held b) money "5") [] Cap ] [ { pa
 
 joint :: Cp
 joint = coupling
-  [ ob "x" a (leg (held a) (held b) money "5") [ { condition: Performed 1 Whole, reason: Nothing }, gd (Consent [ a, b ]) PartyCannotFund ] Reject
-  , ob "y" b (leg (held b) (held a) good "1") [ { condition: Performed 0 Whole, reason: Nothing }, gd (Consent [ a, b ]) PartyCannotFund ] Reject
+  [ ob "x" a (leg (held a) (held b) money "5") [ { condition: Performed { index: 1, bond: Whole }, reason: Nothing }, gd (Consent [ a, b ]) PartyCannotFund ] Reject
+  , ob "y" b (leg (held b) (held a) good "1") [ { condition: Performed { index: 0, bond: Whole }, reason: Nothing }, gd (Consent [ a, b ]) PartyCannotFund ] Reject
   ]
   []
   Nothing
@@ -112,7 +114,7 @@ reversal :: Template Capability Rule Q' RejectReason Cause
 reversal = deliver
   { coupling
       { obligations =
-          [ { id: "r", obligor: Bound "holder", effect: Move { from: HeldBy (Bound "holder"), to: Destroyed, resource: good, owed: Arg "quantity" }, when: [ { condition: StockAtLeast { at: HeldBy (Bound "holder"), resource: good } (Exactly (q "0.0001")), reason: Nothing } ], onShort: Cap, next: noNext } ]
+          [ { id: "r", obligor: Bound "holder", effect: Move { from: HeldBy (Bound "holder"), to: Destroyed, resource: good, owed: Arg "quantity" }, when: [ { condition: StockAtLeast { stock: { at: HeldBy (Bound "holder"), resource: good }, amount: Exactly (q "0.0001") }, reason: Nothing } ], onShort: Cap, next: noNext } ]
       }
   }
 
@@ -123,35 +125,33 @@ lawCause :: Cause
 lawCause = OfRule { kind: Id "tariff" }
 
 levy :: Lw
-levy = { subject: OfFlow { from: [ a ], to: [ b ], resources: [ good ] }, trigger: OnAction { obligor: Nothing, cause: Nothing }, operation: Emit { from: held a, to: Destroyed, resource: money, owed: Times (q "0.5") (Arg "quantity") }, guard: [], phase: 3, cause: lawCause }
+levy = { subject: OfFlow { from: [ a ], to: [ b ], resources: [ good ] }, trigger: OnAction { obligor: Nothing, cause: Nothing }, operation: Emit { from: held a, to: Destroyed, resource: money, owed: Times { ratio: q "0.5", amount: Arg "quantity" } }, guard: [], phase: 3, cause: lawCause }
 
 block :: Lw
 block = levy { operation = Refuse }
 
 gate :: Lw
-gate = levy { operation = Refuse, guard = [ { condition: Performed 1 (Proportional (q "1")), reason: Just MissingBundledOrder } ] }
+gate = levy { operation = Refuse, guard = [ { condition: Performed { index: 1, bond: Proportional (q "1") }, reason: Just MissingBundledOrder } ] }
 
 recurringLaw :: Lw
 recurringLaw = levy { subject = OfStock { holders: Just [ a ], resource: money }, trigger = EachRound, operation = Emit { from: held a, to: held b, resource: money, owed: Exactly (q "20") }, phase = 4 }
 
 decay :: Lw
-decay = recurringLaw { subject = OfStock { holders: Nothing, resource: good }, operation = Emit { from: HeldBy (Bound "holder"), to: Destroyed, resource: good, owed: Times (q "0.1") (Stock { at: HeldBy (Bound "holder"), resource: good }) }, phase = 5 }
+decay = recurringLaw { subject = OfStock { holders: Nothing, resource: good }, operation = Emit { from: HeldBy (Bound "holder"), to: Destroyed, resource: good, owed: Times { ratio: q "0.1", amount: Stock { at: HeldBy (Bound "holder"), resource: good } } }, phase = 5 }
 
 withhold :: Lw
 withhold = recurringLaw { operation = Withhold (Exactly (q "2")) }
 
 -- | The offset: a recipient's accrued shortfall, shared pro rata over its offsetable flows, using only amount arithmetic.
 offset :: Amount Q'
-offset = Minus (Exactly (q "20")) (ShareOf { limit: Least (Exactly (q "20")) (Times (q "2") (Read unit)), among: [ Exactly (q "20") ], index: 0 })
+offset = Minus { left: Exactly (q "20"), right: ShareOf { limit: Least { left: Exactly (q "20"), right: Times { ratio: q "2", amount: Read unit } }, among: [ Exactly (q "20") ], index: 0 } }
 
 data Fate = OnCondition | BySolver | AtCompile
 
 derive instance Eq Fate
+derive instance Generic Fate _
 instance Show Fate where
-  show = case _ of
-    OnCondition -> "OnCondition"
-    BySolver -> "BySolver"
-    AtCompile -> "AtCompile"
+  show = genericShow
 
 -- | Where each reason is decided. Compile refusals are validation of the authored vocabulary.
 reasonFate :: RejectReason -> Fate
@@ -201,7 +201,7 @@ encoding = describe "Every mechanism encodes in the kernel" do
     map _.phase [ levy, block, gate, recurringLaw, decay, withhold ] `shouldEqual` [ 3, 3, 3, 4, 5, 4 ]
   it "the offset is amount arithmetic" do
     case offset of
-      Minus _ (ShareOf s) -> s.index `shouldEqual` 0
+      Minus { right: ShareOf s } -> s.index `shouldEqual` 0
       _ -> (false `shouldEqual` true)
   it "every RejectReason has a home" do
     map reasonFate [ PoolExceeded, LimitPriceNotMet, DuplicateProposalId ] `shouldEqual` [ BySolver, OnCondition, AtCompile ]

@@ -24,10 +24,12 @@ import Core.Types (EntityId)
 import Core.World (Endpoint(..), Flow)
 import Data.Array (all, concat, elem, filter, foldl, index, length, mapWithIndex, nub, sort, sortWith)
 import Data.Either (Either(..))
+import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set (Set)
 import Data.Set as Set
+import Data.Show.Generic (genericShow)
 import Data.Tuple (Tuple(..))
 
 -- | What conditions read outside the couplings. `read` answers a record query on the settlement so far.
@@ -39,13 +41,12 @@ type Kernel cap query =
   }
 
 -- | How an obligation was consumed: each of the three has its own successors.
-data Fate = Fulfilled | Shorted | Lapsed
+data Fate = Fulfilled | Shorted | Expired
 
 derive instance Eq Fate
+derive instance Generic Fate _
 instance Show Fate where
-  show Fulfilled = "Fulfilled"
-  show Shorted = "Shorted"
-  show Lapsed = "Lapsed"
+  show = genericShow
 
 type Consumed law reason =
   { coupling :: Int
@@ -62,8 +63,9 @@ type Resolved law reason = { ledger :: Ledger, consumed :: Array (Consumed law r
 data ResolveError = Unbound String
 
 derive instance Eq ResolveError
+derive instance Generic ResolveError _
 instance Show ResolveError where
-  show (Unbound p) = "unbound party: " <> p
+  show = genericShow
 
 type Key = Tuple Int Int
 
@@ -75,10 +77,10 @@ amountOf k ledger = go
     Exactly q -> q
     Arg _ -> Q.zero
     Stock ref -> stock k ledger ref
-    Times r x -> Q.mul r (go x)
-    Plus x y -> Q.add (go x) (go y)
-    Minus x y -> Q.sub (go x) (go y)
-    Least x y -> min (go x) (go y)
+    Times t -> Q.mul t.ratio (go t.amount)
+    Plus p -> Q.add (go p.left) (go p.right)
+    Minus p -> Q.sub (go p.left) (go p.right)
+    Least p -> min (go p.left) (go p.right)
     ShareOf s ->
       let
         amounts = map go s.among
@@ -86,6 +88,8 @@ amountOf k ledger = go
       in
         fromMaybe Q.zero (index shares s.index)
     Read q -> k.read ledger q
+    Moved -> Q.zero
+    Remainder -> Q.zero
 
 endpointOf :: Account -> Either ResolveError Endpoint
 endpointOf = case _ of
@@ -103,8 +107,8 @@ stock k ledger ref = case endpointOf ref.at of
 -- | Whether a condition holds on the set still standing.
 holds :: forall cap law query reason cause. Kernel cap query -> Ledger -> Set Key -> Int -> Coupling cap law query reason cause -> Obligation cap law query reason -> Condition cap query -> Boolean
 holds k ledger standing ci c o = case _ of
-  Performed i _ -> Set.member (Tuple ci i) standing
-  StockAtLeast ref a -> stock k ledger ref >= amountOf k ledger a
+  Performed p -> Set.member (Tuple ci p.index) standing
+  StockAtLeast x -> stock k ledger x.stock >= amountOf k ledger x.amount
   Consent ps -> all (_ `elem` c.consented) ps
   WeightedConsent w -> Q.add w.residual (Q.sumQ (map (\e -> lookupQ e w.weights) (nub c.consented))) > w.threshold
   PriceWithin limit -> case limit, k.price of
@@ -112,8 +116,8 @@ holds k ledger standing ci c o = case _ of
     AtLeast p, Just x -> x >= p
     _, Nothing -> true
   QuantityAtLeast a -> owed >= amountOf k ledger a
-  Holds (Named e) cap -> k.holds e cap
-  Holds (Bound _) _ -> false
+  Holds { party: Named e, capability } -> k.holds e capability
+  Holds { party: Bound _ } -> false
   where
   owed = case o.effect of
     Move l -> amountOf k ledger l.owed
@@ -147,7 +151,7 @@ remove k ledger cs = go (Set.fromFoldable (concat (map keys cs))) Map.empty
     | otherwise = case filter (not <<< holds k ledger standing ci c o <<< _.condition) o.when of
         [] | cannotPerform k ledger o -> [ Tuple (Tuple ci oi) { fate: Shorted, reason: Nothing } ]
         [] -> []
-        fails -> [ Tuple (Tuple ci oi) { fate: Lapsed, reason: fromMaybe Nothing (map _.reason (index fails 0)) } ]
+        fails -> [ Tuple (Tuple ci oi) { fate: Expired, reason: fromMaybe Nothing (map _.reason (index fails 0)) } ]
 
 -- | Every obligation's id, in the order couplings are canonically posted.
 canonical :: forall cap law query reason cause. Coupling cap law query reason cause -> Array String

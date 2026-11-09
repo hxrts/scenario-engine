@@ -11,6 +11,7 @@ import Prelude
 
 import Core.Map (entries)
 
+import Core.Kernel.Consume (partiesOf)
 import Core.Num as Q
 import Core.Query (holderOf, lookupQ, marketsOf, priceOf)
 import Core.Types (Entity, EntityId, RoundIndex)
@@ -19,6 +20,7 @@ import Data.Array (elem, filter, foldl, fromFoldable, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
 -- | Apply deliveries due this round and rule changes scheduled at the last boundary. Idempotent:
@@ -77,6 +79,7 @@ observe w self =
   , events: w.events
   , factors: fromMaybe Map.empty (Map.lookup self.id w.factors)
   , toSign: []
+  , pending: filter (\p -> self.id `elem` partiesOf (unwrap p).coupling) w.pending
   , markets: map venueOf (filter (\m -> self.id `elem` m.access) (marketsOf w))
   , entities: fromFoldable (Map.keys w.entities)
   , transformations: map boundsOf w.transformations
