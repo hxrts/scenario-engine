@@ -38,7 +38,7 @@ A setting is assembled once into a `Game` ([§4](#4-key-interfaces)), and every 
 
 ## 3. Codebase Layout
 
-The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. `just check` runs `scripts/check/deps.js`, which holds the `allowed` table below and checks the `import` lines of each package's `src/`. It fails on a dependency outside the table, on a pure package that depends on an effect, `aff`, `run`, or `node-*` library, and on an import its layer may not make. `scripts/check/layout.js` holds the concept rules that imports cannot express, and fails on a `.js` module anywhere but `adapters` and the apps: FFI is a device. `scripts/check/docs.js` compares the tables of docs/05 marked `<!-- check-docs: name -->` with the compiled setting. `scripts/check/derived.js` reports manual implementations of what should be derived from one description, under one rule id each (hand projections, hand codecs, Event matches, repeated names). `just check` fails if a rule's count in a file differs from `scripts/check/derived.baseline`, so new code cannot add a hit and a removal is recorded. Exceptions that are correct to keep are in `scripts/check/derived.allow`, each with a reason. Each rule has a positive and a negative sample in `scripts/check/samples`, run by the same recipe.
+The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. `just check` runs `scripts/check/deps.js`, which holds the `allowed` table below and checks the `import` lines of each package's `src/`. It fails on a dependency outside the table, on a pure package that depends on an effect, `aff`, `run`, or `node-*` library, and on an import its layer may not make. `scripts/check/layout.js` holds the concept rules that imports cannot express, and fails on a `.js` module anywhere but `adapters` and the apps: FFI is a device. `scripts/check/docs.js` compares the tables of docs/05 marked `<!-- check-docs: name -->` with the compiled setting. `scripts/check/derived.js` reports manual implementations of what should be derived from one description, under one rule id each (hand projections, hand codecs, Event matches, repeated names). `just check` fails on any hit outside `scripts/check/derived.allow`, which lists the exceptions that are correct to keep, each with a reason. Each rule has a positive and a negative sample in `scripts/check/samples`, run by the same recipe.
 
 | Package | May depend on | Owns | Must not own |
 |---|---|---|---|
@@ -47,7 +47,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `board` | `core`, `schema` | World realization and validation, and their errors. It is a separate package because it holds what the world is and cannot see how any participant decides (seat bindings or Strategies): the package boundary is what enforces that, so it is not merged into `game` for being small | JSON, fixtures, seat binding, policy concepts |
 | `policy` | `core`, `schema` | The pure Strategy interpreter | `run` or any effect library; codecs; World State access |
 | `game` | `core`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides, and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
-| `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures, and the setting file tree, as typed values. `Settings.Kit` holds the generic definitions, `Settings.Compose` the operations on a Setting, and `Settings.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
+| `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures, and the setting file tree, as typed values. `Settings.Kit.*` holds the generic definitions, `Settings.Compose` the operations on a Setting, and `Settings.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
 | `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client; and `Handlers.Simulate`, the fold over a `Game` and its round records, which imports no `board` or `policy` module | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
@@ -119,11 +119,12 @@ sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
 
 `View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature, and its `markets` field the Markets the Entity has access to, which the Strategy language's Market selectors (`MarketRef`) pick from.
 
-**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. A record's Shape can be derived from a Shape per field (`recordShape`, over `RowToList`); a sum's from its `Generic` representation (`genericSum`, `genericSettingSum`, `genericTypedSum`, `genericEnum`), with one description per constructor, so a missing constructor is a compile error and writing a value cannot fall through. Hand-written `settingSum` lists remain only for guarded or merged cases (a setting Intent, a Strategy's Intent and Proposal templates). `Described` instances sit beside their types:
+**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. A record's Shape can be derived from a Shape per field (`recordShape`, over `RowToList`); a sum's from its `Generic` representation (`genericSum`, `genericSettingSum`, `genericTypedSum`, `genericEnum`), with one description per constructor, so a missing constructor is a compile error and writing a value cannot fall through. Hand-written `settingSum` lists remain only for guarded or merged cases (a setting Intent, a Strategy's Intent and Proposal templates, a fixture's Proposal reference). A description is a plain `Shape` value, and `EncodeJson` and `DecodeJson` instances call it through these:
 
 ```purescript
 data Format = Authored | Snapshot          -- authored setting files; stored runs and model replies
-codec :: forall a. Format -> Shape a -> JsonCodec a
+encodeWith     :: forall a. Format -> Shape a -> a -> Json
+decodeJsonWith :: forall a. Format -> Shape a -> Json -> Either JsonDecodeError a
 ```
 
 **Event slices** (`core`, `Core.Slice`). A selector (`event @"Coupled"`, or a projection over legs and causes such as `exchanges`, `conversions`, `shortfalls`) names what to read; the kind and field names are checked at compile time against `Event`. A `Slice` is a value: its kinds, field filters, the field read, and its aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a Statistic's or Glossary entry's formula is generated from its calculation. A computation that treats several kinds differently is a total fold, `foldEvents`, one handler per kind; a kind with no effect is `ignore`d, so a new kind fails to compile.
@@ -139,7 +140,7 @@ type OBSERVE r    = (observe :: ObserveF | r)       -- Run Store reads: a read p
 type STORE r      = (store :: StoreF | r)           -- Run Store lifecycle writes
 type API r        = (apiCall :: ApiF | r)           -- every HTTP route: Call ApiRequest (Reply -> a)
 
-runRound :: InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
+runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
 `InWorld` is defined in `core` (`Core.Strategy`). The request and reply types of each operation are declared beside it. Randomness needs no effect: every draw is the pure `Core.Draw.draw` on the game seed or the player seed.
@@ -161,7 +162,7 @@ simulate   :: Seed -> Game -> Either GameError SimRun
 
 Variants take a per-round sink, so the server writes each round as it completes, or a checkpoint to resume from.
 
-**Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, live play, views, and experiments:
+**Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, views, and experiments:
 
 ```purescript
 checkRun           :: WorldState -> Array RoundResult -> Array Failure
@@ -189,7 +190,7 @@ Each adapter implements one backend's primitives: a model call, a digest, the st
 
 **Primitive flows** (`core`). Every settlement is one event of legs with a structural cause, so the record states what moved and what produced it. The types are in the [Type System](02_type_system.md).
 
-**Setting-neutral Core.** A setting declares its own kinds of Rule, its conditions on flows, and its recurring flows in the DSL. Core names none of them, and does nothing when a setting declares none. The `banned-word` rule of `check-derived` keeps scenario language out of `core`.
+**Setting-neutral Core.** A setting declares its own kinds of Rule, its conditions on flows, and its recurring flows in the DSL. Core names none of them, and does nothing when a setting declares none. The `banned-word` rule of `scripts/check/derived.js` keeps scenario language out of `core`.
 
 **Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only at the adapter boundary. Server startup fails `running` rows it can tell were interrupted.
 
@@ -209,7 +210,7 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 **Data formats.** Two JSON formats cover overlapping types and are not interchangeable (`Core.Shape.Format`):
 
 - The **snapshot format** is the engine's own state as core's codecs write it: `WorldState`, round records, and manifests. Runs store it, and replay reads it back.
-- The **setting format** is the authored configuration: Gameboard sections, `instantiation.json`, seat presets, and fixtures. Its tagged unions are objects with exactly one key, and it is described in `schema`.
+- The **setting format** is the authored configuration: Gameboard sections, `instantiation.json`, seat presets, and fixtures. Its tagged unions are objects with exactly one key or `kind:argument` strings, empty keys are omitted, and it is described in `schema`.
 
 ## 5. Coupling Rules
 
@@ -222,7 +223,7 @@ type Statistic = { name :: String, question :: String, definition :: String, for
 - Interfaces are derived; behaviour (the Strategy interpreter, agent framing, human facilitation, view projections, `API` semantics) is hand-written.
 - Replacing an adapter (the SQLite store, the LLM provider) changes nothing in `core`, `board`, `policy`, `effects`, or `handlers`: the new adapter implements the same primitives.
 - Needing new engine code for a setting is a design finding to resolve in `core` ([05 §1](05_test_instance.md#1-purpose)).
-- Per-round checks are pure predicates in `checks` and `core/Invariants` (`check`), shared by the tests, the simulator, and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
+- Per-round checks are pure predicates in `checks` and `core/Invariants` (`check`, and `checkAfter` against the world a round was played from), shared by the tests, the simulator, and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 
 ## 6. Testing
 

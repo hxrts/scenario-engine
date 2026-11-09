@@ -18,7 +18,7 @@ The simulator runs on the existing Type System, Gameboard, and Instantiated Game
 The simulator lets a developer:
 
 1. Select a Gameboard and configure an Instantiated Game.
-2. Bind a seat Policy (preset strategy, AI agent, or recorded human) to every seat.
+2. Bind a seat Policy (a preset strategy or a script of recorded input) to every seat.
 3. Run a whole game automatically, including NPC and Aggregate behavior.
 4. Save complete runs persistently.
 5. Inspect balance sheets and how the world economy evolved.
@@ -41,7 +41,7 @@ The simulator is a development component, not a fourth layer of economic semanti
 
 The simulator plays the same `Game` that live play runs, assembled by `game`. Simulated and live games therefore use the same engine and interpreter ([INV-29](02_type_system.md#inv-29)). A simulated game is economically equivalent to a live game in which humans submitted the same canonical Intents.
 
-The simulator is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Sim`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed), and the round writes reach the Run Store through `RECORD`. Replay feeds recorded inputs instead ([04 §11.1](04_instantiated_game.md#111-round-record)). The round runner and engine are the same as in live play.
+The simulator is a set of effect handlers (Type System [§8.4](02_type_system.md#84-effects-and-handlers), [INV-36](02_type_system.md#inv-36)). The simulation handler (`Handlers.Seats`, run by `Handlers.Simulate`) interprets `SEAT_INPUT` with bound seat Policies (their randomness drawn from the player seed), and the round writes reach the Run Store through `RECORD`. Replay feeds recorded inputs instead ([04 §11.1](04_instantiated_game.md#111-round-record)). The round runner and engine are the same as in live play.
 
 The engine remains responsible for everything economic: accounting, validation, Policies, Representation, collective procedures, settlement, transformations, and rule changes. The simulator only generates inputs, records results, and evaluates them. The Dashboard reads through the read API and never alters authoritative state or run histories. Changing any parameter creates a new run. Resume (§8.1) is the one operation that adds rounds to an existing run.
 
@@ -59,13 +59,13 @@ A simulation is one complete automated playthrough, and it is a pure call over a
 simulate :: Seed -> Game -> Either GameError SimRun
 ```
 
-A [`Game`](02_type_system.md#25-glossary) also holds the manifest. A seat's preset, agent, script, or human is chosen when the game is assembled, not inside the simulator. The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
+A [`Game`](02_type_system.md#25-glossary) also holds the manifest. A seat's Strategy or Script is chosen when the game is assembled, not inside the simulator, and `simulate` rejects a game with an `Agent` or `Human` seat (`GameError.NotSimulable`). The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
 
-The stored spec (`Game.Recipe`) records how the run was made: the preset every seat plays, the resolved player seed, the overrides, and the round count when one was given (the key is absent otherwise). With the same engine version, the spec and the seeds reproduce the complete economic history.
+The stored spec (`Schema.Run.Spec`, written by `Game.Recipe.encodeSpec`) records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the `source` and `kind` of a derived run, and a live session's `model` and `humans`. With the same engine version, the spec and the seeds reproduce the complete economic history.
 
 ### 3.1 Configuration inheritance
 
-A specification may reference a baseline and apply declarative overrides. For example: start from `meridian-test-01` ([05 §14](05_test_instance.md)), raise Energy production capacity by 20%, cut procurement capacity from 30 to 20, set SME estimator shrinkage to 0.40, and give the US the `Aggressive` preset.
+A specification may reference a baseline and apply declarative overrides (`Game.Override`: the game seed, a parameter, an Entity's capacity, a scheme's shrinkage, or making an Actor implicit). For example: start from `meridian-test-01` ([05 §14](05_test_instance.md#14-game-settings)), set a procurement capacity to 20, and set the SME estimator shrinkage to 0.40. A seat's preset is not an override: a stored run plays one preset on every seat.
 
 Overrides must respect the layer boundaries. Tuning an instance changes declarative data, never engine code:
 
@@ -73,23 +73,23 @@ Overrides must respect the layer boundaries. Tuning an instance changes declarat
 - Changing the definition of a Market or Transformation requires a Gameboard variant.
 - Neither change touches the Type System.
 
-Each resolved specification is saved in full, so later changes to a baseline never alter historical runs.
+Each run stores its overrides in its spec and its initial World State in its manifest, so later changes to a baseline never alter historical runs.
 
 ## 4. Seat Policies
 
 The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). In simulation each seat is bound to a **seat Policy** (its `SeatBinding`) when the game is assembled. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
-Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset strategy, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset strategies run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
+Of the bindings a seat can have (`Game.Types.SeatBinding`), the simulator runs the machine ones: `Strategy` (a preset) and `Script` (literal Proposals and signatures per round, which is how a replay answers a live session's seats). `Agent` and `Human` are answered only in live play, where each is briefed with its Actor's objective ([§9.3](05_test_instance.md#93-objectives)). Preset strategies run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)).
 
 Every kind sees only its Actor's authorized view ([INV-16](02_type_system.md#inv-16)) and maps it to Intents:
 
 **Seat Policy + Actor View + Turn → Proposals (3a) and signatures (3b)**
 
-Accepted Intents are always recorded, so every run replays from its round records. Preset-only runs can also be regenerated from the game and player seeds. Seat Policies never mutate World State, and every Intent passes through ordinary validation and settlement. Seat-Policy memory lives in the run record, not World State, because seat Policies are not part of the game world.
+Accepted Intents are always recorded, so every run replays from its round records. Preset-only runs can also be regenerated from the game and player seeds. Seat Policies never mutate World State, and every Intent passes through ordinary validation and settlement. A seat Policy keeps nothing between rounds: a Strategy reads its View, and a Script its round's entry.
 
 ### 4.1 Propose and sign
 
-Each seat Policy acts twice per round, against the same snapshot (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses. An author's own signature is implicit in publishing. Preset strategies sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". AI agents read the Proposals and choose. A Proposal missing a signature lapses ([INV-10](02_type_system.md#inv-10)). The round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
+Each seat Policy acts twice per round, against the same snapshot (Type System [§3.3](02_type_system.md#33-proposals-and-signatures), [§8.1](02_type_system.md#81-canonical-resolution-sequence)). In **Propose** it publishes Proposals, including offers that need other signers. In **Sign** it sees the Proposals addressed to it and signs those it endorses. An author's own signature is implicit in publishing. Preset strategies sign by rule, for example "sign any Energy offer at ≤ 2.6 M/E". A Proposal missing a signature lapses ([INV-10](02_type_system.md#inv-10)). The round still resolves, and the lapse is recorded as an ordinary outcome. Counteroffers are new Proposals, signable next round.
 
 Illustrative seat Policies (not all are presets):
 
@@ -100,7 +100,7 @@ Illustrative seat Policies (not all are presets):
 
 ### 4.2 Presets
 
-Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/settings/src/Settings/Presets.purs`, compiled to `packages/settings/presets.json`). "Cheapest" and "costliest" are the Energy Markets the Entity has access to with the lowest and highest beginning-of-round price (Type System [§4.4](02_type_system.md#44-shared-decision-language-interpreter)); a seat with access to one Energy Market trades there, and a seat with none trades nowhere. Every quantity is in Resource units per round.
+Preset strategies are named parameter sets of the shared interpreter, not separate strategies. The presets are the executable definition: this table states what each one does (`packages/settings/src/Settings/Kit/Presets.purs`, compiled to each setting's `presets.json`). "Cheapest" and "costliest" are the Energy Markets the Entity has access to with the lowest and highest beginning-of-round price (Type System [§4.4](02_type_system.md#44-shared-decision-language-interpreter)); a seat with access to one Energy Market trades there, and a seat with none trades nowhere. Every quantity is in Resource units per round.
 
 | Preset | Behavior |
 |---|---|
@@ -116,7 +116,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
 | `Deployer` | While the Atlantic price is above 3, orders the deployment and the `defence-goods` sale of Fixture R in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
-The Dashboard's launch form offers the same names: `GET /api/setting` sends them (`Settings.Presets.presetNames`, in the order written). The strategies are one shared set in `Settings.Kit.Presets`, which each setting binds to its own names and thresholds; a setting's presets compile into its own directory as `presets.json`.
+The Dashboard's launch form offers the same names: `GET /api/setting` sends them (`Settings.Presets.presetNames`, in the order written, those the setting has). The strategies are one shared set in `Settings.Kit.Presets`, which each setting binds to its own names and thresholds.
 
 ### 4.3 Coverage
 
@@ -135,9 +135,9 @@ Draws come from two streams (Type System [§9.1](02_type_system.md#91-numerics-a
 | Stream | Seed | Used for |
 |---|---|---|
 | `Game` | Game seed (`InstantiationConfig`) | Every in-world draw: estimator sampling noise, declared Policy randomness, declared shocks |
-| `Player` | Player seed (the run's `Spec`) | Every seat-Policy draw: `RandomValid` and any stochastic preset. AI agents receive it where their provider supports seeding, but are still reproduced from recorded input |
+| `Player` | Player seed (the run's `Spec`) | Every seat-Policy draw: `RandomValid` and any stochastic preset |
 
-The streams never share draws. Varying the player seed never changes an in-world draw, and varying the game seed never changes seat-Policy behavior. Live play has no player seed.
+The streams never share draws. Varying the player seed never changes an in-world draw, and varying the game seed never changes seat-Policy behavior. A live session also resolves and records a player seed, but its `Agent` and `Human` seats draw nothing from it, and the model is not seeded.
 
 - **Player-seed distributions:** fix the game seed and vary the player seed to see the spread of outcomes caused by player behavior alone.
 - **Game-seed variation:** fix the player seed and vary the game seed to see in-world stochastic variation.
@@ -169,9 +169,9 @@ The simulator exposes **run to completion** (`simulate`, or `simulateWith` with 
 
 An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules (Type System [§3.2](02_type_system.md#32-infeasible-actions)). The round record keeps both the proposed and the executed action. A representative's observation comes from the proposal, even when its fill differs.
 
-An invariant violation is reported, not blocked: the round's assertions are stored beside it, the run's status stays `completed`, and the dashboard surfaces them. The simulator preserves the configuration, last valid state, failing round, Intents, Policy, Representation, and procedure outputs, the violated invariant, and the relevant DrawKeys. A failure therefore becomes a reproducible regression test.
+An invariant violation is reported, not blocked: the round's assertions are stored beside it, the run's status stays `completed`, and the run list counts them. The store keeps the configuration and seeds, every round's state and record (Intents, Policy, Representation, and procedure outputs), and the violated invariant, and any DrawKey is recomputed from the seeds. A failure therefore becomes a reproducible regression test.
 
-A failed run is never left `running`. At startup the server fails its own leftovers, runs with no recorded owner, and runs whose creating process has gone. A live session's run is left alone. It is marked `failed` with its reason in each of these cases: an engine error or invariant violation (the reason is the error). An exception while simulating or saving a round, such as a store fault (the reason is the exception). A live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures. A joint-pass reply that does not decode is corrected: the model gets its previous reply and the decode error, at most two times. If the last reply still does not decode, it becomes an empty submission (the speakers are told) and the round proceeds. A narrator or seat reply that does not decode becomes a plain event listing or an empty transcript. A run records the process that created it (`owner`: its role, process id, and start time). At server startup, runs still marked `running` that a server left (by a process that stopped) are marked failed with the reason `interrupted`, and so are older rows with no owner. A run owned by another role, such as a live CLI session on the same store, is left alone.
+A failed run is never left `running`. It is marked `failed` with its reason in each of these cases: an engine error (the reason is the error). An exception while simulating or saving a round, such as a store fault (the reason is the exception). A live session that stops early, such as a language-model backend that cannot start, a non-zero exit, or input that ends at a prompt (the reason names the cause). A backend failure in live play is fatal to the run: the round in progress is not completed, and the run keeps the rounds already saved. Decoding errors from a model reply are not backend failures. A joint-pass reply that does not decode is corrected: the model gets its previous reply and the decode error, at most two times. If the last reply still does not decode, it becomes an empty submission (the speakers are told) and the round proceeds. A narrator or seat reply that does not decode becomes a plain event listing or an empty transcript. A run records the process that created it (`owner`: its role, process id, and start time). At server startup, runs still marked `running` are marked failed with a reason beginning `interrupted` when a server created them, when they have no owner, or when their creating process has gone. A run another live process owns, such as a CLI session on the same store, is left alone.
 
 Live play has no confirmation step. Every transcript of the round, human and AI, is interpreted together into Intents. A description of a joint Proposal in a transcript counts as that party's signature, and the interpreter adjusts matching descriptions slightly so that they become one Proposal. The transcripts and the Intents are recorded with the round, so replay uses the recorded Intents and does not re-interpret.
 
@@ -184,11 +184,11 @@ Live play has no confirmation step. Every transcript of the round, human and AI,
 | `presets` | Prints the shipped preset names, one per line. |
 | `server [--db file] [--port n] [--static dir]` (`just serve`) | The read API and the dashboard. Defaults: `runs.db`, port 8787 (1–65535), static `apps/dashboard/dist`. |
 
-An unknown flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The setting argument is the setting's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
+An unknown flag, a repeated flag, a flag without a value, or a bad value is a usage error and exits 1. Nothing is ignored. The setting argument is the setting's directory name (`meridian`), and its version is `v0`. The dashboard's dev proxy and its end-to-end server use separate ports, API 8787 and E2E 8799 (`apps/dashboard/ports.mjs`).
 
 ## 7. Run Assertions
 
-Assertions check engine properties after every round without reimplementing the engine. They are the `checks` package's pure predicates over the records: `checkRun` applies `Core.Invariants.check` to each round, `checkRound` compares an `Expect` with that round's `observe`d record, and `evaluateObjectives` scores each Actor's objective ([§9.2](#92-run-details)). Initialization is not asserted separately.
+Assertions check engine properties after every round without reimplementing the engine. They are the `checks` package's pure predicates over the records: `checkRun` applies `Core.Invariants.checkAfter` to each round, `checkRound` compares an `Expect` with that round's `observe`d record, and `evaluateObjectives` scores each Actor's objective ([§9.2](#92-run-details)). Initialization is not asserted separately.
 
 ### 7.1 Required assertions
 
@@ -213,11 +213,11 @@ Each required assertion checks exactly one invariant from the Type System master
 | Single authoritative state | [INV-15](02_type_system.md#inv-15) | Planned |
 | Information isolation | [INV-16](02_type_system.md#inv-16) | Planned |
 
-Simulator invariants [INV-29](02_type_system.md#inv-29) to [INV-31](02_type_system.md#inv-31) are checked by the simulator's own test suite rather than by per-round assertions.
+Simulator invariants are checked by tests rather than by per-round assertions: [INV-29](02_type_system.md#inv-29) and [INV-30](02_type_system.md#inv-30) in the handlers suite, and [INV-31](02_type_system.md#inv-31) by §14 test 13.
 
 Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They do not hard-code the reference Resources. Soft Power is produced and decays. Energy is produced and consumed. Military is reserved by deployment, lost through declared attrition, and restored by procurement. Money is conserved unless authorized issuance occurs. A blanket "totals are constant" assertion would be wrong.
 
-A failed assertion records its invariant ID and message with its round. The run list and overview report the number of failing assertions. **Planned:** per-assertion expected and observed quantities, the relevant events, and a dashboard view of each round's results.
+A failed assertion records its invariant ID and message with its round. The run list reports the number of failing assertions. **Planned:** per-assertion expected and observed quantities, the relevant events, and a dashboard view of each round's results.
 
 ### 7.2 Metamorphic tests
 
@@ -265,8 +265,8 @@ Every run is persisted and survives restarts. Persistence goes through three row
 
 | Field | Contents |
 |---|---|
-| **Run ID, name, status** | Identity and lifecycle state. Also `created`, `reason` (for a failed run), and the derivation link (`source`, `kind`). |
-| **Manifest** | Immutable Gameboard id, engine version, draw version, and initial World State. Seat bindings, the player seed, the round count, and overrides are in the run's spec ([04 §9](04_instantiated_game.md)). |
+| **Run ID, name, status** | Identity and lifecycle state. Also `created`, `reason` (for a failed run), and the derivation link (`source`, with its `kind` in the spec). |
+| **Manifest** | Immutable Gameboard id, engine version, draw version, and initial World State. The preset, the player seed, the round count, and overrides are in the run's spec ([04 §9](04_instantiated_game.md#9-runtime-state-and-lifecycle)). |
 | **Round records** | Append-only Proposals, signatures, lapsed Proposals, proposed and executed actions, procedure Proposals with their support and outcome, stored Representation estimates, and events. |
 | **Snapshots** | The World State each round ends with. The initial World State is in the manifest. |
 | **Assertions** | Failures per round, with their invariant IDs. |
@@ -298,28 +298,28 @@ There are no migrations. A change to the schema starts a new store.
 
 ### 8.1 Read API and run operations
 
-The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path is a 404. Replies are 200 unless stated. The server loads every setting directory under the setting root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `SETTINGS_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the cache. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
+The server (`apps/server`) serves JSON through the `API` row. `Handlers.Api.Route` is the one endpoint table (`parse` and `wire` are folds over it), `Handlers.Api.Client` answers the same operations for a browser, and the server's `Server.Implementation` supplies what each operation does. Every other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Other paths serve the dashboard's files. Replies are 200 unless stated. The server loads every setting directory under the setting root (`<id>/<version>`, one setting each). A production build (`just build-prod <setting>`) commits to one setting: the same server, with `SETTINGS_DIR` pointing at that setting's compiled files alone, and the launch form shows no picker. A launch names one, and a duplicate, rerun, variant, counterfactual, resume, or per-run view uses the run's own setting, found through its stored `gameId`; a run whose setting is not loaded is refused with the reason. A finished run is decoded once and kept in the server's cache (`Server.Cache`); a running run is not kept, and every write operation clears the kept runs. A successful agency reply is kept for the server's lifetime, since no write changes it. Text replies and the dashboard's files are gzipped for a client that accepts it; the hashed bundle files are immutable, and `index.html` is revalidated on each load.
 
 | Method and path | Purpose | Replies |
 |---|---|---|
 | `GET /api/setting` | The launch form's list of settings, one for each setting found under the setting root; each has name, version, round range (`min`, `max`), default rounds, game seed, `defaultName` (the next run id, the default name of a launch), and `presets` (the seat presets, in the order they are written). | 200 |
-| `GET /api/runs[?archived=true]` | The run list: a `Table` plus `runs`, the typed flags of each run in the table's order (`id`, `archived`, `readable`; a run that cannot be decoded is not readable). Archived runs are left out unless `archived=true`. | 200 |
+| `GET /api/runs[?archived=true]` | The run list: a `Table` plus `runs`, the typed flags of each run in the table's order (`id`, `archived`, `readable`, `source`; a run that cannot be decoded is not readable). Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat. Body: `setting` (a name from `GET /api/setting`; absent is the first), `name` (string), `preset`, `playerSeed` (int, null or absent to draw), `rounds` (int, null or absent for the default). | 200 `{id, playerSeed}`. 400 for a bad body or a refused launch, including `rounds` outside the setting's range (`checkRounds`) |
-| `POST /api/batch` | One run of one preset on every seat of each named Setting (`settings`, absent for every loaded one), so they can be read through `GET /api/compare`. Each run records its own Setting. There is no score of how well a Setting plays. | 200 `[{setting, id, playerSeed}]`. 400 for a bad body or a Setting that cannot start |
-| `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is `id`, `rounds` and `target` (completed and target rounds), `resumable`, and `facts` (the header's label and value pairs: Name, Preset, Setting, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 500 for an unreadable run |
+| `POST /api/batch` | One run of one preset on every seat of each named Setting (`settings`, absent for every loaded one), so they can be read through `GET /api/compare`. Body: `settings`, `preset`, `playerSeed` (int, null or absent to draw one per run), `rounds` (int, null or absent for each Setting's default). Each run is named `batch <setting>` and records its own Setting. There is no score of how well a Setting plays. | 200 `[{setting, id, playerSeed}]`. 400 for a bad body or a Setting that cannot start |
+| `GET /api/runs/:id/:view[?round=n]` | One view. The `overview` reply is `id`, `rounds` and `target` (completed and target rounds), `resumable`, and `facts` (the header's label and value pairs: Name, Preset, Setting, Status, Rounds completed, Game ID). `view` is `overview`, `objectives`, `balances`, `markets`, `facilities`, `economy`, `representation`, `procedures`, `events`, `standings`, `networth`, `actions`, `drivers`, or `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad or out-of-range round. 404 for an unknown run or view. 409 for `objectives` or `balance` when the run's setting is not loaded. 500 for an unreadable run |
 | `GET /api/runs/:id/entities` | The run's Entities: `entities`, each `{id, seat}` (`seat` is true for an Actor, false for an Aggregate), and `default`, the first seat (or the first Entity). | 200. 404. 500 |
-| `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth (M)`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
-| `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override, or a variant's `rounds` outside the setting's range (a duplicate or rerun replays what was recorded). 404 for an unknown source. 409 for a rerun whose source cannot be compared |
+| `GET /api/runs/:id/entity/:entity` | One Entity's balance sheet after every round (`Views.Entity`). Reply: `table` (a row per Resource held or quoted, plus `Net worth`, a column per round `Round 0`…), `chart` (one line per held Resource, in its own unit), `netWorth`. | 200. 400 for an Entity the run does not have, listing the valid names. 404. 500 |
+| `POST /api/runs/:id/derive` | Derive a run. Body: `kind` (`duplicate`, `rerun`, `variant`, `counterfactual`), optional `name`, `preset`, `playerSeed` (null draws), `rounds`, `overrides`. | 201 `{id, source, kind}`. 400 for a bad kind, field, preset, or override, or a variant's `rounds` outside the setting's range (a duplicate or rerun replays what was recorded). 404 for an unknown source. 409 for a rerun whose source cannot be compared, or a live session that cannot be replayed. 500 for a source or new run that cannot be read |
 | `POST /api/runs/:id/resume` | Extend a completed run to `rounds` total rounds. Body `{rounds}`. | 200 `{id, rounds}`. 400 if the run is not completed or `rounds` is not above its completed count. 404. 500 |
 | `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 `{id, archived}`. 404 |
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200 `{deleted}`. 400 without a matching `confirm`. 404 |
 | `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Reply fields: `compatibility`, `trajectory` (a chart when `market` is given, else null), `markets`, `netWorth`, `standings`, `balance`, `keyValues`, `final`, `diff`, `config`, `seeds`, `skipped`, `baseline` (the baseline run's id). `final` and `config` are tables with a `marked` flag per cell, set where the cell differs from the baseline. | 200. 400 when no run is valid or `market` is unknown |
 | `GET /api/glossary` | The glossary the dashboard shows: `definitions` and `reasons` by column or field name, generated from the columns the views use, `unnamed` (the text for a name with no entry, a compared run's column, with `{name}`), and `round` (the prefix and text of a per-round table's columns, with `{round}`). Served whole, so the dashboard holds no glossary text. | 200 |
-| `GET /api/agency[?playerSeed=n&preset=p&alternative=a]` | Agency analysis: every seat plays `preset` (default `Conservative`), then each Actor in turn plays `alternative` (default `Aggressive`). `playerSeed` defaults to 1. | 200. 400 for a bad seed or an unknown preset |
+| `GET /api/agency[?setting=s&playerSeed=n&preset=p&alternative=a]` | Agency analysis of `setting` (default the first loaded): every seat plays `preset` (default `Conservative`), then each Actor in turn plays `alternative` (default `Aggressive`). `playerSeed` defaults to 1. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
 
 Operation rules:
 
-- **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec and its own columns.
+- **Derive.** `duplicate` and `rerun` take no spec field. Any of `preset`, `playerSeed`, `rounds`, `overrides` is refused. `variant` replaces `preset`, `playerSeed`, or `rounds` and takes no overrides. `counterfactual` requires at least one override, which it adds to the source's, and takes no `preset`, `playerSeed`, or `rounds`. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec, and `source` also in its own column.
 - **Rerun.** The zero-change case (§10.4): its reply's `recordsMatch` is `true` when its round records equal the source's under `==`. The source must be completed with stored records, or the rerun is refused with 409 and nothing is created. `recordsMatch: false` is a finding about reproducibility, not a reply error. `recordsMatch` is present only for a rerun.
 - **Sessions.** A live session stores no preset. `variant` and `counterfactual` from one are refused with 400, and so is `resume`. `duplicate` and `rerun` replay it ([04 §11.1](04_instantiated_game.md#111-round-record)), so they reproduce it without a model call.
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored spec's round count. The run keeps its ID.
@@ -337,7 +337,7 @@ The **Store interface** (`STORE` for writes and `OBSERVE` for reads, in `Effects
 
 The Dashboard has three pages, each on its own hash route, and a top bar that links to them from every page: **Runs** (`#/runs`, the home page, and `#/runs/:id` with that run selected), **Prepare** (`#/prepare`), and **Compare** (`#/compare`, and `#/compare/:ids` with the ticked runs). It renders from persisted data without running the engine.
 
-**Display kinds.** Every number a page, the CLI, or a Compare view shows has one display kind ([02 §9.1](02_type_system.md#91-numerics-and-randomness)). The stored and computed values stay exact at four decimals. A **quantity** (Money and Resource counts) shows whole numbers without decimals and otherwise at most two: holdings, balance sheets, net worth, standings, flows, pressure, procured units, shortfalls, and the balance spread. A **price** shows two decimals with trailing zeros trimmed: the marginal price and its change, in the Marginal prices chart and the Compare agency table. A **ratio** shows two decimals: the Gini coefficient, the Representation shares, procedure support and threshold, and tariff rates. Chart axes and tooltips use the chart's kind, and the plotted lines keep full precision. The Prepare form's inputs and the JSON API's text are unchanged.
+**Display kinds.** Every number a page, the CLI, or a Compare view shows has one display kind ([02 §9.1](02_type_system.md#91-numerics-and-randomness)). The stored and computed values stay exact at four decimals. A **quantity** (Money and Resource counts) shows whole numbers without decimals and otherwise at most two: holdings, balance sheets, net worth, standings, flows, pressure, procured units, shortfalls, and the balance spread. A **price** shows at most two decimals with trailing zeros trimmed, the same text as a quantity: the marginal price and its change, in the Marginal prices chart and the Compare agency table. A **ratio** shows two decimals: the Gini coefficient, the Representation shares, procedure support and threshold, and tariff rates. Chart axes and tooltips use the chart's kind, and the plotted lines keep full precision. The Prepare form's inputs and the JSON API's text are unchanged.
 
 **Layout.** One 12-column grid with named spacing tokens (`apps/dashboard/app.css`) and the components in `Dashboard.Layout`. Every visible table column and overview field has a plain-language definition on hover: the server's glossary (`GET /api/glossary`), loaded before the first page renders and looked up by `Dashboard.Glossary`. Every request the dashboard makes goes through `Dashboard.Client`, one typed function per API operation, run over `Handlers.Api.Client`; each reply is decoded through the same shape the server encoded it with (`Views.Keys`), and the views are fetched once per selection: the run page fetches its overview once and passes it to its results and its manage panel.
 
@@ -347,7 +347,7 @@ The run list is a sortable table, one row per stored run in creation order. Its 
 
 - A **Show archived runs** toggle adds the archived runs. Without it they are hidden.
 - Selecting a row (or opening `#/runs/:id`) shows that run's results beside the list. With no selection, the latest readable run is shown. Selecting a run gives it its own address.
-- **Resume** appears on the run page only for a completed run, which it extends to the round count it is given. Resume never continues a failed or interrupted run; the overview's `resumable` field says which runs qualify.
+- **Resume** appears on the run page only for a completed run that has a preset (not a live session), which it extends to the round count it is given. Resume never continues a failed or interrupted run; the overview's `resumable` field says which runs qualify.
 - **Archive** / **Unarchive** and **Delete** (one click, the request's `confirm` names the run) are on the run page under "Manage this run".
 - **Run** on the Prepare page launches a run (§9.3).
 
@@ -370,25 +370,25 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 
 **Definitions.** *Net worth*, *spread*, and the *Gini coefficient* are defined in [02 §2.5](02_type_system.md#25-glossary). The mean price of a Resource's Markets is a view convention, not an engine rule, and Soft Power has no Market. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The spread and the Gini coefficient are computed in `Views.Balance`.
 
-**Not on the run page** (served by the API for analysis and tooling): the round-by-round action counts. The Market, facility, economy, and pressure views (`markets`, `facilities`, `economy`). The representation and procedure records (`representation`, `procedures`). The raw event log (`events`). The engine, draws, seed, and assertion figures of a run are in the run list or the comparison, not the overview. The Dashboard does not show macroeconomic indicators the Gameboard does not define.
+**Not on the run page** (served by the API for analysis and tooling): the round-by-round action counts. The Market, facility, economy, and pressure views (`markets`, `facilities`, `economy`). The representation and procedure records (`representation`, `procedures`). The raw event log (`events`). A run's seeds and failing assertions are in the run list, its engine version is in the comparison, and its draw version is only in the manifest, none of them in the overview. The Dashboard does not show macroeconomic indicators the Gameboard does not define.
 
-**Representation (API-only).** `representation` covers every active Representation as a four-stage record that spans two rounds: the observation (round r, from the validated, escrowed Proposal). The estimate (round r: the stored adjustment factor, its parameters, the noise draw, and whether the bound applied). The proposed Aggregate Intent (round r+1, applying the stored factor). And the executed result (round r+1, beside the representative's own actions). The **influence ratio** is the induced change in Aggregate activity divided by the resources the representative directly controls. It is `n/a` in the last round and where the representative bought nothing. It is a balancing parameter, not a claim that the representative is an unbiased sample.
+**Representation (API-only).** `representation` has one row per Representation for each stored estimate, a record that spans two rounds: the observation (round r, the representative's proposed purchases, beside what it bought). The estimate (round r: the estimator's weight, reference, shrinkage, and noise spread, and the stored adjustment factor). And the Aggregate's purchase (round r+1, which applies the stored factor, as executed). The **influence ratio** is the induced change in the Aggregate's purchase divided by the representative's own purchases in round r. It is `n/a` in the last round and where the representative bought nothing. It is a balancing parameter, not a claim that the representative is an unbiased sample.
 
 **Procedures (API-only).** `procedures` lists each procedure Proposal per round, the members who signed, the support against the threshold, and the outcome (executed or lapsed). An optional resource contribution is a separate Transfer.
 
-**Event order (API-only).** `events?round=n` lists a round's events in canonical phase order: round preparation. Proposals, signatures, and lapses. Seat Intents and signatures. NPC and Aggregate outputs. Procedure Proposals with support and outcome. Stored Representation estimates. Validation results with partial fills. The economic cycle and settlement. Resource changes. And triggered assertions.
+**Event order (API-only).** `events?round=n` lists a round's engine events (lapses, rejections, removed orders, settlements, capacity changes, enactments and repeals, estimates, and procedure outcomes) in the order the engine records them, which is canonical phase order. Proposals and signatures are in the round record's inputs, and assertions are stored beside the record.
 
 **Planned** on the run page: the lineage section ("Derived from" and "Derived runs", the list's Source column already links to the source). The representation and procedure views. The event inspector. And the flows, signed joint Proposals, and non-Resource state (capacities, market access) in the balance sheets.
 
 ### 9.3 Prepare
 
-Prepare (`#/prepare`) has one panel, **Launch a run**, which launches a run of the setting. Every field has a default, so Run needs no edits:
+Prepare (`#/prepare`) launches a run of a setting, with two panels: **Options** (the fields) and **Launch** (the summary and the Run button). Every field has a default, so Run needs no edits:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | Name | optional | `defaultName`, the next run id (`run-N`) | A label. The server names the default, and the dashboard fills a blank name with it. The API requires a `name`. |
 | Preset | required | Conservative | The seat Policy every seat plays. The choices are the `presets` `GET /api/setting` sends. |
-| Setting | required | `meridian@v0` | The one setting the server serves. |
+| Setting | required | the first the server offers | Shown only when the server offers more than one. |
 | Rounds | optional | the setting's default (5) | A select of the setting's supported counts (4 to 8). Resume takes a whole number above the run's completed rounds, with no upper bound (§8.1). |
 | Player seed | optional | blank | Blank draws a seed once at launch and stores it with the run. A whole number fixes it. |
 | Game seed | read-only | the setting's seed (26021) | The server takes no game seed at launch, so the value is shown and cannot be edited. |
@@ -436,7 +436,7 @@ A [rerun](02_type_system.md#25-glossary) duplicates a run's resolved configurati
 A **counterfactual** (`kind` `counterfactual`) is the intervention case:
 
 1. Duplicate a run's resolved configuration and both seeds.
-2. Change exactly one seat Policy or one parameter (through `overrides`, or a `variant`'s preset).
+2. Change exactly one parameter (through `overrides`). A `variant` replaces the preset on every seat instead, and changing one seat's Policy is the pure `Experiments.Agency.counterfactual`, which stores no run.
 3. Replay the run as an ordinary immutable run, linked to its source.
 4. Compare it against the original as the baseline (Compare page).
 
@@ -458,7 +458,7 @@ The comparison's runs and baseline are carried in the route (`#/compare/:ids`), 
 
 ## 11. Experiments
 
-**Planned as a launcher.** Experiments run today in the `experiments` package (`Experiments.Agency`: `playerSeedRuns`, `counterfactual`, and `agency`). It assembles game variants, runs the pure `simulate`, scores them with `checks`, and presents them through `views`. Its suite is `Test.Experiments.Experiments`. No CLI or API generates a batch. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a scenario set.
+**Planned as a launcher.** Experiments run today in the `experiments` package (`Experiments.Agency`: `playerSeedRuns`, `counterfactual`, and `agency`). It assembles game variants, runs the pure `simulate`, scores them with `checks`, and presents them through `views`. Its suite is `Test.Experiments.Experiments`. `POST /api/batch` plays one run per Setting, but no CLI or API generates a batch of parameter variants. The target is a **Variant Experiment** that generates one specification for each declared parameter value, runs every resulting game, saves the runs, and opens them as a scenario set.
 
 Target experiment kinds:
 
@@ -509,12 +509,12 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 | # | Test | Procedure | Pass condition |
 |---|---|---|---|
-| 1 | Full game | Three preset configurations: all `Conservative`. All `Passive`. `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with the invariants [§7.1](#71-required-assertions) marks Implemented holding. The cycle sustains five years ([INV-05](02_type_system.md#inv-05)). The same seeds reproduce, a drawn player seed and the same value injected give identical records and spec, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). |
+| 1 | Full game | Three preset configurations: all `Conservative`. All `Passive`. `RandomValid` across two player seeds with the game seed fixed. | Five valid rounds with the invariants [§7.1](#71-required-assertions) marks Implemented holding. The cycle sustains five years ([INV-05](02_type_system.md#inv-05)). The same seeds reproduce, and different player seeds give different valid histories under one game seed ([INV-13](02_type_system.md#inv-13)). That a drawn player seed and the same value injected give an identical run and spec is checked in the server suite. |
 | 2 | Replay | Run Test 1 twice with the same game and player seeds, and once more under the replay handler from recorded input. | Identical records (`==` on round records), snapshots, and final state ([INV-13](02_type_system.md#inv-13)). |
 | 3 | Submission order | Permute the order of Intent supply. | Identical settlement ([INV-11](02_type_system.md#inv-11)). |
 | 4 | Market exchange | Runs [Fixture A](05_test_instance.md#21-fixture-a-direct-market-exchange), including its limit-price variant. | Fixture values. [INV-04](02_type_system.md#inv-04), [INV-06](02_type_system.md#inv-06). |
 | 5 | Germany and EU | Runs [Fixture B](05_test_instance.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a counterfactual pair: Germany signs vs does not sign. | Fixture values. The procedure Proposal executes in the same round only when support exceeds the threshold ([INV-10](02_type_system.md#inv-10)). Signing moves no resources ([INV-03](02_type_system.md#inv-03)). |
-| 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) (C1–C4 noise-free, C5 seeded noise) with shrinkage 0 and 0.25. | Fixture values, with the factor applied in the following round. C5 target within range and identical on replay. [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
+| 6 | SME Representation | Runs [Fixture C](05_test_instance.md#23-fixture-c-small-business-owner-representation) C1–C3 (noise-free, shrinkage 0.25), and C1 with shrinkage 0. C4 and C5 (seeded noise) are checked in the settings suite (`Test.Settings.Golden`). | Fixture values, with the factor applied in the following round, and shrinkage 0 leaving the factor at 1. [INV-09](02_type_system.md#inv-09), [INV-13](02_type_system.md#inv-13). |
 | 7 | NPC response | Runs [Fixture D](05_test_instance.md#24-fixture-d-china-responds-as-an-npc) as a counterfactual pair: with and without the deployment. | Fixture values. [INV-12](02_type_system.md#inv-12). |
 | 7b | Reservation | Runs [Fixture R](05_test_instance.md#133-military-deployment) and R-alone: a deployment reserves Mil, and a Military sale on the same Mil is scaled. The reservation is released at commit. | Fixture values. [INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05). |
 | 7c | Deployer | Runs the shipped `Deployer` preset with the other seats Passive, and checks the scaled deployment and sale in the rounds the Atlantic price is above 3. | Exact values from [05 §13.3](05_test_instance.md#133-military-deployment). |
@@ -534,7 +534,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 
 ## 15. Summary
 
-The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset strategies, AI agents, or recorded humans) that submit ordinary Intents, including multi-signer Proposals for joint Proposals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
+The Simulator executes complete games without human participants. Simulated seats are driven by seat Policies (preset strategies or scripts of recorded input) that submit ordinary Intents, including multi-signer Proposals for joint Proposals. NPCs, Aggregates, Representation, collective procedures, and settlement all run through the unchanged engine. Every run is an immutable manifest plus append-only round records, from which all metrics derive.
 
 The development loop is:
 

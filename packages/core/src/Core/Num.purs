@@ -1,6 +1,6 @@
 -- | Fixed-point quantities: 4 decimal places, rounded half-to-even
 -- | (docs/02_type_system.md §9.1). No `Number` enters economic state. Storage and computation are
--- | exact; the display kinds (`displayQuantity`, `displayPrice`, `displayRatio`) only change text.
+-- | exact; the display kinds (`displayQuantity`, `displayRatio`; a Price displays as a quantity) only change text.
 module Core.Num
   ( Q
   , fromInt

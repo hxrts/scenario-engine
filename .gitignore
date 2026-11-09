@@ -15,7 +15,7 @@ runs.db
 apps/dashboard/ui/
 apps/dashboard/theme.css
 
-# compiled from the premise DSL (`just _settings`)
+# compiled from the setting DSL (`just _settings`)
 apps/dashboard/e2e/generated/
 packages/settings/meridian/
 packages/settings/fixtures/

@@ -64,7 +64,7 @@ Germany can therefore be an EU member, hold its government's accounts as an expl
 
 ## 6. Markets, Production, and Circulation
 
-Markets trade existing resources along a cost curve (a bonding curve). Facilities, such as military procurement, produce new quantities within capacity, priced by the same kind of curve. A price curve never creates an asset by itself ([INV-07](02_type_system.md#inv-07)). Markets can be regional, with access rules and tariffs, and transport between regions is itself a capacity-limited facility, so trade restrictions have real effects.
+Markets trade existing resources along a cost curve (a bonding curve). Facilities, such as military procurement, produce new quantities within capacity, priced by the same kind of curve. A price curve never creates an asset by itself ([INV-07](02_type_system.md#inv-07)). Markets can be regional, with access rules. Transport between regions is itself a capacity-limited facility, and Transfers between them can carry tariffs, so trade restrictions have real effects.
 
 To sustain five years of play, every round includes a recurring economic cycle, computed together rather than in sequence:
 

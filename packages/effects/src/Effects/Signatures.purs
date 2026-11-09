@@ -70,7 +70,7 @@ derive instance Functor InterpretF
 
 type INTERPRET r = (interpret :: InterpretF | r)
 
--- | Resolved events to the front page and balance-sheet text; narration adds no facts. Every round
+-- | Resolved events to the front-page text; narration adds no facts. Every round
 -- | requests one; only live play answers with text (simulation and replay answer with the empty text).
 data NarrateF a = Narrate RoundResult (String -> a)
 

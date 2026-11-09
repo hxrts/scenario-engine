@@ -22,11 +22,11 @@ Instantiation ([04](04_instantiated_game.md)) chooses the **resolution** (Type S
 
 ## 2. Gameboard Structure
 
-A setting is a directory of JSON section files. The loader merges every file except `instantiation.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian setting uses these files under `packages/settings/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
+A setting is a directory of JSON section files. The loader merges every `.json` file except `instantiation.json` and `presets.json` into one Gameboard object and reads `instantiation.json` as the Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)). The Meridian setting uses these files under `packages/settings/meridian/v0/` (compiled, see [§12.5](#125-compilation)):
 
 | File | Sections | Keys |
 |---|---|---|
-| `setting.json` | Setting header (§3) | `id`, `version`, `numeraire`, `horizon`, `roundRange`, `label` (optional) |
+| `setting.json` | Setting header (§3) | `id`, `version`, `numeraire`, `focus` (optional), `horizon`, `roundRange`, `label` (optional) |
 | `resources.json` | Resources (§5.1) | `resources` |
 | `markets.json` | Markets, flow gates, groups, Rule kinds (§5.2, §5.5) | `markets`, `flowGates`, `groups`, `ruleKinds` |
 | `transformations.json` | Facilities (§5.3) | `transformations` |
@@ -46,12 +46,12 @@ A `representations` key in a Gameboard section is decoded but ignored: instantia
 `setting.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
-- `numeraire`: the setting's [Money](02_type_system.md#25-glossary); the DSL fills it into payments and levies.
+- `numeraire`: the setting's [Money](02_type_system.md#25-glossary). Shares are paid in it (`Schema.Recurring`), and the views value net worth in it.
+- `focus` (optional): `{ resource, label }`, the Resource the market views centre on.
 - `horizon`: simulated years.
 - `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
-- `name` (optional): the setting's name, decoded from the merged Gameboard (`nameF`, `Schema.Setting.World`). It may sit in any section file, since the loader merges them; the Meridian setting sets neither `name` nor `round`, so its name comes from `id`.
-- `round` (optional, default 1): the starting round, the index the first round of a game is numbered from (`roundF`, `Schema.Setting.World`).
+- `round` (optional, default 1): the index the first round of a game is numbered from (`Schema.Setting.World`). No section file owns this key, so compiling a setting with any other value fails (`unsectionedKeys`, `Settings.Compose`). A hand-written section may set it, since the loader merges them.
 
 The setting says which forces are relevant, not how they resolve. Its narrative is not a schema field. Meridian's values are in [05 §6](05_test_instance.md#6-setting-meridian).
 
@@ -109,9 +109,9 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 A setting's cycle has four parts: production (Transformations and capacities create outputs), exchange (Markets clear and pay suppliers), income and expenditure (explicit rules distribute earnings, wages, taxes, public spending, and transfers), and capacity renewal (investments and degradation adjust future capacities). `circulation.json` holds the recurring forms that the engine evaluates each round on the batch result (Type System [§6](02_type_system.md#6-economic-circulation)):
 
 - `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
-- `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round.
+- `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round. A negative `amount` fails decoding.
 - `shares`: `[{ from, to, share, source }]`. A share of a `LegQuery` read without its party, the payer being it (`{ window, side, resource?, cause, aggregate }`): the DSL's `sales <resource>` is net sales this round, and `payee` is payments received this round.
-- `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` against that Entity's incoming flows.
+- `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` per unit short against that Entity's incoming fixed flows.
 
 The authored forms and a Resource's `decay` are compiled (`Schema.Recurring`) into the one `RecurringFlow` rule ([02 §6](02_type_system.md#6-economic-circulation)).
 
@@ -123,7 +123,7 @@ Decay follows each Resource's `decay`. Capacity changes come from Facility `effe
 - **`flowGates`** are `[{ resource, exemptSharedMarket, bundled? }]`: `exemptSharedMarket` frees parties who share a Market for the Resource from the gate and from flows Rules, and `bundled` names the Transformation a sender's orders of which must carry the Transfer. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
 - **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A setting that declares none has no Rules.
-- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: { rate, basis, in, to } }` or `block`; `basis` is `perUnit` or `{ adValorem: <market> }`, `in` is the Resource it is paid in, and `to` is `destination`, `governor`, or `sink`, or `{ capacity: { kind, capacity, reduce } }`. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
+- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: { rate, basis, in, to } }` or `block`; `basis` is `perUnit` or `{ adValorem: <market> }`, `in` is the Resource it is paid in, and `to` is `destination`, `governor`, or `sink`. A capacity Rule is `{ capacity: { kind, capacity, reduce } }` instead. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
 
@@ -134,7 +134,7 @@ The schema has no separate constraints section. Limits are expressed through res
 `entities.json` maps each Entity id to:
 
 - `accounts`: Resource to holding (required).
-- `capabilities`: a list of capability tags (required). The tags are `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<tariff|accessBan|withholding>`, each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
+- `capabilities`: a list of capability tags (required). The tags are `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<kind>` (a kind in `ruleKinds`, [§5.5](#55-geography-access-and-rules)), each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
 - `capacities` (optional): capacity name to quantity.
 - `definition` (an Actor, [§6.2](#62-actor-definitions)) or `aggregate` (an Aggregate, [§6.3](#63-aggregates)). An Entity should have exactly one. Validation does not check this.
 
@@ -288,7 +288,9 @@ Validation is always against one configuration. The Gameboard has no separate "v
 
 | Constructor | Fails when |
 |---|---|
-| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, Rule, scheme, Aggregate member, procedure weight, `npc` list, capability, procedure `authorizes`, objective metric or Measure, coverage fallback, `config.fallbacks` entry, or the `numeraire` does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
+| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, flow gate, group, Rule, scheme, Aggregate member, procedure weight, `aggregate.policy`, `npc` list, capability, procedure `authorizes`, objective metric or Measure, fallback (a coverage target or a Policy, declared or in `config.fallbacks`), `config.fallbacks` key, `focus`, or the `numeraire` does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
+| `UnknownScheme` | A `representations` entry names a scheme the Gameboard does not define. |
+| `NegativeDelay` | A Facility's `delay` is negative. |
 | `DuplicateCapacityOwner` | A capacity, other than a producer's production capacity, has more than one owner. |
 | `ProductionWithoutCapacity` | A `production` entry's Entity does not hold that capacity. |
 | `MissingFallback` | A non-required Actor has no fallback. |
@@ -323,7 +325,7 @@ Liabilities and recurring flows are not yet compared, and only these pairs are c
 
 ### 12.5 Compilation
 
-Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/settings/src/Settings/`. `keyed`, `ref`, `matching`, `atLeast`, `objective`, and `collective` add nothing to the value they wrap. They are kept as the authoring vocabulary. `just _settings` runs `apps/cli`'s `Compile`, which checks each setting with `checkSetting` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
+Settings are authored with the typed builders of `schema` (`Schema.Build.*`), in the DSL under `packages/settings/src/Settings/`. `keyed`, `ref`, `matching`, and `atLeast` only construct the value they name, and `objective` and `collective` return their argument unchanged. They are kept as the authoring vocabulary. `just _settings` runs `apps/cli`'s `Compile`, which checks each setting with `checkSetting` before writing it, and encodes it into the Meridian files, presets, and fixtures. The same step regenerates the capstone recording, with no model call. The compiled JSON is a build artifact, gitignored and generated: edit the DSL, never the JSON. The capstone recording is generated and gitignored like the rest.
 
 ## 12a. How settings are made
 

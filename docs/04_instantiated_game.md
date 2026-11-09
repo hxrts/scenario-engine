@@ -92,7 +92,7 @@ Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
 - its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
-- Market access lists, group entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Requirements for the same Entity and Resource are summed, except that an explicit amount and one equal to purchases stay separate.
+- Market access lists, group entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Production entries that become identical stay one. Requirements for the same Entity and Resource are summed when both are explicit amounts, two equal to purchases stay one, and an explicit amount and one equal to purchases stay separate.
 - Facility payment recipients (`payment.to`) and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A capacity Rule names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
@@ -103,9 +103,9 @@ Two resolutions that differ only in explicitness must describe the same initial 
 
 ## 5. Representation Assignment
 
-Each `representations` entry activates a scheme ([03 §9](03_gameboard.md#9-representation-schemes)) for one Actor. The resulting World State Representation takes `aggregate`, `domain`, and `estimator` from the scheme, `id` from the scheme, and `actor` and `weight` (default `1`) from the entry.
+Each `representations` entry activates a scheme ([03 §9](03_gameboard.md#9-representation-schemes)) for one Actor. The resulting World State Representation takes `aggregate` (the scheme's `target`), `domain`, `observes`, `estimator`, and `id` from the scheme, and `actor` and `weight` (default `1`) from the entry.
 
-Instantiation checks that the scheme exists (`UnknownReference`) and that the Actor is listed in the scheme's `eligibleActors` and is selected (`IneligibleRepresentative`). Range checks on the weight and estimator, checks for duplicate assignments, and compatibility checks are planned, not implemented.
+Instantiation checks that the scheme exists (`UnknownScheme`) and that the Actor is listed in the scheme's `eligibleActors` and is selected (`IneligibleRepresentative`). Range checks on the weight and estimator, checks for duplicate assignments, and compatibility checks are planned, not implemented.
 
 The adjustment factor and how it is applied in the round are in Type System [§7.3](02_type_system.md#73-representation-pipeline) and [§7.4](02_type_system.md#74-estimation-semantics).
 
@@ -131,7 +131,7 @@ Each Market starts at its configured `position` (default `0`), and its price is 
 
 ### 7.2 Recurring flows
 
-The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed, and evaluated each round. Coverage merges retarget its entries ([§4.2](#42-partitioning)). Validation checks that every costed Facility has a payee ([03 §12.2](03_gameboard.md#122-checks-implemented)). Reconciliation of the cycle ([INV-05](02_type_system.md#inv-05)) and detection of depletion-only configurations are planned, not implemented.
+The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed, and evaluated each round. Coverage merges retarget its entries ([§4.2](#42-partitioning)). A Facility's `payment` names its payee: decoding requires `to`, and validation requires that Entity to exist ([03 §12.2](03_gameboard.md#122-checks-implemented)). Reconciliation of the cycle ([INV-05](02_type_system.md#inv-05)) and detection of depletion-only configurations are planned, not implemented.
 
 ### 7.3 Seeds and randomness
 
@@ -176,7 +176,7 @@ instantiate :: Gameboard -> InstantiationConfig -> Either (Array ValidationError
 It runs these steps. Gameboard decoding, merging, and validation run before it ([03 §12.1](03_gameboard.md#121-load-pipeline)):
 
 1. **Controllers.** Every required Actor is selected. Seats are given only to Actors with `seat` true, and NPC Policies appear in their Actor's `npc` list (`RequiredNotSelected`, `ControllerNotAllowed`).
-2. **Representations.** Each scheme exists, and each representing Actor is eligible and selected (`UnknownReference`, `IneligibleRepresentative`).
+2. **Representations.** Each scheme exists, and each representing Actor is eligible and selected (`UnknownScheme`, `IneligibleRepresentative`).
 3. **Controllers set.** Each selected Actor receives its seat or NPC controller.
 4. **Fallbacks.** Each unselected Actor is resolved by its fallback, in Entity-id order ([§3.2](#32-fallback-resolution)). Coverage merges run as in [§4.2](#42-partitioning).
 5. **Seed and Representations.** The World State takes the game seed. Each Representation is built from its scheme and weight ([§5](#5-representation-assignment)).
@@ -192,7 +192,7 @@ Validation ([03 §12](03_gameboard.md#12-validation-and-compilation)) runs this 
 
 Live round execution runs a `Game` through `runLive` (`Handlers.Live`). Each seat's `SeatBinding` answers it: a `Human` seat types its transcript in the propose window, an `Agent` seat answers through its own model call, and any other binding (`Strategy`, `Script`) is answered by `Handlers.Seats`.
 
-Each round follows the canonical sequence ([Type System §8.1](02_type_system.md#81-canonical-resolution-sequence)). The round runner (`Effects.Round`) runs the seat input, the joint pass, Propose, and Sign, then calls the engine's `resolveRound` for the remaining phases. In code order:
+Each round follows the canonical sequence ([Type System §8.1](02_type_system.md#81-canonical-resolution-sequence)). The round runner (`Effects.Round`) runs the seat input, the joint pass, Propose, and Sign, then calls the engine's `resolveRound` for the remaining phases. In sequence:
 
 1. **Prepare (phase 1).** Deliveries due by this round are applied, clamped at zero. Rule changes scheduled at the last boundary take effect, and scheduled repeals are removed. Each change is recorded as an event.
 2. **Observe (phase 2).** Each Entity's View is built from the prepared state.
@@ -204,7 +204,7 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 8. **Fund and settle (phase 6).** Accepted actions are funded from escrow and settle as one batch: Market trades clear at uniform prices, and each joint Proposal settles atomically with any Facility order it bundles. A passed procedure Proposal counts as its Aggregate's action. Clearing, limit prices, and tie-breaking are in Type System [§3](02_type_system.md#3-intents-and-economic-actions) and [§5.5](02_type_system.md#55-simultaneous-clearing).
 9. **Circulate (phase 6).** The recurring cycle is evaluated on the batch result, in this order: production delivered next round, shares, requirements with shortfall penalties, fixed flows, and decay ([03 §5.4](03_gameboard.md#54-recurring-cycle)).
 10. **Commit (phase 7).** The net change is applied to every Entity and Market, and the round index advances. A negative holding or reserve fails the round (`NegativeBalance`, `NegativeReserve`) rather than recording an invalid state.
-11. **Record.** The round runner appends `{ round, inputs, events }` ([§11.1](#111-round-record)).
+11. **Record.** The round runner appends `{ round, inputs, events }` ([§11.1](#111-round-record)), and the Run Store saves the round's transcripts with it.
 
 ### 11.1 Round record
 
@@ -219,7 +219,7 @@ Events record executed quantities, so a partial fill appears as smaller legs, an
 ### 11.2 Live session
 
 - **Human players.** Each human types one transcript per round at the propose prompt, within the propose window, and nothing further is asked. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, with their reason ([§11.1](#111-round-record)).
-- **Joint pass.** The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm.Joint](../packages/handlers/src/Handlers/Llm/Joint.purs)). The engine keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Schema.Joint](../packages/schema/src/Schema/Joint.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
+- **Joint pass.** The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm.Joint](../packages/handlers/src/Handlers/Llm/Joint.purs)). The pass keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Schema.Joint](../packages/schema/src/Schema/Joint.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they give no signatures.
 - **Strategy seats** play their bound strategy.
 
