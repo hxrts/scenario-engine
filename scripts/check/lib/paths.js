@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { walk } = require("./walk");
 
-const root = path.join(__dirname, "..", "..");
+const root = path.join(__dirname, "..", "..", "..");
 // The compiled setting root, relative to the repo root.
 const settingRoot = "packages/settings";
 const viewFile = "packages/schema/src/Schema/View.purs";

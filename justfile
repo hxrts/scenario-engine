@@ -32,16 +32,16 @@ _fmt-check:
 
 # Check package dependency direction
 _deps:
-    node scripts/check-deps.js
+    node scripts/check/deps.js
 
 # Check the named layout rules (docs/07 §3)
 _layout:
-    node scripts/check-layout.js
+    node scripts/check/layout.js
 
 # Manual implementations of what should be derived (docs/07 §3)
 _derived:
-    node scripts/check-derived.js --samples
-    node scripts/check-derived.js
+    node scripts/check/derived.js --samples
+    node scripts/check/derived.js
 
 # Compile the setting DSL to JSON, then generate the capstone recording (no model call)
 _settings:
@@ -53,7 +53,7 @@ check: _fmt-check build _deps _layout _derived test _docs
 
 # docs/05's marked tables against the compiled setting
 _docs: _settings
-    node scripts/check-docs.js
+    node scripts/check/docs.js
 
 # check + dashboard smoke test
 all: check dashboard-test

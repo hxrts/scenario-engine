@@ -2,14 +2,14 @@
 // Finds manual implementations of something that should be derived from one description (docs/07 §3):
 // a hand projection of a sum, a hand codec, a slice of the Events written as a `case`, a name written twice.
 //
-//   check-derived.js                     compare the hits with scripts/check-derived.baseline (the gate)
-//   check-derived.js --list              print every hit as `file:line rule-id text`, with a count per rule
-//   check-derived.js --samples           run each rule on its samples in scripts/check-derived-samples
-//   check-derived.js --lower-baseline    record counts that fell; refuses a count that rose
-//   check-derived.js --write-baseline    create the baseline when there is none
+//   derived.js                     compare the hits with scripts/check/derived.baseline (the gate)
+//   derived.js --list              print every hit as `file:line rule-id text`, with a count per rule
+//   derived.js --samples           run each rule on its samples in scripts/check/samples
+//   derived.js --lower-baseline    record counts that fell; refuses a count that rose
+//   derived.js --write-baseline    create the baseline when there is none
 //   --root DIR                        read the sources of another checkout
 //
-// Hits named in scripts/check-derived.allow are correct to keep and are not counted.
+// Hits named in scripts/check/derived.allow are correct to keep and are not counted.
 const fs = require("fs");
 const path = require("path");
 const { walk } = require("./lib/walk");
@@ -17,16 +17,16 @@ const { viewNames: readViewNames, sourceFiles: walkSources } = require("./lib/pa
 
 const scriptsDir = __dirname;
 const rootArg = process.argv.indexOf("--root");
-const root = rootArg === -1 ? path.join(__dirname, "..") : path.resolve(process.argv[rootArg + 1]);
+const root = rootArg === -1 ? path.join(__dirname, "..", "..") : path.resolve(process.argv[rootArg + 1]);
 const flag = (f) => process.argv.includes(f);
 
-const baselineFile = path.join(scriptsDir, "check-derived.baseline");
-const allowFile = path.join(scriptsDir, "check-derived.allow");
-const samplesDir = path.join(scriptsDir, "check-derived-samples");
+const baselineFile = path.join(scriptsDir, "derived.baseline");
+const allowFile = path.join(scriptsDir, "derived.allow");
+const samplesDir = path.join(scriptsDir, "samples");
 
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 const fail = (msg) => { console.error(`check-derived: ${msg}`); process.exit(1); };
-const need = (what, xs) => { if (xs.length === 0) fail(`no ${what} found: the source it is read from has moved; update its reader in scripts/check-derived.js`); return xs; };
+const need = (what, xs) => { if (xs.length === 0) fail(`no ${what} found: the source it is read from has moved; update its reader in scripts/check/derived.js`); return xs; };
 
 // Lexing -----------------------------------------------------------------------------------------
 
@@ -180,13 +180,13 @@ const fixes = {
   "hand-json": "write a Shape for the payload, or build it through an existing one",
   "event-match": "read the Event through a selector or Slice; a computation over many kinds goes through foldEvents",
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
-  "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check-derived.allow",
+  "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check/derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
   "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, Settings.Presets, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Market (entries, sumInto, marketPrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
-  "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check-derived.allow",
-  "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check-derived.allow",
+  "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check/derived.allow",
+  "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check/derived.allow",
   "banned-word": "Core carries no setting names; say what the mechanism does, and put the name in the DSL (docs/07 §3)",
 };
 
@@ -330,12 +330,12 @@ function readAllow(hits) {
   entries.forEach((line, i) => {
     if (line.trim() === "" || line.startsWith("#")) return;
     const m = /^(\S+)\s+(\S+)\s+(\S+)\s+(\S.*)$/.exec(line);
-    if (!m) { problems.push(`scripts/check-derived.allow:${i + 1}: an entry is 'rule-id file symbol reason', and this one has no reason: ${line}`); return; }
+    if (!m) { problems.push(`scripts/check/derived.allow:${i + 1}: an entry is 'rule-id file symbol reason', and this one has no reason: ${line}`); return; }
     const [, rule, file, symbol] = m;
-    if (!ruleIds.includes(rule)) problems.push(`scripts/check-derived.allow:${i + 1}: unknown rule ${rule}`);
+    if (!ruleIds.includes(rule)) problems.push(`scripts/check/derived.allow:${i + 1}: unknown rule ${rule}`);
     const key = `${rule}\t${file}\t${symbol}`;
     if (!hits.some((h) => `${h.rule}\t${h.file}\t${h.symbol}` === key)) {
-      problems.push(`scripts/check-derived.allow:${i + 1}: matches nothing (${rule} ${file} ${symbol}): the hit is gone, so delete this entry`);
+      problems.push(`scripts/check/derived.allow:${i + 1}: matches nothing (${rule} ${file} ${symbol}): the hit is gone, so delete this entry`);
     }
     allowed.add(key);
   });
@@ -354,7 +354,7 @@ function readBaseline() {
   const c = new Map();
   fs.readFileSync(baselineFile, "utf8").split("\n").filter((l) => l.trim() && !l.startsWith("#")).forEach((l) => {
     const m = /^(\S+) (\S+) (\d+)$/.exec(l);
-    if (!m) fail(`scripts/check-derived.baseline: a line is 'rule-id file count': ${l}`);
+    if (!m) fail(`scripts/check/derived.baseline: a line is 'rule-id file count': ${l}`);
     c.set(`${m[1]} ${m[2]}`, Number(m[3]));
   });
   return c;
@@ -403,12 +403,12 @@ function main() {
   const current = countByFile(counted);
 
   if (flag("--write-baseline")) {
-    if (fs.existsSync(baselineFile)) fail("scripts/check-derived.baseline exists; use --lower-baseline to record a fall");
+    if (fs.existsSync(baselineFile)) fail("scripts/check/derived.baseline exists; use --lower-baseline to record a fall");
     writeBaseline(current);
     console.log(`wrote the baseline: ${counted.length} hits`);
     return;
   }
-  if (!fs.existsSync(baselineFile)) fail("no scripts/check-derived.baseline: run `node scripts/check-derived.js --write-baseline` once");
+  if (!fs.existsSync(baselineFile)) fail("no scripts/check/derived.baseline: run `node scripts/check/derived.js --write-baseline` once");
   const base = readBaseline();
 
   if (flag("--lower-baseline")) {
@@ -429,7 +429,7 @@ function main() {
       const added = counted.filter((h) => h.rule === rule && h.file === file).map((h) => `    ${h.file}:${h.line} ${h.text}`).join("\n");
       errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: new code added a manual implementation.\n  fix: ${fixes[rule]}\n  hits:\n${added}`);
     } else if (now < was) {
-      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: the count fell.\n  fix: run \`node scripts/check-derived.js --lower-baseline\` and commit scripts/check-derived.baseline`);
+      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: the count fell.\n  fix: run \`node scripts/check/derived.js --lower-baseline\` and commit scripts/check/derived.baseline`);
     }
   }
   console.log(`check-derived: ${counted.length} hits, ${hits.length - counted.length} allowed\n${summary(counted)}`);
