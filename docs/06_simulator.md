@@ -167,7 +167,7 @@ Each assertion checks one invariant from the Type System master table ([02 §9](
 | Deterministic replay | [INV-13](02_type_system.md#inv-13) | Tested by §14 test 2 |
 | Resolution consistency | [INV-14](02_type_system.md#inv-14) | Tested by §14 test 12 |
 | Single authoritative state | [INV-15](02_type_system.md#inv-15) | Not checked per round. Structural: the engine's one round update holds a single World State |
-| Information isolation | [INV-16](02_type_system.md#inv-16) | **Planned**, deferred until players see different information |
+| Information isolation | [INV-16](02_type_system.md#inv-16) | Deferred until players see different information |
 
 Simulator invariants [INV-29](02_type_system.md#inv-29) and [INV-30](02_type_system.md#inv-30) are checked by the handler suite, and [INV-31](02_type_system.md#inv-31) by §14 test 13. Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They hard-code no Resource, because a Resource can be produced, consumed, reserved, or issued by design, so a blanket "totals are constant" check would be wrong.
 
@@ -346,7 +346,7 @@ A **Variant Experiment** generates one specification for each declared parameter
 
 ## 12. Correctness Versus Gameplay Quality
 
-Correctness is established by the assertions (§7) and the mandatory tests (§14). The gameplay questions are in [01 Evaluation](01_overview.md#6-evaluation), and playtesting answers them. The Dashboard computes three indicators today: action counts, the balance measures (spread and Gini), and objective criteria.
+Correctness is established by the assertions (§7) and the mandatory tests (§14). The gameplay questions are in [01 Evaluation](01_overview.md#6-evaluation), and playtesting answers them. The Dashboard computes action counts, the balance measures (spread and Gini), objective criteria, and the whole-economy measures (§11).
 
 ---
 
