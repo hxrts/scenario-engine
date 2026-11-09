@@ -12,7 +12,8 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Shape (Shape, arrayOf, atFields, fieldOf, genericTypedSum, object, optionalOf, intShape, prim, stringShape)
+import Core.Types (EntityId, idShape)
+import Core.Shape (RecF, Shape, arrayOf, atFields, fieldOf, genericTypedSum, object, optionalOf, intShape, prim, stringShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Array (concatMap, foldl)
 import Data.Either (note)
@@ -22,7 +23,13 @@ import Data.String (joinWith)
 import Game.Override (Override(..))
 
 -- | What an experiment varies. Parameters: each named parameter over its values, all combinations of them.
-data Experiment = Parameters (Array { name :: String, values :: Array Q })
+-- | SeatPolicy: one seat deviates among otherwise identical seats, first playing the launch's preset, then each
+-- | alternative. PlayerSeeds and GameSeeds: one run per seed.
+data Experiment
+  = Parameters (Array { name :: String, values :: Array Q })
+  | SeatPolicy { seat :: EntityId, alternatives :: Array String }
+  | PlayerSeeds (Array Int)
+  | GameSeeds (Array Int)
 
 derive instance Eq Experiment
 derive instance Generic Experiment _
@@ -44,6 +51,9 @@ type ExperimentRequest =
 variants :: Experiment -> Array Variant
 variants = case _ of
   Parameters axes -> map combination (foldl extend [ [] ] axes)
+  SeatPolicy r -> [ { label: "baseline", playerSeed: Nothing, overrides: [] } ] <> map (\a -> { label: show r.seat <> " plays " <> a, playerSeed: Nothing, overrides: [ SeatPreset r.seat a ] }) r.alternatives
+  PlayerSeeds seeds -> map (\n -> { label: "player seed " <> show n, playerSeed: Just n, overrides: [] }) seeds
+  GameSeeds seeds -> map (\n -> { label: "game seed " <> show n, playerSeed: Nothing, overrides: [ GameSeed n ] }) seeds
   where
   extend acc axis = concatMap (\chosen -> map (\v -> chosen <> [ { name: axis.name, value: v } ]) axis.values) acc
   combination cs =
@@ -66,7 +76,16 @@ axisShape = object "Axis" ado
 experimentShape :: Shape Experiment
 experimentShape = genericTypedSum "Experiment" "type" ("unknown experiment type " <> _)
   { "Parameters": atFields "type" "Parameters" "parameters" "each parameter over its values, in every combination" (fieldOf "axes" "the parameters" (arrayOf axisShape) identity)
+  , "SeatPolicy": atFields "type" "SeatPolicy" "seatPolicy" "one seat deviates, under each alternative preset" seatPolicy
+  , "PlayerSeeds": atFields "type" "PlayerSeeds" "playerSeeds" "one run per player seed" (fieldOf "seeds" "the player seeds" (arrayOf intShape) identity)
+  , "GameSeeds": atFields "type" "GameSeeds" "gameSeeds" "one run per game seed" (fieldOf "seeds" "the game seeds" (arrayOf intShape) identity)
   }
+
+seatPolicy :: RecF { seat :: EntityId, alternatives :: Array String } { seat :: EntityId, alternatives :: Array String }
+seatPolicy = ado
+  seat <- fieldOf "seat" "the deviating seat" idShape _.seat
+  alternatives <- fieldOf "alternatives" "its alternative presets" (arrayOf stringShape) _.alternatives
+  in { seat, alternatives }
 
 experimentRequestShape :: Shape ExperimentRequest
 experimentRequestShape = object "ExperimentRequest" ado

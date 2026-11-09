@@ -33,6 +33,7 @@ data Override
   | Capacity EntityId ResourceId Q
   | Shrinkage String Q
   | Implicit EntityId -- the Actor is not explicit; its fallback applies
+  | SeatPreset EntityId String -- this seat plays this preset, not the launch's
 
 derive instance Generic Override _
 derive instance Eq Override
@@ -45,6 +46,7 @@ overrideRefs = case _ of
   Capacity e ref _ -> [ Tuple RefEntity (idText e), Tuple RefResource (idText ref) ]
   Shrinkage _ _ -> []
   Implicit e -> [ Tuple RefEntity (idText e) ]
+  SeatPreset e _ -> [ Tuple RefEntity (idText e) ]
 
 -- | Apply overrides to the baseline Gameboard and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.
@@ -65,6 +67,7 @@ resolve base overrides = checked *> schemes *> foldM apply base overrides
     Capacity e ref q -> setAccount e ref q acc.gameboard <#> \gameboard -> acc { gameboard = gameboard }
     Shrinkage scheme q -> Right acc { gameboard { schemes = map (\s -> if s.id == scheme then s { estimator { shrinkage = q } } else s) acc.gameboard.schemes } }
     Implicit e -> Right acc { config = withoutActor e acc.config }
+    SeatPreset _ _ -> Right acc -- binds a seat at assembly; it changes neither the Gameboard nor the configuration
 
 -- | `[ { "type": ..., ... } ]`, one object per override, in the order a stored spec holds them.
 overrideShape :: Shape Override
@@ -79,6 +82,7 @@ overrideShape = genericTypedSum "Override" "type" ("unknown override type " <> _
       )
   , "Shrinkage": atFields "type" "Shrinkage" "shrinkage" "set a scheme's shrinkage" (pair "scheme" "the scheme" stringShape "value" "its value" decimal)
   , "Implicit": atFields "type" "Implicit" "implicit" "make an Actor implicit" (object1 "entity" "the Actor" idShape)
+  , "SeatPreset": atFields "type" "SeatPreset" "seatPreset" "one seat plays another preset" (pair "entity" "the seat" idShape "preset" "its preset" stringShape)
   }
   where
   object1 :: forall a. String -> String -> Shape a -> RecF a a

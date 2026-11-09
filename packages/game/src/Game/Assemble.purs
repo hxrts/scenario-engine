@@ -23,19 +23,19 @@ import Core.Strategy (InWorld, Strategy)
 import Core.World (manifestOf)
 import Board.Gameboard.Validate (Names, gameboardNames, worldNames)
 import Core.Types (EntityId)
-import Data.Array (elem, fromFoldable, null, filter)
+import Data.Array (elem, findMap, fromFoldable, null, filter)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Map as Map
-import Data.Maybe (Maybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Game.Error (GameError(..))
-import Game.Override (Override, resolve)
+import Game.Override (Override(..), resolve)
 import Game.Setting (GameboardParts, Setting(..), checkRefs)
 import Game.Types (Bindings, Game, SeatBinding(..))
 import Policy.InWorld (inWorldOf)
@@ -106,9 +106,14 @@ assemblePreset :: GameboardParts -> String -> Array Override -> Maybe Int -> Eit
 assemblePreset p preset overrides rounds = do
   -- an `Implicit` override removes a seat, so the seats to bind are those left after the overrides
   resolved <- resolve { gameboard: p.gameboard, config: p.config } overrides
-  bindings <- presetBindings p.presets (const preset) (configuredSeats resolved.config)
+  bindings <- presetBindings p.presets seatPreset (configuredSeats resolved.config)
   game <- assemble (GameboardSetting p) bindings overrides
   pure (withRounds rounds game)
+  where
+  seatPreset e = fromMaybe preset (findMap (deviating e) overrides)
+  deviating e = case _ of
+    SeatPreset seat name | seat == e -> Just name
+    _ -> Nothing
 
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
 withRounds :: Maybe Int -> Game -> Game

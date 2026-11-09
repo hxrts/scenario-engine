@@ -8,6 +8,8 @@ import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restricti
 import Schema.Build.Quantity (q)
 import Prelude
 
+import Game.Experiment (Experiment(..), variants)
+
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Core.Proposal (proposalAt)
@@ -45,6 +47,15 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "Variant experiments" do
+    it "multi-parameter: every combination, in the order given" do
+      let axes = [ { name: "a", values: [ Q.fromInt 1, Q.fromInt 2 ] }, { name: "b", values: [ Q.fromInt 3, Q.fromInt 4 ] } ]
+      map _.label (variants (Parameters axes)) `shouldEqual` [ "a=1.0000, b=3.0000", "a=1.0000, b=4.0000", "a=2.0000, b=3.0000", "a=2.0000, b=4.0000" ]
+    it "seat-Policy: the baseline, then one deviating seat per alternative" do
+      (map _.overrides (variants (SeatPolicy { seat: Id "US", alternatives: [ "Aggressive" ] })) == [ [], [ SeatPreset (Id "US") "Aggressive" ] ]) `shouldEqual` true
+    it "player seeds and game seeds: one run per seed" do
+      map _.playerSeed (variants (PlayerSeeds [ 1, 2 ])) `shouldEqual` [ Just 1, Just 2 ]
+      (map _.overrides (variants (GameSeeds [ 7 ])) == [ [ GameSeed 7 ] ]) `shouldEqual` true
   describe "Seat confinement (docs/02 §8.4)" do
     it "a ProposalBody has no author: proposalAt assigns the seat that was asked" do
       let body = { intents: [], signers: [], procedure: Nothing }

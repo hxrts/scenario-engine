@@ -17,7 +17,7 @@ import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Core.Types (Id(..))
 import Core.Slice (conversions, matches)
-import Data.Array (any, filter, length, nubEq, null, range)
+import Data.Array (any, filter, find, length, nubEq, null, range)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Traversable (for_, traverse)
@@ -27,7 +27,11 @@ import Effect.Exception (error)
 import Adapters.Filesystem (fileOps)
 import Settings.Layout (fixturePath)
 import Settings.Tree (readRootFile)
-import Experiments.Agency (agency, counterfactual, playerSeedRuns)
+import Experiments.Agency (agency, counterfactual, difference, playerSeedRuns)
+import Game.Assemble (assemblePreset)
+import Game.Override (Override(..))
+import Core.Num as Q
+import Data.Maybe (Maybe(..))
 import Views.Agency (agencyProfiles)
 import Checks.Objectives (evaluateObjectives)
 import Settings.Load (loadLiteral)
@@ -35,7 +39,7 @@ import Settings.Literal (literalGame)
 import Handlers.Simulate (simulate)
 import Game.Setting (GameboardParts)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (shouldEqual)
+import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
@@ -67,6 +71,12 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
     for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
     (any (not <<< null <<< _.criteria) ps) `shouldEqual` true
+    -- a seat-Policy experiment's deviating run is the agency analysis's run for that seat
+    deviating <- orThrow (assemblePreset ctx "RandomValid" [ SeatPreset (Id "US") "Aggressive" ] Nothing >>= simulate (Seed 1))
+    baseRun <- orThrow (simulate (Seed 1) random)
+    case find (\p -> p.actor == Id "US") ps of
+      Just us -> Q.sumQ (map (Q.abs <<< _.delta) (difference baseRun deviating).prices) `shouldEqual` us.prices
+      Nothing -> fail "no agency row for US"
     length (agencyProfiles ps).rows `shouldEqual` length ps
     g <- everySeat ctx "Conservative"
     profiles <- orThrow (agency ctx.gameboard ctx.presets (Seed 1) g "Aggressive" seatActors)
