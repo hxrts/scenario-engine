@@ -167,11 +167,11 @@ Each assertion checks one invariant from the Type System master table ([02 §9](
 | Representation consistency | [INV-09](02_type_system.md#inv-09) | Implemented for the estimator bound |
 | Signature completeness | [INV-10](02_type_system.md#inv-10) | Implemented |
 | Order independence | [INV-11](02_type_system.md#inv-11) | **Planned** per round. Tested by §14 test 3 |
-| Policy reproducibility | [INV-12](02_type_system.md#inv-12) | **Planned** |
+| Policy reproducibility | [INV-12](02_type_system.md#inv-12) | Not checked per round. Covered by §14 tests 2 and 13 |
 | Deterministic replay | [INV-13](02_type_system.md#inv-13) | Tested by §14 test 2 |
 | Resolution consistency | [INV-14](02_type_system.md#inv-14) | Tested by §14 test 12 |
-| Single authoritative state | [INV-15](02_type_system.md#inv-15) | **Planned** |
-| Information isolation | [INV-16](02_type_system.md#inv-16) | **Planned** |
+| Single authoritative state | [INV-15](02_type_system.md#inv-15) | Not checked per round. Structural: the engine's one round update holds a single World State |
+| Information isolation | [INV-16](02_type_system.md#inv-16) | **Planned**, deferred until players see different information |
 
 Simulator invariants [INV-29](02_type_system.md#inv-29) and [INV-30](02_type_system.md#inv-30) are checked by the handler suite, and [INV-31](02_type_system.md#inv-31) by §14 test 13. Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They hard-code no Resource, because a Resource can be produced, consumed, reserved, or issued by design, so a blanket "totals are constant" check would be wrong.
 
@@ -182,7 +182,7 @@ A failed assertion records its invariant ID and message with its round. The run 
 These tests transform a configuration in a controlled way. Those marked with a test number are implemented.
 
 - Reorder submissions ([INV-11](02_type_system.md#inv-11)), replay with the same seeds ([INV-13](02_type_system.md#inv-13)), withhold one signature ([INV-10](02_type_system.md#inv-10)), and change explicitness (§7.3): tests 3, 2 and 13, 10, and 12.
-- Change one seat Policy or one Market parameter: the `variant` and `counterfactual` derivations (§10.4).
+- Change one seat Policy or one Market parameter: the `variant` and `counterfactual` derivations (§10.3).
 - Remove all representative observations: Aggregates must follow their baselines ([INV-09](02_type_system.md#inv-09)). **Planned.**
 
 ### 7.3 Resolution-consistency test
@@ -253,7 +253,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200. 400 without a matching `confirm`. 404 |
 | `GET /api/compare?runs=a,b[&market=m]` | Compare a scenario set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `market` is unknown |
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
-| `GET /api/agency` | Agency analysis of a setting (§10.5): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
+| `GET /api/agency` | Agency analysis of a setting (§10.4): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
 
 Operation rules:
 
@@ -263,7 +263,7 @@ Operation rules:
 - **Resume.** Starts from the snapshot after the run's last completed round and updates the stored round count. The run keeps its ID.
 - **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
 
-Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual; these are API-only until then. The store interface supports save, retrieve, list, full round histories, resume, and archive or delete. **Planned:** labels.
+Dashboard controls exist for launch, resume, archive, and delete. **Planned:** dashboard controls for duplicate, rerun, variant, and counterfactual; these are API-only until then. The store interface supports save, retrieve, list, full round histories, resume, and archive or delete.
 
 ---
 
@@ -282,7 +282,7 @@ The page opens with a header of the run's facts. Its sections follow in order: k
 
 Standings rank 1 is the highest net worth, and equal net worths share a rank. Aggregates are residual representations, not players. An objective criterion is met, not met, or not evaluated; it is never reported as met when its series is empty.
 
-The round-by-round action counts, the Market, facility, and economy views, the representation and procedure records, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. **Planned** on this page: the lineage section, the representation and procedure views, an event inspector, and the flows, joint Proposals, capacities, and market access in the balance sheets.
+The round-by-round action counts, the Market, facility, and economy views, the representation and procedure records, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. **Planned** on this page: the representation and procedure views, and an event inspector.
 
 ### 9.3 Prepare
 
@@ -300,18 +300,14 @@ Comparison supports both correctness testing and balancing. The baseline is the 
 
 The Dashboard names each difference between runs that are not directly comparable (Gameboard or engine versions, round counts, units, Market definitions, seat presets). Incompatible configurations and metrics are flagged, never combined. Trajectories align by simulated time, without interpolation.
 
-**Planned:** a limit of two to eight runs, summaries for larger batches, and metric filters by Actor, Aggregate, or Market.
-
 ### 10.2 Views
 
 - **Trajectory:** one metric across runs, such as each Market's price or each player's net worth.
 - **Final state:** ending holdings side by side, with differing values highlighted.
-- **Difference from baseline:** the holdings that differ from the baseline, as changes. **Planned:** percentage differences.
+- **Difference from baseline:** the holdings that differ from the baseline, as changes.
 - **Configuration difference:** parameter differences, one row each, categorised as version, seat Policy, seed, or other. The other category holds deliberate changes such as overrides, so they are distinguished from the rest.
 
-**Planned** (Actor and whole-economy views): comparing any Actor's or Aggregate's holdings across runs, and whole-economy measures (demand, concentration, unfilled demand, Money distribution), so that a seat Policy's effect on one Actor can be told apart from a configuration that destabilises the economy.
-
-### 10.4 Counterfactual experiments
+### 10.3 Counterfactual experiments
 
 A **rerun** is the zero-change case: it reproduces the source's configuration and both seeds, so `recordsMatch: true` confirms that the source is reproducible (§8.1).
 
@@ -319,15 +315,15 @@ A **counterfactual** is the intervention case. It duplicates a run's resolved co
 
 With both seeds and every draw key fixed, the difference is the intervention's total modelled effect, including downstream consequences.
 
-### 10.5 Agency analysis
+### 10.4 Agency analysis
 
 For each Actor, the simulator replays the game with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_test_instance.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
 
 The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. **Planned:** the criteria results under each alternative, shown as an agency profile per role.
 
-### 10.6 Saved comparisons
+### 10.5 Saved comparisons
 
-The comparison's runs and baseline are carried in the route. **Planned:** persisting selections and display preferences as Dashboard state, and named scenario sets that reference immutable run IDs and never copy run data.
+The comparison's runs and baseline are carried in the route. **Planned:** named scenario sets that reference immutable run IDs and never copy run data (§11).
 
 ---
 
@@ -373,7 +369,7 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 11 (b) | Trade restriction, Fixture E2 | [Fixture E2](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction): the US enacts an `AccessBan` on China in round 2, in force from round 3, and China reciprocates, effective round 4. The fixture's values hold. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test): the reference setting instantiated with an implicit and an explicit government ([INV-14](02_type_system.md#inv-14)). |
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and snapshots with the pure run, and replay from the stored records. The run is identical ([INV-31](02_type_system.md#inv-31)). |
-| 14 | Agency | [§10.5](#105-agency-analysis) across every seat of the reference setting. Under the `RandomValid` baseline, every Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Actors with no measurable effect are pinned as balancing findings, so a setting change is noticed. |
+| 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference setting. Under the `RandomValid` baseline, every Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Actors with no measurable effect are pinned as balancing findings, so a setting change is noticed. |
 
 Unnumbered tests in the same suites: every preset plays 8 rounds with the invariants holding; a run resumed from its third snapshot matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 
