@@ -13,6 +13,7 @@ import Dashboard.Api (Loaded)
 import Dashboard.Components (fetched, loaded, metricChart, stackedBars, stale, statistic, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Entity (mkEntity)
+import Dashboard.Events (mkEvents)
 import Dashboard.Glossary (Lookup, emptyValue, glossaryContext)
 import Dashboard.Layout as Layout
 import Data.Array (index)
@@ -71,14 +72,14 @@ mkRunResults grid = do
     glossary <- useContext glossaryContext
     pure $ stale p.overview.busy $ loaded p.overview.value \o -> D.div
       { className: "flex min-w-0 flex-col gap-section"
-      , children: [ header glossary o.id o.facts, body { id: p.id, version: p.version } ]
+      , children: [ header glossary o.id o.facts, body { id: p.id, version: p.version, rounds: o.rounds } ]
       }
 
-type BodyProps = { id :: String, version :: Int }
+type BodyProps = { id :: String, version :: Int, rounds :: Int }
 
 -- | The sections, in the order of the five questions. Each has one purpose line.
 mkBody :: DataTable -> Component BodyProps
-mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResultsBody" \b -> React.do
+mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \events -> component "RunResultsBody" \b -> React.do
   let
     keyed path = b.id <> "/" <> path <> "@" <> show b.version
 
@@ -143,5 +144,6 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> component "RunResult
             , children: [ view Keys.balances (titled grid) ]
             }
         , entity { id: b.id, version: b.version }
+        , events { id: b.id, version: b.version, rounds: b.rounds }
         ]
     }

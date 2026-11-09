@@ -278,7 +278,7 @@ The page opens with a header of the run's facts. Its sections follow in order: k
 
 Standings rank 1 is the highest net worth, and equal net worths share a rank. Aggregates are residual representations, not players. An objective criterion is met, not met, or not evaluated; it is never reported as met when its series is empty.
 
-The run page shows the representation and procedure records. The round-by-round action counts, the Market, facility, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. **Planned** on this page: an event inspector.
+The run page shows the representation and procedure records. The round-by-round action counts, the Market, facility, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived. The event inspector lists one round's events in engine order, with a text filter.
 
 ### 9.3 Prepare
 

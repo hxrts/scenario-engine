@@ -105,7 +105,6 @@ test("the removed sections and the overview fields that left the page are absent
   for (const field of ["Engine", "Draws", "Rejected Proposals"]) // no longer served by the overview either
     await expect(page.getByText(field, { exact: true }), `no ${field} row`).toHaveCount(0);
   await expect(page.getByLabel("Round", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Event round", { exact: true })).toHaveCount(0);
 });
 test("clicking a run row selects it and shows its results on the same page, with the list still beside them", async ({ page }) => {
   await page.goto("/#/runs");
