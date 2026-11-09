@@ -60,3 +60,4 @@ intent-walk packages/views/src/Views/BalanceSheet.purs intentText a player-facin
 name-literal packages/views/src/Views/BalanceSheet.purs doneTable the balance sheet's own column headings, for a player and not a glossary name
 name-literal packages/views/src/Views/BalanceSheet.purs exchangeTable the balance sheet's own column headings, for a player and not a glossary name
 name-literal packages/views/src/Views/BalanceSheet.purs transformationTable the balance sheet's own column headings, for a player and not a glossary name
+hand-json apps/server/src/Server/OpenApi.purs obj an OpenAPI document is itself the output of the Shape interpreters, in a format no type here decodes

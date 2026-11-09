@@ -256,6 +256,10 @@ Dashboard controls exist for launch, resume, archive, delete, and the four deriv
 
 ---
 
+### 8.2 External services
+
+Speech transcription and the newspaper are built outside this repository and reach it over open HTTPS routes. Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its paths and methods from the route table and its schemas from the Shapes of the replies, so a route cannot be documented differently from how it behaves. The routes are unauthenticated: anyone with a session id can read every Actor's report and submit any seat's text.
+
 # Part IV: Dashboard
 
 ## 9. Pages

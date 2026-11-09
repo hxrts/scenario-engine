@@ -11,6 +11,8 @@ module Core.Shape
   , decodeJsonWith
   , Shape
   , Desc(..)
+  , jsonSchema
+  , schemaComponents
   , Codec
   , DField
   , DCtor
@@ -132,7 +134,7 @@ derive instance Eq TagForm
 
 type Codec a = { enc :: a -> Json, dec :: Json -> Either String a }
 
--- | The untyped description tree: what the prose interpreter reads.
+-- | The untyped description tree: what the prose and JSON Schema interpreters read.
 data Desc
   = DPrim String
   | DArray Desc
@@ -826,7 +828,7 @@ listOf s = (arrayOf s) { absent = const false, missing = Nothing }
 -- | A recursive description. `f` receives the description it defines; its codec reaches back into
 -- | it only when a value is read or written, so a recursive form is finite.
 recursive :: forall a. String -> (Shape a -> Shape a) -> Shape a
-recursive name f = mk unit
+recursive name f = (mk unit) { desc = (f (mk unit)).desc }
   where
   mk :: Unit -> Shape a
   mk _ =
@@ -835,6 +837,77 @@ recursive name f = mk unit
     , absent: \x -> (f (mk unit)).absent x
     , missing: Nothing
     }
+
+-- | The JSON Schema of a description, in the Snapshot format the API replies in. A recursive reference points
+-- | into `components/schemas`; `schemaComponents` gives the definitions a description needs.
+jsonSchema :: Desc -> Json
+jsonSchema = case _ of
+  DPrim "Int" -> typed "integer"
+  DPrim "Boolean" -> typed "boolean"
+  DPrim "null" -> typed "null"
+  DPrim "Json" -> obj []
+  DPrim _ -> typed "string"
+  DArray d -> obj [ Tuple "type" (fromString "array"), Tuple "items" (jsonSchema d) ]
+  DOpt d -> obj [ Tuple "anyOf" (fromArray [ jsonSchema d, typed "null" ]) ]
+  DRec name fields -> obj
+    [ Tuple "title" (fromString name)
+    , Tuple "type" (fromString "object")
+    , Tuple "properties" (obj (map (\f -> Tuple f.key (described f.desc (jsonSchema f.shape))) fields))
+    , Tuple "required" (fromArray (map (fromString <<< _.key) (Array.filter (not <<< isOptional <<< _.shape) fields)))
+    ]
+  DSum name _ ctors -> obj [ Tuple "title" (fromString name), Tuple "oneOf" (fromArray (map ctor ctors)) ]
+  DKeyed d -> obj [ Tuple "type" (fromString "object"), Tuple "additionalProperties" (jsonSchema d) ]
+  DTuple a b -> obj [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ jsonSchema a, jsonSchema b ]), Tuple "minItems" (fromNumber 2.0), Tuple "maxItems" (fromNumber 2.0) ]
+  DRef name -> obj [ Tuple "$ref" (fromString ("#/components/schemas/" <> name)) ]
+  where
+  typed t = obj [ Tuple "type" (fromString t) ]
+  obj = fromObject <<< Object.fromFoldable
+  isOptional = case _ of
+    DOpt _ -> true
+    _ -> false
+  described text schema = if text == "" then schema else maybe schema (fromObject <<< Object.insert "description" (fromString text)) (toObject schema)
+  ctor c = case c.form of
+    Tagged -> tagged c
+    OneKey -> obj [ Tuple "type" (fromString "object"), Tuple "properties" (obj [ Tuple c.tag (jsonSchema c.payload) ]), Tuple "required" (fromArray [ fromString c.tag ]), Tuple "maxProperties" (fromNumber 1.0) ]
+    KindArg -> obj [ Tuple "type" (fromString "string"), Tuple "pattern" (fromString ("^" <> c.tag <> ":")) ]
+    Bare -> obj [ Tuple "const" (fromString c.tag) ]
+    Literal -> jsonSchema c.payload
+    Mixed -> obj []
+  tagged c = obj
+    [ Tuple "type" (fromString "object")
+    , Tuple "properties"
+        ( obj
+            [ Tuple "tag" (obj [ Tuple "const" (fromString c.tag) ])
+            , Tuple "values"
+                ( obj
+                    ( if isUnit c.payload then [ Tuple "type" (fromString "array"), Tuple "maxItems" (fromNumber 0.0) ]
+                      else [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ jsonSchema c.payload ]), Tuple "minItems" (fromNumber 1.0), Tuple "maxItems" (fromNumber 1.0) ]
+                    )
+                )
+            ]
+        )
+    , Tuple "required" (fromArray [ fromString "tag", fromString "values" ])
+    ]
+
+-- | The named definitions that recursive references in a description resolve to.
+schemaComponents :: Desc -> Array (Tuple String Json)
+schemaComponents top = Array.nubByEq (\a b -> fst a == fst b) (Array.mapMaybe (\name -> Tuple name <<< jsonSchema <$> Array.find (named name) (walk top)) (refs (walk top)))
+  where
+  refs = Array.mapMaybe case _ of
+    DRef n -> Just n
+    _ -> Nothing
+  named n = case _ of
+    DSum m _ _ -> m == n
+    DRec m _ -> m == n
+    _ -> false
+  walk d = [ d ] <> case d of
+    DArray x -> walk x
+    DOpt x -> walk x
+    DKeyed x -> walk x
+    DTuple a b -> walk a <> walk b
+    DRec _ fs -> Array.concatMap (walk <<< _.shape) fs
+    DSum _ _ cs -> Array.concatMap (walk <<< _.payload) cs
+    _ -> []
 
 -- | The same values under another type, through a bijection: `fwd` reads, `back` writes.
 iso :: forall a b. (a -> b) -> (b -> a) -> Shape a -> Shape b

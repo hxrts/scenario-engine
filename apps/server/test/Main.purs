@@ -29,6 +29,7 @@ import Handlers.Api.Route (route)
 import Server.Stack (implement, newServerCache)
 import Test.Server.Api as Api
 import Test.Server.Gate as Gate
+import Test.Server.OpenApi as OpenApi
 import Test.Server.Sessions as Sessions
 import Test.Server.Http as HttpDevice
 import Schema.Run (DeriveKind(Counterfactual))
@@ -47,6 +48,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   HttpDevice.spec
   Gate.spec
   Sessions.spec
+  OpenApi.spec
   Api.spec
   Premises.spec
   Fixed.spec

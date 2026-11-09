@@ -19,6 +19,7 @@ module Handlers.Api.Route
   , errorShape
   , Access(..)
   , accessOf
+  , submissionShape
   , endpointAccess
   ) where
 
@@ -285,6 +286,7 @@ endpoints = table
         in { id, view, round }
   , "BalanceSheetLinks": get "/api/runs/:id/balancesheets" (capture "id" identity)
   , "BalanceSheet": (get "/api/runs/:id/balancesheet/:token" ((\id token -> { id, token }) <$> capture "id" _.id <*> capture "token" _.token)) { access = Open }
+  , "OpenApi": (get "/api/openapi/:service" (capture "service" identity)) { access = Open }
   , "RoundReport": (get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)) { access = Open }
   , "Compare": get "/api/compare"
       ado
@@ -351,8 +353,8 @@ wire :: ApiRequest -> Wire
 wire = sent <<< endpoints.write
 
 -- | Every endpoint with who may call it, for the test that walks them.
-endpointAccess :: Array { name :: String, method :: String, path :: String, access :: Access }
-endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinWith "/" (map fill r.path), access: r.access }) endpoints.rows
+endpointAccess :: Array { name :: String, method :: String, path :: String, pattern :: Array String, access :: Access }
+endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinWith "/" (map fill r.path), pattern: r.path, access: r.access }) endpoints.rows
   where
   fill s = case stripPrefix (Pattern ":") s of
     Just _ -> "1"

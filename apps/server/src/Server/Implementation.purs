@@ -16,9 +16,11 @@ import Effects.Cache (forgetRuns)
 import Handlers.Api.Route (wire)
 import Run (Run)
 import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
-import Server.Errors (Answer, apiReply, badRequest, ok)
+import Server.Errors (Answer, apiReply, badRequest, ok, notFound)
 import Effects.Launch (runExperiment)
 import Server.Launch (launch, launchBatch, serverRole, premiseInfo)
+import Data.Argonaut.Core (stringify)
+import Server.OpenApi (document, serviceOf)
 import Server.Sessions (sessionView, startSession, submitTranscript)
 import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, balanceSheetLinksView, balanceSheetView, roundReportView, runSummaries)
 import Server.Rows (SERVER)
@@ -46,6 +48,7 @@ answer premises request = do
     Actor id actor -> actorView id actor
     RunView r -> getView premises r
     RoundReport r -> roundReportView r.id r.round
+    OpenApi name -> maybe (notFound ("no service " <> name)) (\s -> pure (pure { status: 200, body: stringify (document s) })) (serviceOf name)
     BalanceSheetLinks id -> balanceSheetLinksView id
     BalanceSheet r -> balanceSheetView premises r.id r.token
     Compare r -> compareView premises r

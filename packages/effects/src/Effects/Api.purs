@@ -82,6 +82,7 @@ data ApiRequest
   | BalanceSheet { id :: String, token :: String }
   | RunView { id :: String, view :: View, round :: Maybe Int }
   | RoundReport { id :: String, round :: Int }
+  | OpenApi String
   | Compare { runs :: Array String, exchange :: Maybe String }
   | Agency AgencyQuery
   | AgencyDetail AgencyQuery

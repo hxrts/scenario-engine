@@ -53,6 +53,7 @@ _derived:
 _premises:
     spago run -p sp-cli --main Compile
     spago run -p sp-cli --main Transcript
+    spago run -p sp-server --main OpenApi
 
 # fmt-check, deps, layout, derived, build, test
 check: _fmt-check build _deps _layout _impurity _derived test _docs

@@ -65,6 +65,7 @@ nameOf = case _ of
   Archive _ -> "Archive"
   Unarchive _ -> "Unarchive"
   Delete _ -> "Delete"
+  OpenApi _ -> "OpenApi"
 
 examples :: Array (Tuple ApiRequest { method :: String, url :: String, body :: String })
 examples =
@@ -80,6 +81,7 @@ examples =
   , Tuple (RunView { id: "run-1", view: NetWorth, round: Nothing }) (g "/api/runs/run-1/networth")
   , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
   , Tuple (RoundReport { id: "run-1", round: 2 }) (g "/api/runs/run-1/rounds/2/report")
+  , Tuple (OpenApi "narrative.json") (g "/api/openapi/narrative.json")
   , Tuple (GetSession "run-1") (g "/api/sessions/run-1")
   , Tuple (BalanceSheetLinks "run-1") (g "/api/runs/run-1/balancesheets")
   , Tuple (BalanceSheet { id: "run-1", token: "abc" }) (g "/api/runs/run-1/balancesheet/abc")

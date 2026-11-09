@@ -15,6 +15,7 @@ const roots = new Set([
   "apps/cli/src/Main.purs",
   "apps/cli/src/Compile.purs",
   "apps/cli/src/Transcript.purs",
+  "apps/server/src/OpenApi.purs",
   "apps/cli/src/Cli/Stack.purs",
 ]);
 const isRoot = (f) => roots.has(f);

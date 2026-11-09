@@ -211,7 +211,7 @@ Most of what a person or a program touches in this system is produced from a sma
 
  Shape                ── Authored codec ─────► Premise files, fixtures
  Shape                ── Snapshot codec ─────► stored Runs, model replies
- Shape                ── description ────────► prose, a model's action list
+ Shape                ── description ────────► prose, a model's action list, JSON Schema, OpenAPI
 
  ONE STRATEGY LANGUAGE
 

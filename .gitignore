@@ -6,6 +6,7 @@ dist/
 .DS_Store
 .direnv/
 .env
+/openapi/
 work/
 .spec-results
 test-results/
