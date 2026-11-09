@@ -18,6 +18,7 @@ import World.PossibleWorld.Reconcile (reconcile)
 import Schema.PossibleWorld (Bound(..), Fallback(..), PossibleWorld, InstantiationConfig, Measure(..), MetricRef, capacityCategory)
 import Schema.PossibleWorld as Schema
 import World.Error (ValidationError(..))
+import Core.Num as Q
 import Laws.Query (aggregateOf, isAggregate)
 import Laws.Types (DrawSource(..), Actor, ActorId, Id(..), Exchange, ExchangeId, StrategyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
 import Laws.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld)
@@ -36,7 +37,7 @@ import Foreign.Object as Object
 validatePossibleWorld :: PossibleWorld -> InstantiationConfig -> Either (Array ValidationError) PossibleWorld
 validatePossibleWorld gb config =
   let
-    structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount
+    structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount <> definitions <> estimators <> duplicateAdjustments <> openingState
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.explicitActors)) else []
     errors = structural <> feasibility <> consistency
@@ -92,6 +93,22 @@ validatePossibleWorld gb config =
   procedures = concatMap
     (\x -> if any (\p -> not (all (_ `elem` x.actor.capabilities) p.authorizes)) (values x.aggregate.procedures) then [ ProcedureExceedsAuthority x.actor.id ] else [])
     aggregates
+  -- each Actor is a defined Actor or an Aggregate, never both and never neither
+  definitions = concatMap definition actors
+  definition e = case Map.lookup e.id gb.explicitActors, isAggregate e of
+    Just _, true -> [ DefinitionAndAggregate e.id ]
+    -- an engine-only world, such as a fixture's, defines no Actors at all
+    Nothing, false -> if Map.isEmpty gb.explicitActors then [] else [ NoDefinition e.id ]
+    Just d, false -> (if null e.capabilities then [ NoCapabilities e.id ] else []) <> (if d.dependency == "" then [ NoDependency e.id ] else [])
+    Nothing, true -> []
+  estimators = map (BadEstimator <<< _.id) (filter (not <<< estimatorInRange <<< _.estimator) gb.schemes)
+  estimatorInRange e = e.reference >= Q.zero && e.shrinkage >= Q.zero && e.shrinkage <= Q.one && e.noiseSpread >= Q.zero && maybe true (\b -> b.lo <= b.hi) e.deviationBound
+  duplicateAdjustments = concatMap (\s -> map (DuplicateAdjustment s.id) (filter (adjustedElsewhere s) s.eligibleActors)) gb.schemes
+  adjustedElsewhere s e = any (\o -> o.id /= s.id && o.target == s.target && o.domain == s.domain && o.observes == s.observes && e `elem` o.eligibleActors) gb.schemes
+  openingState = concatMap openingExchange (values w.exchanges) <> map (NegativeHolding <<< _.id) (filter (any (_ < Q.zero) <<< values <<< _.accounts) actors)
+  openingExchange m
+    | m.position < m.cost.domain.lo || m.position > m.cost.domain.hi || any (_ < Q.zero) (values m.reserves) = [ InfeasibleExchange (show m.id) ]
+    | otherwise = []
   roundCount =
     if config.rounds < gb.rounds.min || config.rounds > gb.rounds.max then [ RoundsOutOfRange { rounds: config.rounds, min: gb.rounds.min, max: gb.rounds.max } ]
     else []

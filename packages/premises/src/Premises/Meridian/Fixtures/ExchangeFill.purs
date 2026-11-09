@@ -1,7 +1,7 @@
 -- | Golden fixtures for direct exchange exchange (docs/05_meridian.md §21, Fixture A): two
 -- | Energy traders on the Atlantic Exchange, with and without a limit price. Shares the Energy
 -- | Exchanges of §3.1 with the other families through `Premises.Meridian.Fixtures.Common`.
-module Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2) where
+module Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2, fixtureFBound, fixtureFShort) where
 
 import Prelude (map, negate)
 
@@ -23,3 +23,10 @@ fixtureA = fixture "A" (defaultFixture { cut = cut { actors = atlanticTraders },
 fixtureA2 :: Tuple String Json
 fixtureA2 = fixture "A2" (defaultFixture { cut = cut { actors = atlanticTraders }, candidateTransactions = Just ([ candidateTransaction { author: n.us, intents: [ trade { exchange: n.energyAtlantic, quantity: q 10, limit: Just (q "2.04") } ] }, candidateTransaction { author: n.de, intents: [ trade { exchange: n.energyAtlantic, quantity: q (-5), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := 260, n.energy := 70 ]), Tuple n.de (keyed [ n.money := "134.75", n.energy := 33 ]) ]), reserves = balances [ Tuple n.energyAtlantic (keyed [ n.money := "690.25", n.energy := 355 ]) ], rejected = Just ([ ref n.us ]) })) })
 
+-- | Fixture F-bound: sales past the Exchange's lower bound (x = -80). Wanted -108, so 80 fills, split 70 : 38.
+fixtureFBound :: Tuple String Json
+fixtureFBound = fixture "F-bound" (defaultFixture { cut = cut { actors = atlanticTraders }, candidateTransactions = Just ([ candidateTransaction { author: n.us, intents: [ trade { exchange: n.energyAtlantic, quantity: q (-70), limit: Nothing } ] }, candidateTransaction { author: n.de, intents: [ trade { exchange: n.energyAtlantic, quantity: q (-38), limit: Nothing } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := "322.2223", n.energy := "18.1481" ]), Tuple n.de (keyed [ n.money := "158.7777", n.energy := "9.8519" ]) ]) })) })
+
+-- | Fixture F-short: one Actor's order exceeding its Money. Escrow 600 against 260 scales it by 0.4333.
+fixtureFShort :: Tuple String Json
+fixtureFShort = fixture "F-short" (defaultFixture { cut = cut { actors = atlanticTraders }, candidateTransactions = Just ([ candidateTransaction { author: n.us, intents: [ trade { exchange: n.energyAtlantic, quantity: q 200, limit: Just (q 3) } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.us (keyed [ n.money := "11.5804", n.energy := "156.66" ]) ]) })) })

@@ -452,7 +452,8 @@ Each fixture is a small world filtered from Meridian, with the Actors it needs a
 - **G5.** SA sends 20 E to JP and JP sends 48 M to SA. JP sends 10 M to SHIP. Signers JP and SHIP. SA 203 M, 90 E. JP 92 M, 60 E. SHIP 120 M, 65 E.
 - **G5-unsigned.** As G5, SHIP does not sign. Candidate Transaction lapses. No balance changes: SA 155 M, 110 E. JP 150 M, 40 E. SHIP 110 M, 65 E.
 
-**Planned:** variants with Energy demand exceeding a node's operational bound, and with one Actor's actions exceeding its Money (Fixture F).
+- **F-bound.** US and DE sell 70 and 38 E on the Atlantic Exchange, wanting x = −108 against its bound of −80. 80 fills, split 70 : 38 into 51.8519 and 28.1481, at a price of 1.2. US ends at 322.2223 M and 18.1481 E, DE at 158.7777 M and 9.8519 E.
+- **F-short.** US orders 200 E at a limit of 3, escrowing 600 M against the 260 it holds. Funding scales the order by 0.4333 to 86.66 E, at 2.8666 M/E. US ends at 11.5804 M and 156.66 E.
 
 ## 17. Differences from the source
 

@@ -353,6 +353,30 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     rejects "MissingFallback: a non-required explicit Actor with no fallback"
       (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { fallback = Nothing }) g) c)
       (MissingFallback (Id "DE"))
+    rejects "DefinitionAndAggregate: an Aggregate that also has a definition"
+      (\g c -> Tuple (g { explicitActors = Map.insert (Id "EU") (fromMaybe' (\_ -> unsafeCrashWith "no DE") (Map.lookup (Id "DE") g.explicitActors)) g.explicitActors }) c)
+      (DefinitionAndAggregate (Id "EU"))
+    rejects "NoDefinition: an Actor with neither a definition nor an aggregate block"
+      (\g c -> Tuple (g { explicitActors = Map.delete (Id "DE") g.explicitActors }) c)
+      (NoDefinition (Id "DE"))
+    rejects "NoCapabilities: a defined Actor that can do nothing"
+      (editWorld \w -> w { actors = Map.update (Just <<< _ { capabilities = [] }) (Id "DE") w.actors })
+      (NoCapabilities (Id "DE"))
+    rejects "NoDependency: a defined Actor that depends on nothing"
+      (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { dependency = "" }) g) c)
+      (NoDependency (Id "DE"))
+    rejects "NegativeHolding: an Actor opening below zero"
+      (editWorld \w -> w { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "M") (Q.fromInt (-1)) a.accounts }) (Id "DE") w.actors })
+      (NegativeHolding (Id "DE"))
+    rejects "InfeasibleExchange: a position outside its cost domain"
+      (editWorld \w -> w { exchanges = Map.update (Just <<< _ { position = Q.fromInt 1000000 }) (Id "energy-atlantic") w.exchanges })
+      (InfeasibleExchange "energy-atlantic")
+    rejects "BadEstimator: a shrinkage above one"
+      (\g c -> Tuple (g { schemes = map (\s -> s { estimator = s.estimator { shrinkage = Q.fromInt 2 } }) g.schemes }) c)
+      (BadEstimator "sme-energy-sample")
+    rejects "DuplicateAdjustment: two schemes adjusting the same target and domain from one Actor"
+      (\g c -> Tuple (g { schemes = g.schemes <> map (\s -> s { id = "copy" }) g.schemes }) c)
+      (DuplicateAdjustment "copy" (Id "SME"))
     rejects "MissingObjective: an explicit Actor with no objective"
       (\g c -> Tuple (onExplicitActor (Id "DE") (\d -> d { objective = Nothing }) g) c)
       (MissingObjective (Id "DE"))

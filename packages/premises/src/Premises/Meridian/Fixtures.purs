@@ -15,7 +15,7 @@ import Data.Tuple (Tuple)
 import Premises.Meridian.Fixtures.Circulation (fixtureCirculation)
 import Premises.Meridian.Fixtures.ConflictingActions (fixtureF)
 import Premises.Meridian.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4)
-import Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2)
+import Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2, fixtureFBound, fixtureFShort)
 import Premises.Meridian.Fixtures.NonPlayableResponse (fixtureD, fixtureDMinor)
 import Premises.Meridian.Fixtures.Reservation (fixtureR, fixtureRAlone)
 import Premises.Meridian.Fixtures.SignedCandidateTransactions (fixtureG1, fixtureG2, fixtureG3Ban, fixtureG3, fixtureG4, fixtureG5Unsigned, fixtureG5)
@@ -26,6 +26,8 @@ fixtures :: Array (Tuple String Json)
 fixtures =
   [ fixtureA
   , fixtureA2
+  , fixtureFBound
+  , fixtureFShort
   , fixtureB1
   , fixtureB2
   , fixtureB2Pool

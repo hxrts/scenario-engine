@@ -31,6 +31,14 @@ data ValidationError
   | SchemeTargetNotAggregate String ActorId -- a Representation scheme's target is not an Aggregate
   | RoundsOutOfRange { rounds :: Int, min :: Int, max :: Int }
   | NegativeDelay TransformationId
+  | DefinitionAndAggregate ActorId -- an Actor has both a definition and an aggregate block
+  | NoDefinition ActorId -- an Actor has neither
+  | NoCapabilities ActorId -- a defined Actor can do nothing
+  | NoDependency ActorId -- a defined Actor depends on nothing
+  | BadEstimator String -- a Representation scheme's estimator is out of range
+  | DuplicateAdjustment String ActorId -- two schemes adjust one target and domain from one Actor
+  | InfeasibleExchange String -- an Exchange's opening position or reserves cannot stand
+  | NegativeHolding ActorId -- an Actor opens with a negative holding
 
 derive instance Eq ValidationError
 
@@ -51,6 +59,14 @@ instance Show ValidationError where
     ResolutionInconsistent e ds -> "making " <> show e <> " implicit changes the economy: " <> show ds
     CoverageNotAggregate a agg -> "coverage fallback of " <> show a <> " names " <> show agg <> ", which is not an Aggregate"
     SchemeTargetNotAggregate s t -> "scheme " <> s <> " targets " <> show t <> ", which is not an Aggregate"
+    DefinitionAndAggregate e -> "Actor has both a definition and an aggregate block: " <> show e
+    NoDefinition e -> "Actor has neither a definition nor an aggregate block: " <> show e
+    NoCapabilities e -> "Actor has no capabilities: " <> show e
+    NoDependency e -> "Actor declares no dependency: " <> show e
+    BadEstimator s -> "Representation scheme has an estimator out of range: " <> s
+    DuplicateAdjustment s e -> "Representation scheme " <> s <> " adjusts what another scheme already adjusts from " <> show e
+    InfeasibleExchange m -> "Exchange cannot open as configured: " <> m
+    NegativeHolding e -> "Actor opens with a negative holding: " <> show e
     NegativeDelay t -> "transformation " <> show t <> " has a negative delay"
     RoundsOutOfRange r -> "configured " <> show r.rounds <> " rounds is outside the supported range " <> show r.min <> " to " <> show r.max
 
