@@ -17,7 +17,8 @@ import Handlers.Api.Route (wire)
 import Run (Run)
 import Server.Derive (deleteOne, deriveRun, resumeRun, setArchive, stepRun)
 import Server.Errors (Answer, apiReply, badRequest, ok)
-import Server.Launch (launch, launchBatch, settingInfo)
+import Effects.Launch (runExperiment)
+import Server.Launch (launch, launchBatch, serverRole, settingInfo)
 import Server.Read (agencyDetailView, agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Sets (deleteScenarioSet, renameScenarioSet, saveSet, setsView)
@@ -49,6 +50,7 @@ answer settings request = do
     Derive { id, body } -> deriveRun settings id body
     Resume { id, rounds } -> resumeRun settings id rounds
     Step id -> stepRun settings id
+    RunExperiment r -> either (pure <<< Left) (\p -> runExperiment serverRole p r) (chosen settings r.setting) >>= either badRequest (ok Keys.experiment)
     ListScenarioSets -> setsView
     SaveScenarioSet set -> saveSet set
     RenameScenarioSet r -> renameScenarioSet r

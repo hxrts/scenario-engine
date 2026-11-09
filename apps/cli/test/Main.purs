@@ -19,7 +19,7 @@ import Run (Run, case_, on, run)
 import Type.Row (type (+))
 import Testkit.Devices (capturedConsole, memoryFiles)
 
-import Handlers.Store (validRunId)
+import Effects.Store (validRunId)
 import Options (runFlags, sessionFlags)
 import Flags (parseWith)
 import Test.Spec (describe, it)

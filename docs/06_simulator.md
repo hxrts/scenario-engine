@@ -252,6 +252,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency` | Agency analysis of a setting (§10.4): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
 | `GET /api/agency/detail` | The same analysis, beyond its table: each Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
+| `POST /api/experiments` | Run a Variant Experiment (§11) and save its runs as a named set. | 200 with the set and its run IDs. 400 for a name in use, an empty experiment, a bad round count, or a game that does not start. |
 | `GET /api/sets` | The named scenario sets. | 200 with the sets. |
 | `POST /api/sets` | Save a set: `name`, `baseline`, `runs`. | 200 with the set. 400 for a blank name, no runs, a baseline outside the runs, or an unknown run. 409 for a name in use. |
 | `POST /api/sets/:name/rename` | Rename a set: `name`. | 200 with the new name. 400 for a blank name. 404 for an unknown set. 409 for a name in use. |
@@ -333,11 +334,11 @@ The comparison's runs and baseline are carried in the route. A named scenario se
 
 ## 11. Experiments
 
-**Planned as a launcher.** Experiments run today as analysis functions that compose the simulation, score its results with the checks, and present them through the views. `POST /api/batch` plays one run per setting, but no CLI or API yet generates a batch of parameter variants. The target is a **Variant Experiment**: one specification for each declared parameter value, every resulting game run and saved, and the runs opened as a scenario set. Its kinds are single-parameter (one parameter over a list of values), multi-parameter (controlled combinations), seat-Policy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). The Dashboard should also separate the variation caused by each source. **Planned.**
+A **Variant Experiment** generates one specification for each declared parameter value, runs and saves every resulting game, and opens the runs as a named scenario set (`POST /api/experiments`, and `experiment <setting> --parameter name --values a,b` in the CLI). Every run uses one player seed, drawn once if none is given. Analysis functions also compose the simulation directly, scoring results with the checks and presenting them through the views, and `POST /api/batch` plays one run per setting. Its kinds are single-parameter (one parameter over a list of values), multi-parameter (controlled combinations), seat-Policy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). The Dashboard should also separate the variation caused by each source. **Planned.**
 
 ## 12. Correctness Versus Gameplay Quality
 
-Correctness is established by the assertions (§7) and the mandatory tests (§14). The gameplay questions are in [01 Evaluation](01_overview.md#6-evaluation), and playtesting answers them. The Dashboard computes three indicators today: action counts, the balance measures (spread and Gini), and objective criteria. Others are **Planned**.
+Correctness is established by the assertions (§7) and the mandatory tests (§14). The gameplay questions are in [01 Evaluation](01_overview.md#6-evaluation), and playtesting answers them. The Dashboard computes three indicators today: action counts, the balance measures (spread and Gini), and objective criteria.
 
 ---
 

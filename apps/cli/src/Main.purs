@@ -8,7 +8,8 @@ import Prelude
 import Adapters.Exit (fail, usageError)
 import Cli.Session (Options, prepare, session)
 import Cli.Simulate (presets, simulation)
-import Cli.Stack (runSession, runSystem)
+import Cli.Experiment (experiment, loadSetting)
+import Cli.Stack (runLaunches, runSession, runSystem)
 import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
@@ -17,7 +18,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Flags (parseWith, usageOf)
 import Node.Process (argv)
-import Options (runFlags, sessionFlags)
+import Options (experimentFlags, experimentOf, runFlags, sessionFlags)
 
 main :: Effect Unit
 main = do
@@ -31,8 +32,17 @@ main = do
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: setting, tail: flags } -> either usage (launchAff_ <<< live) (parseWith (sessionFlags setting) flags)
       Nothing -> usage "session needs a setting, e.g. session meridian"
+    Just { head: "experiment", tail: rest } -> case uncons rest of
+      Just { head: setting, tail: flags } -> case parseWith (experimentFlags setting) flags >>= experimentOf of
+        Left e -> usage e
+        Right o -> launchAff_
+          ( runSystem (loadSetting o.setting) >>= case _ of
+              Left e -> liftEffect (fail e)
+              Right parts -> runLaunches o.db (experiment o.request parts) >>= orFail
+          )
+      Nothing -> usage "experiment needs a setting, e.g. experiment meridian"
     Just { head: "presets" } -> launchAff_ (runSystem presets)
-    _ -> usage "expected a command: run, session or presets"
+    _ -> usage "expected a command: run, session, experiment or presets"
 
 live :: Options -> Aff Unit
 live o = runSystem (prepare o) >>= case _ of
@@ -46,6 +56,7 @@ usage :: String -> Effect Unit
 usage = usageError
   [ "usage: run <setting> " <> usageOf runFlags
   , "       session <setting> " <> usageOf (sessionFlags "")
+  , "       experiment <setting> " <> usageOf (experimentFlags "")
   , "  e.g. just sim meridian --preset Conservative --rounds 5"
   , "       just session meridian --humans US --rounds 3"
   ]

@@ -14,6 +14,7 @@ module Views.Keys
   , sets
   , scenarioSet
   , renamedSet
+  , experiment
   , overview
   , balances
   , markets
@@ -196,6 +197,9 @@ sets = viewShape
 
 scenarioSet :: Shape { name :: String, baseline :: String, runs :: Array String }
 scenarioSet = viewShape
+
+experiment :: Shape { set :: String, runs :: Array String }
+experiment = viewShape
 
 renamedSet :: Shape { name :: String }
 renamedSet = viewShape

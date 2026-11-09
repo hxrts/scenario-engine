@@ -11,6 +11,8 @@ module Effects.Store
   , setArchived
   , deleteRun
   , startRun
+  , validRunId
+  , checkRunId
   , createSet
   , renameSet
   , deleteSet
@@ -19,7 +21,8 @@ module Effects.Store
 import Prelude
 
 import Schema.Run (RunStatus(..), Spec)
-import Data.Array (any)
+import Data.Array (all, any, length, uncons)
+import Data.String.CodeUnits (toCharArray)
 import Data.Either (Either(..), either)
 import Effects.Observe (listRuns)
 import Data.Maybe (Maybe(..))
@@ -74,3 +77,19 @@ renameSet name to = lift _store (RenameSet name to identity)
 
 deleteSet :: forall r. String -> Run (STORE + r) Int
 deleteSet name = lift _store (DeleteSet name identity)
+
+-- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
+-- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
+validRunId :: String -> Boolean
+validRunId s = case uncons cs of
+  Just { head: h } -> length cs <= 64 && alnum h && all (\c -> alnum c || c == '-' || c == '_') cs
+  Nothing -> false
+  where
+  cs = toCharArray s
+  alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+
+-- | A minted id, or why it may not name a run.
+checkRunId :: String -> Either String String
+checkRunId id
+  | validRunId id = Right id
+  | otherwise = Left ("not a valid run id: " <> id)

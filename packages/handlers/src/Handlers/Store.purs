@@ -2,14 +2,13 @@
 -- | the `STORE` writes (`Effects.Store`), and the `RECORD` operation, which saves each round as it
 -- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder`,
 -- | the callback form the seat runners take. The handler does the logic: the round's assertions, and the run
--- | identity rule (`validRunId`). The backend is the set of store operations over typed values
+-- | identity rule (`Effects.Store.validRunId`). The backend is the set of store operations over typed values
 -- | (`Handlers.SqlStore.sqlStore`, over a SQL device); it carries typed values. Runs are
 -- | append-only, and the metric version is recorded with each value.
 module Handlers.Store
   ( StoreBackend
   , AppendRound
   , Metric
-  , validRunId
   , startRun
   , openRun
   , runStore
@@ -28,10 +27,8 @@ import Schema.Joint (Transcript)
 import Schema.Run (RunStatus, Spec)
 import Handlers.Seats (RecordSink)
 import Core.World (RoundResult, RoundRecord, WorldState)
-import Data.Array (all, length, uncons)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Data.String.CodeUnits (toCharArray)
 import Effect (Effect)
 import Effect.Exception (Error, message)
 import Effect.Ref as Ref
@@ -102,16 +99,6 @@ runStore b = run (case_ # on _store (interpretStore b))
 -- | Run a read program over a backend. A read program has the `OBSERVE` row only, so it writes nothing.
 runObserve :: forall a. StoreBackend -> Run (OBSERVE + ()) a -> Effect a
 runObserve b = run (case_ # on _observe (interpretObserve b))
-
--- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
--- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
-validRunId :: String -> Boolean
-validRunId s = case uncons cs of
-  Just { head: h } -> length cs <= 64 && alnum h && all (\c -> alnum c || c == '-' || c == '_') cs
-  Nothing -> false
-  where
-  cs = toCharArray s
-  alnum c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 
 -- | Register a new run, or say why it cannot be: its id is already in the store.
 startRun :: StoreBackend -> NewRun -> Effect (Either String Unit)

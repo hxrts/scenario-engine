@@ -44,6 +44,7 @@ import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
 import Effects.Signatures (ScenarioSet)
+import Game.Experiment (experimentRequestShape)
 import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -273,6 +274,7 @@ endpoints = table
         in { runs, market }
   , "Agency": get "/api/agency" agencyQuery
   , "AgencyDetail": get "/api/agency/detail" agencyQuery
+  , "RunExperiment": post "/api/experiments" (bodyOf experimentRequestShape identity)
   , "ListScenarioSets": get "/api/sets" (pure unit)
   , "SaveScenarioSet": post "/api/sets" (bodyOf scenarioSetShape identity)
   , "RenameScenarioSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))

@@ -21,6 +21,7 @@ module Effects.Api
 import Prelude
 
 import Schema.Run (DeriveKind)
+import Game.Experiment (ExperimentRequest)
 import Effects.Signatures (ScenarioSet)
 import Schema.View (View)
 import Data.Generic.Rep (class Generic)
@@ -76,6 +77,7 @@ data ApiRequest
   | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
   | Step String
+  | RunExperiment ExperimentRequest
   | ListScenarioSets
   | SaveScenarioSet ScenarioSet
   | RenameScenarioSet { name :: String, to :: String }

@@ -31,12 +31,12 @@ import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
 import Effects.Observe (listRuns, readManifest, readRounds)
-import Effects.Store (createRun, failRun, setStatus, setSpec)
+import Effects.Store (validRunId, createRun, failRun, setStatus, setSpec)
 import Foreign.Object as Object
 import Game.Setting (GameboardParts)
 import Game.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
-import Handlers.Store (StoreBackend, runObserve, runStore, validRunId)
+import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
 import Server.Cache (cached, cachedAgency)
 import Server.Stack (ServerCache, implement, newServerCache, runServer, systemDevices)
@@ -170,6 +170,18 @@ spec = describe "API status rules, startup and cache" do
     r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "DELETE", path: "/api/runs/run-1", query: Object.singleton "confirm" "run-1", body: "" })
     r.status `shouldEqual` 409
     r.body `shouldSatisfy` contains (Pattern "solo")
+
+  it "a single-parameter experiment saves one run per value and one named set, each reproducible" do
+    env <- setup
+    let body = "{\"name\":\"sweep\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2,\"experiment\":{\"type\":\"parameters\",\"axes\":[{\"name\":\"eu-matching-tariff\",\"values\":[\"1\",\"2\",\"3\"]}]}}"
+    out <- env.api "POST" "/api/experiments" body
+    out.status `shouldEqual` 200
+    out.body `shouldEqual` "{\"set\":\"sweep\",\"runs\":[\"run-1\",\"run-2\",\"run-3\"]}"
+    sets <- env.api "GET" "/api/sets" ""
+    sets.body `shouldSatisfy` contains (Pattern "\"baseline\":\"run-1\"")
+    rerun <- env.api "POST" "/api/runs/run-2/derive" "{\"kind\":\"rerun\"}"
+    rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+    (env.api "POST" "/api/experiments" body <#> _.status) >>= (_ `shouldEqual` 400)
 
   it "a step plays one round of a run short of its target, the same round extend plays; a run at its target is refused" do
     env <- setup

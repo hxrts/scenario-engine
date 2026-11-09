@@ -6,6 +6,7 @@ module Test.Handlers.Route (spec) where
 import Prelude
 
 import Schema.Run (DeriveKind(..))
+import Game.Experiment (Experiment(..))
 import Schema.View (View(..), allViews, viewName)
 import Data.Argonaut.Core (fromString)
 import Data.Array (nub, sort)
@@ -49,6 +50,7 @@ nameOf = case _ of
   Derive _ -> "Derive"
   Resume _ -> "Resume"
   Step _ -> "Step"
+  RunExperiment _ -> "RunExperiment"
   ListScenarioSets -> "ListScenarioSets"
   SaveScenarioSet _ -> "SaveScenarioSet"
   RenameScenarioSet _ -> "RenameScenarioSet"
@@ -80,6 +82,7 @@ examples =
       (p "/api/runs/run-1/derive" "{\"kind\":\"duplicate\",\"overrides\":\"o\"}")
   , Tuple (Resume { id: "run-1", rounds: 9 }) (p "/api/runs/run-1/resume" "{\"rounds\":9}")
   , Tuple (Step "run-1") (p "/api/runs/run-1/step" "{}")
+  , Tuple (RunExperiment { setting: Nothing, name: "s", preset: "Passive", playerSeed: Just 1, rounds: Nothing, experiment: Parameters [] }) (p "/api/experiments" "{\"experiment\":{\"type\":\"parameters\"},\"name\":\"s\",\"playerSeed\":1,\"preset\":\"Passive\"}")
   , Tuple ListScenarioSets (g "/api/sets")
   , Tuple (SaveScenarioSet { name: "a", baseline: "run-1", runs: [ "run-1" ] }) (p "/api/sets" "{\"baseline\":\"run-1\",\"name\":\"a\",\"runs\":[\"run-1\"]}")
   , Tuple (RenameScenarioSet { name: "a", to: "b" }) (p "/api/sets/a/rename" "{\"name\":\"b\"}")

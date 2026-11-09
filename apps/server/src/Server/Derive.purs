@@ -29,7 +29,8 @@ import Effects.Observe (readManifest, readRounds)
 import Effects.Store (deleteRun, setArchived)
 import Views.Keys as Keys
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
-import Server.Launch (freshRunId, serverRole, start)
+import Effects.Launch (freshRunId, start)
+import Server.Launch (serverRole)
 import Game.Setting (GameboardParts, Setting(..))
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
@@ -81,7 +82,7 @@ deriveFromRecipe settings sourceId body info = do
             Right _ | kind == Variant, Just bad <- outOfRange setting -> badRequest bad
             Right recipe -> do
               let name = fromMaybe (info.name <> " (" <> show kind <> ")") body.name
-              started <- start setting
+              started <- start serverRole setting
                 { name
                 , preset: recipe.preset
                 , playerSeed: recipe.playerSeed
