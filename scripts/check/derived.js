@@ -164,7 +164,7 @@ const specFile = "packages/schema/src/Schema/Run.purs";
 
 const inTest = (f) => /\/test\//.test(f);
 const inSrc = (f) => /\/src\//.test(f);
-const bannedWords = /\b(region|carrier|deployment|deal|military|tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|meridian)/i;
+const bannedWords = /\b(region|carrier|deployment|deal|military|tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|meridian|capacit)/i;
 const enginePath = "packages/core/src/Core/Engine/";
 const shapeFile = "packages/core/src/Core/Shape.purs";
 const header = "(header)";
