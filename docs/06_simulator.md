@@ -216,7 +216,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 **Rejection reasons.** A `RejectReason` is stored as a structured value, so a stored event reads back equal to the event that was recorded. Its display text is derived from the value when shown and is not stored.
 
-**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 1, and there are no migrations: a change to the schema starts a new store.
+**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 1, and there are no migrations: a change to the schema starts a new store. The one exception is additive: `scenario_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
 
 | Table | Columns | Key |
 |---|---|---|
@@ -252,6 +252,10 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
 | `GET /api/agency` | Agency analysis of a setting (§10.4): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown setting, a bad seed, or an unknown preset |
 | `GET /api/agency/detail` | The same analysis, beyond its table: each Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
+| `GET /api/sets` | The named scenario sets. | 200 with the sets. |
+| `POST /api/sets` | Save a set: `name`, `baseline`, `runs`. | 200 with the set. 400 for a blank name, no runs, a baseline outside the runs, or an unknown run. 409 for a name in use. |
+| `POST /api/sets/:name/rename` | Rename a set: `name`. | 200 with the new name. 400 for a blank name. 404 for an unknown set. 409 for a name in use. |
+| `DELETE /api/sets/:name` | Delete a set. Its runs are untouched. | 200 with the name. 404 for an unknown set. |
 
 Operation rules:
 
@@ -321,7 +325,7 @@ The Compare page's **Agency (fixed baseline)** tab shows one row per Actor under
 
 ### 10.5 Saved comparisons
 
-The comparison's runs and baseline are carried in the route. **Planned:** named scenario sets that reference immutable run IDs and never copy run data (§11).
+The comparison's runs and baseline are carried in the route. A named scenario set stores a name, the IDs of immutable runs, and the baseline, and never copies run data. Deleting a run a set names is refused with a 409 naming the set. The Compare page opens, saves, renames, and deletes sets.
 
 ---
 

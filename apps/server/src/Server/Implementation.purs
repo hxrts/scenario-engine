@@ -20,6 +20,7 @@ import Server.Errors (Answer, apiReply, badRequest, ok)
 import Server.Launch (launch, launchBatch, settingInfo)
 import Server.Read (agencyDetailView, agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 import Server.Rows (SERVER)
+import Server.Sets (deleteScenarioSet, renameScenarioSet, saveSet, setsView)
 import Server.Settings (Settings, chosen)
 import Views.Glossary (glossary)
 import Views.Keys as Keys
@@ -48,6 +49,10 @@ answer settings request = do
     Derive { id, body } -> deriveRun settings id body
     Resume { id, rounds } -> resumeRun settings id rounds
     Step id -> stepRun settings id
+    ListScenarioSets -> setsView
+    SaveScenarioSet set -> saveSet set
+    RenameScenarioSet r -> renameScenarioSet r
+    DeleteScenarioSet name -> deleteScenarioSet name
     Archive id -> setArchive id true
     Unarchive id -> setArchive id false
     Delete { id, confirm } -> deleteOne id confirm

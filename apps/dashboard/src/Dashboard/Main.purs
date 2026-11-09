@@ -15,6 +15,7 @@ import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
 import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, selected, summary, validate)
 import Dashboard.Layout as Layout
+import Dashboard.Sets (mkSets)
 import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
 import Dashboard.Route (Route(..), href, navigate, route)
@@ -304,6 +305,7 @@ mkCompare :: DataTable -> Component (Array String)
 mkCompare grid = do
   fetch <- fetched
   comparison <- mkComparison grid fetch
+  sets <- mkSets
   component "Compare" \ids -> React.do
     everyRun <- useRunList 0
     let chooser baseline = loaded everyRun.value \t -> choices t ids baseline
@@ -313,6 +315,7 @@ mkCompare grid = do
       , children:
           [ if null ids then React.fragment [ chooser Nothing, plots grid fetch [] Nothing Nothing (\_ -> pure unit) ]
             else comparison { ids, chooser }
+          , sets ids
           ]
       }
 

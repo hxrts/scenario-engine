@@ -49,6 +49,10 @@ nameOf = case _ of
   Derive _ -> "Derive"
   Resume _ -> "Resume"
   Step _ -> "Step"
+  ListScenarioSets -> "ListScenarioSets"
+  SaveScenarioSet _ -> "SaveScenarioSet"
+  RenameScenarioSet _ -> "RenameScenarioSet"
+  DeleteScenarioSet _ -> "DeleteScenarioSet"
   Archive _ -> "Archive"
   Unarchive _ -> "Unarchive"
   Delete _ -> "Delete"
@@ -76,8 +80,12 @@ examples =
       (p "/api/runs/run-1/derive" "{\"kind\":\"duplicate\",\"overrides\":\"o\"}")
   , Tuple (Resume { id: "run-1", rounds: 9 }) (p "/api/runs/run-1/resume" "{\"rounds\":9}")
   , Tuple (Step "run-1") (p "/api/runs/run-1/step" "{}")
+  , Tuple ListScenarioSets (g "/api/sets")
+  , Tuple (SaveScenarioSet { name: "a", baseline: "run-1", runs: [ "run-1" ] }) (p "/api/sets" "{\"baseline\":\"run-1\",\"name\":\"a\",\"runs\":[\"run-1\"]}")
+  , Tuple (RenameScenarioSet { name: "a", to: "b" }) (p "/api/sets/a/rename" "{\"name\":\"b\"}")
   , Tuple (Archive "run-1") (p "/api/runs/run-1/archive" "{}")
   , Tuple (Unarchive "run-1") (p "/api/runs/run-1/unarchive" "{}")
+  , Tuple (DeleteScenarioSet "a") { method: "DELETE", url: "/api/sets/a", body: "" }
   , Tuple (Delete { id: "run-1", confirm: "run-1" }) { method: "DELETE", url: "/api/runs/run-1?confirm=run-1", body: "" }
   ]
   where

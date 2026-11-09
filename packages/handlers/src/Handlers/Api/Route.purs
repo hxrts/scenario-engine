@@ -43,6 +43,7 @@ import Prim.Row as Row
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
+import Effects.Signatures (ScenarioSet)
 import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -272,6 +273,10 @@ endpoints = table
         in { runs, market }
   , "Agency": get "/api/agency" agencyQuery
   , "AgencyDetail": get "/api/agency/detail" agencyQuery
+  , "ListScenarioSets": get "/api/sets" (pure unit)
+  , "SaveScenarioSet": post "/api/sets" (bodyOf scenarioSetShape identity)
+  , "RenameScenarioSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))
+  , "DeleteScenarioSet": endpoint "DELETE" "/api/sets/:name" (capture "name" identity)
   , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
   , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
@@ -356,6 +361,18 @@ seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Ju
     | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJsonWith Snapshot intShape j) <#> (Just <<< Just)
 
 -- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Game.Recipe`).
+scenarioSetShape :: Shape ScenarioSet
+scenarioSetShape = object "ScenarioSet" ado
+  name <- fieldOf "name" "the set's name" stringShape _.name
+  baseline <- fieldOf "baseline" "the id of the run the others are compared with" stringShape _.baseline
+  runs <- fieldOf "runs" "the ids of the set's runs" (arrayOf stringShape) _.runs
+  in { name, baseline, runs }
+
+renameShape :: Shape { name :: String }
+renameShape = recordOf "RenameSet"
+  ( field @"name" "the set's new name" stringShape
+  )
+
 deriveShape :: Shape DeriveRequest
 deriveShape = object "DeriveRequest" ado
   kind <- fieldOf "kind" "how the run is derived" deriveKindShape _.kind

@@ -11,6 +11,9 @@ module Views.Keys
   , deleted
   , derived
   , agencyDetail
+  , sets
+  , scenarioSet
+  , renamedSet
   , overview
   , balances
   , markets
@@ -186,6 +189,16 @@ procedures = key Procedures table
 
 assertions :: ViewKey Table
 assertions = key Assertions table
+
+-- | The named scenario sets.
+sets :: Shape { sets :: Array { name :: String, baseline :: String, runs :: Array String } }
+sets = viewShape
+
+scenarioSet :: Shape { name :: String, baseline :: String, runs :: Array String }
+scenarioSet = viewShape
+
+renamedSet :: Shape { name :: String }
+renamedSet = viewShape
 
 -- | The agency analysis beyond its table.
 agencyDetail :: Shape { criteria :: Table, profile :: Table }

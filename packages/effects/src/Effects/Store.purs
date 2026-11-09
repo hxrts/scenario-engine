@@ -11,6 +11,9 @@ module Effects.Store
   , setArchived
   , deleteRun
   , startRun
+  , createSet
+  , renameSet
+  , deleteSet
   ) where
 
 import Prelude
@@ -20,7 +23,7 @@ import Data.Array (any)
 import Data.Either (Either(..), either)
 import Effects.Observe (listRuns)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (NewRun, OBSERVE, STORE, StoreF(..), _store)
+import Effects.Signatures (NewRun, OBSERVE, STORE, ScenarioSet, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
 
@@ -62,3 +65,12 @@ startRun n = do
   existing <- listRuns
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> createRun n
+
+createSet :: forall r. ScenarioSet -> Run (STORE + r) Unit
+createSet s = lift _store (CreateSet s identity)
+
+renameSet :: forall r. String -> String -> Run (STORE + r) Int
+renameSet name to = lift _store (RenameSet name to identity)
+
+deleteSet :: forall r. String -> Run (STORE + r) Int
+deleteSet name = lift _store (DeleteSet name identity)

@@ -18,7 +18,7 @@ import Data.Either (Either(..), either, note)
 import Data.Foldable (traverse_)
 import Core.Types (Id(..))
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
-import Data.String (Pattern(..), split)
+import Data.String (Pattern(..), joinWith, split)
 import Effects.Play (playRun)
 import Effects.System (now, ownerOf)
 import Run (Run)
@@ -33,6 +33,7 @@ import Server.Launch (freshRunId, serverRole, start)
 import Game.Setting (GameboardParts, Setting(..))
 import Server.Read (loadRun, runInfo)
 import Game.Assemble (assemble, assemblePreset, checkRounds, liveBindings, withRounds)
+import Server.Sets (setsNaming)
 import Server.Settings (Settings, ofSpec)
 import Schema.Run (Spec, DeriveKind(..), RunStatus(..))
 import Core.Shape (Format(Authored))
@@ -205,9 +206,11 @@ setArchive id archived = do
 deleteOne :: forall o. String -> String -> Run (SERVER o) Answer
 deleteOne id confirm
   | confirm /= id = badRequest ("deleting " <> id <> " needs ?confirm=" <> id)
-  | otherwise = do
-      n <- (deleteRun id)
-      if n == 0 then notFound ("no run " <> id) else ok Keys.deleted { deleted: id }
+  | otherwise = setsNaming id >>= \naming ->
+      if not (null naming) then conflict (id <> " is in the scenario sets " <> joinWith ", " (map _.name naming) <> "; delete them first")
+      else do
+        n <- deleteRun id
+        if n == 0 then notFound ("no run " <> id) else ok Keys.deleted { deleted: id }
 
 hasRun :: forall o. String -> Run (SERVER o) Boolean
 hasRun id = isJust <$> runInfo id

@@ -29,6 +29,7 @@ module Effects.Signatures
   , RunSummary
   , StoredManifest
   , StoredRound
+  , ScenarioSet
   , CLOCK
   , ClockF(..)
   , _clock
@@ -156,6 +157,9 @@ type StoredRound =
   , transcripts :: Stored (Array Transcript)
   }
 
+-- | A named set of runs to compare: their ids and which is the baseline. It never holds run data.
+type ScenarioSet = { name :: String, baseline :: String, runs :: Array String }
+
 -- | The Run Store's writes (docs/06_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
 -- | make. Each round's own write is `RECORD`. Each write is one transaction.
 data StoreF a
@@ -165,6 +169,9 @@ data StoreF a
   | SetSpec String Spec (Unit -> a)
   | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)
+  | CreateSet ScenarioSet (Unit -> a)
+  | RenameSet String String (Int -> a) -- the set, its new name; how many sets were renamed
+  | DeleteSet String (Int -> a)
 
 derive instance Functor StoreF
 
@@ -178,6 +185,7 @@ data ObserveF a
   | ListSummaries (Array RunSummary -> a)
   | ReadManifest String (Maybe StoredManifest -> a)
   | ReadRounds String (Array StoredRound -> a)
+  | ListSets (Array ScenarioSet -> a)
 
 derive instance Functor ObserveF
 

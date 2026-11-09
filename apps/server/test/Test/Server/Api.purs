@@ -144,6 +144,33 @@ spec = describe "API status rules, startup and cache" do
     noKind.status `shouldEqual` 400
     badSeed <- env.api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"playerSeed\":\"one\"}"
     badSeed.status `shouldEqual` 400
+  it "a named set holds run ids only, opens the same comparison, and a run in a set cannot be deleted" do
+    env <- setup
+    launch env 2
+    launch env 2
+    saved <- env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-2\",\"runs\":[\"run-1\",\"run-2\"]}"
+    saved.status `shouldEqual` 200
+    rows <- liftEffect (env.db.query "select * from scenario_sets" [] :: Effect (Array { name :: String, baseline :: String, runs :: String }))
+    rows `shouldEqual` [ { name: "pair", baseline: "run-2", runs: "[\"run-1\",\"run-2\"]" } ]
+    (env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 409)
+    (env.api "POST" "/api/sets" "{\"name\":\"x\",\"baseline\":\"run-9\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 400)
+    (env.api "POST" "/api/sets" "{\"name\":\"x\",\"baseline\":\"run-9\",\"runs\":[\"run-9\"]}" <#> _.status) >>= (_ `shouldEqual` 400)
+    refused <- env.api "DELETE" "/api/runs/run-1" ""
+    refused.status `shouldEqual` 400
+    (env.api "POST" "/api/sets/pair/rename" "{\"name\":\"couple\"}" <#> _.status) >>= (_ `shouldEqual` 200)
+    listed <- env.api "GET" "/api/sets" ""
+    listed.body `shouldSatisfy` contains (Pattern "couple")
+    (env.api "DELETE" "/api/sets/nope" "" <#> _.status) >>= (_ `shouldEqual` 404)
+    (env.api "DELETE" "/api/sets/couple" "" <#> _.status) >>= (_ `shouldEqual` 200)
+
+  it "deleting a run a set names is refused, and says which set" do
+    env <- setup
+    launch env 2
+    _ <- env.api "POST" "/api/sets" "{\"name\":\"solo\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}"
+    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache) { method: "DELETE", path: "/api/runs/run-1", query: Object.singleton "confirm" "run-1", body: "" })
+    r.status `shouldEqual` 409
+    r.body `shouldSatisfy` contains (Pattern "solo")
+
   it "a step plays one round of a run short of its target, the same round extend plays; a run at its target is refused" do
     env <- setup
     launch env 3

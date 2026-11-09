@@ -6,12 +6,13 @@ module Effects.Observe
   , listSummaries
   , readManifest
   , readRounds
+  , listSets
   ) where
 
 import Prelude
 
 import Data.Maybe (Maybe)
-import Effects.Signatures (OBSERVE, ObserveF(..), RunInfo, RunSummary, StoredManifest, StoredRound, _observe)
+import Effects.Signatures (OBSERVE, ObserveF(..), RunInfo, RunSummary, ScenarioSet, StoredManifest, StoredRound, _observe)
 import Run (Run, lift)
 import Type.Row (type (+))
 
@@ -26,3 +27,6 @@ readManifest id = lift _observe (ReadManifest id identity)
 
 readRounds :: forall r. String -> Run (OBSERVE + r) (Array StoredRound)
 readRounds id = lift _observe (ReadRounds id identity)
+
+listSets :: forall r. Run (OBSERVE + r) (Array ScenarioSet)
+listSets = lift _observe (ListSets identity)

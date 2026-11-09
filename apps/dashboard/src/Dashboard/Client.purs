@@ -16,6 +16,10 @@ module Dashboard.Client
   , archive
   , resume
   , deriveRun
+  , sets
+  , saveSet
+  , renameSet
+  , deleteSet
   , step
   , delete
   ) where
@@ -26,6 +30,7 @@ import Dashboard.Api (fetch)
 import Core.Shape (Format(Snapshot), Shape, parse, prim)
 import Effects.Api (ApiRequest(..), DeriveRequest, Launch, call)
 import Schema.Run (DeriveKind)
+import Effects.Signatures (ScenarioSet)
 import Handlers.Api.Client (replyText, runApi)
 import Schema.Decode (decodeError)
 import Views.Common (Table)
@@ -56,6 +61,19 @@ runs = typed Keys.runList (ListRuns { archived: true })
 -- | Derive a run (`POST /api/runs/:id/derive`); the reply names the new run and, for a rerun, whether its records match.
 deriveRun :: String -> DeriveRequest -> Aff (Either String { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean })
 deriveRun id body = typed Keys.derived (Derive { id, body })
+
+-- | The named scenario sets.
+sets :: Aff (Either String { sets :: Array ScenarioSet })
+sets = typed Keys.sets ListScenarioSets
+
+saveSet :: ScenarioSet -> Aff (Either String ScenarioSet)
+saveSet = typed Keys.scenarioSet <<< SaveScenarioSet
+
+renameSet :: String -> String -> Aff (Either String Unit)
+renameSet name to = typed unread (RenameScenarioSet { name, to })
+
+deleteSet :: String -> Aff (Either String Unit)
+deleteSet = typed unread <<< DeleteScenarioSet
 
 -- | Launch a run (`POST /api/runs`); the reply names the new run.
 launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })

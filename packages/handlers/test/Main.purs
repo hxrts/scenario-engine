@@ -74,10 +74,14 @@ memoryStore saved =
   , setSpec: \_ _ -> pure unit
   , setArchived: \_ _ -> pure unit
   , deleteRun: \_ -> pure 0
+  , createSet: \_ -> pure unit
+  , renameSet: \_ _ -> pure 0
+  , deleteSet: \_ -> pure 0
   , listRuns: pure []
   , listSummaries: pure []
   , readManifest: \_ -> pure Nothing
   , readRounds: \_ -> pure []
+  , listSets: pure []
   }
 
 main :: Effect Unit

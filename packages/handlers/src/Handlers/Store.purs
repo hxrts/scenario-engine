@@ -37,7 +37,7 @@ import Effect.Exception (Error, message)
 import Effect.Ref as Ref
 import Effects.Store (failRun, finish)
 import Effects.Store as Store
-import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, StoreF(..), StoredManifest, StoredRound, _observe, _store)
+import Effects.Signatures (NewRun, OBSERVE, ObserveF(..), RunInfo, RunSummary, STORE, ScenarioSet, StoreF(..), StoredManifest, StoredRound, _observe, _store)
 import Run (Run, case_, on, run)
 import Type.Row (type (+))
 
@@ -65,10 +65,14 @@ type StoreBackend =
   , setSpec :: String -> Spec -> Effect Unit
   , setArchived :: String -> Boolean -> Effect Unit
   , deleteRun :: String -> Effect Int
+  , createSet :: ScenarioSet -> Effect Unit
+  , renameSet :: String -> String -> Effect Int
+  , deleteSet :: String -> Effect Int
   , listRuns :: Effect (Array RunInfo)
   , listSummaries :: Effect (Array RunSummary)
   , readManifest :: String -> Effect (Maybe StoredManifest)
   , readRounds :: String -> Effect (Array StoredRound)
+  , listSets :: Effect (Array ScenarioSet)
   }
 
 interpretStore :: StoreBackend -> StoreF ~> Effect
@@ -79,6 +83,9 @@ interpretStore b = case _ of
   SetSpec id spec k -> k <$> b.setSpec id spec
   SetArchived id archived k -> k <$> b.setArchived id archived
   DeleteRun id k -> k <$> b.deleteRun id
+  CreateSet set k -> k <$> b.createSet set
+  RenameSet name to k -> k <$> b.renameSet name to
+  DeleteSet name k -> k <$> b.deleteSet name
 
 interpretObserve :: StoreBackend -> ObserveF ~> Effect
 interpretObserve b = case _ of
@@ -86,6 +93,7 @@ interpretObserve b = case _ of
   ListSummaries k -> k <$> b.listSummaries
   ReadManifest id k -> k <$> b.readManifest id
   ReadRounds id k -> k <$> b.readRounds id
+  ListSets k -> k <$> b.listSets
 
 -- | Run a write program over a backend.
 runStore :: forall a. StoreBackend -> Run (STORE + ()) a -> Effect a

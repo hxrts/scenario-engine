@@ -11,7 +11,7 @@ module Handlers.SqlStore
 import Prelude
 
 import Core.Invariants (failureShape)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse)
+import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse, stringShape)
 import Core.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Core (fromString, stringify)
 import Data.Argonaut.Decode.Error (printJsonDecodeError)
@@ -27,7 +27,7 @@ import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Exception (catchException, throw, throwException)
-import Effects.Signatures (RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
+import Effects.Signatures (RunInfo, RunSummary, ScenarioSet, Stored, StoredManifest, StoredRound)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Handlers.Sql (SqlDevice, SqlValue(..))
@@ -59,6 +59,11 @@ schema =
      run text not null, metric text not null, version text not null, round integer not null,
      value text not null, primary key (run, metric, version, round));"""
 
+-- | The named sets of runs. Added after version 1 and only additive, so it is made wherever it is absent and a
+-- | store keeps its version. A set holds run ids, as JSON text, and never run data.
+setsTable :: String
+setsTable = "create table if not exists scenario_sets (name text primary key, baseline text not null, runs text not null)"
+
 schemaVersionCurrent :: Int
 schemaVersionCurrent = 1
 
@@ -82,6 +87,7 @@ openStore open path = do
       d.transaction do
         d.script schema
         d.script ("pragma user_version = " <> show schemaVersionCurrent)
+    d.script setsTable
   refused v = "run store " <> path <> " has schema version " <> show v <> "; this build reads only version " <> show schemaVersionCurrent <> ". Move the file aside and start a new store; its runs can be launched again from their seeds."
 
 type RunColumns =
@@ -108,6 +114,8 @@ type RoundColumns =
 
 type MetricColumns = (run :: String, metric :: String, version :: String, round :: Int, value :: String)
 
+type SetColumns = (name :: String, baseline :: String, runs :: String)
+
 type RunInfoRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
 
 type RunSummaryRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String, spec :: String, manifest :: String, archived :: Int, source :: Nullable String }
@@ -125,6 +133,9 @@ runsTable = Table "runs"
 
 roundsTable :: Table RoundColumns
 roundsTable = Table "rounds"
+
+setsOf :: Table SetColumns
+setsOf = Table "scenario_sets"
 
 metricsTable :: Table MetricColumns
 metricsTable = Table "metrics"
@@ -146,6 +157,7 @@ describedTables =
   [ describe runsTable
   , describe roundsTable
   , describe metricsTable
+  , describe setsOf
   ]
   where
   describe :: forall r rl. RL.RowToList r rl => Columns rl => Table r -> { table :: String, columns :: Array String }
@@ -200,6 +212,10 @@ sqlStore d alive =
       void (d.execute "delete from metrics where run = ?" [ SqlText id ])
       void (d.execute "delete from rounds where run = ?" [ SqlText id ])
       d.execute "delete from runs where id = ?" [ SqlText id ]
+  , createSet: \set -> insert d setsOf { name: set.name, baseline: set.baseline, runs: shapeText (arrayOf stringShape) set.runs }
+  , renameSet: \name to -> d.execute "update scenario_sets set name = ? where name = ?" [ SqlText to, SqlText name ]
+  , deleteSet: \name -> d.execute "delete from scenario_sets where name = ?" [ SqlText name ]
+  , listSets: select d setsOf "order by rowid" [] >>= traverse setOf
   , listRuns: select d runsTable "order by rowid" [] >>= traverse runInfo
   , listSummaries: do
       rows <- select d runsTable "order by rowid" []
@@ -221,6 +237,9 @@ sqlStore d alive =
   assertionsByRun = do
     rows <- select d roundsTable "order by run, round" [] :: Effect (Array { run :: String, assertions :: String })
     pure (foldl (\byRun r -> Object.insert r.run (fromMaybe [] (Object.lookup r.run byRun) <> [ r.assertions ]) byRun) Object.empty rows)
+
+  setOf :: Record SetColumns -> Effect ScenarioSet
+  setOf r = either throw (\runs -> pure { name: r.name, baseline: r.baseline, runs }) (fromShape (arrayOf stringShape) ("set " <> r.name) r.runs)
 
   runInfo :: RunInfoRow -> Effect RunInfo
   runInfo r = statusOf r.id r.status <#> \status -> { id: r.id, name: r.name, status, created: r.created, reason: toMaybe r.reason }

@@ -21,6 +21,7 @@ module Effects.Api
 import Prelude
 
 import Schema.Run (DeriveKind)
+import Effects.Signatures (ScenarioSet)
 import Schema.View (View)
 import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
@@ -75,6 +76,10 @@ data ApiRequest
   | Derive { id :: String, body :: DeriveRequest }
   | Resume { id :: String, rounds :: Int }
   | Step String
+  | ListScenarioSets
+  | SaveScenarioSet ScenarioSet
+  | RenameScenarioSet { name :: String, to :: String }
+  | DeleteScenarioSet String
   | Archive String
   | Unarchive String
   | Delete { id :: String, confirm :: String }
