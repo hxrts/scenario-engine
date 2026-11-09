@@ -9,6 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   root: here,
+  base: "/admin/",
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": here, "@output": path.resolve(here, "../../output") } },
   server: { proxy: { "/api": `http://localhost:${API_PORT}` } },

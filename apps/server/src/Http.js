@@ -67,8 +67,50 @@ const resolveStatic = (root, urlPath) => {
 const cacheControl = (root, file) =>
   file.startsWith(path.join(root, "assets") + path.sep) ? `public, max-age=${yearSeconds}, immutable` : "no-cache";
 
+const loginPage = (failed) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Admin</title></head><body><form method="post" action="/admin/login"><h1>Admin</h1>${failed ? "<p>That is not the password.</p>" : ""}<label>Password <input type="password" name="password" autofocus></label> <button>Enter</button></form></body></html>`;
+
+const hasSession = (req, admin) => admin.session !== "" && (req.headers.cookie || "").split(";").some((c) => c.trim() === `admin=${admin.session}`);
+
+const serveFile = (req, res, root, file) => {
+  if (file === undefined) return send(req, res, 400, "text/plain", "bad path");
+  if (file === null) return send(req, res, 404, "text/plain", "not found");
+  fs.readFile(file, (err, data) => {
+    if (err) return res.destroy();
+    send(req, res, 200, types[path.extname(file)] || "application/octet-stream", data, { "cache-control": cacheControl(root, file) });
+  });
+};
+
+// The public site and the admin dashboard: \`/\` is the landing page, \`/portfolio/...\` is the page each Actor is
+// given, \`/admin\` is the dashboard behind its password, and its hashed assets hold no data. Anything else is a 404.
+const siteRequest = (req, res, url, root, admin) => {
+  const p = url.pathname;
+  const index = path.join(root, "index.html");
+  if (p === "/admin/login" && req.method === "POST") {
+    const chunks = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      const given = new URLSearchParams(Buffer.concat(chunks).toString("utf8")).get("password") || "";
+      if (admin.password === "" || given !== admin.password) {
+        return send(req, res, 401, "text/html", loginPage(true), { "cache-control": "no-store" });
+      }
+      const secure = req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
+      res.writeHead(303, { location: "/admin/", "set-cookie": `admin=${admin.session}; HttpOnly; SameSite=Lax; Path=/${secure}` });
+      res.end();
+    });
+    return;
+  }
+  if (p === "/") return serveFile(req, res, root, path.join(root, "landing.html"));
+  if (p.startsWith("/portfolio/")) return serveFile(req, res, root, index);
+  if (p.startsWith("/admin/assets/")) return serveFile(req, res, root, resolveStatic(root, p.slice("/admin".length)));
+  if (p === "/admin" || p === "/admin/") {
+    if (!hasSession(req, admin)) return send(req, res, 200, "text/html", loginPage(false), { "cache-control": "no-store" });
+    return serveFile(req, res, root, index);
+  }
+  return send(req, res, 404, "text/plain", "not found");
+};
+
 // The request listener's server, not yet listening. Exported for the device's tests (apps/server/test).
-export const createServer = (staticDir, apiPrefix, handler) => {
+export const createServer = (staticDir, apiPrefix, handler, admin) => {
   const root = path.resolve(staticDir);
   const isApi = (pathname) => pathname.startsWith(apiPrefix) || pathname + "/" === apiPrefix;
   return http.createServer((req, res) => {
@@ -95,7 +137,7 @@ export const createServer = (staticDir, apiPrefix, handler) => {
         const query = Object.fromEntries(url.searchParams.entries());
         let out;
         try {
-          out = handler({ method: req.method, path: url.pathname, query, body: Buffer.concat(chunks).toString("utf8") })();
+          out = handler({ method: req.method, path: url.pathname, query, body: Buffer.concat(chunks).toString("utf8"), cookie: req.headers.cookie || "" })();
         } catch (e) {
           out = { status: 500, body: JSON.stringify({ error: String(e) }) };
         }
@@ -103,6 +145,7 @@ export const createServer = (staticDir, apiPrefix, handler) => {
       });
       return;
     }
+    if (admin) return siteRequest(req, res, url, root, admin);
     const file = resolveStatic(root, url.pathname);
     if (file === undefined) return send(req, res, 400, "text/plain", "bad path");
     if (file === null) return send(req, res, 404, "text/plain", "not found");
@@ -113,8 +156,8 @@ export const createServer = (staticDir, apiPrefix, handler) => {
   });
 };
 
-export const serveImpl = (port, staticDir, apiPrefix, handler) => () => {
-  const server = createServer(staticDir, apiPrefix, handler);
+export const serveImpl = (port, staticDir, apiPrefix, admin, handler) => () => {
+  const server = createServer(staticDir, apiPrefix, handler, admin);
   server.on("error", (err) => {
     const reason = err.code === "EADDRINUSE" ? `port ${port} is already in use` : err.message;
     console.error(`error: cannot serve on :${port}: ${reason}`);

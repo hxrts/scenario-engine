@@ -69,13 +69,14 @@ usageOf :: forall a. Flag a -> String
 usageOf (Flag x) = joinWith " " (map (\s -> "[" <> s.name <> " <" <> s.placeholder <> ">]") x.specs)
 
 -- | The server's flags. The default port is also `apps/dashboard/ports.mjs`'s API_PORT.
-type ServeFlags = { db :: String, port :: Int, static :: String }
+type ServeFlags = { db :: String, port :: Int, static :: String, env :: String }
 
 serveFlags :: Flag ServeFlags
-serveFlags = { db: _, port: _, static: _ }
+serveFlags = { db: _, port: _, static: _, env: _ }
   <$> textFlag "--db" "file" "runs.db"
   <*> intFlagOf "--port" "1-65535" 8787 (\p -> p > 0 && p < 65536) "a port number"
   <*> textFlag "--static" "dir" "apps/dashboard/dist"
+  <*> textFlag "--env" "file" ".env"
 
 parseFlags :: Array String -> Array String -> Either String (Object String)
 parseFlags allowed args = go args Object.empty

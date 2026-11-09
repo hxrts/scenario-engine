@@ -26,6 +26,7 @@ import Effects.Launch (Launched)
 import Handlers.Api.Route (route)
 import Server.Stack (implement, newServerCache)
 import Test.Server.Api as Api
+import Test.Server.Gate as Gate
 import Test.Server.Http as HttpDevice
 import Schema.Run (DeriveKind(Counterfactual))
 import Test.Server.Premises as Premises
@@ -41,6 +42,7 @@ type Derived = { id :: String, source :: String, kind :: String }
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   HttpDevice.spec
+  Gate.spec
   Api.spec
   Premises.spec
   Fixed.spec

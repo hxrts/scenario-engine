@@ -11,7 +11,7 @@ import { choice, postSpy, rowWith, section, sectionHas } from "./helpers.js";
 
 
 test("the run list shows each seeded run's id, name, rounds and status; empty fields say why", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   // the last two cells are Reason (none: the run did not fail) and Source (none: an original run), with Archived before them
   await expect(rowWith(page, ["run-1"]).getByRole("cell")).toHaveText(["run-1", "base", "meridian@v0", "26021", "1", "5", "completed", "0", "none", "no", "none"]);
   await expect(rowWith(page, ["run-2"]).getByRole("cell")).toHaveText(["run-2", "seed", "meridian@v0", "26021", "2", "5", "completed", "0", "none", "no", "none"]);
@@ -21,7 +21,7 @@ test("the run list shows each seeded run's id, name, rounds and status; empty fi
 
 test("the home page shows the latest run's results without any extra click", async ({ page }) => {
   await mockReads(page);
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   // the latest readable run is run-1 in the mocked list; its summary is visible at once
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Marginal prices", exact: true })).toBeVisible();
@@ -31,7 +31,7 @@ test("the home page shows the latest run's results without any extra click", asy
 });
 
 test("the run page shows standings, net worth, actions, drivers, balance measures and objectives without any click", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   for (const title of ["Key figures", "Marginal prices", "Standings", "Net worth over time", "Actions", "Drivers", "Balance measures", "Objectives", "Final balance sheet"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   // the standings table comes before the net-worth chart
@@ -54,7 +54,7 @@ test("the Actions section charts one bar per player, with plain-language legend 
     "joint candidate Transactions signed",
     "candidate Transactions rejected",
   ];
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   const actions = section(page, "Actions");
   const chart = actions.locator(".recharts-wrapper").first();
   await expect(chart.locator(".recharts-bar")).toHaveCount(labels.length);
@@ -72,7 +72,7 @@ test("the Actions section charts one bar per player, with plain-language legend 
 });
 
 test("the run page has no disclosure: no details or summary element, and no Details control", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
   await expect(page.locator("details, summary")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Details/ })).toHaveCount(0);
@@ -80,13 +80,13 @@ test("the run page has no disclosure: no details or summary element, and no Deta
 });
 
 test("the Compare page has no disclosure either", async ({ page }) => {
-  await page.goto("/#/compare/run-1/run-2");
+  await page.goto("/admin/#/compare/run-1/run-2");
   await expect(page.getByRole("tab", { name: "Final state" })).toBeVisible();
   await expect(page.locator("details, summary")).toHaveCount(0);
 });
 
 test("the header names the run, its premise, status, rounds completed out of target and game ID", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Run run-1", exact: true })).toBeVisible();
   await expect(page.getByText("Premise", { exact: true })).toBeVisible();
   await expect(page.getByText("Rounds completed", { exact: true })).toBeVisible();
@@ -97,7 +97,7 @@ test("the header names the run, its premise, status, rounds completed out of tar
 });
 
 test("the removed sections and the overview fields that left the page are absent", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   await expect(page.getByRole("heading", { name: "Key figures", exact: true })).toBeVisible();
   for (const title of ["Overview", "Actions by round", "Exchanges", "Transformations", "World economy", "Balance sheets by round", "Procedures", "Events"])
     await expect(page.getByRole("heading", { name: title, exact: true }), `no ${title} section`).toHaveCount(0);
@@ -107,7 +107,7 @@ test("the removed sections and the overview fields that left the page are absent
   await expect(page.getByLabel("Round", { exact: true })).toHaveCount(0);
 });
 test("clicking a run row selects it and shows its results on the same page, with the list still beside them", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   await page.getByRole("button", { name: "run-4", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
   await expect(page).toHaveURL(/#\/runs\/run-4$/);
@@ -115,13 +115,13 @@ test("clicking a run row selects it and shows its results on the same page, with
 });
 
 test("#/runs/:id opens the Runs page with that run selected and its actions beneath", async ({ page }) => {
-  await page.goto("/#/runs/run-2");
+  await page.goto("/admin/#/runs/run-2");
   await expect(page.getByRole("heading", { name: "Run run-2" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
 });
 
 test("the top bar has Prepare, Runs and Compare, and no View item", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   const nav = page.getByRole("navigation");
   await expect(nav.getByRole("link")).toHaveText(["Prepare", "Runs", "Compare"]);
   await expect(nav.getByText("View", { exact: true })).toHaveCount(0);
@@ -136,39 +136,39 @@ test("every top-bar link navigates, from every page", async ({ page }) => {
   ];
   for (const from of pages)
     for (const [name, url] of targets) {
-      await page.goto(`/${from}`);
+      await page.goto(`/admin/${from}`);
       await page.getByRole("navigation").getByRole("link", name).click();
       await expect(page).toHaveURL(url);
     }
 });
 
 test("the manage actions are visible sections, not disclosures", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   await expect(page.getByText("Manage this run", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Archive", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete run", exact: true })).toBeVisible();
 });
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   // [Actor, kind, resource, initial, current, change] at round 5 of run-1
   await expect(rowWith(page, ["CN_PRIVATE", "Aggregate (residual)", "M", "210", "53.12", "-156.88"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
-  await page.goto("/#/runs/run-4");
+  await page.goto("/admin/#/runs/run-4");
   // the balances shown are run-4's last round (4), not its initial state
   await expect(rowWith(page, ["BR", "Actor", "E", "85", "124", "39"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   await expect(page.getByRole("button", { name: /comparison/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /comparison/i })).toHaveCount(0);
-  await page.goto("/#/compare");
+  await page.goto("/admin/#/compare");
   for (const id of ["run-1", "run-2", "run-3", "run-4"])
     await expect(choice(page, id)).toBeVisible();
 });
 
 test("choosing runs on the Compare page builds the comparison from the ticked runs, in the order ticked", async ({ page }) => {
-  await page.goto("/#/compare");
+  await page.goto("/admin/#/compare");
   await choice(page, "run-3").click();
   await expect(page).toHaveURL(/#\/compare\/run-3$/);
   await choice(page, "run-1").click();
@@ -181,7 +181,7 @@ test("choosing runs on the Compare page builds the comparison from the ticked ru
 });
 
 test("three-run comparison shows a price plot per Exchange, each with a line per run, and the configuration diff", async ({ page }) => {
-  await page.goto("/#/compare/run-1/run-2/run-3");
+  await page.goto("/admin/#/compare/run-1/run-2/run-3");
   await expect(page.getByRole("figure", { name: "Price, energy-atlantic", exact: true })).toBeVisible();
   await expect(page.getByRole("figure", { name: "Price, energy-atlantic", exact: true }).locator(".recharts-line")).toHaveCount(3);
   await expect(page.getByRole("figure", { name: "Price, energy-asia", exact: true }).locator(".recharts-line")).toHaveCount(3);
@@ -191,7 +191,7 @@ test("three-run comparison shows a price plot per Exchange, each with a line per
 });
 
 test("a differing value is highlighted in the dark theme", async ({ page }) => {
-  await page.goto("/#/compare/run-1/run-2/run-3");
+  await page.goto("/admin/#/compare/run-1/run-2/run-3");
   await page.getByRole("tab", { name: "Configuration" }).click();
   const cell = rowWith(page, ["preset"]).getByRole("cell", { name: "Aggressive", exact: true });
   await expect(page.locator("html")).toHaveClass(/dark/);
@@ -199,19 +199,19 @@ test("a differing value is highlighted in the dark theme", async ({ page }) => {
 });
 
 test("the agency panel is labelled as a fixed baseline", async ({ page }) => {
-  await page.goto("/#/compare/run-1/run-2");
+  await page.goto("/admin/#/compare/run-1/run-2");
   await expect(page.getByRole("tab", { name: "Agency (fixed baseline)" })).toBeVisible();
 });
 
 test("incompatible runs are flagged", async ({ page }) => {
-  await page.goto("/#/compare/run-1/run-4");
+  await page.goto("/admin/#/compare/run-1/run-4");
   await page.getByRole("tab", { name: "Compatibility" }).click();
   await expect(rowWith(page, ["run-4"]).getByRole("cell").last()).toHaveText("no: flagged, not combined (round count)");
 });
 
 test("every visible table column has a definition on hover", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs/run-1");
+  await page.goto("/admin/#/runs");
   await expect(page.getByRole("columnheader", { name: "Run", exact: true })).toBeVisible();
   const headers = page.locator("th:visible");
   const count = await headers.count();
@@ -223,7 +223,7 @@ test("every visible table column has a definition on hover", async ({ page }) =>
 test("an empty field says not recorded, or none with its reason, on hover", async ({ page }) => {
   // a run whose stored spec has no player seed, and a derived run's source is none
   await mockReads(page, { active: [["run-1", "base", "meridian@v0", "26021", "", "3", "completed", "0", "", "no", ""]] });
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   const player = rowWith(page, ["run-1"]).getByRole("cell").nth(4);
   await expect(player).toHaveText("not recorded");
   await expect(player.locator("span")).toHaveAttribute("title", /runs made before seeds were recorded/);
@@ -233,7 +233,7 @@ test("an empty field says not recorded, or none with its reason, on hover", asyn
 });
 
 test("sorting by a column does not move the header: its width is the same before and after", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   const header = page.getByRole("columnheader", { name: "Player seed" });
   const before = await header.boundingBox();
   await header.getByRole("button").click();
@@ -248,7 +248,7 @@ test("sorting by a column does not move the header: its width is the same before
 test("the launch form on Prepare offers the known presets and the premise's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
   const [{ presets }] = await (await request.get("/api/premise")).json();
   const posts = postSpy(page);
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
   await expect(page.getByLabel("Preset").locator("option")).toHaveText(presets);
   await expect(page.getByLabel("Rounds")).toHaveValue("5");
@@ -264,7 +264,7 @@ test("the launch form on Prepare offers the known presets and the premise's roun
 
 test("Run with no edits launches the default run: Conservative, the premise's rounds and a drawn seed", async ({ page, request }) => {
   const spy = postSpy(page);
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   // the name shows the next run id as its default, and the summary says what Run will play
   await expect(page.getByLabel("Name")).toHaveValue(/^run-\d+$/);
   const name = await page.getByLabel("Name").inputValue();
@@ -284,7 +284,7 @@ test("Run with no edits launches the default run: Conservative, the premise's ro
 
 test("a non-default preset and round count are sent, and the run plays them", async ({ page, request }) => {
   const spy = postSpy(page);
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   await page.getByLabel("Preset").selectOption("Trader");
   await page.getByLabel("Rounds").selectOption("6");
   await expect(page.getByText("This run: Trader, 6 rounds, seed drawn at launch.")).toBeVisible();
@@ -299,7 +299,7 @@ test("a non-default preset and round count are sent, and the run plays them", as
 });
 
 test("the Game seed is shown read-only, with the premise's seed as the default", async ({ page }) => {
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   await expect(page.getByText("Game seed", { exact: true })).toBeVisible();
   await expect(page.getByText("26021", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Game seed")).toHaveCount(0);
@@ -310,7 +310,7 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
     route.request().method() === "POST"
       ? route.fulfill(json({ error: "Unknown preset: Nope" }, 400))
       : route.continue());
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   const launch = sectionHas(page, page.getByRole("button", { name: "Run", exact: true })).first();
   await launch.getByRole("button", { name: "Run", exact: true }).click();
   await expect(launch.getByText("Unknown preset: Nope")).toBeVisible();
@@ -318,7 +318,7 @@ test("a rejected launch shows the server's message on Prepare and stays there", 
 });
 
 test("the launch form marks its required fields, and states the default of each optional one", async ({ page }) => {
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   await expect(page.locator("label", { hasText: "Preset" })).toContainText("required");
   await expect(page.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
   await expect(page.locator("label", { hasText: "Player seed" })).toContainText("optional");
@@ -328,7 +328,7 @@ test("the launch form marks its required fields, and states the default of each 
 });
 
 test("a launch opens the new run's page", async ({ page }) => {
-  await page.goto("/#/prepare");
+  await page.goto("/admin/#/prepare");
   await page.getByLabel("Preset").selectOption("Trader");
   await page.getByLabel("Player seed").fill("9");
   await page.getByLabel("Rounds").selectOption("6");
@@ -338,7 +338,7 @@ test("a launch opens the new run's page", async ({ page }) => {
 });
 
 test("the run list is sortable by a column", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
   await page.getByRole("columnheader", { name: "Player seed" }).getByRole("button").click();
   // the seeds of the runs in this shared store vary (launches draw seeds), so the check is the order, not a value
@@ -353,12 +353,12 @@ test("the run list is sortable by a column", async ({ page }) => {
 
 test("the run list has a column set the page uses (no Created column is shown until the server sends one)", async ({ page, request }) => {
   const { columns } = await (await request.get("/api/runs")).json();
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   for (const column of columns) await expect(page.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
 });
 
 test("toggling show archived runs does not move the page", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   const heading = page.getByRole("heading", { name: "Runs", exact: true });
   const before = await heading.boundingBox();
   await page.getByLabel("Show archived runs").click();
@@ -368,7 +368,7 @@ test("toggling show archived runs does not move the page", async ({ page }) => {
 });
 
 test("clicking another run does not move the results", async ({ page }) => {
-  await page.goto("/#/runs");
+  await page.goto("/admin/#/runs");
   await page.getByRole("button", { name: "run-1", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
   const keyFigures = page.getByRole("heading", { name: "Key figures", exact: true });
@@ -382,7 +382,7 @@ test("clicking another run does not move the results", async ({ page }) => {
 
 test("a resume refreshes the whole run page: the standings show the new round count without a reload", async ({ page, request }) => {
   const launched = await (await request.post("/api/runs", { data: { name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 4 } })).json();
-  await page.goto(`/#/runs/${launched.id}`);
+  await page.goto(`/admin/#/runs/${launched.id}`);
   await expect(page.getByText("Standings after round 4", { exact: true })).toBeVisible();
   const region = page.getByRole("region", { name: "Resume", exact: true });
   await region.getByLabel("Length to run to").fill("5");

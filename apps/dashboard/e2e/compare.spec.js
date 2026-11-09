@@ -70,7 +70,7 @@ const keyValues = (page) => section(page, "Key values");
 const firstPrice = (page) => page.getByRole("figure", { name: /^Price, / }).first();
 
 test("ticking a run does not move the page heading or the first plot", async ({ page }) => {
-  await page.goto("/#/compare");
+  await page.goto("/admin/#/compare");
   await expect(choice(page, "run-a")).toBeVisible();
   const heading = page.getByRole("heading", { name: "Compare a Run set", exact: true });
   const first = page.getByRole("figure").first();
@@ -87,14 +87,14 @@ test("ticking a run does not move the page heading or the first plot", async ({ 
 });
 
 test("the plots are full width and at least 360px tall", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   await expect(firstPrice(page)).toBeVisible();
   const box = await firstPrice(page).boundingBox();
   expect(box.height).toBeGreaterThanOrEqual(360);
 });
 
 test("the exchange plot overlays one line per ticked run, and the legend names each run, the baseline marked", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   const plot = firstPrice(page);
   await expect(plot).toBeVisible();
   await expect(plot.locator(".recharts-line")).toHaveCount(2);
@@ -103,7 +103,7 @@ test("the exchange plot overlays one line per ticked run, and the legend names e
 });
 
 test("the key-values table has one column per ticked run, headed by the run's name and id", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   const table = keyValues(page).getByRole("table");
   await expect(table).toBeVisible();
   await expect(table.getByRole("columnheader")).toHaveCount(4);
@@ -114,7 +114,7 @@ test("the key-values table has one column per ticked run, headed by the run's na
 });
 
 test("unticking a run removes it from the plots and the key-values table", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   await expect(firstPrice(page).locator(".recharts-line")).toHaveCount(2);
   await choice(page, "run-b").click();
   await expect(page).toHaveURL(/#\/compare\/run-a$/);
@@ -126,13 +126,13 @@ test("unticking a run removes it from the plots and the key-values table", async
 });
 
 test("the page has no separate remove or clear control: a run leaves the comparison only by unticking it", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   await expect(firstPrice(page)).toBeVisible();
   await expect(page.getByRole("button", { name: /remove|clear/i })).toHaveCount(0);
 });
 
 test("the page has the planned plots: prices by exchange, net worth, standings, and spread and Gini", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   await expect(firstPrice(page)).toBeVisible();
   for (const title of ["Prices by exchange", "Net worth over time", "Final standings", "Spread and Gini", "Key values"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
@@ -144,13 +144,13 @@ test("the page has the planned plots: prices by exchange, net worth, standings, 
 
 test("a run that cannot be read is listed as skipped with its reason", async ({ page }) => {
   await page.route("**/api/compare*", (route) => route.fulfill(json(comparison(["run-a"], ["run-gone: not found"]))));
-  await page.goto("/#/compare/run-a/run-gone");
+  await page.goto("/admin/#/compare/run-a/run-gone");
   await expect(page.getByRole("heading", { name: "Skipped runs", exact: true })).toBeVisible();
   await expect(page.getByText("run-gone: not found", { exact: true })).toBeVisible();
 });
 
 test("the final-state table highlights the cells the view marked", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   await page.getByRole("tab", { name: "Final state" }).click();
   const tab = page.getByRole("tabpanel", { name: "Final state" });
   await expect(tab.getByRole("cell", { name: "12.0000", exact: true })).toHaveClass(/bg-amber/);
@@ -158,7 +158,7 @@ test("the final-state table highlights the cells the view marked", async ({ page
 });
 
 test("the net-worth plot overlays one line per run for the chosen player", async ({ page }) => {
-  await page.goto("/#/compare/run-a/run-b");
+  await page.goto("/admin/#/compare/run-a/run-b");
   const netWorth = section(page, "Net worth over time");
   const plot = netWorth.getByRole("figure", { name: /^Net worth, / });
   await expect(plot).toBeVisible();
@@ -174,7 +174,7 @@ test("a named set opens its runs with its baseline first, and the ticked runs ca
     if (route.request().method() === "POST") { posted = route.request().postDataJSON(); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(posted) }); }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sets: [set] }) });
   });
-  await page.goto("/#/compare/run-1/run-2");
+  await page.goto("/admin/#/compare/run-1/run-2");
   await page.getByRole("textbox", { name: "Save the ticked runs as", exact: true }).fill("saved");
   await page.getByRole("button", { name: "Save set", exact: true }).click();
   await expect.poll(() => posted).toEqual({ name: "saved", baseline: "run-1", runs: ["run-1", "run-2"] });

@@ -4,12 +4,15 @@ module Test.Server.Http (spec, rawExec) where
 
 import Prelude
 
+import Data.Char (toCharCode)
+import Data.Int as Int
+import Data.String (joinWith, Pattern(..), contains)
+import Data.String.CodeUnits (toCharArray, fromCharArray)
+
 import Handlers.Sql (SqlDevice)
 import Control.Promise (Promise, toAffE)
 import Data.Array (replicate)
-import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), contains)
-import Data.String.CodeUnits (fromCharArray)
+import Data.Maybe (Maybe(..), maybe)
 import Effect (Effect)
 import Effect.Aff (Aff, bracket)
 import Effect.Class (liftEffect)
@@ -23,6 +26,7 @@ import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 foreign import data Running :: Type
 foreign import siteDir :: Effect String
 foreign import startServerImpl :: String -> String -> (Request -> Effect Reply) -> Effect (Promise Running)
+foreign import startSiteImpl :: String -> String -> { password :: String, session :: String } -> (Request -> Effect Reply) -> Effect (Promise Running)
 foreign import portOf :: Running -> Int
 foreign import stopServerImpl :: Running -> Effect (Promise Unit)
 foreign import turnImpl :: Int -> String -> String -> Object String -> Array String -> Effect (Promise Answer)
@@ -46,6 +50,18 @@ withServer :: forall a. (Int -> Aff a) -> Aff a
 withServer test = do
   dir <- liftEffect siteDir
   bracket (toAffE (startServerImpl dir apiPrefix handler)) (\s -> toAffE (stopServerImpl s)) (test <<< portOf)
+
+withSite :: forall a. (Int -> Aff a) -> Aff a
+withSite = withSiteOf { password: "pw", session: "sess" }
+
+withSiteOf :: forall a. { password :: String, session :: String } -> (Int -> Aff a) -> Aff a
+withSiteOf admin test = do
+  dir <- liftEffect siteDir
+  bracket (toAffE (startSiteImpl dir apiPrefix admin handler)) (\s -> toAffE (stopServerImpl s)) (test <<< portOf)
+
+-- | Text as the hex the test client writes.
+hexOf :: String -> String
+hexOf s = joinWith "" (map (\c -> Int.toStringAs Int.hexadecimal (toCharCode c)) (toCharArray s))
 
 get :: Int -> String -> Array (Maybe String) -> Aff Answer
 get port path accept = toAffE (turnImpl port "GET" path headers [])
@@ -100,6 +116,26 @@ spec = describe "HTTP device" do
       route' <- get port "/runs/run-1" []
       route'.status `shouldEqual` 200
       route'.text `shouldEqual` "<html>the index</html>"
+  it "the public site: the landing page, a portfolio page, and the admin page behind its password" do
+    withSite \port -> do
+      landing <- get port "/" []
+      landing.text `shouldEqual` "<html>the landing page</html>"
+      (_.text <$> get port "/portfolio/run-1/abc" []) >>= (_ `shouldEqual` "<html>the index</html>")
+      locked <- get port "/admin/" []
+      locked.text `shouldSatisfy` contains (Pattern "password")
+      locked.text `shouldSatisfy` (not <<< contains (Pattern "the index"))
+      (_.status <$> get port "/runs/run-1" []) >>= (_ `shouldEqual` 404)
+      bad <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=wrong" ])
+      bad.status `shouldEqual` 401
+      good <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=pw" ])
+      good.status `shouldEqual` 303
+      header "set-cookie" good `shouldSatisfy` maybe false (contains (Pattern "admin=sess"))
+      opened <- toAffE (turnImpl port "GET" "/admin/" (Object.singleton "cookie" "admin=sess") [])
+      opened.text `shouldEqual` "<html>the index</html>"
+  it "a site with no password set admits nobody" do
+    withSiteOf { password: "", session: "" } \port -> do
+      empty <- toAffE (turnImpl port "POST" "/admin/login" Object.empty [ hexOf "password=" ])
+      empty.status `shouldEqual` 401
   it "GET /api is an API request, a 404, not the page" do
     withServer \port -> do
       a <- get port "/api" []

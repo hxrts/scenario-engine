@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 import { section } from "./helpers.js";
 
 test("the Runs page has an Actor balance sheet: a selector defaulting to the first Actor, and no table", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   const s = section(page, "Actor balance sheet");
   await expect(s.getByRole("heading", { name: "Actor balance sheet", exact: true })).toBeVisible();
   const selector = s.getByRole("combobox", { name: "Actor", exact: true });
@@ -20,7 +20,7 @@ test("the Runs page has an Actor balance sheet: a selector defaulting to the fir
 });
 
 test("choosing an Actor updates its holdings plot and legend, and its net worth plot", async ({ page }) => {
-  await page.goto("/#/runs/run-1");
+  await page.goto("/admin/#/runs/run-1");
   const s = section(page, "Actor balance sheet");
   const selector = s.getByRole("combobox", { name: "Actor", exact: true });
   await expect(selector).toBeVisible();

@@ -13,6 +13,7 @@ export const siteDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sp-http-"));
   fs.mkdirSync(path.join(dir, "site", "assets"), { recursive: true });
   fs.writeFileSync(path.join(dir, "site", "index.html"), "<html>the index</html>");
+  fs.writeFileSync(path.join(dir, "site", "landing.html"), "<html>the landing page</html>");
   fs.writeFileSync(path.join(dir, "site", "assets", "app.js"), "console.log('app');");
   fs.writeFileSync(path.join(dir, "site", "assets", "font.woff2"), Buffer.from([1, 2, 3]));
   fs.writeFileSync(path.join(dir, "secret.txt"), "the secret");
@@ -22,6 +23,12 @@ export const siteDir = () => {
 export const startServerImpl = (staticDir) => (prefix) => (handler) => () =>
   new Promise((resolve) => {
     const server = createServer(staticDir, prefix, handler);
+    server.listen(0, () => resolve({ server, port: server.address().port }));
+  });
+
+export const startSiteImpl = (staticDir) => (prefix) => (admin) => (handler) => () =>
+  new Promise((resolve) => {
+    const server = createServer(staticDir, prefix, handler, admin);
     server.listen(0, () => resolve({ server, port: server.address().port }));
   });
 

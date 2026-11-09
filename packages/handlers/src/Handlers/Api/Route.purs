@@ -17,6 +17,9 @@ module Handlers.Api.Route
   , failWith
   , endpointNames
   , errorShape
+  , Access(..)
+  , accessOf
+  , endpointAccess
   ) where
 
 import Prelude
@@ -27,12 +30,12 @@ import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
 import Core.Shape (class Payload, Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
-import Data.Array (catMaybes, filter, findMap, length, zipWith)
+import Data.Array (catMaybes, filter, findMap, length, zipWith, find)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
 import Data.Int (toNumber)
 import Data.Int as Int
-import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe, isJust)
 import Data.Generic.Rep (class Generic, Constructor(..), Sum(..), from, to)
 import Data.String (Pattern(..), joinWith, split, stripPrefix)
 import Data.Foldable (lookup)
@@ -180,10 +183,16 @@ bodyOf s get = Part
 
 -- | An endpoint: its method, its path (`:name` is a capture), and how its operation's payload is
 -- | read from and written to a request.
-type Endpoint b = { method :: String, path :: String, part :: Part b b }
+type Endpoint b = { method :: String, path :: String, part :: Part b b, access :: Access }
+
+-- | Who may call an endpoint. Every endpoint is `Admin` unless the table says otherwise, so a new route
+-- | is private until someone decides it is not.
+data Access = Admin | Open
+
+derive instance Eq Access
 
 -- | A request for one endpoint of the table, without its payload's fields.
-type Entry a = { name :: String, method :: String, path :: Array String, read :: Incoming -> Either Reply a }
+type Entry a = { name :: String, method :: String, path :: Array String, access :: Access, read :: Incoming -> Either Reply a }
 
 segmentsOf :: String -> Array String
 segmentsOf = filter (_ /= "") <<< split (Pattern "/")
@@ -210,7 +219,7 @@ instance (Endpoints a row, Endpoints b row) => Endpoints (Sum a b) row where
 
 instance (IsSymbol name, Payload args p, Row.Cons name (Endpoint p) _t row) => Endpoints (Constructor name args) row where
   rowsOf _ r inj =
-    [ { name: reflectSymbol name, method: e.method, path: segmentsOf e.path, read: map (inj <<< Constructor <<< fromPayload) <<< p.read } ]
+    [ { name: reflectSymbol name, method: e.method, path: segmentsOf e.path, access: e.access, read: map (inj <<< Constructor <<< fromPayload) <<< p.read } ]
     where
     name = Proxy :: Proxy name
     e = Record.get name r
@@ -274,7 +283,7 @@ endpoints = table
         view <- viewCapture "view" _.view
         round <- optionalIntParam "round" _.round
         in { id, view, round }
-  , "RoundReport": get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)
+  , "RoundReport": (get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)) { access = Open }
   , "Compare": get "/api/compare"
       ado
         runs <- commaParam "runs" _.runs
@@ -305,7 +314,7 @@ endpoints = table
     in { premise, playerSeed, preset, alternative }
 
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
-  endpoint method path part = { method, path, part }
+  endpoint method path part = { method, path, part, access: Admin }
 
   get :: forall b. String -> Part b b -> Endpoint b
   get = endpoint "GET"
@@ -325,9 +334,24 @@ parse req = case findMap matching endpoints.rows of
     | row.method /= req.method = Nothing
     | otherwise = matchPath row.path segments <#> \captures -> row.read { captures, query: req.query, body: req.body }
 
+-- | Who may make a request, when it names an endpoint.
+accessOf :: Request -> Maybe Access
+accessOf req = _.access <$> find matches endpoints.rows
+  where
+  segments = map (\s -> fromMaybe s (decodeURIComponent s)) (segmentsOf req.path)
+  matches row = row.method == req.method && isJust (matchPath row.path segments)
+
 -- | An operation as the client sends it. Ids and query values are percent-encoded.
 wire :: ApiRequest -> Wire
 wire = sent <<< endpoints.write
+
+-- | Every endpoint with who may call it, for the test that walks them.
+endpointAccess :: Array { name :: String, method :: String, path :: String, access :: Access }
+endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinWith "/" (map fill r.path), access: r.access }) endpoints.rows
+  where
+  fill s = case stripPrefix (Pattern ":") s of
+    Just _ -> "1"
+    Nothing -> s
 
 -- | The names of the table's endpoints, one per operation of `ApiRequest`, in the order of the type.
 endpointNames :: Array String
