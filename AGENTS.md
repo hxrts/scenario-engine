@@ -50,6 +50,7 @@ Spec conventions:
 
 - **Two parts.** The pure engine, `resolveRound`, is the only code that changes the economy. The round runner runs Propose and then Sign for every Policy and hands the signed Proposals to the engine. The engine checks authority and signatures and balances the books. It never authors or rewrites an Intent.
 - **Purity.** All impurity goes through algebraic effects. Handlers choose the context and contain no game logic.
+- **Capacity is a use of a Resource** (glossary, `docs/02_type_system.md` §2.5). `Core` has no such concept, and `scripts/check/derived.js` bans the word in `packages/core/src`; the word belongs to the DSL and the UI.
 - **Representation lags one round.** The engine stores an adjustment factor in round r, and the Aggregate's Policy applies it in round r+1.
 - **Replay.** Replay under the Replay handler must reproduce a run exactly.
 - **Layers.** The dependency chain and the module map are in `docs/07_architecture.md` §3.

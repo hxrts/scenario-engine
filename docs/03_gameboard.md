@@ -72,10 +72,13 @@ A report compiles into explicit configuration in [§5](#5-economic-structure)–
 `resources.json` maps each Resource id to:
 
 - `transferability`: `Free`, `Restricted`, or `NonTransferable` (required).
-- `reservable` (default `false`): whether a Facility may reserve it (`escrowPerUnit`), so that it is held for the round without being consumed. The setting document rejects a reservation of a Resource that is not `reservable`.
+- `reservable` (default `false`): whether a Facility may reserve it (a `from: Executor` entry in `draws`). The setting document rejects a reservation of a Resource that is not `reservable`.
 - `decay` (optional): the per-round decay rate, a plain quantity.
+- `category` (optional): the setting's own grouping of the Resource, which only the views read.
 
 The engine attaches no behavior to a Resource's name. Its effects come from the Facilities, Markets, and cycle entries that reference it.
+
+A setting declares a [capacity](02_type_system.md#25-glossary) as a Resource with `category` `capacity`, held in `accounts` ([§6](#6-entity-catalog)) and named by Facility `draws` ([§5.3](#53-facilities)) or `production` ([§5.4](#54-recurring-cycle)). The DSL's `Settings.Kit.Resources.capacity` declares one `NonTransferable` in that category. A setting makes a capacity tradeable by declaring another `transferability` and a Market for it. Validation requires a held Resource of this category to be referred to ([§12.2](#122-checks-implemented)).
 
 ### 5.2 Exchange Markets
 
@@ -94,13 +97,12 @@ Limit-price orders and clearing are Intents and clearing rules (Type System [§3
 `transformations.json` maps each Facility (Transformation) id to:
 
 - `inputs`, `outputs`: Resource to quantity per unit.
-- `escrowPerUnit`: reservable Resources the Facility holds per unit for the round. A non-reservable Resource fails when the setting document is read (the flag stays in the document).
+- `draws` (optional): `[{ resource, from, perUnit }]`, what the Facility holds per unit ordered for the round without consuming it (Type System [§5.3](02_type_system.md#53-facilities-costed-transformations)). `from` is `Executor` or `HolderOf`. An `Executor` draw on a non-reservable Resource fails when the setting document is read (the flag stays in the document).
 - `payment` (optional): `{ curve, resource, to }`, a CostFunction giving the price per unit, the Resource paid in, and the Entity paid.
-- `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
-- `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. Capacity `effects` always land at least one round after the order.
+- `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. How `effects` land is in Type System [§5.3](02_type_system.md#53-facilities-costed-transformations).
 - `minimum` (default `0`) and `maximum` (optional): bounds on one Entity's order per round.
-- `ownerSigns` (default `false`): the capacity's owner must sign every order.
-- `effects` (optional): `[{ capacity, perUnit, holder?, rounds? }]`, changes to capacities per unit ordered. `holder` defaults to the ordering Entity. `rounds`, if given, reverses the change after that many rounds.
+- `ownerSigns` (default `false`): whether the holder signs every order (Type System [§5.3](02_type_system.md#53-facilities-costed-transformations)).
+- `effects` (optional): `[{ resource, perUnit, holder?, rounds? }]`, the delayed flows per unit ordered (Type System [§5.3](02_type_system.md#53-facilities-costed-transformations)). `holder` defaults to the ordering Entity.
 
 Defense procurement, public campaigns, energy shipping, and military deployment are all Facilities. Facilities are not a separate type.
 
@@ -108,22 +110,22 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 
 A setting's cycle has four parts: production (Transformations and capacities create outputs), exchange (Markets clear and pay suppliers), income and expenditure (explicit rules distribute earnings, wages, taxes, public spending, and transfers), and capacity renewal (investments and degradation adjust future capacities). `circulation.json` holds the recurring forms that the engine evaluates each round on the batch result (Type System [§6](02_type_system.md#6-economic-circulation)):
 
-- `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
+- `production`: `[{ entity, resource, capacity }]`, `capacity` being the Resource read as an amount held. Output is delivered in the next round.
 - `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round. A negative `amount` fails decoding.
 - `shares`: `[{ from, to, share, source }]`. A share of a `LegQuery` read without its party, the payer being it (`{ window, side, resource?, cause, aggregate }`): the DSL's `sales <resource>` is net sales this round, and `payee` is payments received this round.
 - `requirements`: `[{ entity, resource, amount?, penalty? }]`. Operating requirements consumed each round. `amount` defaults to the round's purchases, and `penalty` defaults to `0`. A shortfall accrues `penalty` per unit short against that Entity's incoming fixed flows.
 
 The authored forms and a Resource's `decay` are compiled (`Schema.Recurring`) into the one `RecurringFlow` rule ([02 §6](02_type_system.md#6-economic-circulation)).
 
-Decay follows each Resource's `decay`. Capacity changes come from Facility `effects` and Rules. No renewal or depreciation rule exists. Rates are per round ([§10.2](#102-temporal-structure)).
+Decay follows each Resource's `decay`. A capacity's holding changes through Facility `effects`, and a holding Rule limits only what can be drawn. No renewal or depreciation rule exists. Rates are per round ([§10.2](#102-temporal-structure)).
 
 ### 5.5 Geography, access, and Rules
 
-- **Regions** are separate Markets, and each commodity keeps one Resource: a regional node is a Market with its `access`. There is no node hierarchy. Flow gates and flows Rules (Type System [§5.4](02_type_system.md#54-flow-gates-and-flows-rules)) express movement between them; Facilities that share a capacity share its limit and uniform price.
+- **Regions** are separate Markets, and each commodity keeps one Resource: a regional node is a Market with its `access`. There is no node hierarchy. Flow gates and flows Rules (Type System [§5.4](02_type_system.md#54-flow-gates-and-flows-rules)) express movement between them; Facilities that draw on one capacity form a pool (Type System [§5.3](02_type_system.md#53-facilities-costed-transformations)).
 - **`flowGates`** are `[{ resource, exemptSharedMarket, bundled? }]`: `exemptSharedMarket` frees parties who share a Market for the Resource from the gate and from flows Rules, and `bundled` names the Transformation a sender's orders of which must carry the Transfer. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
-- **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A setting that declares none has no Rules.
-- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: { rate, basis, in, to } }` or `block`; `basis` is `perUnit` or `{ adValorem: <market> }`, `in` is the Resource it is paid in, and `to` is `destination`, `governor`, or `sink`. A capacity Rule is `{ capacity: { kind, capacity, reduce } }` instead. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of a capacity). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
+- **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the Resource's holder), the text being how a Rule of the kind is displayed. A setting that declares none has no Rules.
+- **`rules`** are institutional conditions, each of a declared kind: `{ flows: { kind, scope: { governor, counterparty, direction, over }, effect } }`, where `over` names the Resources it covers (at least one; a Rule needs no gate) with `effect` `{ levy: { rate, basis, in, to } }` or `block`; `basis` is `perUnit` or `{ adValorem: <market> }`, `in` is the Resource it is paid in, and `to` is `destination`, `governor`, or `sink`. A holding Rule is `{ holding: { kind, resource, reduce } }` instead. Meridian declares `tariff` (a levy, inbound, governed by the destination), `accessBan` (a block, either way), and `withholding` (a reduction of what can be drawn). A Rule in force at the start is listed in `game-rules.json`. A Rule enacted during play needs the matching `enact:<kind>` capability (Type System [§3](02_type_system.md#3-intents-and-economic-actions)).
 
 ### 5.6 Limits
 
@@ -135,7 +137,6 @@ The schema has no separate constraints section. Limits are expressed through res
 
 - `accounts`: Resource to holding (required).
 - `capabilities`: a list of capability tags (required). The tags are `trade:<market>`, `transfer:<resource>`, `transform:<transformation>`, and `enact:<kind>` (a kind in `ruleKinds`, [§5.5](#55-geography-access-and-rules)), each a pattern over Intents (Type System [§2.4](02_type_system.md#24-capability)).
-- `capacities` (optional): capacity name to quantity.
 - `definition` (an Actor, [§6.2](#62-actor-definitions)) or `aggregate` (an Aggregate, [§6.3](#63-aggregates)). An Entity should have exactly one. Validation does not check this.
 
 ### 6.1 Projections
@@ -143,7 +144,7 @@ The schema has no separate constraints section. Limits are expressed through res
 The catalog configures the three projections of Type System [§2.2](02_type_system.md#22-three-projections-of-an-entity) separately:
 
 - **Members**: `aggregate.members`. Descriptive. Lists may overlap. Membership confers nothing.
-- **Accounts and capacities**: each account is held by its Entity, and each capacity has exactly one owner ([§12.2](#122-checks-implemented)).
+- **Accounts**: each account is held by its Entity, and a Resource drawn from its holder has one holder ([§12.2](#122-checks-implemented)).
 - **Capabilities and procedures**: `capabilities`, and `authorizes` in each procedure ([§6.3](#63-aggregates)).
 
 Membership does not imply ownership, and ownership does not imply authority ([INV-03](02_type_system.md#inv-03)).
@@ -175,7 +176,7 @@ A [collective procedure](02_type_system.md#22-three-projections-of-an-entity) is
 
 ### 6.4 Overlap
 
-Memberships may overlap. Capacities have one owner ([§12.2](#122-checks-implemented)). Accounts move between Entities only through instantiation's coverage merge ([04 §4.2](04_instantiated_game.md#42-partitioning)), which gives each account one owner in every resolution ([INV-08](02_type_system.md#inv-08)).
+Memberships may overlap. A Resource drawn from its holder has one holder ([§12.2](#122-checks-implemented)). Accounts move between Entities only through instantiation's coverage merge ([04 §4.2](04_instantiated_game.md#42-partitioning)), which gives each account one owner in every resolution ([INV-08](02_type_system.md#inv-08)).
 
 ### 6.5 Fallbacks
 
@@ -248,7 +249,7 @@ Criterion = { metric: MetricRef, over: final | everyRound | cumulative, atLeast:
 MetricRef = { entities: [EntityId], measure, negated? }
 ```
 
-`measure` is one of `holding:<resource>`, `capacity:<capacity>`, `shortfall:<resource>`, `shortfallRounds:<resource>`, `payeeReceipts`, or `volume:<transformation>`, summed over the listed entities. `negated: true` expresses "at most", with a negative `atLeast`. Each criterion is reported as met, not met, or not evaluated ([06 §9.2](06_simulator.md#92-run-details)). System-level measures are planned.
+`measure` is one of `holding:<resource>`, `shortfall:<resource>`, `shortfallRounds:<resource>`, `payeeReceipts`, or `volume:<transformation>`, summed over the listed entities. `negated: true` expresses "at most", with a negative `atLeast`. Each criterion is reported as met, not met, or not evaluated ([06 §9.2](06_simulator.md#92-run-details)). System-level measures are planned.
 
 ## 11. Initialization Constraints
 
@@ -288,11 +289,13 @@ Validation is always against one configuration. The Gameboard has no separate "v
 
 | Constructor | Fails when |
 |---|---|
-| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, flow gate, group, Rule, scheme, Aggregate member, procedure weight, `aggregate.policy`, `npc` list, capability, procedure `authorizes`, objective metric or Measure, fallback (a coverage target or a Policy, declared or in `config.fallbacks`), `config.fallbacks` key, `focus`, or the `numeraire` does not exist. A capacity that is used but unheld, or held but unused, is reported this way too. |
+| `UnknownReference kind name` | A name used in a Market, Facility, effect, cycle entry, flow gate, group, Rule, scheme, Aggregate member, procedure weight, `aggregate.policy`, `npc` list, capability, procedure `authorizes`, objective metric or Measure, fallback (a coverage target or a Policy, declared or in `config.fallbacks`), `config.fallbacks` key, `focus`, or the `numeraire` does not exist. A held Resource of `category` `capacity` that no holder draw, effect, or `production` entry refers to is reported this way too. |
 | `UnknownScheme` | A `representations` entry names a scheme the Gameboard does not define. |
 | `NegativeDelay` | A Facility's `delay` is negative. |
-| `DuplicateCapacityOwner` | A capacity, other than a producer's production capacity, has more than one owner. |
-| `ProductionWithoutCapacity` | A `production` entry's Entity does not hold that capacity. |
+| `DuplicateHolder` | A Resource a `HolderOf` draw names, and no `production` entry reads, has accounts at more than one Entity. |
+| `DrawWithoutHolder` | A `HolderOf` draw names a Resource no Entity has an account for. |
+| `TooManyHolderDraws` | A Facility has more than one `HolderOf` draw. |
+| `ProductionWithoutHolding` | A `production` entry's Entity has no account for the Resource it reads. |
 | `MissingFallback` | A non-required Actor has no fallback. |
 | `MissingObjective` | An Actor has no objective. |
 | `ProcedureExceedsAuthority` | A procedure authorizes a capability its Aggregate does not hold. |
@@ -301,7 +304,7 @@ Validation is always against one configuration. The Gameboard has no separate "v
 | `RequiredNotSelected` | A required Actor is not selected. |
 | `ControllerNotAllowed` | A seat is given to an Actor whose `seat` is false, or an NPC Policy not in its `npc` list. |
 | `IneligibleRepresentative` | A representing Actor is not in `eligibleActors`, or is not selected. |
-| `ResolutionInconsistent` | Making a coverage Actor implicit changes stocks, capacities, procedure weights, or authority ([§12.4](#124-resolution-consistency)). |
+| `ResolutionInconsistent` | Making a coverage Actor implicit changes stocks, procedure weights, or authority ([§12.4](#124-resolution-consistency)). |
 
 Instantiation errors ([04 §10](04_instantiated_game.md#10-initialization-pipeline)) are reported as the same `ValidationError` list.
 
@@ -319,7 +322,7 @@ These documented requirements are not validated:
 
 ### 12.4 Resolution consistency
 
-For each Actor whose definition declares a coverage fallback, validation compares two configurations: the given one, and the same one with that Actor unselected. The two must agree on stocks (Entity accounts and Market reserves), capacities, procedure weights, and enacting authority (`Board.Gameboard.Reconcile`). A difference is `ResolutionInconsistent`.
+For each Actor whose definition declares a coverage fallback, validation compares two configurations: the given one, and the same one with that Actor unselected. The two must agree on stocks (Entity accounts and Market reserves), procedure weights, and enacting authority (`Board.Gameboard.Reconcile`). A difference is `ResolutionInconsistent`.
 
 Liabilities and recurring flows are not yet compared, and only these pairs are checked, not every pair of explicitness configurations. The check runs only when the other checks pass.
 

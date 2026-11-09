@@ -46,7 +46,7 @@ The three layers apply to the world and to its policies alike. In-world Strategi
 
 The type system is built from a small set of primitives: Resources, Entities with accounts and capabilities, Policies, Markets, costed Transformations (Facilities), Aggregates, Representations, Intents, and Proposals. Their definitions are in [02 §2–§5](02_type_system.md). The glossary is [02 §2.5](02_type_system.md#25-glossary).
 
-Authority and resources are distinct. A government can regulate businesses without owning their resources. Not everything meaningful is a Resource: production capacity, market access, and authority are economic state or rules. This lets a few Resources support a rich economy.
+Authority and resources are distinct. A government can regulate businesses without owning their resources. Not everything meaningful is a Resource: market access and authority are economic state or rules. This lets a few Resources support a rich economy.
 
 ## 5. Explicit and Implicit Economy
 

@@ -65,7 +65,7 @@ The stored spec (`Schema.Run.Spec`, written by `Game.Recipe.encodeSpec`) records
 
 ### 3.1 Configuration inheritance
 
-A specification may reference a baseline and apply declarative overrides (`Game.Override`: the game seed, a parameter, an Entity's capacity, a scheme's shrinkage, or making an Actor implicit). For example: start from `meridian-test-01` ([05 §14](05_test_instance.md#14-game-settings)), set a procurement capacity to 20, and set the SME estimator shrinkage to 0.40. A seat's preset is not an override: a stored run plays one preset on every seat.
+A specification may reference a baseline and apply declarative overrides (`Game.Override`: the game seed, a parameter, an Entity's holding of a capacity, a scheme's shrinkage, or making an Actor implicit). For example: start from `meridian-test-01` ([05 §14](05_test_instance.md#14-game-settings)), set a procurement capacity to 20, and set the SME estimator shrinkage to 0.40. A seat's preset is not an override: a stored run plays one preset on every seat.
 
 Overrides must respect the layer boundaries. Tuning an instance changes declarative data, never engine code:
 
@@ -203,7 +203,7 @@ Each required assertion checks exactly one invariant from the Type System master
 | Stock-flow reconciliation | [INV-05](02_type_system.md#inv-05) | Implemented |
 | Market solvency | [INV-06](02_type_system.md#inv-06) | Implemented |
 | Price is not production | [INV-07](02_type_system.md#inv-07) | Planned |
-| Account partition | [INV-08](02_type_system.md#inv-08) | Implemented per round for facility capacities |
+| Account partition | [INV-08](02_type_system.md#inv-08) | Implemented per round for Resources drawn from their holder |
 | Representation consistency | [INV-09](02_type_system.md#inv-09) | Implemented for the estimator bound |
 | Signature completeness | [INV-10](02_type_system.md#inv-10) | Implemented |
 | Order independence | [INV-11](02_type_system.md#inv-11) | Planned per round. Tested by §14 test 3 |
@@ -365,7 +365,7 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 6. **Drivers.** A table by round of the rules enacted and repealed, the collective procedure outcomes (executed or lapsed, with support and threshold), and the shortfalls per Resource (`drivers`).
 7. **Balance measures.** The spread and the Gini coefficient of final net worth (`balance`).
 8. **Objectives.** Each Actor's objective criteria as met, not met, or not evaluated, with the measured values (`objectives`). A criterion is not evaluated when the run has no rounds or its series is empty. It is never reported as met.
-9. **Final balance sheet.** Every Entity's holdings (Actors, NPCs, and Aggregates, with a `Kind` column) by Resource at the final round: `Initial`, `Current`, and `Change` (`balances`). There is no Reserved column, because a reservation does not outlive its round. Aggregates are residual representations.
+9. **Final balance sheet.** Every Entity's holdings (Actors, NPCs, and Aggregates, with a `Kind` column) by Resource at the final round: `Initial`, `Current`, and `Change` (`balances`). There is no Reserved column, because a reservation does not outlive its round. Every view that lists holdings leaves out Resources of `category` `capacity`. Aggregates are residual representations.
 10. **Entity balance sheet.** A selector of the run's Entities, defaulting to the first seat. `GET /api/runs/:id/entities` says which Entities are seats and which is the default. It draws **Holdings by Resource**, one line per held Resource in its own unit, and **Net worth** in M on its own scale, from `/api/runs/:id/entity/:entity` (§8.1).
 
 **Definitions.** *Net worth*, *spread*, and the *Gini coefficient* are defined in [02 §2.5](02_type_system.md#25-glossary). The mean price of a Resource's Markets is a view convention, not an engine rule, and Soft Power has no Market. Aggregates are residual and are not players. Standings, the net-worth chart, and the Entity balance sheet all use this one definition (`Views.Standings`). Standings rank 1 is the highest. Equal net worths share a rank. The spread and the Gini coefficient are computed in `Views.Balance`.
@@ -376,9 +376,9 @@ The page opens with a compact header: run id, then the overview's facts (name, p
 
 **Procedures (API-only).** `procedures` lists each procedure Proposal per round, the members who signed, the support against the threshold, and the outcome (executed or lapsed). An optional resource contribution is a separate Transfer.
 
-**Event order (API-only).** `events?round=n` lists a round's engine events (lapses, rejections, removed orders, settlements, capacity changes, enactments and repeals, estimates, and procedure outcomes) in the order the engine records them, which is canonical phase order. Proposals and signatures are in the round record's inputs, and assertions are stored beside the record.
+**Event order (API-only).** `events?round=n` lists a round's engine events (lapses, rejections, removed orders, settlements, enactments and repeals, estimates, and procedure outcomes) in the order the engine records them, which is canonical phase order. Proposals and signatures are in the round record's inputs, and assertions are stored beside the record.
 
-**Planned** on the run page: the lineage section ("Derived from" and "Derived runs", the list's Source column already links to the source). The representation and procedure views. The event inspector. And the flows, signed joint Proposals, and non-Resource state (capacities, market access) in the balance sheets.
+**Planned** on the run page: the lineage section ("Derived from" and "Derived runs", the list's Source column already links to the source). The representation and procedure views. The event inspector. And the flows, signed joint Proposals, and capacities and market access in the balance sheets.
 
 ### 9.3 Prepare
 

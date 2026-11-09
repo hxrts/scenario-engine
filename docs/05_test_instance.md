@@ -36,7 +36,7 @@ Part I chooses values for the Type System's abstract types. Their rules are in [
 
 ## 2. Resources
 
-The instance uses exactly four Resources, all abstract game units. Their differences are declared Resource properties.
+The instance uses four circulating Resources, all abstract game units, and four capacities ([§2.1](#21-capacities-and-other-economic-state)). Their differences are declared Resource properties.
 
 | Resource | Unit | Created / destroyed by | Transferability | Decay | Reservable |
 |---|---|---|---|---|---|
@@ -47,13 +47,16 @@ The instance uses exactly four Resources, all abstract game units. Their differe
 
 Energy is one commodity. Geography is expressed through regional Markets and transport capacity. There is no tactical combat.
 
-### 2.1 Economic state that is not a Resource
+### 2.1 Capacities and other economic state
 
-| Economic state | Owner | Purpose |
+The first four rows are [capacities](02_type_system.md#25-glossary): `NonTransferable` Resources with no Market. The rest are not Resources.
+
+| Economic state | Holder | Purpose |
 |---|---|---|
 | Energy production capacity | Energy producers | Energy created each round ([§8.1](#81-energy-production)) |
 | Transport capacity | SHIP | Capacity of `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)) |
 | Semiconductor capacity | CHIP | 15 units/round. Backs procurement (1 unit per 2 Mil) and Energy capacity investment |
+| Public attention capacity | WORLD_HOUSEHOLDS | Capacity of `public-attention` ([§3.4](#34-public-attention-facility)) |
 | Procurement facility | DEF operates it. Its limit is CHIP's semiconductor capacity | Annual Military production ([§3.3](#33-defense-procurement-facility)) |
 | Rules in force (`Tariff`, `AccessBan`, `Withholding`) | Governments. The EU collective procedure. CHIP | Who may ship across regions and at what surcharge. Withheld capacity |
 
@@ -101,7 +104,7 @@ Germany holds no tariff authority of its own. EU-wide restrictions belong to the
 
 **Transformation ID:** `defense-procurement` (China orders from its own `defense-procurement-cn`, with payee CN_PRIVATE)
 
-- **Capacity:** 30 Mil per round, backed by CHIP's 15 semiconductor units (1 unit per 2 Mil). Units CHIP withholds, or that capacity investment consumes, reduce capacity proportionally.
+- **Capacity:** 30 Mil per round, backed by CHIP's 15 semiconductor units (1 unit per 2 Mil). Units CHIP withholds, or that capacity investment draws, reduce capacity proportionally.
 - **Cost:** **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is total Military ordered this round. Every order settles at the uniform price C(Q)/Q.
 - **Recipe:** each Mil also consumes 2 E.
 - **Payee:** DEF for every buyer except CN, whose payments go to CN_PRIVATE. DEF passes 25% of its procurement revenue to US_WORKERS as variable wages.
@@ -139,17 +142,17 @@ Germany holds no tariff authority of its own. EU-wide restrictions belong to the
 | **Public Campaign** | Money | Soft Power | WORLD_HOUSEHOLDS |
 | **Humanitarian Aid** | 10 M + 5 E | 4 S to the provider. The 5 E is consumed in relief. At most 2 units per order | WORLD_HOUSEHOLDS |
 | **Military Deployment** (`military-deployment`, uncapped) | Reserves 1 Mil per unit. No input | Reservation for the round, released at commit. Nothing consumed or produced ([§13.3](#133-military-deployment)) | - |
-| **Major Military Action** (`major-military-action`, uncapped, minimum 12) | 1 Mil per unit, 0.75 returned at commit | Reservation for the round. 25% attrition ([§13.3](#133-military-deployment)) | - |
+| **Major Military Action** (`major-military-action`, uncapped, minimum 12) | Consumes 1 Mil per unit and creates 0.75 | 25% attrition, not a reservation ([§13.3](#133-military-deployment)) | - |
 | **Energy Shipping** | 0.3 M per E, paid by the sender. SHIP must sign | Makes a bundled cross-region Energy Transfer valid ([§3.2](#32-transport-capacity-and-trade-restrictions)) | SHIP |
 | **Logistics Investment** | 10 M + 3 E (SHIP only) | +10 E/round `energy-shipping` capacity from next round | GLOBAL_SMES |
-| **Energy Capacity Investment** | 12 M + 3 E + 1 semiconductor unit bought from CHIP by signed Proposal (producers only) | +2 E/round production capacity from next round | GLOBAL_SMES |
+| **Energy Capacity Investment** | 12 M + 3 E. Draws 1 semiconductor unit from CHIP, under a Proposal CHIP signs (producers only) | +2 E/round production capacity from next round | GLOBAL_SMES |
 | **Strike** | 8 S + 5 M strike pay (LABOR only) | Next round: ENCO production capacity −6.25 E/round and CHIP semiconductor capacity −3.75 units (which back procurement) | US_WORKERS |
 
 Investments change future capacity. They never create Energy or Military directly.
 
 ## 5. Intents and Capabilities
 
-Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-intents-and-economic-actions)). Joint Proposals between players are Proposals bundling each side's Transfers ([§13.5](#135-proposals-and-signatures)). Governments act only within their jurisdictions. Corporations trade and transform the capacities they own but cannot regulate or deploy Military. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed joint Proposals, and Representation, and never acquire the authority of the populations they represent ([INV-03](02_type_system.md#inv-03)).
+Meridian uses the four Intent categories ([Type System §3](02_type_system.md#3-intents-and-economic-actions)). Joint Proposals between players are Proposals bundling each side's Transfers ([§13.5](#135-proposals-and-signatures)). Governments act only within their jurisdictions. Corporations trade and draw on the capacities they hold but cannot regulate or deploy Military. Civil organizations and the small-business owner act through their own holdings, Soft Power, strikes, aid, signed joint Proposals, and Representation, and never acquire the authority of the populations they represent ([INV-03](02_type_system.md#inv-03)).
 
 ---
 
@@ -279,7 +282,7 @@ Energy sales pay sellers the node's uniform price. ENERGY_SUPPLIERS pays 50% of 
 
 ### 8.5 Capacity renewal and reconciliation
 
-Investment in round r changes capacity from the Prepare phase of round r + 1, recorded with its originating Intent.
+Investment in round r changes capacity from the Prepare phase of round r + 1, as a delayed flow whose cause is its originating Intent.
 
 At the end of every round [INV-05](02_type_system.md#inv-05) must hold. The engine does not check it: `Core.Invariants.check` does, called per round by the CLI and across a run by the test suites, and a failing round is reported, not blocked. Total Money is unchanged. The change in total Energy equals production minus consumption, procurement, aid, and investment. The change in Military equals deliveries minus attrition. The change in Soft Power equals production minus spending minus decay. Fixture `circulation` checks five rounds with no other action: US Money 260 → 300, and DE Money 125 → 131 with Energy 0, since DE's 8 E requirement exceeds its stock in round 5 (2 E unmet withholds 4 M of its incoming transfers).
 
@@ -300,7 +303,7 @@ The reference instantiation selects all fifteen seat roles plus China as an NPC.
 | SA | Saudi Energy Minister | Government | Asia | Largest government production | Transport for Atlantic sales | Energy wealth |
 | NG | Nigerian President | Government | Atlantic | Energy production. Capacity investment | Semiconductor units; investment | National capacity |
 | ENCO | US Energy Consortium CEO | Corporation | Atlantic | Energy production. Capacity investment | Semiconductor units; strikes | Profit and supply growth |
-| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-economic-state-that-is-not-a-resource)). May withhold or sell units | 6 E/round operating Energy | Secure Energy inputs |
+| CHIP | Semiconductor Producer CEO | Corporation | Asia | Semiconductor capacity behind procurement ([§2.1](#21-capacities-and-other-economic-state)). May withhold units, and signs each Energy capacity investment | 6 E/round operating Energy | Secure Energy inputs |
 | SHIP | Shipping Operator CEO | Corporation | Both | Owns `energy-shipping` ([§3.2](#32-transport-capacity-and-trade-restrictions)). Chooses which shipments to sign. Arbitrage | 4 E/round fuel; shipment bans | Open routes, high throughput |
 | DEF | Defense Manufacturer CEO | Corporation | Atlantic | Operates procurement. Receives non-Chinese revenue | CHIP's semiconductor capacity; strikes | Procurement revenue |
 | LABOR | US Labor Federation Chair | Civil institution | Atlantic | Strike ([§4](#4-transformations)), declared or withheld each round | Dues; Soft Power | Workers' position and influence |
@@ -310,7 +313,7 @@ The reference instantiation selects all fifteen seat roles plus China as an NPC.
 
 ### 9.1 Semiconductor capacity
 
-CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-that-is-not-a-resource)). Compensation is a Transfer or signed Proposal. An Energy capacity investment needs 1 unit bought from CHIP by signed Proposal. Each unit so consumed counts against CHIP's units and cuts that round's procurement capacity by 2 Mil.
+CHIP may enact a `Withholding` rule on some units ([§2.1](#21-capacities-and-other-economic-state)). Compensation is a Transfer or signed Proposal. An Energy capacity investment draws on CHIP's semiconductors under a signed Proposal. Each unit drawn counts against CHIP's units for that round and cuts its procurement by 2 Mil.
 
 ### 9.2 Fallbacks
 
@@ -319,7 +322,7 @@ CHIP may enact a `Withholding` rule on some units ([§2.1](#21-economic-state-th
 | US, CN | Required explicit. Human or NPC controller |
 | DE | Government accounts held in the EU Aggregate as member-government accounts. Germany's weight folds into the EU's residual weights ([§14.2](#142-resolution-consistency)) |
 | IN, JP, UK, BR, SA, NG | `government-default-v0` controls the same accounts: baseline spending, no discretionary actions |
-| ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts and capacities: sells Energy above 30 E on every Energy Market it has access to (its own node, or both nodes for SHIP) and signs `energy-shipping` Proposals |
+| ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts: sells Energy above 30 E on every Energy Market it has access to (its own node, or both nodes for SHIP) and signs `energy-shipping` Proposals |
 | LABOR | Implicit coverage: accounts merge into US_WORKERS. No strike capability |
 | SME | Implicit coverage: accounts merge into GLOBAL_SMES. No Representation |
 | AID | Implicit coverage: accounts merge into WORLD_HOUSEHOLDS, which also receives EU donations |
@@ -581,7 +584,7 @@ Aggregates are in italics. Government holdings cover only government-controlled 
 | Mechanism | Initial state |
 |---|---|
 | Regional Energy Markets and `defence-goods` | Position x = 0. Reserves and opening prices as in [§3](#3-markets-and-facilities) |
-| Defense procurement, public attention, semiconductor capacity | 0 orders. Capacities as in [§2.1](#21-economic-state-that-is-not-a-resource), [§3.3](#33-defense-procurement-facility) and [§3.4](#34-public-attention-facility) |
+| Defense procurement, public attention, semiconductor capacity | 0 orders. Capacities as in [§2.1](#21-capacities-and-other-economic-state), [§3.3](#33-defense-procurement-facility) and [§3.4](#34-public-attention-facility) |
 | `energy-shipping` and production | Capacities as in [§3.2](#32-transport-capacity-and-trade-restrictions) and [§8.1](#81-energy-production) |
 | Rules | No `Tariff`, `AccessBan`, or `Withholding` in force |
 
@@ -808,7 +811,7 @@ Recorded each round. Dashboard metrics are versioned projections of snapshots an
 | Production, consumption, shortfalls | Stock-flow balance |
 | Procurement, deployment, attrition | Escalation |
 | Soft Power created, spent, decayed | Influence mechanics |
-| Semiconductor units withheld or sold, and capacity effect | Industrial dependency |
+| Semiconductor units withheld or drawn, and capacity effect | Industrial dependency |
 | EU support and outcome. SME baseline vs adjusted | Procedure and Representation effects |
 | Representation influence ratio | Representation balance |
 | Rejected and partial actions | Constraints |
@@ -858,4 +861,4 @@ The test does not need realistic macroeconomic forecasting. Its objective is coh
 
 ## 33. Summary
 
-*Meridian* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources, two regional Energy Markets and the `defence-goods` Market, three facilities, a balanced circulation schedule, fifteen seats, one NPC (China), and seven Aggregates. Germany influences EU decisions by signing procedure Proposals that execute in the same round, while German households and firms remain in the EU residual. The small-business owner influences Global SME demand through a bounded Representation applied in the following round. Scarcity comes from the scheduled disruption and player choices, not from incomplete accounting. Every parameter here should be changeable while the same Type System, Gameboard machinery, and runtime continue to be used.
+*Meridian* is a provisional configuration of the abstract architecture, not an extension of it. It defines four Resources and four capacities, two regional Energy Markets and the `defence-goods` Market, three facilities, a balanced circulation schedule, fifteen seats, one NPC (China), and seven Aggregates. Germany influences EU decisions by signing procedure Proposals that execute in the same round, while German households and firms remain in the EU residual. The small-business owner influences Global SME demand through a bounded Representation applied in the following round. Scarcity comes from the scheduled disruption and player choices, not from incomplete accounting. Every parameter here should be changeable while the same Type System, Gameboard machinery, and runtime continue to be used.

@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-An Instantiated Game is one playthrough of a Gameboard. Instantiation is a particular **resolution** of the Gameboard's world: which parts are explicit Actors and which remain implicit Aggregates. It also fixes each Actor's controller and the initial Policy bindings. The Gameboard supplies the holdings, capacities, and flows, which instantiation changes only by coverage merge ([§4.2](#42-partitioning)). The same Gameboard supports many games without modification. The EU might be a seat in one game, an NPC in another, and implicit in a third.
+An Instantiated Game is one playthrough of a Gameboard. Instantiation is a particular **resolution** of the Gameboard's world: which parts are explicit Actors and which remain implicit Aggregates. It also fixes each Actor's controller and the initial Policy bindings. The Gameboard supplies the holdings and flows, which instantiation changes only by coverage merge ([§4.2](#42-partitioning)). The same Gameboard supports many games without modification. The EU might be a seat in one game, an NPC in another, and implicit in a third.
 
 The layer performs two separate operations:
 
@@ -32,7 +32,7 @@ The configuration is a JSON object, `instantiation.json` in a setting directory,
 
 Meridian's values are in [05 §14](05_test_instance.md#14-game-settings).
 
-The configuration may not set holdings, capacities, Market state, Rules, Policy parameters, or round intervals; the Gameboard fixes them ([03 §11](03_gameboard.md#11-initialization-constraints)). Configuring those, or selecting Aggregates directly, is planned.
+The configuration may not set holdings, Market state, Rules, Policy parameters, or round intervals; the Gameboard fixes them ([03 §11](03_gameboard.md#11-initialization-constraints)). Configuring those, or selecting Aggregates directly, is planned.
 
 The Gameboard determines which choices are eligible. An invalid configuration fails with `ValidationError`s before any economic state is created.
 
@@ -79,7 +79,7 @@ An Aggregate is an Entity with an `aggregate` block ([03 §6.3](03_gameboard.md#
 ### 4.1 Resolving the three projections
 
 1. **Members.** The member list is descriptive and does not change. Members may be explicit Actors or implicit.
-2. **Residual accounts.** The Gameboard stores an Aggregate's accounts as the residual when its coverage Actors are explicit. When a coverage Actor is unselected, its holdings and capacities are added to the Aggregate ([§4.2](#42-partitioning)).
+2. **Residual accounts.** The Gameboard stores an Aggregate's accounts as the residual when its coverage Actors are explicit. When a coverage Actor is unselected, its holdings are added to the Aggregate ([§4.2](#42-partitioning)).
 3. **Collective procedures.** For each Actor merged into the Aggregate, its weight moves from each procedure's `weights` into `residualWeight`. The total weight of a procedure is therefore the same in every resolution ([§4.3](#43-resolution-consistency)).
 
 Each Aggregate's baseline Policy is its `aggregate.policy`. Representations are assigned separately ([§5](#5-representation-assignment)).
@@ -90,16 +90,16 @@ An Aggregate's economic accounts are the residual after explicitly modeled accou
 
 Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
-- its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
+- its accounts are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
 - Market access lists, group entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Production entries that become identical stay one. Requirements for the same Entity and Resource are summed when both are explicit amounts, two equal to purchases stay one, and an explicit amount and one equal to purchases stay separate.
-- Facility payment recipients (`payment.to`) and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A capacity Rule names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
+- Facility payment recipients (`payment.to`) and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A holding Rule names a Resource, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
 
-An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
+An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. The holder of a drawn Resource is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
 
 ### 4.3 Resolution consistency
 
-Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_type_system.md#inv-14)): the same stocks, capacities, procedure weights, and enacting authority. Validation checks this for each coverage Actor, comparing the configuration with that Actor unselected ([03 §12.4](03_gameboard.md#124-resolution-consistency)). A difference is `ResolutionInconsistent`. The check runs in validation, not in `instantiate`. A simulation override that changes explicitness is instantiated without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
+Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_type_system.md#inv-14)): the same stocks, procedure weights, and enacting authority. Validation checks this for each coverage Actor, comparing the configuration with that Actor unselected ([03 §12.4](03_gameboard.md#124-resolution-consistency)). A difference is `ResolutionInconsistent`. The check runs in validation, not in `instantiate`. A simulation override that changes explicitness is instantiated without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
 
 ## 5. Representation Assignment
 
@@ -123,9 +123,9 @@ Each View is the beginning-of-round snapshot: the Entity's own state, prices, Ru
 
 ## 7. Economic Initialization
 
-### 7.1 Holdings, Markets, capacities, and rules
+### 7.1 Holdings, Markets, and rules
 
-Holdings, reserves, capacities, cost curves, Market access, and Rules come from the Gameboard. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
+Holdings, reserves, cost curves, Market access, and Rules come from the Gameboard. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
 
 Each Market starts at its configured `position` (default `0`), and its price is read from the cost curve at that position. The Rules in force at the start come from `game-rules.json`. Starting feasibility ([INV-27](02_type_system.md#inv-27)) is not checked at initialization. A negative holding or reserve instead fails the first round that produces one ([03 §5.6](03_gameboard.md#56-limits)).
 
@@ -149,7 +149,7 @@ In live play, each round has one **propose deadline**. Humans give no input afte
 
 A run's state is:
 
-- the **World State**: the round index, the game seed, Entities with their controllers, Markets, capacities, Rules in force, scheduled Rule changes, pending deliveries, stored factors, events, and Representations.
+- the **World State**: the round index, the game seed, Entities with their controllers, Markets, Rules in force, scheduled Rule changes, pending deliveries, stored factors, events, and Representations.
 - the appended **round records**, one per round ([§11](#11-round-execution)).
 - the **manifest**.
 
@@ -212,7 +212,7 @@ A round record contains:
 
 - `round`: the round index.
 - `inputs`: every submitted signed Proposal, each with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
-- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Coupled` (one settlement: its legs, each with `owed` and `moved`, its `rate`, and its `cause`; `delivered` marks a delivery of something settled earlier), `CapacityChanged`, `Enacted`, `Repealed`, `Estimated`, and `ProcedureOutcome` (support, threshold, and whether it executed).
+- `events`: the outcomes of the round. The event kinds are `Lapsed`, `Rejected` (a whole Proposal turned down, with its reason), `OrderRemoved` (one order removed at settlement, with its reason; the Proposal's other Intents still settle), `Coupled` (one settlement: its legs, each with `owed` and `moved`, its `rate`, and its `cause`; `delivered` marks a delivery of something settled earlier), `Enacted`, `Repealed`, `Estimated`, and `ProcedureOutcome` (support, threshold, and whether it executed).
 
 Events record executed quantities, so a partial fill appears as smaller legs, and a shortfall as `moved < owed` on a leg, not as a separate state. Replay answers seats from recorded Proposals and signatures ([Handlers.Replay](../packages/handlers/src/Handlers/Replay.purs)), so it does not call the model.
 
