@@ -51,3 +51,9 @@ test("the Agency tab shows each criterion under the baseline and the alternative
   await expect(rowWith(page, ["US", "Hold energy", "met", "not met"])).toBeVisible();
   await expect(rowWith(page, ["US", "Aggressive", "1", "0"])).toBeVisible();
 });
+
+test("the run page shows the whole-economy measures", async ({ page }) => {
+  await page.goto("/#/runs/run-1");
+  await expect(page.getByRole("heading", { name: "Whole-economy measures", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Unfilled demand", exact: true })).toBeVisible();
+});

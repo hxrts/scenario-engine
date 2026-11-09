@@ -51,6 +51,7 @@ import Views.Markets as Markets
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
+import Views.WholeEconomy as WholeEconomy
 import Server.Errors (Answer, badRequest, conflict, describe, ok, replyOr, viewOr)
 
 -- | The run list: one summary per stored run, read without records or snapshots. Archived runs
@@ -158,6 +159,7 @@ getView settings { id, view, round } = withRun id runView
     Representation -> answer Keys.representation (Representation.representation r)
     Procedures -> answer Keys.procedures (Representation.procedures r)
     Assertions -> answer Keys.assertions (Assertions.assertions r)
+    WholeEconomy -> answer Keys.wholeEconomy (WholeEconomy.wholeEconomy r)
     Objectives -> onBoard r \gb -> answer Keys.objectives (Overview.objectives gb r)
     Standings -> answer Keys.standings (Standings.standings r)
     NetWorth -> answer Keys.netWorth (Standings.netWorthChart r)

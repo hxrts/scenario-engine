@@ -337,6 +337,13 @@ The comparison's runs and baseline are carried in the route. A named scenario se
 
 A **Variant Experiment** generates one specification for each declared parameter value, runs and saves every resulting game, and opens the runs as a named scenario set (`POST /api/experiments`, and `experiment <setting>` with `--parameter name --values a,b`, `--combine a=1,2;b=3,4`, `--seat id --alternatives A,B`, `--player-seeds 1,2`, or `--game-seeds 1,2` in the CLI). Every run uses one player seed, drawn once if none is given. Analysis functions also compose the simulation directly, scoring results with the checks and presenting them through the views, and `POST /api/batch` plays one run per setting. A Variant Experiment's kinds are single-parameter (one parameter over a list of values), multi-parameter (every combination of the values given), seat-Policy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). A set's **batch summary** gives the final measures across its runs: the mean, the spread, and how many runs met each Actor's objective (`GET /api/sets/:name/summary`, and a control on the Compare page). The Seed variation tab separates what depends on the seed from what depends on the specification.
 
+**Whole-economy measures.** The `wholeeconomy` view gives these by round and Market, and the run page shows them:
+
+- **Demand** on Market m in round r: the sum of every positive Trade quantity submitted on m, whether or not it filled.
+- **Unfilled demand**: max(0, Demand − bought), where bought is the base quantity players bought on m that round.
+- **Concentration**: the Herfindahl index of the players' positive net worth after the round, the sum of each one's share squared. It is 1/n when n players hold equal net worth and 1 when one holds all.
+- **Money distribution**: the Gini coefficient of the players' holdings of the numeraire after the round. It is n/a when none is held or a holding is negative.
+
 ## 12. Correctness Versus Gameplay Quality
 
 Correctness is established by the assertions (§7) and the mandatory tests (§14). The gameplay questions are in [01 Evaluation](01_overview.md#6-evaluation), and playtesting answers them. The Dashboard computes three indicators today: action counts, the balance measures (spread and Gini), and objective criteria.

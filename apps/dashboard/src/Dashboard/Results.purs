@@ -139,6 +139,11 @@ mkBody grid = fetched >>= \fetch -> mkEntity >>= \entity -> mkEvents grid >>= \e
             , children: [ view Keys.objectives (titled grid) ]
             }
         , Layout.section
+            { title: "Whole-economy measures"
+            , purpose: "By round and Market: what was asked for and what went unfilled, how concentrated net worth is, and how Money is distributed."
+            , children: [ view Keys.wholeEconomy (titled grid) ]
+            }
+        , Layout.section
             { title: "Assertions"
             , purpose: "Each invariant check that failed: what it expected, what it observed, and the events of that round that concern it."
             , children: [ view Keys.assertions (\t -> if null t.rows then note "No assertion failed in this run." else titled grid t) ]

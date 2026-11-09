@@ -27,6 +27,7 @@ import Views.Markets as Markets
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
+import Views.WholeEconomy as WholeEconomy
 
 -- | The glossary. `definitions` and `reasons` are keyed by column or field name. `unnamed` is the
 -- | entry for a name with none, which is a compared run's column (`{name}` is the name); `round` defines
@@ -43,7 +44,7 @@ allColumns :: Array Focus -> Array Column
 allColumns foci = nubBy (compare `on` _.name)
   ( sortBy (compare `on` _.name)
       ( sharedColumns <> concatMap identity
-          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, Actions.columns, concatMap Markets.columns foci, Compare.columns ]
+          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, WholeEconomy.columns, Actions.columns, concatMap Markets.columns foci, Compare.columns ]
       )
   )
 

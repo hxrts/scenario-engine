@@ -23,6 +23,7 @@ module Views.Keys
   , representation
   , procedures
   , assertions
+  , wholeEconomy
   , objectives
   , standings
   , netWorth
@@ -187,6 +188,9 @@ representation = key Representation table
 
 procedures :: ViewKey Table
 procedures = key Procedures table
+
+wholeEconomy :: ViewKey Table
+wholeEconomy = key WholeEconomy table
 
 assertions :: ViewKey Table
 assertions = key Assertions table

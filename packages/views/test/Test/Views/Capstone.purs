@@ -24,6 +24,7 @@ import Foreign.Object as Object
 import Effect.Aff (Aff)
 import Views.Agency (agencyTable)
 import Views.Assertions (assertions)
+import Views.WholeEconomy (herfindahl, unfilled, wholeEconomy)
 import Views.Batch (batchSummary, measureRow, objectiveRow)
 import Views.Common (quantity)
 import Views.Difference (Difference, differenceOfWorlds)
@@ -71,6 +72,17 @@ spec context = describe "Capstone (DSL-authored run)" do
         runs `shouldEqual` "3"
         spreadAcross `shouldEqual` quantity Q.zero
       other -> fail ("unexpected first row: " <> show other)
+
+  it "the whole-economy measures have their defined values" do
+    _ <- context
+    herfindahl (map Q.fromInt [ 1, 1, 2 ]) `shouldEqual` (Q.div (Q.fromInt 3) (Q.fromInt 8))
+    herfindahl [ Q.fromInt (-1), Q.fromInt 4 ] `shouldEqual` Q.fromInt 1
+    herfindahl [] `shouldEqual` Q.zero
+    unfilled (Q.fromInt 10) (Q.fromInt 7) `shouldEqual` Q.fromInt 3
+    unfilled (Q.fromInt 7) (Q.fromInt 10) `shouldEqual` Q.zero
+    cap <- load
+    base <- run cap.playerSeed cap.game
+    (length (wholeEconomy (toStored "capstone" base)).rows > 0) `shouldEqual` true
 
   it "a failed assertion shows its expected and observed values and its events; the clean run has none" do
     _ <- context
