@@ -11,12 +11,12 @@ module Assembly.Restrict
 
 import Prelude
 
-import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
+import World.PossibleWorld.Validate (possibleWorldNames, unknownNames, worldNames)
 import Core.Map (values)
 import Laws.StrategyRules (StrategyRules)
-import Laws.Types (holderDraw, Capability(..), ActorId, ExchangeId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
-import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..))
-import Data.Array (all, concat, concatMap, elem, filter, fromFoldable, mapMaybe, nub)
+import Laws.Types (Id(..), holderDraw, Capability(..), ActorId, ExchangeId, RefKind(..), ResourceId, RuleF(..), TransformationId, idText)
+import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), lawAction, lawRefs, templateRefs)
+import Data.Array (null, all, concat, concatMap, elem, filter, fromFoldable, mapMaybe, nub)
 import Data.Either (Either(..), isRight)
 import Data.Map (Map)
 import Data.Map as Map
@@ -100,6 +100,15 @@ filtered s p = p
   keptRule = case _ of
     FlowRule x -> keptActor x.scope.governor && keptActor x.scope.counterparty && all keptResource x.scope.over
     HoldingRule x -> x.resource `elem` drawn
+  keptNames = worldNames
+    { actors: Map.filterKeys keptActor old.world.actors
+    , exchanges: Map.filterKeys (_ `elem` s.exchanges) old.world.exchanges
+    , resources: Map.filterKeys keptResource old.world.resources
+    , transformations
+    , ruleKinds: old.world.ruleKinds
+    }
+  -- a law goes with what it names, and with the action it is charged on
+  keptLaw l = null (unknownNames keptNames (lawRefs l)) && maybe true (\a -> Map.member (Id a) keptNames.exchanges || Map.member (Id a) transformations) (lawAction l)
   schemes = filter (\x -> keptActor x.target && keptResource x.observes) old.schemes
   gb = old
     { world = old.world
@@ -112,6 +121,8 @@ filtered s p = p
         , groups = Map.filterWithKey (\k v -> keptActor k && keptActor v) old.world.groups
         , rules = Map.filter keptRule old.world.rules
         , recurring = recurring
+        , templates = Map.filter (null <<< unknownNames keptNames <<< templateRefs) old.world.templates
+        , laws = filter keptLaw old.world.laws
         }
     , authored = authored
         { circulation =

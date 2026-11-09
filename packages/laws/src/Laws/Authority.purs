@@ -15,11 +15,12 @@ module Laws.Authority
 
 import Prelude
 
+import Laws.World (TemplateTerms, templateTerms, Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
+
 import Core.Kernel.Resolve (holdsAll)
 import Core.Kernel.Types (Condition(..), Party(..))
 import Laws.Query (holderOf, exchangesOf)
 import Laws.Types (Capability(..), ActorId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), ExchangeId, Pair, CandidateTransaction, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
-import Laws.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
 import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)
@@ -47,6 +48,7 @@ type Facts =
   , transformation :: TransformationId -> Maybe Bounds
   , holder :: ResourceId -> Maybe ActorId
   , ruleKind :: RuleKindId -> Maybe RuleKindDecl
+  , template :: String -> Maybe TemplateTerms
   }
 
 worldFacts :: WorldState -> Facts
@@ -59,6 +61,7 @@ worldFacts w =
   , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
   , holder: holderOf w
   , ruleKind: \k -> Map.lookup k w.ruleKinds
+  , template: \t -> templateTerms <$> Map.lookup t w.templates
   }
 
 viewFacts :: View -> Facts
@@ -70,6 +73,7 @@ viewFacts v =
   , access: \who m -> who == v.self.id && any ((_ == m) <<< _.id) v.exchanges
   , transformation: \t -> Map.lookup t v.transformations
   , ruleKind: \k -> Map.lookup k v.ruleKinds
+  , template: \t -> Map.lookup t v.templates
   , holder: \r -> if r `elem` v.soleHoldings then Just v.self.id else Nothing
   }
 
@@ -86,6 +90,8 @@ authorized facts caps who = case _ of
   ChangeRule (Enact r) -> needs [ MayEnact (ruleKind r) ]
   -- an unknown Rule is not authorized to be repealed
   ChangeRule (Repeal id) -> maybe false (\r -> needs [ MayEnact (ruleKind r) ]) (facts.rule id)
+  -- an agreement binds only those who sign it, so its author need only be one of them
+  Enter e -> any ((_ == who) <<< _.actor) e.parties
   where
   isTrade (MayTrade _) = true
   isTrade _ = false
@@ -126,6 +132,13 @@ validIntent facts caps who i = known *> limited *> authority *> access *> transf
     ChangeRule (Enact (FlowRule { effect: Levy l })) | not (knownResource l.in) -> Left (UnknownResource l.in)
     ChangeRule (Enact (FlowRule { effect: Levy { basis: AdValorem m } })) | not (any ((_ == m) <<< _.id) facts.venues) -> Left (UnknownExchange m)
     ChangeRule (Repeal id) | isNothing (facts.rule id) -> Left (UnknownRule id)
+    Enter e -> case facts.template e.template of
+      Nothing -> Left (UnknownAgreement e.template)
+      Just terms
+        | Just a <- find (\n -> not (any ((_ == n) <<< _.name) e.args)) terms.params -> Left (MissingArgument { template: e.template, name: a })
+        | Just p <- find (\n -> not (any ((_ == n) <<< _.role) e.parties)) terms.parties -> Left (MissingParty { template: e.template, name: p })
+        | Just p <- find (not <<< facts.actor <<< _.actor) e.parties -> Left (UnknownActor p.actor)
+        | otherwise -> Right unit
     _ -> Right unit
   -- a routed order is priced at its limit, which is its escrow ceiling (docs/02 §8.2)
   limited = case i of

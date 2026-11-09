@@ -136,7 +136,14 @@ successors :: WorldState -> RoundResult -> Array Failure
 successors before r = concatMap stranger (filter new r.world.pending)
   where
   new p = not (p `elem` before.pending)
-  bound = concatMap (partiesOf <<< _.transaction <<< unwrap) before.pending
+  bound = concatMap (partiesOf <<< _.transaction <<< unwrap) before.pending <> concatMap entering r.record.inputs
+  -- an agreement entered this round binds who signed it
+  entering i
+    | any isEnter i.candidateTransaction.intents = [ i.candidateTransaction.author ] <> i.signatures
+    | otherwise = []
+  isEnter = case _ of
+    Enter _ -> true
+    _ -> false
   stranger (PendingTransaction p)
     | null p.transaction.consented = []
     | otherwise = map (\e -> failure INV03 ("a successor names " <> show e <> ", who is not bound by its parent")) (filter (\e -> not (e `elem` bound)) (partiesOf p.transaction))
@@ -182,6 +189,7 @@ inv01 before r = foldEvents
       Just (Tuple author i) -> if settled author i c.mechanism ls then [] else unmatched ("settlement of " <> show c.mechanism)
       Nothing -> unmatched ("settlement of " <> show c.mechanism)
     OfRule c -> if Map.member c.kind before.ruleKinds then [] else [ failure INV01 ("a levy of undeclared kind " <> show c.kind) ]
+    OfAgreement c -> if Map.member c.template before.templates then [] else [ failure INV01 ("an agreement of undeclared template " <> c.template) ]
     OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the premise does not declare") ]
   -- the Intent the cause points at is of the mechanism's kind, and names what the settled Flows moved
   settled author i mechanism ls = case mechanism of

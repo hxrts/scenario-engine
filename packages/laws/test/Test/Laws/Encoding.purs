@@ -178,6 +178,9 @@ reasonFate = case _ of
   -- a gate's bundling compares the candidate Transaction's own quantities, before anything has been filled
   MissingBundledOrder -> AtCompile
   Blocked _ -> OnCondition
+  UnknownAgreement _ -> AtCompile
+  MissingArgument _ -> AtCompile
+  MissingParty _ -> AtCompile
 
 encoding :: Spec Unit
 encoding = describe "Every mechanism encodes in the kernel" do

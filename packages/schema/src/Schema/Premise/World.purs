@@ -16,14 +16,16 @@ module Schema.Premise.World
   ) where
 
 import Prelude
-import Laws.World (focusShape, FlowGate, UnseededWorld)
+
+import Core.Shape as Shape
+import Data.Array as Array
+import Laws.World (authoredLawShape, focusShape, FlowGate, UnseededWorld, worldTemplateShape)
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
 import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericPremiseSum, intShape, iso, listOf, nameShape, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
 import Laws.Types (Aggregate, DelayedFlow, Draw, DrawSource, CollectiveProcedure, CostFunction, Actor, ActorId, ActorKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Exchange, ExchangeId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, executorDraws, idMap, idMapWith, idShape, idText)
 import Laws.Types as Types
-import Data.Array as Array
 import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
 import Data.Either (Either(..))
 import Data.Map (Map)
@@ -305,16 +307,18 @@ worldFields = mk
   <*> fieldOf "rules" "the Rules in force from the start" rulesShape _.world.rules
   <*> fieldOf "representations" "the Representations bound in the world" (arrayOf representationShape) _.world.representations
   <*> fieldOf "circulation" "the recurring economic cycle" circulationShape _.authored.circulation
+  <*> fieldOf "templates" "the agreements that spawn and can be entered, by name" (emptyByDefault (Shape.mapOf stringShape worldTemplateShape)) _.world.templates
+  <*> fieldOf "laws" "laws written directly, run when their action settles" (Shape.defaulted [] Array.null (arrayOf authoredLawShape)) _.world.laws
   where
   gateShape = recordShape "FlowGate" { resource: idShape, exemptSharedExchange: boolShape, bundled: optionalOf idShape } :: Shape FlowGate
-  mk round numeraire focus entries exchanges transformations flowGates groups ruleKinds rules representations circulation actors =
+  mk round numeraire focus entries exchanges transformations flowGates groups ruleKinds rules representations circulation templates laws actors =
     let
       decays = mapMaybe (\(Tuple k e) -> (\rate -> { resource: k, rate }) <$> e.decay) (Map.toUnfoldable entries)
       reservable = map (\(Tuple k _) -> k) (filter (\(Tuple _ e) -> e.reservable) (Map.toUnfoldable entries))
       resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability, category: e.category } :: ResourceDefinition)) entries
     in
       { authored: { circulation, reservable, decays }
-      , world: { round, numeraire, focus, resources, exchanges, transformations, flowGates, groups, ruleKinds, rules, representations, actors, pending: [], laws: [], templates: Map.empty, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
+      , world: { round, numeraire, focus, resources, exchanges, transformations, flowGates, groups, ruleKinds, rules, representations, actors, pending: [], laws, templates, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
       }
 
 -- | The whole World, with its Actors by key: a fixture's.

@@ -13,7 +13,7 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, premiseSum)
-import Laws.Types (transformBody, repealBody, Capability, Direction(..), ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Laws.Types (enterBody, transformBody, repealBody, Capability, Direction(..), ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
@@ -98,6 +98,7 @@ intentShape = premiseSum "Intent"
       )
       (\r -> ChangeRule (Enact r))
   , oneKey repealTag "repeal a Rule by the id the engine gave it" repealBody repealOf (\r -> ChangeRule (Repeal r.rule))
+  , oneKey "enter" "enter an agreement; every party named must sign" (enterBody qShape) (ctor @"Enter") Enter
   ]
   where
   repealOf (ChangeRule (Repeal r)) = Just { rule: r }

@@ -82,6 +82,12 @@ sign strategyRules env = map _.id (filter (\p -> any (matches p) strategyRules.s
           _ -> false
       )
       p.intents
+    SignAgreements ts -> any
+      ( case _ of
+          Enter e -> e.template `elem` ts
+          _ -> false
+      )
+      p.intents
     SignAll -> true
     -- a sign rule with selector conditions signs when any instantiation holds
     SignIf x -> any (\inst -> fires inst x.when) (instancesFor env x.when []) && matches p x.rule
@@ -265,6 +271,7 @@ zeroQuantity = case _ of
   Transfer x -> x.quantity == Q.zero
   Transform x -> x.quantity == Q.zero
   ChangeRule _ -> false
+  Enter _ -> false
 
 -- | `self` names the acting Actor; any other name is itself. Every Actor position resolves through here.
 actorRef :: Env -> ActorId -> ActorId

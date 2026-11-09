@@ -30,6 +30,8 @@ import Server.Errors (Answer, badRequest, conflict, notFound, ok)
 import Server.Launch (serverRole)
 import Server.Premises (Premises, chosen)
 import Server.Rows (SERVER)
+import Data.Newtype (unwrap)
+import Views.BalanceSheet (linksOf)
 import Views.Keys as Keys
 
 -- | `POST /api/sessions`: host a live session. Every seat not named plays as an AI agent.
@@ -53,7 +55,7 @@ startSession premises s = case chosen premises s.premise of
             Left why -> badRequest why
             Right _ -> do
               lift _sessions (Host { request: { seed, game, id, window: fromMaybe 0 s.window, briefing, report: const [] }, humans } unit)
-              ok Keys.sessionStarted { id }
+              ok Keys.sessionStarted { id, balanceSheets: linksOf id (unwrap seed) game.manifest.initial.actors }
   where
   humans = map Id s.humans
 

@@ -1,6 +1,7 @@
 -- | The compile step: each settled mechanism written as transactions, which the kernel then posts.
 module Laws.Engine.Compile
-  ( WorldKernel
+  ( entered
+  , WorldKernel
   , kernelOf
   , fillTransaction
   , transformTransaction
@@ -21,6 +22,14 @@ module Laws.Engine.Compile
 
 import Prelude
 
+import Data.Newtype (unwrap)
+
+import Data.Either (either, Either(..))
+
+import Core.Kernel.Consume (enter)
+import Laws.Types (EnterF, Capability, Direction(..), ActorId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeId, Payment, CandidateTransactionId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
+import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingTransaction(..), RejectReason(..), WorldState)
+
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
 import Core.Kernel.Law (forHolder, holderParam, quantityParam, recipientParam)
@@ -28,10 +37,7 @@ import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Tran
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
-import Laws.Types (Capability, Direction(..), ActorId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeId, Payment, CandidateTransactionId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingTransaction(..), RejectReason(..), WorldState)
 import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
-import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
@@ -181,6 +187,15 @@ deliveredOf (PendingTransaction p) = head p.transaction.obligations >>= \o -> ca
   _ -> Nothing
 
 -- | A Rule change, due at the next boundary. Without a Rule it is a repeal.
+entered :: WorldState -> Array ActorId -> EnterF Q -> Array PendingTransaction
+entered w consented e = either (const []) (pure <<< PendingTransaction) $ enter w.round (map unwrap w.templates)
+  { template: e.template
+  , args: Map.fromFoldable (map (\a -> Tuple a.name (K.Exactly a.value)) e.args)
+  , parties: Map.fromFoldable (map (\p -> Tuple p.role p.actor) e.parties)
+  , consented
+  , cause: Just (OfAgreement { template: e.template })
+  }
+
 ruleChange :: RoundIndex -> ActorId -> Cause -> RuleId -> Maybe Rule -> PendingTransaction
 ruleChange round who cause id rule = PendingTransaction
   { due: round + 1

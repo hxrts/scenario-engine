@@ -8,6 +8,14 @@ import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restricti
 import Schema.Build.Quantity (q)
 import Prelude
 
+import Core.Kernel.Types (Account(..), Amount(..), Party(..), Short(..), noNext)
+import Core.Kernel.Types as K
+import Laws.World (WorldTemplate(..))
+import Data.Either (either, Either(..), isLeft)
+import Data.Array (filter, fromFoldable, head)
+import Assembly.Premise (checkPremise, Premise(..))
+import Assembly.Restrict (everything, restrict)
+
 import Assembly.Experiment (Experiment(..), variants)
 
 import Core.Draw (Seed(..))
@@ -16,10 +24,8 @@ import Laws.CandidateTransaction (candidateTransactionAt)
 import World.Error (ValidationError(..))
 import World.PossibleWorld.Validate (possibleWorldNames, unknownNames)
 import Laws.Types (Id(..), StrategyId, RefKind(..), candidateTransactionId)
-import Data.Array (fromFoldable, head)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Effect (Effect)
@@ -29,7 +35,6 @@ import Assembly.Bindings (scriptBindings)
 import Assembly.Assemble (assemble, assemblePreset, presetBindings, unknownSeats)
 import Assembly.Error (AssemblyError(..), renderAssemblyError)
 import Assembly.Override (Override(..), decodeOverrides, encodeOverrides)
-import Assembly.Premise (Premise(..))
 import Schema.Run (specShape)
 import Core.Shape as Shape
 import Data.Argonaut.Decode (printJsonDecodeError)
@@ -62,6 +67,22 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (candidateTransactionAt 2 (Id "US") 0 body).author `shouldEqual` Id "US"
       (candidateTransactionAt 2 (Id "DE") 0 body).author `shouldEqual` Id "DE"
       (candidateTransactionAt 2 (Id "DE") 1 body).author `shouldEqual` Id "DE"
+
+  describe "Agreements in a Premise" do
+    let
+      step name actor resource = Tuple name (WorldTemplate { params: [], parties: [ "p" ], transaction: { obligations: [ { id: "x", obligor: Named (Id actor), effect: K.Move { from: Created, to: HeldBy (Bound "p"), resource: Id resource, owed: Exactly Q.zero }, when: [], onShort: Reject, next: noNext } ], ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: 0, cause: Nothing, consented: [] } })
+      withTemplate p t = p { possibleWorld = p.possibleWorld { world = p.possibleWorld.world { templates = Map.fromFoldable [ t ] } } }
+    it "load refuses a template naming what the Premise lacks, and a filter drops one naming what it dropped" do
+      parts <- premise
+      let kept = withTemplate parts (step "grant" "NG" "E")
+      either (const false) (const true) (checkPremise (withTemplate parts (step "bad" "NG" "nothing"))) `shouldEqual` false
+      case checkPremise kept of
+        Left e -> fail (show e)
+        Right ok -> do
+          Map.size ok.possibleWorld.world.templates `shouldEqual` 1
+          case restrict ((everything ok.possibleWorld) { actors = filter (_ /= Id "NG") (everything ok.possibleWorld).actors }) ok of
+            Right cut -> Map.size cut.possibleWorld.world.templates `shouldEqual` 0
+            Left e -> fail (show e)
 
   describe "Seat presets" do
     it "a human named for a live session must be a configured seat" do

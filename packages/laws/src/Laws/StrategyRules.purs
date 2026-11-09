@@ -96,6 +96,7 @@ type InWorld = { strategyRules :: Map StrategyId StrategyRules, params :: Object
 data SignRule
   = SignProcedures (Array CollectiveProcedureId)
   | SignTransformation TransformationId -- candidate Transactions ordering this Transformation
+  | SignAgreements (Array String) -- candidate Transactions entering one of these templates
   | SignAll
   | SignIf { when :: Array Cond, rule :: SignRule } -- the inner rule, while every condition holds
 

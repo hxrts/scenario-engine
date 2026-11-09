@@ -3,9 +3,16 @@ module Test.Premises.Agreements (spec) where
 
 import Prelude
 
+import Laws.Slice (event, read, select)
+
+import Core.Map (values)
+
+import Core.Shape (Format(..), decodeJsonWith, encodeWith)
+import Data.Either (Either(..), either)
+import Laws.World (PendingTransaction(..), RejectReason(..), authoredLawShape, worldTemplateShape, LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringSource(FromEachHolder), ShortfallEffect(..), WorldState, seeded)
+
 import Core.Draw (Seed(..))
 import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Next, Party(..), Short(..), noNext)
-import Data.Either (either)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -15,7 +22,6 @@ import Laws.Engine.Commit (resolveRound)
 import Laws.Invariants (checkAfter)
 import Laws.Query (holding)
 import Laws.Types (Capability(..), Direction(..), ActorId, FlowEffect(..), FlowGovernance(..), RuleForm(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceTag, Rule, RuleF(..), RuleKindId, SignedCandidateTransaction, candidateTransactionId)
-import Laws.World (LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringSource(FromEachHolder), ShortfallEffect(..), WorldState, seeded)
 import Schema.Build.Agreement (Clause, Guard, agreement, onAction, clause, due, guard, held, repeal, spawn, step)
 import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
@@ -235,6 +241,80 @@ spec = describe "New designs, written with no core change" do
         [ clause "open" (named a) { from: Created, to: held (named a), resource: goods, owed: Exactly (q 1) } Cap [] (noNext { performed = [ spawn "next" 1 [] [ Tuple "who" (named b) ] ] }) ]
       w = world { pending = [ due 1 parent ], templates = Map.fromFoldable [ step "next" [] [ "who" ] (agreement kind [] []) ] }
     either show (const "resolved") (resolveRound w []) `shouldEqual` "invalid successor: (OutsideParent \"next\" B)"
+
+  describe "an agreement entered during play" do
+    let
+      lender = Bound "lender"
+      borrower = Bound "borrower"
+      service = clause "service" borrower { from: held borrower, to: held lender, resource: money, owed: Arg "balance" } Cap [ guard (StockAtLeast { stock: { at: held borrower, resource: money }, amount: Exactly (q 1) }) ]
+        noNext
+          { short = [ spawn "loan" 1 [ Tuple "balance" (Times { ratio: q "1.1", amount: Remainder }) ] both ]
+          , lapsed = [ spawn "default" 1 [] both ]
+          }
+      both = [ Tuple "borrower" borrower, Tuple "lender" lender ]
+      seize = clause "seize" borrower { from: held borrower, to: held lender, resource: plant, owed: Exactly (q 7) } Cap [] noNext
+      origination = agreement kind []
+        [ clause "advance" lender { from: held lender, to: held borrower, resource: money, owed: Arg "principal" } Reject []
+            noNext { performed = [ spawn "loan" 1 [ Tuple "balance" (Times { ratio: q 5, amount: Moved }) ] both ] }
+        ]
+      templates = Map.fromFoldable
+        [ step "origination" [ "principal" ] [ "borrower", "lender" ] origination
+        , step "loan" [ "balance" ] [ "borrower", "lender" ] (agreement kind [] [ service ])
+        , step "default" [] [ "borrower", "lender" ] (agreement kind [] [ seize ])
+        ]
+      lending = world { templates = templates, actors = Map.update (Just <<< \e -> e { accounts = keyed [ money := 10, plant := 9 ] }) b world.actors }
+      entering args parties = Enter { template: "origination", args: map (\(Tuple name value) -> { name, value }) args, parties: map (\(Tuple role actor) -> { role, actor }) parties }
+      fullLoan = entering [ Tuple "principal" (q 10) ] [ Tuple "lender" a, Tuple "borrower" b ]
+      joint intents signatures = { candidateTransaction: { id: candidateTransactionId 1 a 0, author: a, intents, signers: [ b ], procedure: Nothing }, signatures }
+      rejectedBy w input = select (read @"reason" (event @"Rejected")) (either (const []) _.record.events (resolveRound w [ input ]))
+    it "a loan entered in round 1 settles from round 2 through to default" do
+      let
+        -- round 1: nothing moves; the first step is due next round, with both signatures carried
+        r1 = play lending [ joint [ fullLoan ] [ b ] ]
+        -- round 2: A advances 10, so B holds 20 and A 90; 50 falls due next round
+        r2 = play r1 []
+        -- round 3: 50 owed and 20 held: 20 paid, 30 remains, carried at 33
+        r3 = play r2 []
+        -- round 4: B holds nothing, so the service condition fails and the loan lapses
+        r4 = play r3 []
+        -- round 5: the default seizes 7 of B's 9
+        r5 = play r4 []
+      holding r1 a money `shouldEqual` q 100
+      map (\(PendingTransaction p) -> p.transaction.consented) r1.pending `shouldEqual` [ [ a, b ] ]
+      holding r2 b money `shouldEqual` q 20
+      holding r3 a money `shouldEqual` q 110
+      holding r3 b money `shouldEqual` q 0
+      holding r4 a money `shouldEqual` q 110
+      holding r5 a plant `shouldEqual` q 27
+      holding r5 b plant `shouldEqual` q 2
+      r5.pending `shouldEqual` []
+    it "a treaty entered during play lifts the levy and takes the payment together" do
+      let
+        treaty = agreement kind []
+          [ repeal "lift" (Bound "governor") (Id "l") [ needs 1 ]
+          , clause "pay" (Bound "payer") { from: held (Bound "payer"), to: held (Bound "governor"), resource: money, owed: Arg "payment" } Reject [ needs 0 ] noNext
+          ]
+        w = world { rules = Map.singleton (Id "l") levyRule, templates = Map.fromFoldable [ step "treaty" [ "payment" ] [ "payer", "governor" ] treaty ] }
+        enter' = Enter { template: "treaty", args: [ { name: "payment", value: q 10 } ], parties: [ { role: "payer", actor: a }, { role: "governor", actor: b } ] }
+        r1 = play w [ joint [ enter' ] [ b ] ]
+        r2 = play r1 []
+      Map.size r1.rules `shouldEqual` 1
+      holding r2 a money `shouldEqual` q 90
+      holding r2 b money `shouldEqual` q 110
+      Map.isEmpty r2.rules `shouldEqual` true
+    it "an unknown template, a missing argument and a missing party are refused" do
+      rejectedBy lending (joint [ Enter { template: "nothing", args: [], parties: [ { role: "lender", actor: a } ] } ] [ b ]) `shouldEqual` [ UnknownAgreement "nothing" ]
+      rejectedBy lending (joint [ entering [] [ Tuple "lender" a, Tuple "borrower" b ] ] [ b ]) `shouldEqual` [ MissingArgument { template: "origination", name: "principal" } ]
+      rejectedBy lending (joint [ entering [ Tuple "principal" (q 10) ] [ Tuple "lender" a ] ] [ b ]) `shouldEqual` [ MissingParty { template: "origination", name: "borrower" } ]
+    it "a party who is not asked to sign refuses the agreement, and one who does not sign lapses it" do
+      let alone = { candidateTransaction: { id: candidateTransactionId 1 a 0, author: a, intents: [ fullLoan ], signers: [], procedure: Nothing }, signatures: [] }
+      rejectedBy lending alone `shouldEqual` [ MustSign b ]
+      (play lending [ joint [ fullLoan ] [] ]).pending `shouldEqual` []
+    it "templates and laws read and write through the Premise format" do
+      let
+        law = onAction kind "run" Destroyed plant (q "0.5")
+      map (\t -> decodeJsonWith Authored worldTemplateShape (encodeWith Authored worldTemplateShape t) == Right t) (values templates) `shouldEqual` [ true, true, true ]
+      decodeJsonWith Authored authoredLawShape (encodeWith Authored authoredLawShape law) `shouldEqual` Right law
 
   describe "a renegotiable step needs a fresh signature" do
     let

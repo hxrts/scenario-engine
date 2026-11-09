@@ -5,6 +5,7 @@ module Core.Kernel.Consume
   ( ConsumeError(..)
   , validSpawn
   , validateTemplates
+  , enter
   , partiesOf
   , spawned
   , due
@@ -123,6 +124,18 @@ instantiate round templates parent c s = do
     Named e -> Left (OutsideParent t e)
     Bound p -> Left (MissingParty t p)
 
+-- | An agreement entered during play: its template's transaction, due next round, carrying its signers' consent.
+enter
+  :: forall cap law query reason cause
+   . RoundIndex
+  -> Map String (Template cap law query reason cause)
+  -> { template :: String, args :: Map String (Amount query), parties :: Map String ActorId, consented :: Array ActorId, cause :: Maybe cause }
+  -> Either ConsumeError (Pending cap law query reason cause)
+enter round templates e = do
+  template <- maybe (Left (UnknownTemplate e.template)) Right (Map.lookup e.template templates)
+  traverse_ (\p -> if Map.member p e.parties then Right unit else Left (MissingParty e.template p)) template.parties
+  pure { due: round + 1, transaction: substitute e.args e.parties { cause: e.cause, consented: e.consented } template }
+
 -- | An argument's value when its obligation is consumed.
 freeze :: forall law query reason. Consumed law reason -> Amount query -> Amount query
 freeze c = go
@@ -142,10 +155,10 @@ freeze c = go
 
 -- | A template's transaction with its arguments and parties filled in, carrying its parent's consent.
 substitute
-  :: forall cap law query reason cause
+  :: forall cap law query reason cause r
    . Map String (Amount query)
   -> Map String ActorId
-  -> Transaction cap law query reason cause
+  -> { cause :: Maybe cause, consented :: Array ActorId | r }
   -> Template cap law query reason cause
   -> Transaction cap law query reason cause
 substitute args parties parent template = c

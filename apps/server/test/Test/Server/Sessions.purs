@@ -48,7 +48,8 @@ spec = describe "A live session over the API" do
     api <- setup
     started <- api "POST" "/api/sessions" "{\"humans\":[\"US\"],\"rounds\":4,\"playerSeed\":1}"
     started.status `shouldEqual` 200
-    started.body `shouldEqual` "{\"id\":\"run-1\"}"
+    started.body `shouldSatisfy` contains (Pattern "\"id\":\"run-1\"")
+    started.body `shouldSatisfy` contains (Pattern "/balancesheet/run-1/")
     waitFor api "\"awaiting\":[\"US\"]"
     status <- api "GET" "/api/sessions/run-1" ""
     status.body `shouldSatisfy` contains (Pattern "\"status\":\"running\"")

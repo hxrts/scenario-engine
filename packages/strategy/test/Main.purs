@@ -171,6 +171,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       intentsOf (propose text env { random = highDraws }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
 
   describe "Templates" do
+    it "a StrategyRules drafts an agreement with self as a party, and signs by its template" do
+      let
+        enterT = Enter { template: "loan", args: [ { name: "principal", value: lit 10 } ], parties: [ { role: "lender", actor: Id "self" }, { role: "borrower", actor: Id "DE" } ] }
+        withTerms = env { view = env.view { templates = Map.singleton "loan" { params: [ "principal" ], parties: [ "lender", "borrower" ] } } }
+        text = { rules: [ { when: [], propose: [ CandidateTransactionT { intents: [ enterT ], signers: [ Id "DE" ], procedure: Nothing } ] } ], sign: [] }
+        entered = Enter { template: "loan", args: [ { name: "principal", value: Q.fromInt 10 } ], parties: [ { role: "lender", actor: Id "EU" }, { role: "borrower", actor: Id "DE" } ] }
+        addressed = { id: candidateTransactionId 1 (Id "DE") 7, author: Id "DE", intents: [ entered ], signers: [ Id "EU" ], procedure: Nothing }
+        addressing = withTerms { view = withTerms.view { toSign = [ addressed ] } }
+      propose text withTerms `shouldEqual` [ { intents: [ entered ], signers: [ Id "DE" ], procedure: Nothing } ]
+      sign ({ rules: [], sign: [ SignAgreements [ "loan" ] ] }) addressing `shouldEqual` [ addressed.id ]
+      sign ({ rules: [], sign: [ SignAgreements [ "other" ] ] }) addressing `shouldEqual` []
     it "a joint CandidateTransaction drafts its transfers with self bound to the author, and its signers" do
       let
         text = { rules: [ rule [] [ joint { signers: [ Id "DE" ], transfers: [ { from: Id "self", to: Id "DE", resource: Id "E", quantity: lit 2 } ], transforms: [] } ] ], sign: [] }

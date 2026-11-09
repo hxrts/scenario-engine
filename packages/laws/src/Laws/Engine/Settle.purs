@@ -13,9 +13,10 @@ module Laws.Engine.Settle
 
 import Prelude
 
+import Laws.Engine.Compile (entered, actionTransactions, delivery, fillTransaction, jointInputs, payTransaction, ruleChange, runTransaction, transformTransaction)
+
 import Laws.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Laws.Engine.Compile (actionTransactions, delivery, fillTransaction, jointInputs, payTransaction, ruleChange, runTransaction, transformTransaction)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -256,6 +257,7 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     Transfer t -> transfer w (OfIntent { candidateTransaction: p.id, intent: i, mechanism: Direct }) t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a
     ChangeRule (Enact r) -> a { spawned = a.spawned <> [ ruleChange w.round p.author (changeCause i) (ruleId i) (Just r) ] }
     ChangeRule (Repeal id) -> a { spawned = a.spawned <> [ ruleChange w.round p.author (changeCause i) id Nothing ] }
+    Enter e -> a { spawned = a.spawned <> entered w (nub ([ p.author ] <> p.signers)) e }
     _ -> a
   ruleId = ruleIdOf p.id
   changeCause i = OfIntent { candidateTransaction: p.id, intent: i, mechanism: Direct }

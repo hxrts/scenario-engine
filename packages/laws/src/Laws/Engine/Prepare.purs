@@ -10,6 +10,8 @@ module Laws.Engine.Prepare
 
 import Prelude
 
+import Laws.World (templateTerms, venueOf, boundsOf, addEvents, Event(..), PendingTransaction(..), View, WorldState)
+
 import Laws.Engine.Compile (deliveredOf, runTransaction)
 import Core.Kernel.Consume (ConsumeError, validateTemplates, partiesOf, spawned)
 import Core.Kernel.Types (LawChange(..))
@@ -19,7 +21,6 @@ import Core.Map (entries, sumMaps)
 import Core.Num as Q
 import Laws.Query (holderOf, exchangesOf, priceOf)
 import Laws.Types (Actor, Id(..), Rule, RuleId)
-import Laws.World (venueOf, boundsOf, addEvents, Event(..), PendingTransaction(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition, sortWith, head)
 import Data.Either (Either(..), either)
 import Data.Map as Map
@@ -106,4 +107,5 @@ observe w self =
   , transformations: map boundsOf w.transformations
   , soleHoldings: filter (\r -> holderOf w r == Just self.id) (fromFoldable (Map.keys self.accounts))
   , ruleKinds: w.ruleKinds
+  , templates: map templateTerms w.templates
   }

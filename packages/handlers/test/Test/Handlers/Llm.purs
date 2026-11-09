@@ -113,6 +113,15 @@ spec = do
           d.agreed `shouldEqual` [ Id "US" ]
         _ -> fail "one CandidateTransaction should decode"
 
+    it "a joint reply can enter an agreement the transcripts describe" do
+      let
+        entering = Enter { template: "loan", args: [ { name: "principal", value: Q.fromInt 10 } ], parties: [ { role: "lender", actor: Id "US" }, { role: "borrower", actor: Id "DE" } ] }
+        proposed = sample { intents = [ entering ] }
+      case decodeJoint ("{\"candidateTransactions\":[" <> stringify (encodeWith Snapshot proposedJointShape proposed) <> "]}") of
+        Right [ d ] -> d.intents `shouldEqual` [ entering ]
+        _ -> fail "one CandidateTransaction should decode"
+      contains (Pattern "enter an agreement") interpretPrompt `shouldEqual` true
+
     it "a reply wrapped in prose or a code fence still decodes" do
       decodeJoint "Here is the joint pass:\n```json\n{\"candidateTransactions\":[]}\n```" `shouldEqual` Right []
 

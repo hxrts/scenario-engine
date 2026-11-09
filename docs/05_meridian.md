@@ -455,6 +455,8 @@ Each fixture is a small world filtered from Meridian, with the Actors it needs a
 - **F-bound.** US and DE sell 70 and 38 E on the Atlantic Exchange, wanting x = −108 against its bound of −80. 80 fills, split 70 : 38 into 51.8519 and 28.1481, at a price of 1.2. US ends at 322.2223 M and 18.1481 E, DE at 158.7777 M and 9.8519 E.
 - **F-short.** US orders 200 E at a limit of 3, escrowing 600 M against the 260 it holds. Funding scales the order by 0.4333 to 86.66 E, at 2.8666 M/E. US ends at 11.5804 M and 156.66 E.
 
+- **H.** An agreement entered during play. SA proposes the template `loan-advance`, principal 50 M, lender SA, borrower JP, and JP signs. Round 1: nothing moves, SA 155 M, JP 150 M. Round 2: 50 M is advanced, SA 105 M, JP 200 M, and `loan-repay` falls due next round at 1.1 times what moved. Round 3: 55 M is repaid, SA 160 M, JP 145 M.
+
 ## 17. Differences from the source
 
 This document leads. Where it differs from the source, or where a value is not pinned by a test, its value stands, as recorded here.

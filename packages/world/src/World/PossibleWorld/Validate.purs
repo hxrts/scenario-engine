@@ -21,7 +21,9 @@ import World.Error (ValidationError(..))
 import Core.Num as Q
 import Laws.Query (aggregateOf, isAggregate)
 import Laws.Types (DrawSource(..), Actor, ActorId, Id(..), Exchange, ExchangeId, StrategyId, RefKind(..), ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
-import Laws.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld)
+import Core.Kernel.Consume (validateTemplates)
+import Data.Newtype (unwrap)
+import Laws.World (RecurringAmount(..), RecurringDestination(..), WorldFields, WorldPositions, foldWorld, ignoreWorld, lawAction, lawRefs, spawnTargets, templateRefs)
 import Data.Const (Const(..))
 import Data.Array (all, any, concatMap, elem, filter, fromFoldable, length, mapMaybe, nub, null)
 import Data.Either (Either(..), either)
@@ -37,7 +39,7 @@ import Foreign.Object as Object
 validatePossibleWorld :: PossibleWorld -> InstantiationConfig -> Either (Array ValidationError) PossibleWorld
 validatePossibleWorld gb config =
   let
-    structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount <> definitions <> estimators <> duplicateAdjustments <> openingState
+    structural = references <> delays <> holderChecks <> fallbacks <> objectives <> procedures <> roundCount <> definitions <> estimators <> duplicateAdjustments <> openingState <> agreements
     feasibility = either identity (const []) (instantiate gb config)
     consistency = if null (structural <> feasibility) then concatMap consistent (fromFoldable (Map.keys gb.explicitActors)) else []
     errors = structural <> feasibility <> consistency
@@ -64,6 +66,11 @@ validatePossibleWorld gb config =
   references = unknownNames (possibleWorldNames gb) (worldRefs w <> possibleWorldRefs gb config)
     <> map (UnknownReference RefResource <<< idText) (filter (\c -> not (c `elem` referenced)) held)
     <> map (UnknownReference RefActor <<< idText) (filter (\e -> not (Map.member e gb.explicitActors)) (fromFoldable (Map.keys config.fallbacks)))
+  templates = entries w.templates
+  agreements = unknownNames (possibleWorldNames gb) (concatMap (templateRefs <<< snd) templates <> concatMap lawRefs w.laws)
+    <> map InvalidTemplate (nub (filter (\t -> not (Map.member t w.templates)) (concatMap (spawnTargets <<< snd) templates)))
+    <> either (pure <<< InvalidTemplate <<< show) (const []) (validateTemplates (map unwrap w.templates))
+    <> map (UnknownReference RefTransformation) (filter (\a -> not (Map.member (Id a) w.exchanges || Map.member (Id a) w.transformations)) (mapMaybe lawAction w.laws))
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) transformations)
   holderChecks = concatMap productionHeld w.recurring
     <> concatMap coverageAggregate (entries gb.explicitActors)

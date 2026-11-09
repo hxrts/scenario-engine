@@ -156,6 +156,10 @@ data IntentF m v
   | Transfer { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
   | Transform { by :: ActorId, transformation :: TransformationId, quantity :: v }
   | ChangeRule (RuleChangeF v)
+  | Enter (EnterF v)
+
+-- | Entering an agreement: the template, its arguments, and the Actor bound to each of its parties.
+type EnterF v = { template :: String, args :: Array { name :: String, value :: v }, parties :: Array { role :: String, actor :: ActorId } }
 
 -- | Which way a flows Rule applies, relative to its governor: flows into it, out of it, or either way.
 data Direction = Inbound | Outbound | EitherWay
@@ -282,6 +286,7 @@ traverseIntent t = case _ of
   ChangeRule (Enact (FlowRule r)) -> (\governor counterparty over effect -> ChangeRule (Enact (FlowRule { kind: r.kind, scope: { governor, counterparty, direction: r.scope.direction, over }, effect }))) <$> t.actor r.scope.governor <*> t.actor r.scope.counterparty <*> traverse t.resource r.scope.over <*> effectAt r.effect
   ChangeRule (Enact (HoldingRule r)) -> (\resource reduce -> ChangeRule (Enact (HoldingRule { kind: r.kind, resource, reduce }))) <$> t.resource r.resource <*> t.value r.reduce
   ChangeRule (Repeal r) -> (ChangeRule <<< Repeal) <$> t.rule r
+  Enter e -> (\parties args -> Enter { template: e.template, args, parties }) <$> traverse (\p -> p { actor = _ } <$> t.actor p.actor) e.parties <*> traverse (\a -> a { value = _ } <$> t.value a.value) e.args
   where
   effectAt = case _ of
     Levy l -> (\rate in' -> Levy l { rate = rate, in = in' }) <$> t.value l.rate <*> t.resource l.in
@@ -301,6 +306,7 @@ jointIntent = case _ of
   Trade _ -> false
   Route _ -> false
   ChangeRule _ -> false
+  Enter _ -> true
 
 -- | What a candidate Transaction says before its id and author are assigned: its Intents, the signers it asks
 -- | for, and the collective procedure it runs under (if any). Procedure is a candidate Transaction concern, not an
@@ -529,6 +535,14 @@ ruleFormShape = genericSum "RuleForm"
 -- The bodies the snapshot, premise and template forms of an Intent share, over its filling `v`. The
 -- tag forms differ by format; these do not.
 
+-- | Entering an agreement.
+enterBody :: forall v. Shape v -> Shape (EnterF v)
+enterBody v = recordOf "Enter"
+  ( field @"template" "the template of the agreement" stringShape
+      &. field @"args" "the value of each of its arguments" (arrayOf (recordShape "Arg" { name: stringShape, value: v }))
+      &. field @"parties" "the Actor bound to each of its parties; every one must sign" (arrayOf (recordShape "Party" { role: stringShape, actor: idShape }))
+  )
+
 -- | A Transfer.
 transferBody :: forall v. Shape v -> Shape { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
 transferBody v = recordOf "Transfer"
@@ -551,6 +565,7 @@ intentShape = genericSum "Intent"
   , "Transfer": atTagged "a Resource given from one Actor to another" transferShape
   , "Transform": atTagged "a run of a transformation" transformShape
   , "ChangeRule": atTagged "enact or repeal a Rule" ruleChangeShape
+  , "Enter": atTagged "enter an agreement: every party named must sign" (enterBody qShape)
   }
   where
   tradeShape = recordOf "Trade"

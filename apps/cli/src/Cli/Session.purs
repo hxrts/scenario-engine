@@ -21,6 +21,7 @@ import Data.Tuple (Tuple(..))
 import Effects.Play (playLive)
 import Effects.Signatures (CLOCK, CONSOLE, ENTROPY, FILES, LIVE, OBSERVE, PROCESS, STORE)
 import Effects.Store (startRun)
+import Views.BalanceSheet (linksOf)
 import Effects.System (closeInput, files, now, ownerOf, resolveSeed, writeLine)
 import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Assembly.Recipe (encodeSpec)
@@ -68,6 +69,7 @@ session o { parts, game } = do
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do
       writeLine (possibleWorldRef parts.possibleWorld <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
+      for_ (linksOf o.id (unwrap seed) game.manifest.initial.actors) \l -> writeLine ("Balance sheet of " <> l.actor <> ": " <> l.path)
       for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
       out <- playLive { seed, game, id: o.id, window: o.window, briefing, report: report humans }
       closeInput

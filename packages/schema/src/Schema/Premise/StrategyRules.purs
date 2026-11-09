@@ -20,7 +20,7 @@ import Core.Num (qShape)
 import Laws.StrategyRules (Clause, Cond, Expr, IntentTemplate, ExchangeRef, RecordQuery, SignRule, StrategyRules, Template(..), selfId)
 import Schema.Premise.Intent (ruleBody)
 import Schema.Premise.Query (legQueryShape)
-import Laws.Types (CollectiveProcedureId, ActorId, IntentF(..), ResourceId, TransformationId, idShape, jointIntent, ownTransformBody, repealBody, transferBody)
+import Laws.Types (enterBody, CollectiveProcedureId, ActorId, IntentF(..), ResourceId, TransformationId, idShape, jointIntent, ownTransformBody, repealBody, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array
@@ -102,6 +102,7 @@ intentTemplateShape = genericPremiseSum "Intent template"
   , "Transfer": atOneKey "transfer" "a Resource given by the Actor" transferObject
   , "Transform": atOneKey "transform" "a run of a transformation by the acting Actor" selfTransformShape
   , "ChangeRule": atEmbedded ruleChangeShape
+  , "Enter": atOneKey "enter" "enter an agreement; every party named must sign" (enterBody exprShape)
   }
   where
   ruleChangeShape = genericPremiseSum "Rule change"
@@ -220,6 +221,7 @@ signRuleShape :: Shape SignRule
 signRuleShape = recursive "SignRule" \s -> genericPremiseSum "SignRule"
   { "SignProcedures": atOneKey "procedures" "the collective procedures this Actor signs under" (arrayOf idShape)
   , "SignTransformation": atOneKey "transformation" "CandidateTransactions ordering this Transformation" idShape
+  , "SignAgreements": atOneKey "agreements" "CandidateTransactions entering one of these templates" (arrayOf stringShape)
   , "SignAll": atOneKey "all" "every addressed CandidateTransaction" unitShape
   , "SignIf": atOneKey "signIf" "the inner rule, while every condition holds" (signIfBody s)
   }

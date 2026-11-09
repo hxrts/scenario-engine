@@ -4,20 +4,24 @@ module Laws.World (module Laws.World, module Core.Kernel.Types) where
 
 import Prelude
 
+import Core.Kernel.Types as K
+import Core.Map (values)
+import Data.Array as Array
+import Laws.Types (RefKind(..), idText, capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Actor, ActorId, ActorKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Exchange, ExchangeId, Payment, Price, CandidateTransaction, CandidateTransactionId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedCandidateTransaction, Transferability, Transformation, TransformationId, drawSourceShape, actorShape, idShape, candidateTransactionShape, ruleKind, ruleKindDeclShape, ruleShape, signedCandidateTransactionShape, transferabilityShape)
+import Data.Maybe (Maybe(..))
+
 import Core.Draw (Seed(..), drawVersion)
 import Core.Kernel.Types (Law, Endpoint(..), Flow, KernelShapes, Pending, dynamicShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Laws.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Actor, ActorId, ActorKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Exchange, ExchangeId, Payment, Price, CandidateTransaction, CandidateTransactionId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedCandidateTransaction, Transferability, Transformation, TransformationId, drawSourceShape, actorShape, idShape, candidateTransactionShape, ruleKind, ruleKindDeclShape, ruleShape, signedCandidateTransactionShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Const (Const(..))
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype, un, unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -187,6 +191,7 @@ data Cause
   = OfIntent { candidateTransaction :: CandidateTransactionId, intent :: Int, mechanism :: Mechanism }
   | OfRule { kind :: RuleKindId }
   | OfRecurring { rule :: RecurringFlowId, kind :: RecurringKindId }
+  | OfAgreement { template :: TemplateId }
 
 derive instance Eq Cause
 derive instance Generic Cause _
@@ -313,7 +318,11 @@ type View =
   , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
   , soleHoldings :: Array ResourceId -- the Resources whose holder the Actor is (`holderOf`)
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
+  , templates :: Map TemplateId TemplateTerms -- the agreements that can be entered
   }
+
+-- | What entering an agreement must supply.
+type TemplateTerms = { params :: Array String, parties :: Array String }
 
 -- | A Transformation's order bounds, as a View shows them.
 type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
@@ -360,6 +369,9 @@ data RejectReason
   | OwnerMustSign TransformationId
   | MissingBundledOrder
   | Blocked RuleKindId
+  | UnknownAgreement String
+  | MissingArgument { template :: String, name :: String }
+  | MissingParty { template :: String, name :: String }
 
 derive instance Generic RejectReason _
 derive instance Eq RejectReason
@@ -397,6 +409,9 @@ renderReason = case _ of
   OwnerMustSign t -> "the holder of what " <> show t <> " draws must sign"
   MissingBundledOrder -> "this Transfer needs a matching bundled order by the sender"
   Blocked k -> "blocked by a Rule of kind " <> show k
+  UnknownAgreement t -> "no agreement template " <> t
+  MissingArgument m -> m.template <> " needs the argument " <> m.name
+  MissingParty m -> m.template <> " needs the party " <> m.name
 
 instance EncodeJson RejectReason where
   encodeJson = encodeWith Snapshot rejectReasonShape
@@ -500,6 +515,9 @@ rejectReasonShape = genericSum "RejectReason"
   , "OwnerMustSign": atTagged "the holder of what is drawn has not signed" idShape
   , "MissingBundledOrder": atTagged "the Transfer has no matching bundled order" unitShape
   , "Blocked": atTagged "blocked by a Rule of this kind" idShape
+  , "UnknownAgreement": atTagged "no such agreement template" stringShape
+  , "MissingArgument": atTagged "an agreement entered without an argument" (recordShape "Missing" { template: stringShape, name: stringShape })
+  , "MissingParty": atTagged "an agreement entered without a party" (recordShape "Missing" { template: stringShape, name: stringShape })
   }
 
 mechanismShape :: Shape Mechanism
@@ -514,6 +532,7 @@ causeShape = genericSum "Cause"
   { "OfIntent": atTagged "an Intent of a CandidateTransaction" (recordShape "OfIntent" { candidateTransaction: idShape, intent: intShape, mechanism: mechanismShape })
   , "OfRule": atTagged "a declared Rule kind" (recordShape "OfRule" { kind: idShape })
   , "OfRecurring": atTagged "a recurring-flow rule" (recordShape "OfRecurring" { rule: idShape, kind: idShape })
+  , "OfAgreement": atTagged "an agreement entered during play" (recordShape "OfAgreement" { template: stringShape })
   }
 
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
@@ -546,6 +565,7 @@ viewShape = recordOf "View"
       &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
       &. field @"soleHoldings" "the Resources whose holder the Actor is" (arrayOf idShape)
       &. field @"ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape)
+      &. field @"templates" "the agreements that can be entered, and what each needs" (mapOf stringShape (recordShape "TemplateTerms" { params: arrayOf stringShape, parties: arrayOf stringShape }))
   )
 
 boundsShape :: Shape Bounds
@@ -804,3 +824,77 @@ traverseWorld t w =
     AdValorem m -> AdValorem <$> t.exchange m
 
   flowGateAt g = (\resource bundled -> g { resource = resource, bundled = bundled }) <$> t.resource g.resource <*> traverse t.transformation g.bundled
+
+-- | The Terms a template shows a would-be party.
+templateTerms :: WorldTemplate -> TemplateTerms
+templateTerms (WorldTemplate t) = { params: t.params, parties: t.parties }
+
+-- | What a template refers to: Actors, Resources and Exchanges.
+templateRefs :: WorldTemplate -> Array (Tuple RefKind String)
+templateRefs (WorldTemplate t) = Array.concatMap obligation t.transaction.obligations
+  where
+  obligation o = partyRefs o.obligor <> effect o.effect <> Array.concatMap (condition <<< _.condition) o.when <> Array.concatMap spawn (o.next.performed <> o.next.short <> o.next.lapsed)
+  effect = case _ of
+    K.Move l -> flowRefs l
+    K.Change _ -> []
+  condition = case _ of
+    K.StockAtLeast x -> stockRefs x.stock <> amountRefs x.amount
+    K.Consent as -> map actorRef as
+    K.QuantityAtLeast a -> amountRefs a
+    K.Holds h -> partyRefs h.party
+    _ -> []
+  spawn s = Array.concatMap partyRefs (values s.parties) <> Array.concatMap amountRefs (values s.args)
+
+-- | The templates a template's successors name.
+spawnTargets :: WorldTemplate -> Array TemplateId
+spawnTargets (WorldTemplate t) = Array.concatMap (\o -> map _.template (o.next.performed <> o.next.short <> o.next.lapsed)) t.transaction.obligations
+
+-- | What a law refers to.
+lawRefs :: AuthoredLaw -> Array (Tuple RefKind String)
+lawRefs (AuthoredLaw l) = subject <> case l.operation of
+  K.Emit f -> flowRefs f
+  K.Withhold a -> amountRefs a
+  K.Refuse -> []
+  where
+  subject = case l.subject of
+    K.OfStock s -> [ resourceRef s.resource ]
+    _ -> []
+
+-- | The action a law is charged on: an Exchange or a Transformation, by id.
+lawAction :: AuthoredLaw -> Maybe String
+lawAction (AuthoredLaw l) = case l.trigger of
+  K.OnAction a -> a.cause
+  K.EachRound -> Nothing
+
+actorRef :: ActorId -> Tuple RefKind String
+actorRef = Tuple RefActor <<< idText
+
+resourceRef :: ResourceId -> Tuple RefKind String
+resourceRef = Tuple RefResource <<< idText
+
+partyRefs :: K.Party -> Array (Tuple RefKind String)
+partyRefs = case _ of
+  K.Named e -> [ actorRef e ]
+  K.Bound _ -> []
+
+accountRefs :: K.Account -> Array (Tuple RefKind String)
+accountRefs = case _ of
+  K.HeldBy p -> partyRefs p
+  K.Reserve m -> [ Tuple RefExchange (idText m) ]
+  _ -> []
+
+stockRefs :: K.StockRef -> Array (Tuple RefKind String)
+stockRefs s = accountRefs s.at <> [ resourceRef s.resource ]
+
+flowRefs :: forall q. K.FlowOwed q -> Array (Tuple RefKind String)
+flowRefs l = accountRefs l.from <> accountRefs l.to <> [ resourceRef l.resource ] <> amountRefs l.owed
+
+amountRefs :: forall q. K.Amount q -> Array (Tuple RefKind String)
+amountRefs = case _ of
+  K.Stock s -> stockRefs s
+  K.Times t -> amountRefs t.amount
+  K.Plus p -> amountRefs p.left <> amountRefs p.right
+  K.Minus p -> amountRefs p.left <> amountRefs p.right
+  K.Least p -> amountRefs p.left <> amountRefs p.right
+  K.ShareOf s -> amountRefs s.limit <> Array.concatMap amountRefs s.among
+  _ -> []

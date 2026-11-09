@@ -4,6 +4,7 @@ module Views.BalanceSheet
   ( BalanceSheet
   , BalanceSheetLink
   , balanceSheetLinks
+  , linksOf
   , balanceSheetAt
   ) where
 
@@ -60,9 +61,13 @@ kindOf a = case a.kind of
 
 -- | Every Actor's balanceSheet path, for the admin page and for handing out at the start of a game.
 balanceSheetLinks :: StoredRun -> Array BalanceSheetLink
-balanceSheetLinks r = map link (CoreMap.values r.manifest.initial.actors)
+balanceSheetLinks r = linksOf r.id (seedOf r) r.manifest.initial.actors
+
+-- | The balanceSheet paths of a Run's Actors, from its id, player seed and Actors.
+linksOf :: String -> Int -> Map.Map ActorId Actor -> Array BalanceSheetLink
+linksOf id seed actors = map link (CoreMap.values actors)
   where
-  link a = { actor: idText a.id, kind: kindOf a, path: "/balancesheet/" <> r.id <> "/" <> tokenOf r a.id }
+  link a = { actor: idText a.id, kind: kindOf a, path: "/balancesheet/" <> id <> "/" <> tokenFor seed (idText a.id) }
 
 -- | The balanceSheet a token opens; nothing when it opens none. `objective` is the Run's objectives table.
 balanceSheetAt :: StoredRun -> Table -> String -> Maybe BalanceSheet
@@ -136,6 +141,7 @@ intentText = case _ of
   Transform o -> "Run " <> idText o.transformation <> " x " <> quantity o.quantity
   ChangeRule (Enact _) -> "Enact a Rule"
   ChangeRule (Repeal id) -> "Repeal " <> idText id
+  Enter e -> "Enter the agreement " <> e.template
 
 -- | What it owes or is owed in pending Transactions.
 owedTable :: WorldState -> ActorId -> Table

@@ -84,6 +84,7 @@ claims w item = concatMap claim item.candidateTransaction.intents <> map (\t -> 
           <> map (\(Tuple r q) -> { actor: t.by, resource: r, amount: Q.mul q t.quantity }) (Map.toUnfoldable tr.inputs)
           <> map (\d -> { actor: t.by, resource: d.resource, amount: Q.mul d.perUnit t.quantity }) (executorDraws tr)
     ChangeRule _ -> []
+    Enter _ -> []
 
 -- | A Transformation's uniform price at its full ceiling, used for escrow.
 fullPrice :: WorldState -> Transformation -> Q

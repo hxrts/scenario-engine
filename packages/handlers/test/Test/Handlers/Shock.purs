@@ -46,6 +46,7 @@ roundKinds r i = case index r.records i of
     Transfer _ -> "transfer"
     Transform t -> "transform " <> show t.transformation
     ChangeRule _ -> "rule"
+    Enter _ -> "agreement"
 
 -- | Whether the seats' proposals differ between the calm and the shocked game in some round.
 flips :: SimRun -> SimRun -> Boolean

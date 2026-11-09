@@ -15,6 +15,7 @@ import Data.Tuple (Tuple)
 import Premises.Meridian.Fixtures.Circulation (fixtureCirculation)
 import Premises.Meridian.Fixtures.ConflictingActions (fixtureF)
 import Premises.Meridian.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4)
+import Premises.Meridian.Fixtures.Agreement (fixtureH)
 import Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2, fixtureFBound, fixtureFShort)
 import Premises.Meridian.Fixtures.NonPlayableResponse (fixtureD, fixtureDMinor)
 import Premises.Meridian.Fixtures.Reservation (fixtureR, fixtureRAlone)
@@ -28,6 +29,7 @@ fixtures =
   , fixtureA2
   , fixtureFBound
   , fixtureFShort
+  , fixtureH
   , fixtureB1
   , fixtureB2
   , fixtureB2Pool

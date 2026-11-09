@@ -171,7 +171,7 @@ glossary = viewShape
 actorList :: Shape ActorList
 actorList = viewShape
 
-sessionStarted :: Shape { id :: String }
+sessionStarted :: Shape { id :: String, balanceSheets :: Array BalanceSheetLink }
 sessionStarted = viewShape
 
 sessionState :: Shape { round :: Int, status :: String, window :: Int, submitted :: Array String, awaiting :: Array String }

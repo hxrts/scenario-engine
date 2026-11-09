@@ -11,12 +11,16 @@ module Schema.Build.Intent
   , transform
   , enactRule
   , repeal
+  , enter
   ) where
 
+import Prelude (map)
+
 import Core.Num (Q)
-import Laws.Types (ActorTag, Intent, IntentF(..), ExchangeId, ExchangeTag, ResourceTag, RuleChangeF(..), RuleF, RuleTag, TransformationTag)
+import Laws.Types (ActorId, ActorTag, Intent, IntentF(..), ExchangeId, ExchangeTag, ResourceTag, RuleChangeF(..), RuleF, RuleTag, TransformationTag)
 import Schema.Build.Named (class Named, named)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 
 -- | An order on an Exchange, by id; `limit` is the optional limit price. A StrategyRules that picks its Exchange
 -- | by selector writes `Schema.Build.Decision.tradeAt`.
@@ -41,3 +45,7 @@ enactRule r = ChangeRule (Enact r)
 -- | Repeal a Rule by the id the engine assigned it.
 repeal :: forall a m v. Named a RuleTag => { rule :: a } -> IntentF m v
 repeal r = ChangeRule (Repeal (named r.rule))
+
+-- | Enter an agreement from a template, with its arguments and each party's Actor.
+enter :: forall v. String -> Array (Tuple String v) -> Array (Tuple String ActorId) -> IntentF ExchangeId v
+enter template args parties = Enter { template, args: map (\(Tuple name value) -> { name, value }) args, parties: map (\(Tuple role actor) -> { role, actor }) parties }

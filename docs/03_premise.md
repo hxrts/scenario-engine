@@ -392,8 +392,13 @@ Multi-round agreements are templates ([02 §3.4](02_kernel.md#34-successors)).
 - A vesting schedule is a finite chain of templates.
 - A renegotiable step adds a fresh `Consent` condition. A pending transaction has no signing input of its own, so the fresh consent holds only if the party signed the parent, and otherwise the step lapses.
 
-### 15.3 Limits
+### 15.3 Agreements in a Premise and in play
 
-- An agreement is authored today as part of the World (`pending` and `templates`), built directly by the test Premises. The Premise files have no section for agreements, and no Intent creates one during play. **Planned**: a Premise format and an Intent for agreements.
+A Premise file may have a `templates` section, by name, and a `laws` section. Load validates both: every Actor, Resource and Exchange a template names must exist, every template a successor names must exist, and no template may spawn for its own round. A filter drops a template or a law naming something it dropped.
+
+An agreement is entered by the Intent `enter`, which names a template, its arguments, and the Actor bound to each of its parties. It is carried by a candidate Transaction that every named party signs, and it may be bundled like a Transfer. On settlement the template's first step becomes pending, due next round, carrying the signers' consent. An unknown template, a missing argument or party, or a party who is not asked to sign is refused by screening; a party who is asked and does not sign lapses it. A View lists the templates that can be entered and what each needs. A StrategyRules drafts the Intent as any other and signs with the `agreements` sign rule, which names templates.
+
+### 15.4 Limits
+
 - A due transaction in phase 0 settles at the round boundary. One in a later phase is rationed against that round's orders by its tier ([02 §3.4](02_kernel.md#34-successors)).
 - Kernel values the shipped sequence does not read are described in [02 §3.3](02_kernel.md#33-transactions-and-conditions).

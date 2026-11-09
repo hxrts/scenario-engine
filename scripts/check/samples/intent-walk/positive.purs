@@ -5,3 +5,4 @@ f = case _ of
   Transfer x -> 3
   Transform x -> 4
   ChangeRule _ -> 5
+  Enter _ -> 6

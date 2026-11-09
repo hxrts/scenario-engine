@@ -124,7 +124,9 @@ checkIntent w p signers standing i = case Map.lookup who w.actors of
   caps = case standing of
     OwnAuthority -> capabilitiesOf w who
     ProcedureAuthority cs -> cs
+  -- every party to an agreement signs it
   ownerSigned = case i of
+    Enter e | Just missing <- find (\x -> not (consents signers (Consent [ x.actor ] :: Clause))) e.parties -> Left (MustSign missing.actor)
     Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns -> case holderDraw tr >>= (holderOf w <<< _.resource) of
       Just o | consents signers (Consent [ o ] :: Clause) -> Right unit
       _ -> Left (OwnerMustSign t.transformation)

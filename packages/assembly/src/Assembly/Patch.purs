@@ -1,7 +1,8 @@
 -- | Named patches of a base premise (docs/03): the only way a premise is changed from outside after it
 -- | is authored. Each fails on a name the premise does not have, so a patch never silently does nothing.
 module Assembly.Patch
-  ( setCurve
+  ( withTemplates
+  , setCurve
   , setAccount
   , setCapabilities
   , setPosition
@@ -12,6 +13,9 @@ module Assembly.Patch
   ) where
 
 import Prelude
+
+import Laws.World (WorldTemplate)
+import Data.Tuple (Tuple)
 
 import World.Error (ValidationError(..))
 import Core.Num (Q)
@@ -73,3 +77,7 @@ engineOnly p = p
   , config = p.config { seats = Map.empty, nonPlayableActors = Map.empty, fallbacks = Map.empty, representations = [] }
   , presets = Object.empty
   }
+
+-- | A possible World with these agreement templates.
+withTemplates :: forall e. Array (Tuple String WorldTemplate) -> PossibleWorld -> Either e PossibleWorld
+withTemplates ts pw = Right pw { world = pw.world { templates = Map.fromFoldable ts } }

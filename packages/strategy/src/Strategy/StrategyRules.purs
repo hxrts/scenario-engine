@@ -62,6 +62,7 @@ type TemplateAlg a t =
 type SignAlg c s =
   { procedures :: Array CollectiveProcedureId -> s
   , transformation :: TransformationId -> s
+  , agreements :: Array String -> s
   , all :: s
   , signIf :: { when :: Array c, rule :: s } -> s
   }
@@ -131,6 +132,7 @@ foldSign cond alg = go
   go = case _ of
     SignProcedures xs -> alg.procedures xs
     SignTransformation t -> alg.transformation t
+    SignAgreements ts -> alg.agreements ts
     SignAll -> alg.all
     SignIf x -> alg.signIf { when: map cond x.when, rule: go x.rule }
 
@@ -208,6 +210,7 @@ refsSign :: SignAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String)
 refsSign =
   { procedures: concatMap (named)
   , transformation: \t -> [ Tuple RefTransformation (idText t) ]
+  , agreements: \_ -> []
   , all: []
   , signIf: \x -> concat x.when <> x.rule
   }

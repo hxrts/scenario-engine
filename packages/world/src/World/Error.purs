@@ -15,6 +15,7 @@ import Laws.Types (CollectiveProcedureId, ActorId, RefKind, ResourceId, Transfor
 -- | constructor names one check, so a caller and its tests match on the specific failure.
 data ValidationError
   = UnknownReference RefKind String
+  | InvalidTemplate String -- a template spawns for its own round, or names a template that does not exist
   | UnknownScheme String -- a Representation scheme the possible World does not define
   | DuplicateHolder String -- a Resource a holder draw names has more than one holder
   | ProductionWithoutHolding ActorId String -- a producer does not hold what it produces from
@@ -45,6 +46,7 @@ derive instance Eq ValidationError
 instance Show ValidationError where
   show = case _ of
     UnknownReference k r -> "unknown " <> show k <> " reference: " <> r
+    InvalidTemplate t -> "invalid agreement template: " <> t
     UnknownScheme s -> "unknown scheme reference: " <> s
     DuplicateHolder r -> "Resource drawn from its holder has more than one holder: " <> r
     ProductionWithoutHolding e r -> show e <> " produces from " <> r <> " but does not hold it"
