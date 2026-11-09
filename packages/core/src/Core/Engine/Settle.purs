@@ -17,7 +17,8 @@ import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Compile (fillCoupling, runCoupling)
+import Core.Engine.Compile (fillCoupling, runCoupling, transformCoupling)
+import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger, adjust)
 import Core.Kernel.Ration (fillPool)
@@ -27,21 +28,17 @@ import Core.Num as Q
 import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
 import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, poolDraw, ruleIdOf)
 import Core.World (addEvents, Cause(..), Delivery, Endpoint(..), Event, Flow, Mechanism(..), RejectReason(..), WorldState, coupled, orderRemoved, rejection)
-import Data.Array (all, any, concat, concatMap, filter, foldl, nub, notElem, null, partition, sortWith, zipWith)
+import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Tuple (Tuple(..), fst)
 
 -- | A leg moving `moved` of what is owed.
 leg :: Endpoint -> Endpoint -> ResourceId -> Q -> Q -> Flow
 leg from to resource owed moved = { from, to, resource, owed, moved }
-
--- | A leg that moves everything owed.
-whole :: Endpoint -> Endpoint -> ResourceId -> Q -> Flow
-whole from to resource quantity = leg from to resource quantity quantity
 
 move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
 move from to r q = adjust to r q <<< adjust from r (Q.neg q)
@@ -228,28 +225,22 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
       Tuple (Just q) (Just tr) | q > Q.zero ->
         let
           owed = Q.mul (conversionPrice tr (pricedTotal t.transformation tr)) q
-          -- escrow funds inputs, so a shortfall here is a backstop: the Transform is rejected, not overdrawn
-          inputsHeld = all (\(Tuple r u) -> net w t.by r a >= Q.mul u q) (entries tr.inputs)
-          consume l = foldl (\l' (Tuple r u) -> adjust (Ent t.by) r (Q.neg (Q.mul u q)) l') l (entries tr.inputs)
           cause = OfIntent { proposal: pid, intent: i, mechanism: Conversion { by: t.by, transformation: t.transformation, units: q } }
           outs = map (\(Tuple r u) -> { round: w.round + tr.delay, entity: t.by, resource: r, quantity: Q.mul u q, cause }) (entries tr.outputs)
-          inputLegs = map (\(Tuple r u) -> whole (Held t.by) Sink r (Q.mul u q)) (entries tr.inputs)
           { yes: now, no: later } = partition (\d -> d.round == w.round) outs
-          produce l = foldl (\l' d -> adjust (Ent d.entity) d.resource d.quantity l') l now
-          outputLegs = map (\d -> whole Source (Held t.by) d.resource d.quantity) now
+          inputs = map (\(Tuple r u) -> { resource: r, amount: Q.mul u q }) (entries tr.inputs)
+          payment = map (\terms -> { terms, owed }) tr.payment
+          posted = runCoupling w a.ledger (transformCoupling { by: t.by, tid: t.transformation, inputs, outputs: map (\d -> { resource: d.resource, amount: d.quantity }) now, payment, cause })
+          -- the payment posted first; it is recorded last, and only when something was owed
+          paidFirst = if isJust payment then 1 else 0
+          paymentLeg = if owed > Q.zero then take paidFirst posted.flows else []
+          legs = drop paidFirst posted.flows <> paymentLeg
         in
-          if not inputsHeld then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
-          else
-            let
-              { afterPay, paymentLeg } = case tr.payment of
-                Nothing -> { afterPay: a, paymentLeg: [] }
-                Just p -> case pay w t.by (Just p.to) p.resource owed a of
-                  Tuple paid st -> { afterPay: st, paymentLeg: if owed > Q.zero then [ leg (Held t.by) (Held p.to) p.resource owed paid ] else [] }
-            in
-              addEvents [ coupled w.round (inputLegs <> outputLegs <> paymentLeg) Nothing cause ] afterPay
-                { ledger = produce (consume afterPay.ledger)
-                , deliveries = afterPay.deliveries <> later <> effects cause t tr q
-                }
+          if any (\c -> c.fate == Expired) posted.consumed then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
+          else addEvents [ coupled w.round legs Nothing cause ] a
+            { ledger = posted.ledger
+            , deliveries = a.deliveries <> later <> effects cause t tr q
+            }
       _ -> a
     _ -> a
 

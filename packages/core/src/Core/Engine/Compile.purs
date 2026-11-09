@@ -3,6 +3,7 @@ module Core.Engine.Compile
   ( WorldKernel
   , kernelOf
   , fillCoupling
+  , transformCoupling
   , runCoupling
   ) where
 
@@ -10,12 +11,12 @@ import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Types (Account(..), Amount(..), Coupling, Effect(..), Party(..), Short(..), noNext) as K
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), Party(..), Short(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, holding, reserveOf)
-import Core.Types (Capability, EntityId, Market, MarketId, ProposalId, ResourceId, Rule)
-import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), RejectReason, WorldState)
+import Core.Types (Capability, EntityId, Market, MarketId, Payment, ProposalId, ResourceId, Rule, TransformationId)
+import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), RejectReason(..), WorldState)
 import Data.Array (elem, mapMaybe)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -65,3 +66,33 @@ fillCoupling id m f =
   leg oid from to resource owed =
     { id: oid, obligor: K.Named f.entity, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext }
 
+-- | One filled Transform, for what settles this round. The payment posts first, since it caps at what
+-- | is held before the inputs go, and every leg stands only if all the inputs are held.
+transformCoupling
+  :: { by :: EntityId
+     , tid :: TransformationId
+     , inputs :: Array { resource :: ResourceId, amount :: Q }
+     , outputs :: Array { resource :: ResourceId, amount :: Q }
+     , payment :: Maybe { terms :: Payment, owed :: Q }
+     , cause :: Cause
+     }
+  -> Couple
+transformCoupling t =
+  { obligations: payment <> map input t.inputs <> map output t.outputs
+  , holds: []
+  , solver: Nothing
+  , ration: { tier: 1, whole: false, scaleGroup: Nothing }
+  , phase: 2
+  , cause: Just t.cause
+  , consented: []
+  }
+  where
+  who = named t.by
+  held = map (\i -> { condition: K.StockAtLeast { stock: { at: who, resource: i.resource }, amount: K.Exactly i.amount }, reason: Just (InputsNotHeld t.tid) }) t.inputs
+  obligation oid from to resource owed onShort =
+    { id: oid, obligor: K.Named t.by, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when: held, onShort, next: K.noNext }
+  input i = obligation "input" who K.Destroyed i.resource i.amount K.Reject
+  output o = obligation "output" K.Created who o.resource o.amount K.Reject
+  payment = case t.payment of
+    Just p -> [ obligation "payment" who (named p.terms.to) p.terms.resource p.owed K.Cap ]
+    Nothing -> []
