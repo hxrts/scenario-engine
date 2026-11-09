@@ -19,10 +19,12 @@ module Handlers.Llm.Wire
 
 import Prelude
 
+import Data.Map (Map)
+import Laws.World (TemplateTerms, View, viewShape)
+import Laws.Types (ResourceId, TransformationId, ActorId, ExchangeId, RoundIndex, idShape)
+import Core.Shape (mapOf, Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
+
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
-import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
-import Laws.Types (ActorId, ExchangeId, RoundIndex, idShape)
-import Laws.World (View, viewShape)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either)
 import Data.Array (drop, length, zip, (..))
@@ -35,10 +37,10 @@ import Schema.Decode (decodeError)
 
 -- | The joint pass's payload: the round, its seat transcripts, and the Actors and Exchanges a
 -- | candidate Transaction may name.
-type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, actors :: Array ActorId, exchanges :: Array ExchangeId }
+type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, actors :: Array ActorId, exchanges :: Array ExchangeId, resources :: Array ResourceId, transformations :: Array TransformationId, templates :: Map String TemplateTerms }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), actors: (arrayOf idShape), exchanges: (arrayOf idShape) }
+jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), actors: (arrayOf idShape), exchanges: (arrayOf idShape), resources: (arrayOf idShape), transformations: (arrayOf idShape), templates: (mapOf stringShape (recordShape "TemplateTerms" { params: arrayOf stringShape, parties: arrayOf stringShape })) }
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { explicitActor :: ActorId, briefing :: String, view :: View }

@@ -113,6 +113,10 @@ spec = do
           d.agreed `shouldEqual` [ Id "US" ]
         _ -> fail "one CandidateTransaction should decode"
 
+    it "the joint pass's prompt requires the exact ids its payload lists" do
+      contains (Pattern "exact id given in `actors`, `exchanges`, `resources`, `transformations` or `templates`") interpretPrompt `shouldEqual` true
+      for_ [ "resources", "transformations", "templates" ] \key -> elem key (descKeys interpretCall.request.desc) `shouldEqual` true
+
     it "a joint reply can enter an agreement the transcripts describe" do
       let
         entering = Enter { template: "loan", args: [ { name: "principal", value: Q.fromInt 10 } ], parties: [ { role: "lender", actor: Id "US" }, { role: "borrower", actor: Id "DE" } ] }
