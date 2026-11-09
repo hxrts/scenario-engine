@@ -57,9 +57,9 @@ What runs, and what it connects to. Arrows point from the caller to what it call
         ▼             ▼               │             │         Digest, Exit
      pi process    runs.db            ▼             ▼             │
         │          (Run Store)     Premise files,  terminal       ▼
-        ▼                          evidence,       (CLI only)    operating system
-     Interence                     .env, openapi/
-     provider
+        ▼                          evidence,       (CLI only)    operating
+     Interence                     .env,                         system
+     provider                      openapi/
 ```
 
 The two external services see only the open routes, whose contract is the OpenAPI documents (06 §8.2). Every other route needs the admin session. Model calls leave the system only through the `pi` process.
