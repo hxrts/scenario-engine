@@ -21,7 +21,7 @@ const allowed = {
   assembly: ["core", "laws", "schema", "world", "strategy"],
   premises: ["core", "laws", "schema", "assembly"],
   effects: ["core", "laws", "schema", "world", "strategy", "assembly"],
-  handlers: ["core", "laws", "schema", "world", "strategy", "assembly", "effects"],
+  handlers: ["core", "laws", "schema", "world", "strategy", "assembly", "effects", "views"],
   adapters: ["handlers"],
   // the pure views over a stored run: projections and checks, no run and no game
   views: ["core", "laws", "schema", "checks"],
@@ -59,8 +59,10 @@ const rules = [
     forbid: (m) => m !== "Handlers.Simulate" && (/^(World|Strategy|Premises|Handlers|Adapters|Testkit)(\.|$)/.test(m) || IMPURE_MODULE.test(m)) },
   { name: "no src module imports testkit: it is test support only", packages: Object.keys(allowed).filter((p) => p !== "testkit"),
     forbid: (m) => /^Testkit(\.|$)/.test(m) },
-  { name: "handlers import no adapter, and no views or experiments", packages: ["handlers"],
-    forbid: (m) => /^(Adapters|Views|Experiments)(\.|$)/.test(m) },
+  { name: "handlers import no adapter and no experiments", packages: ["handlers"],
+    forbid: (m) => /^(Adapters|Experiments)(\.|$)/.test(m) },
+  { name: "only the API contract imports views: it states the replies the views describe", packages: ["handlers"], except: "Handlers/Api/Contract.purs",
+    forbid: (m) => /^Views(\.|$)/.test(m) },
   { name: "game imports no premiseModule, runner, handler, adapter, views, or experiments module (game is data and rules)", packages: ["assembly"],
     forbid: (m) => /^(Premises|Handlers|Adapters|Views|Experiments|Testkit)(\.|$)/.test(m) },
   { name: "the simulation imports no board or strategy: a Assembly is all it sees", packages: ["handlers"], under: "Handlers/Simulate.purs",
@@ -70,8 +72,8 @@ const rules = [
   { name: "the composition roots instantiate and bind no seat: no board, strategy, or seat-handler import", packages: ["cli", "server"],
     forbid: (m) => /^(World|Strategy|Handlers\.Seats)(\.|$)/.test(m) },
   // the API client answers operations in a browser: its closure (the route table and the client) has no Node, device, or domain module
-  { name: "the API client's closure is browser-safe: no node-* or Node module, no adapter, and no views or experiments", packages: ["handlers"], under: "Handlers/Api/",
-    forbid: (m) => /^(Node(\.|$)|Adapters(\.|$)|Views(\.|$)|Experiments(\.|$)|Handlers\.(Store|Seats|Live|Sim|Llm|Replay|Recording)(\.|$))/.test(m) },
+  { name: "the API client's closure is browser-safe: no node-* or Node module, no adapter, and no experiments", packages: ["handlers"], under: "Handlers/Api/",
+    forbid: (m) => /^(Node(\.|$)|Adapters(\.|$)|Experiments(\.|$)|Handlers\.(Store|Seats|Live|Sim|Llm|Replay|Recording)(\.|$))/.test(m) },
   { name: "effects are declarations: no handler or adapter import", packages: ["effects"],
     forbid: (m) => /^(Handlers|Adapters)(\.|$)/.test(m) },
 ];
@@ -188,6 +190,7 @@ for (const dir of dirs) {
       for (const rule of rules) {
         if (!rule.packages.includes(name)) continue;
         if (rule.under && !rel.startsWith(rule.under)) continue;
+        if (rule.except && rel.startsWith(rule.except)) continue;
         if (rule.forbid(mod)) errors.push(`${path.relative(root, f)}: imports ${mod} (${rule.name})`);
       }
       if (name === "adapters" && /^Handlers(\.|$)/.test(mod)) {

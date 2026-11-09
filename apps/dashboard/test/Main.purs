@@ -161,8 +161,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
   describe "the Playwright mocks" do
     it "answer the same reply shapes the pages decode" do
-      isLeft (Shape.parse Snapshot Keys.runList runListJson) `shouldEqual` false
-      isLeft (Shape.parse Snapshot Keys.overview.shape overviewJson) `shouldEqual` false
+      isLeft (Shape.parse Snapshot (Keys.viewShape :: Shape.Shape RunList) runListJson) `shouldEqual` false
+      isLeft (Shape.parse Snapshot (Keys.viewKey @"Overview").shape overviewJson) `shouldEqual` false
   where
   row1 = [ "run-1", "base", "no" ]
   row2 = [ "run-2", "seed", "no" ]
@@ -186,4 +186,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   premise = { name: "meridian", version: "v0", rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
 
   decodePremise :: String -> Either String Premise
-  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot Keys.premise
+  decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape Premise)

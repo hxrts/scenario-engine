@@ -27,7 +27,7 @@ import Effects.Api (DeriveRequest)
 import Effects.Signatures (PlayRequest(..), RunError(..), Stored, StoredRound)
 import Effects.Observe (readManifest, readRounds)
 import Effects.Store (deleteRun, setArchived)
-import Views.Keys as Keys
+import Handlers.Api.Contract (AnyRefusal, Archived, Deleted, Derived, Resumed)
 import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
 import Effects.Launch (freshRunId, start)
 import Server.Launch (serverRole)
@@ -37,8 +37,6 @@ import Assembly.Assemble (assemble, assemblePreset, checkRounds, liveBindings, w
 import Server.Sets (setsNaming)
 import Server.Premises (Premises, ofSpec)
 import Schema.Run (Spec, DeriveKind(..), RunStatus(..))
-import Core.Shape (Format(Authored))
-import Handlers.Api.Route as Route
 import Assembly.Recipe (Recipe, decodeSpec, deriveRecipe)
 import Views.Common (records)
 import Handlers.Simulate (replayGame)
@@ -52,7 +50,7 @@ import Handlers.Simulate (replayGame)
 -- A rerun also reports `recordsMatch`: whether its round records equal the source's. The source's
 -- records must be stored and readable, and the source completed, before the rerun starts; otherwise
 -- the reply is 409 and nothing is created.
-deriveRun :: forall o. Premises -> String -> DeriveRequest -> Run (SERVER o) Answer
+deriveRun :: forall o. Premises -> String -> DeriveRequest -> Run (SERVER o) (Answer AnyRefusal Derived)
 deriveRun premises sourceId body = do
   runInfo sourceId >>= case _ of
     Nothing -> notFound ("no run " <> sourceId)
@@ -60,7 +58,7 @@ deriveRun premises sourceId body = do
       Just { spec: Right spec } | isNothing spec.preset -> deriveSession premises sourceId body info spec
       _ -> deriveFromRecipe premises sourceId body info
 
-deriveFromRecipe :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Run (SERVER o) Answer
+deriveFromRecipe :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Run (SERVER o) (Answer AnyRefusal Derived)
 deriveFromRecipe premises sourceId body info = do
   let kind = body.kind
   do
@@ -104,11 +102,11 @@ deriveFromRecipe premises sourceId body info = do
   -- rerun replays what was recorded
   outOfRange premise = either (Just <<< show) (const Nothing) (traverse_ (checkRounds premise.possibleWorld) body.rounds)
   -- the reply to a derive: the new run, its source and kind, and anything the kind adds
-  replied id recordsMatch = pure (Right (Route.replyIn Authored Keys.derived 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
+  replied id recordsMatch = ok { id, source: sourceId, kind: body.kind, recordsMatch }
 
 -- | A derive from a live session. It has no preset, so a variant or counterfactual cannot be played
 -- | from it; a duplicate or rerun replays its recorded candidate Transactions and signatures (docs/06 §9.1).
-deriveSession :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) Answer
+deriveSession :: forall o r. Premises -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) (Answer AnyRefusal Derived)
 deriveSession premises sourceId body info spec
   | body.kind == Variant || body.kind == Counterfactual = badRequest ("a live session has no preset, so a " <> show body.kind <> " cannot be derived from " <> sourceId)
   | info.status /= Completed = conflict ("cannot replay " <> sourceId <> ": it is " <> show info.status <> ", not completed")
@@ -142,24 +140,24 @@ deriveSession premises sourceId body info spec
                     Right n -> replied id (Just (records src == records n))
                     Left e -> internal ("the rerun " <> id <> " is unreadable: " <> describe e)
                 Right (Right _) -> replied id Nothing
-      replied id recordsMatch = pure (Right (Route.replyIn Authored Keys.derived 201 { id, source: sourceId, kind: body.kind, recordsMatch }))
+      replied id recordsMatch = ok { id, source: sourceId, kind: body.kind, recordsMatch }
 
 -- | `POST /api/runs/:id/resume` with `{ "rounds": n }`: a completed run is extended to n rounds,
 -- | starting from the snapshot after its last completed round. The run keeps its id.
-resumeRun :: forall o. Premises -> String -> Int -> Run (SERVER o) Answer
+resumeRun :: forall o. Premises -> String -> Int -> Run (SERVER o) (Answer AnyRefusal Resumed)
 resumeRun premises id rounds = continueRun premises id "resumed" \p ->
   if rounds <= p.done then Left ("rounds must exceed the " <> show p.done <> " completed rounds of " <> id)
   else Right { rounds, spec: p.spec { rounds = Just rounds } }
 
 -- | `POST /api/runs/:id/step`: one round of a completed run that is short of its target, through the same
 -- | snapshot path as resume. The target does not change.
-stepRun :: forall o. Premises -> String -> Run (SERVER o) Answer
+stepRun :: forall o. Premises -> String -> Run (SERVER o) (Answer AnyRefusal Resumed)
 stepRun premises id = continueRun premises id "stepped" \p -> case p.spec.rounds of
   Just target | p.done < target -> Right { rounds: p.done + 1, spec: p.spec }
   _ -> Left (id <> " has played all " <> show p.done <> " of its rounds")
 
 -- | Continue a completed run from its last snapshot, to the round count and with the spec `decide` gives.
-continueRun :: forall o. Premises -> String -> String -> ({ done :: Int, spec :: Spec } -> Either String { rounds :: Int, spec :: Spec }) -> Run (SERVER o) Answer
+continueRun :: forall o. Premises -> String -> String -> ({ done :: Int, spec :: Spec } -> Either String { rounds :: Int, spec :: Spec }) -> Run (SERVER o) (Answer AnyRefusal Resumed)
 continueRun premises id verb decide =
   runInfo id >>= case _ of
     Nothing -> notFound ("no run " <> id)
@@ -180,7 +178,7 @@ continueRun premises id verb decide =
                     attempt <- playRun (Continued { id, seed: p.seed, game, world: p.snapshot, done: p.done, spec: next.spec })
                     case attempt of
                       Left e -> badRequest e
-                      Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok Keys.resumed { id, rounds: next.rounds })) r
+                      Right r -> either (\e -> internal ("run " <> id <> " failed: " <> e)) (const (ok { id, rounds: next.rounds })) r
             _, _ -> internal ("run " <> id <> " is unreadable: it has no manifest or no rounds")
   where
   -- what resuming needs: the spec, its recipe and seed, the last snapshot, and the completed round count
@@ -194,24 +192,24 @@ continueRun premises id verb decide =
     pure { spec, base, premise, seed: Seed seed, snapshot, done }
 
 -- | `POST /api/runs/:id/archive` and `/unarchive`. Idempotent.
-setArchive :: forall o. String -> Boolean -> Run (SERVER o) Answer
+setArchive :: forall o. String -> Boolean -> Run (SERVER o) (Answer AnyRefusal Archived)
 setArchive id archived = do
   present <- hasRun id
   if not present then notFound ("no run " <> id)
   else do
     (setArchived id archived)
-    ok Keys.archived { id, archived }
+    ok { id, archived }
 
 -- | `DELETE /api/runs/:id?confirm=:id`: the run with its rounds and metrics. Runs that cite it keep
 -- | their source field, which then resolves to deleted.
-deleteOne :: forall o. String -> String -> Run (SERVER o) Answer
+deleteOne :: forall o. String -> String -> Run (SERVER o) (Answer AnyRefusal Deleted)
 deleteOne id confirm
   | confirm /= id = badRequest ("deleting " <> id <> " needs ?confirm=" <> id)
   | otherwise = setsNaming id >>= \naming ->
       if not (null naming) then conflict (id <> " is in the scenario sets " <> joinWith ", " (map _.name naming) <> "; delete them first")
       else do
         n <- deleteRun id
-        if n == 0 then notFound ("no run " <> id) else ok Keys.deleted { deleted: id }
+        if n == 0 then notFound ("no run " <> id) else ok { deleted: id }
 
 hasRun :: forall o. String -> Run (SERVER o) Boolean
 hasRun id = isJust <$> runInfo id

@@ -40,7 +40,7 @@ import Views.Balances as Balances
 import Views.Drivers as Drivers
 import Views.Compare as Compare
 import Views.Actor as Actor
-import Views.Glossary (allColumns, glossary)
+import Views.Glossary (Glossary, allColumns, glossary)
 import Views.Keys as Keys
 import Views.Exchanges as Exchanges
 import Views.Overview as Overview
@@ -164,21 +164,21 @@ spec context = describe "Capstone (DSL-authored run)" do
 
       encoded :: forall a. Shape a -> a -> String
       encoded s = prettyJson <<< encodeWith Snapshot s
-    same Keys.overview (Overview.overview sr)
-    either fail (same Keys.balances) (Balances.balances sr 1)
-    same Keys.exchanges (Exchanges.exchanges sr)
-    same Keys.transformations (Exchanges.transformations sr)
-    same Keys.economy (Exchanges.economy sr)
-    same Keys.representation (Representation.representation sr)
-    same Keys.procedures (Representation.procedures sr)
-    same Keys.objectives (Overview.objectives ctx.possibleWorld sr)
-    same Keys.standings (Standings.standings sr)
-    same Keys.netWorth (Standings.netWorthChart sr)
-    same Keys.actions (Actions.actions sr)
-    same Keys.drivers (Drivers.drivers sr)
-    same Keys.balance (Balance.balanceView ctx.possibleWorld sr)
-    either fail (same Keys.events) (Balances.events sr 1)
-    reads Keys.glossary (glossary meridianFocus)
+    same (Keys.viewKey @"Overview") (Overview.overview sr)
+    either fail (same (Keys.viewKey @"Balances")) (Balances.balances sr 1)
+    same (Keys.viewKey @"Exchanges") (Exchanges.exchanges sr)
+    same (Keys.viewKey @"Transformations") (Exchanges.transformations sr)
+    same (Keys.viewKey @"Economy") (Exchanges.economy sr)
+    same (Keys.viewKey @"Representation") (Representation.representation sr)
+    same (Keys.viewKey @"Procedures") (Representation.procedures sr)
+    same (Keys.viewKey @"Objectives") (Overview.objectives ctx.possibleWorld sr)
+    same (Keys.viewKey @"Standings") (Standings.standings sr)
+    same (Keys.viewKey @"NetWorth") (Standings.netWorthChart sr)
+    same (Keys.viewKey @"Actions") (Actions.actions sr)
+    same (Keys.viewKey @"Drivers") (Drivers.drivers sr)
+    same (Keys.viewKey @"Balance") (Balance.balanceView ctx.possibleWorld sr)
+    either fail (same (Keys.viewKey @"Events")) (Balances.events sr 1)
+    reads (Keys.viewShape :: Shape Glossary) (glossary meridianFocus)
 
   it "no column lacks a definition, and every column a view shows has one in the glossary" do
     ctx <- context

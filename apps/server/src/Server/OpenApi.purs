@@ -1,31 +1,32 @@
 -- | OpenAPI documents for the two independently built services (docs/06_simulator.md §8), generated from the
--- | route table's paths and methods and from the Shapes of each request and reply, so a document cannot
+-- | route table's paths and methods and from the contract's Shapes and refusals of each request and reply, so a document cannot
 -- | describe a route differently from how it behaves.
 module Server.OpenApi
-  ( Service(..)
-  , services
+  ( services
   , serviceName
   , serviceOf
   , document
+  , defaultServer
+  , documentsOf
   , published
   ) where
 
 import Prelude
 
-import Core.Shape (Desc, jsonSchema, schemaComponents)
+import Data.Array (any, nub, sort, concatMap, filter, find, mapMaybe, nubByEq)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), isJust, maybe)
+import Laws.Types (RefKind)
+import Laws.World (namesOfKind)
+import Server.Premises (Premises)
+
+import Core.Shape (Desc, allValues, jsonSchemaIn, schemaComponentsIn)
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromObject, fromString)
-import Data.Array (concatMap, filter, find, mapMaybe, nubByEq)
-import Data.Maybe (Maybe(..), maybe)
 import Data.String (Pattern(..), joinWith, stripPrefix, toLower)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object as Object
-import Handlers.Api.Route (endpointAccess, errorShape, submissionShape)
-import Views.Keys as Keys
-
--- | The services built outside this repository.
-data Service = Transcription | Narrative
-
-derive instance Eq Service
+import Handlers.Api.Contract (operations)
+import Handlers.Api.Route (Service(..), Doc, endpointAccess, errorShape)
 
 services :: Array Service
 services = [ Transcription, Narrative ]
@@ -38,54 +39,78 @@ serviceName = case _ of
 serviceOf :: String -> Maybe Service
 serviceOf name = find (\s -> serviceName s <> ".json" == toLower name) services
 
-type Published = { service :: Service, operation :: String, summary :: String, request :: Maybe Desc, reply :: Desc }
+type Published = { service :: Service, operation :: String, summary :: String, reply :: Desc, status :: Int, errors :: Array Int }
 
--- | Each published operation, by its constructor in `ApiRequest`.
+-- | Every operation the route table publishes, with its entry of the contract.
 published :: Array Published
-published =
-  [ { service: Transcription, operation: "GetSession", summary: "The round a session is on, and which seats have spoken.", request: Nothing, reply: Keys.sessionState.desc }
-  , { service: Transcription, operation: "SubmitTranscript", summary: "Submit one seat's text for the round that is open.", request: Just submissionShape.desc, reply: Keys.sessionState.desc }
-  , { service: Narrative, operation: "RoundReport", summary: "What one round produced, to write a report from.", request: Nothing, reply: Keys.roundReport.desc }
-  ]
+published = mapMaybe entry endpointAccess
+  where
+  entry e = do
+    p <- e.publish
+    c <- find (\o -> o.name == e.name) operations
+    -- what reading the request can refuse is the route's own
+    pure { service: p.service, operation: e.name, summary: p.summary, reply: c.reply, status: c.status, errors: sort (nub (c.refusals <> requestErrors e.doc)) }
+  requestErrors doc = (if isJust doc.body then [ 400 ] else []) <> (if any _.integer doc.params then [ 404 ] else [])
 
--- | The OpenAPI 3.1 document of one service.
+-- | Where a document says the service is served, unless it was written for another server.
+defaultServer :: String
+defaultServer = "https://scenario.hxrts.com"
+
+-- | The OpenAPI 3.1 document of one service, naming no Premise's ids: what `/api/openapi/*.json` serves.
 document :: Service -> Json
-document service = obj
+document = documentIn { server: defaultServer, names: const [] }
+
+-- | Each service's document for one Premise and server: a reference of a kind the Premise's World names lists those
+-- | names. An unknown Premise is refused with the known ones.
+documentsOf :: Premises -> { premise :: String, server :: String } -> Either String (Array (Tuple Service Json))
+documentsOf premises { premise, server } = case find (\p -> p.possibleWorld.id == premise) premises of
+  Nothing -> Left ("no premise named " <> premise <> "; known premises: " <> joinWith ", " (map _.possibleWorld.id premises))
+  Just parts -> Right (map (\s -> Tuple s (documentIn { server, names: namesIn parts.possibleWorld.world } s)) services)
+  where
+  namesIn world kind = maybe [] (namesOfKind world) (find (\k -> show k == kind) (allValues :: Array RefKind))
+
+type Where = { server :: String, names :: String -> Array String }
+
+documentIn :: Where -> Service -> Json
+documentIn at service = obj
   [ Tuple "openapi" (fromString "3.1.0")
   , Tuple "info" (obj [ Tuple "title" (fromString ("Scenario Engine " <> serviceName service <> " API")), Tuple "version" (fromString "1") ])
-  , Tuple "servers" (fromArray [ obj [ Tuple "url" (fromString "https://scenario.hxrts.com") ] ])
-  , Tuple "paths" (obj (mapMaybe pathOf ops))
+  , Tuple "servers" (fromArray [ obj [ Tuple "url" (fromString at.server) ] ])
+  , Tuple "paths" (obj (mapMaybe (pathOf at) ops))
   , Tuple "components" (obj [ Tuple "schemas" (obj components) ])
   ]
   where
   ops = filter (\p -> p.service == service) published
-  components = nubByEq (\a b -> fst a == fst b) (concatMap (\p -> schemaComponents p.reply <> maybe [] schemaComponents p.request) ops)
+  components = nubByEq (\a b -> fst a == fst b) (concatMap (\p -> schemaComponentsIn at.names p.reply <> maybe [] (schemaComponentsIn at.names) (requestOf p)) ops)
 
 obj :: Array (Tuple String Json) -> Json
 obj = fromObject <<< Object.fromFoldable
 
-pathOf :: Published -> Maybe (Tuple String Json)
-pathOf p = find (\e -> e.name == p.operation) endpointAccess <#> pathFrom p
+requestOf :: Published -> Maybe Desc
+requestOf p = find (\e -> e.name == p.operation) endpointAccess >>= _.doc.body
 
-pathFrom :: forall r. Published -> { method :: String, pattern :: Array String | r } -> Tuple String Json
-pathFrom p { method, pattern } = Tuple path (obj [ Tuple (toLower method) operation ])
+pathOf :: Where -> Published -> Maybe (Tuple String Json)
+pathOf at p = find (\e -> e.name == p.operation) endpointAccess <#> pathFrom at p
+
+pathFrom :: forall r. Where -> Published -> { method :: String, pattern :: Array String, doc :: Doc | r } -> Tuple String Json
+pathFrom at p { method, pattern, doc } = Tuple path (obj [ Tuple (toLower method) operation ])
   where
   path = "/" <> joinWith "/" (map brace pattern)
   brace s = maybe s (\n -> "{" <> n <> "}") (stripPrefix (Pattern ":") s)
-  parameters = mapMaybe (\s -> stripPrefix (Pattern ":") s <#> parameter) pattern
-  parameter n = obj
+  parameters = map parameter doc.params
+  parameter { name: n, integer } = obj
     [ Tuple "name" (fromString n)
     , Tuple "in" (fromString "path")
     , Tuple "required" (fromBoolean true)
-    , Tuple "schema" (obj [ Tuple "type" (fromString (if n == "round" then "integer" else "string")) ])
+    , Tuple "schema" (obj [ Tuple "type" (fromString (if integer then "integer" else "string")) ])
     ]
-  body = maybe [] (\d -> [ Tuple "requestBody" (obj [ Tuple "required" (fromBoolean true), Tuple "content" (json d) ]) ]) p.request
-  json d = obj [ Tuple "application/json" (obj [ Tuple "schema" (jsonSchema d) ]) ]
-  errors = map (\c -> Tuple c (obj [ Tuple "description" (fromString "An error"), Tuple "content" (json errorShape.desc) ])) [ "400", "404", "409" ]
+  body = maybe [] (\d -> [ Tuple "requestBody" (obj [ Tuple "required" (fromBoolean true), Tuple "content" (json d) ]) ]) doc.body
+  json d = obj [ Tuple "application/json" (obj [ Tuple "schema" (jsonSchemaIn at.names d) ]) ]
+  errors = map (\c -> Tuple c (obj [ Tuple "description" (fromString "An error"), Tuple "content" (json errorShape.desc) ])) (map show p.errors)
   operation = obj
     ( [ Tuple "operationId" (fromString p.operation)
       , Tuple "summary" (fromString p.summary)
       , Tuple "parameters" (fromArray parameters)
-      , Tuple "responses" (obj ([ Tuple "200" (obj [ Tuple "description" (fromString "OK"), Tuple "content" (json p.reply) ]) ] <> errors))
+      , Tuple "responses" (obj ([ Tuple (show p.status) (obj [ Tuple "description" (fromString "OK"), Tuple "content" (json p.reply) ]) ] <> errors))
       ] <> body
     )

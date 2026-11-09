@@ -96,62 +96,62 @@ mkBody grid = fetched >>= \fetch -> mkActor >>= \actor -> mkEvents grid >>= \eve
         , Layout.section
             { title: "Marginal prices"
             , purpose: "What moves prices: the marginal price of each Exchange after every round, in quote units per base unit."
-            , children: [ view Keys.exchanges (\cs -> maybe (D.span_ []) metricChart (index cs 0)) ]
+            , children: [ view (Keys.viewKey @"Exchanges") (\cs -> maybe (D.span_ []) metricChart (index cs 0)) ]
             }
         , Layout.section
             { title: "Standings"
             , purpose: "How well each player is doing against the others: net worth after the final round, its change from the start, and its rank."
-            , children: [ view Keys.standings (titled grid) ]
+            , children: [ view (Keys.viewKey @"Standings") (titled grid) ]
             }
         , Layout.section
             { title: "Net worth over time"
             , purpose: "One line per player: net worth from the start (round 0) to the final round."
-            , children: [ view Keys.netWorth metricChart ]
+            , children: [ view (Keys.viewKey @"NetWorth") metricChart ]
             }
         , Layout.section
             { title: "Actions"
             , purpose: "What each player does over the whole run, by kind of action: one bar per player, and the table gives the exact counts."
-            , children: [ view Keys.actions \a -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ stackedBars a.chart, titled grid a.totals ] } ]
+            , children: [ view (Keys.viewKey @"Actions") \a -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ stackedBars a.chart, titled grid a.totals ] } ]
             }
         , Layout.section
             { title: "Drivers"
             , purpose: "What forces drive gameplay, by round: the rules enacted and repealed, the collective procedure outcomes, and the shortfalls per Resource."
-            , children: [ view Keys.drivers (titled grid) ]
+            , children: [ view (Keys.viewKey @"Drivers") (titled grid) ]
             }
         , Layout.section
             { title: "Representation"
             , purpose: "How each Aggregate follows its representative: the observation in one round, the factor it stores, and the Aggregate's adjusted purchase in the next."
-            , children: [ view Keys.representation (titled grid) ]
+            , children: [ view (Keys.viewKey @"Representation") (titled grid) ]
             }
         , Layout.section
             { title: "Collective procedures"
             , purpose: "Each voted candidate Transaction: who signed, the support it reached against its threshold, and the outcome."
-            , children: [ view Keys.procedures (titled grid) ]
+            , children: [ view (Keys.viewKey @"Procedures") (titled grid) ]
             }
         , Layout.section
             { title: "Balance measures"
             , purpose: "How evenly final net worth is spread among the players: the spread and the Gini coefficient."
-            , children: [ view Keys.balance (titled grid <<< _.measures) ]
+            , children: [ view (Keys.viewKey @"Balance") (titled grid <<< _.measures) ]
             }
         , Layout.section
             { title: "Objectives"
             , purpose: "Each explicit Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
-            , children: [ view Keys.objectives (titled grid) ]
+            , children: [ view (Keys.viewKey @"Objectives") (titled grid) ]
             }
         , Layout.section
             { title: "Whole-economy measures"
             , purpose: "By round and Exchange: what was asked for and what went unfilled, how concentrated net worth is, and how Money is distributed."
-            , children: [ view Keys.wholeEconomy (titled grid) ]
+            , children: [ view (Keys.viewKey @"WholeEconomy") (titled grid) ]
             }
         , Layout.section
             { title: "Assertions"
             , purpose: "Each invariant check that failed: what it expected, what it observed, and the events of that round that concern it."
-            , children: [ view Keys.assertions (\t -> if null t.rows then note "No assertion failed in this run." else titled grid t) ]
+            , children: [ view (Keys.viewKey @"Assertions") (\t -> if null t.rows then note "No assertion failed in this run." else titled grid t) ]
             }
         , Layout.section
             { title: "Final balance sheet"
             , purpose: "Every account's holdings by Resource after the final round, with the holdings at the start of the run for comparison."
-            , children: [ view Keys.balances (titled grid) ]
+            , children: [ view (Keys.viewKey @"Balances") (titled grid) ]
             }
         , actor { id: b.id, version: b.version }
         , events { id: b.id, version: b.version, rounds: b.rounds }

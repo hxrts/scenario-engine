@@ -18,7 +18,7 @@ import Prelude
 import Laws.CandidateTransaction (CandidateTransactionBody, candidateTransactionAt)
 import Core.Shape (recordShape, Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
-import Laws.Types (ActorId, ExchangeId, CandidateTransaction, CandidateTransactionCore, RoundIndex, idShape, intentShape)
+import Laws.Types (refIdShape, ActorId, ExchangeId, CandidateTransaction, CandidateTransactionCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map (Map)
@@ -44,10 +44,10 @@ type ProposedJoint = Record (CandidateTransactionCore ExchangeId Q (author :: Ac
 
 proposedJointShape :: Shape ProposedJoint
 proposedJointShape = recordOf "ProposedJoint"
-  ( field @"author" "the seat that submits it" idShape
+  ( field @"author" "the seat that submits it" refIdShape
       &. field @"intents" "the Intents" (arrayOf intentShape)
-      &. field @"signers" "the other Actors the joint CandidateTransaction asks for" (arrayOf idShape)
-      &. field @"agreed" "the seats whose transcripts describe it" (arrayOf idShape)
+      &. field @"signers" "the other Actors the joint CandidateTransaction asks for" (arrayOf refIdShape)
+      &. field @"agreed" "the seats whose transcripts describe it" (arrayOf refIdShape)
   )
 
 -- | The candidate Transactions of a reply; one malformed entry fails only the reply it is in.

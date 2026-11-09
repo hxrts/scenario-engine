@@ -338,9 +338,11 @@
             "sp-laws",
             "sp-schema",
             "sp-strategy",
+            "sp-views",
             "strings",
             "tuples",
-            "typelevel-prelude"
+            "typelevel-prelude",
+            "variant"
           ]
         },
         "test": {
@@ -491,7 +493,8 @@
             "sp-views",
             "strings",
             "tuples",
-            "typelevel-prelude"
+            "typelevel-prelude",
+            "variant"
           ]
         },
         "test": {

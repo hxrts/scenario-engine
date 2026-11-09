@@ -325,7 +325,7 @@ _live :: Proxy "live"
 _live = Proxy
 
 -- | One live session as a client sees it.
-type SessionState = { round :: RoundIndex, status :: String, window :: Int, submitted :: Array ActorId, awaiting :: Array ActorId }
+type SessionState = { round :: RoundIndex, status :: RunStatus, window :: Int, submitted :: Array ActorId, awaiting :: Array ActorId }
 
 data SubmitResult = Accepted | NoSuchSession | NotASeat | NotThisRound RoundIndex | AlreadySubmitted | SessionOver
 

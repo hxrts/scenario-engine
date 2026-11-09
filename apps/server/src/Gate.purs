@@ -51,5 +51,5 @@ gated s impl r = case accessOf request of
   request = { method: r.method, path: r.path, query: r.query, body: r.body }
   admin = maybe false (\v -> any (_ == "admin=" <> v) (map trim (split (Pattern ";") r.cookie))) s.session
   allowed = case _ of
-    Open -> true
+    Open _ -> true
     Admin -> admin

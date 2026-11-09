@@ -11,7 +11,7 @@ import Data.Maybe (Maybe(..))
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Gate (gated, parseEnv, secretsFrom)
-import Handlers.Api.Route (Access(..), endpointAccess)
+import Handlers.Api.Route (endpointAccess, isOpen)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -35,7 +35,7 @@ spec = describe "Who may reach the API" do
   it "reads .env, ignoring comments and blank lines" do
     secrets.session `shouldEqual` Just "pw:admin"
   it "every endpoint refuses a caller with nothing, unless it is open" do
-    for_ (filter (\e -> e.access /= Open) endpointAccess) \e -> do
+    for_ (filter (not isOpen <<< _.access) endpointAccess) \e -> do
       status <- liftEffect (statusOf secrets e "")
       { name: e.name, status } `shouldEqual` { name: e.name, status: 401 }
   it "an admin session reaches every endpoint" do
@@ -45,6 +45,6 @@ spec = describe "Who may reach the API" do
       (status /= 401) `shouldEqual` true
   it "unset secrets lock everything they guard" do
     let locked = secretsFrom identity (parseEnv "")
-    for_ (filter (\e -> e.access /= Open) endpointAccess) \e -> do
+    for_ (filter (not isOpen <<< _.access) endpointAccess) \e -> do
       status <- liftEffect (statusOf locked e "admin=:admin")
       status `shouldEqual` 401

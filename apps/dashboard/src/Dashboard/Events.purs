@@ -29,7 +29,7 @@ mkEvents grid = component "EventInspector" \p -> React.do
   chosen /\ setChosen <- useState' 1
   text /\ setText <- useState' ""
   let round = min chosen (max 1 p.rounds)
-  events <- useLoad { id: p.id, version: p.version, round } (runView Keys.events p.id (Just round))
+  events <- useLoad { id: p.id, version: p.version, round } (runView (Keys.viewKey @"Events") p.id (Just round))
   pure $ Layout.section
     { title: "Event inspector"
     , purpose: "Every event of one round, in the order the engine recorded it."

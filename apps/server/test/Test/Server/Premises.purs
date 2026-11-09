@@ -5,16 +5,21 @@ module Test.Server.Premises (spec) where
 
 import Prelude
 
+import Core.Shape (kindsNamed)
+import Data.Array (fromFoldable, sort)
+import Data.Map as Map
+import Handlers.Llm.Call (interpretCall)
+import Handlers.Llm.Joint (jointRequest)
+import Laws.Types (idText, Actor, ActorId, Id(..), Transferability(..))
+import Data.Maybe (Maybe(..))
+
 import Test.Server.Host (testHost)
 
 import Testkit.Store (open, storeOver)
 import Core.Draw (Seed(..))
-import Laws.Types (Actor, ActorId, Id(..), Transferability(..))
 import Laws.World (Focus)
-import Data.Either (Either(..), isLeft)
-import Data.Map as Map
-import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), contains)
+import Data.Either (Either(..), either, isLeft)
+import Data.String (Pattern(..), contains, joinWith)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
@@ -30,7 +35,9 @@ import Schema.PossibleWorld (ActorDefinition)
 import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (atLeast, byKey, emptyCirculation, emptyWorld, actorsOf, finishes, noResource, resourcesOf)
+import Server.OpenApi (documentsOf)
 import Server.Stack (implement, newServerCache)
+import Data.Argonaut.Core (stringify)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (premise)
@@ -91,8 +98,29 @@ spec = describe "A second Premise" do
       Right d, Right _ -> d.possibleWorld.id `shouldEqual` "harbor"
       _, Left e -> fail e
       Left e, _ -> fail e
+  it "a Premise's OpenAPI document lists its own Resource ids, and not another Premise's" do
+    meridian <- premise
+    case parts harbor of
+      Left e -> fail e
+      Right h -> do
+        let
+          doc name = either identity (\ds -> joinWith "" (map (stringify <<< snd) ds)) (documentsOf [ meridian, h ] { premise: name, server: "s" })
+        doc "harbor" `shouldSatisfy` contains (Pattern "\"enum\":[\"C\",\"G\"]")
+        doc "harbor" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"E\",\"M\",\"Mil\",\"S\",\"attention\",\"energy-production\",\"semiconductors\",\"transport\"]"))
+        doc "meridian" `shouldSatisfy` contains (Pattern "\"enum\":[\"E\",\"M\",\"Mil\",\"S\",\"attention\",\"energy-production\",\"semiconductors\",\"transport\"]")
+        doc "meridian" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"C\",\"G\"]"))
   it "a preset naming what the Premise lacks is refused" do
     isLeft (parts harbor { presets { build = Just { transformation: Id "no-such", quantity: lit 1 } } }) `shouldEqual` true
+  it "a joint pass over it offers this Premise's own names, for every kind a reply can hold" do
+    case parts harbor of
+      Left e -> fail e
+      Right h -> do
+        let
+          world = h.possibleWorld.world
+          names = (jointRequest world 1 []).names
+        sort (Object.keys names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
+        Object.lookup "resource" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.resources)))
+        Object.lookup "actor" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.actors)))
   it "is played and viewed, and compared with Meridian as a batch; each run records its Premise" do
     meridian <- premise
     case parts harbor of

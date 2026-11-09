@@ -12,24 +12,29 @@ module Handlers.Api.Route
   , route
   , parse
   , wire
-  , reply
   , replyIn
   , failWith
   , endpointNames
   , errorShape
   , Access(..)
+  , isOpen
   , accessOf
+  , Service(..)
+  , Publish
   , submissionShape
+  , Doc
   , endpointAccess
   ) where
 
 import Prelude
 
+import Laws.Types (RefKind(RefActor))
+import Core.Shape (Desc, class Payload, Format(..), Shape, refersTo, arrayOf, decodeJsonWith, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
+
 import Control.Alt ((<|>))
 import Schema.Run (deriveKindShape)
 import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Core.Shape (class Payload, Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
 import Data.Array (catMaybes, filter, findMap, length, zipWith, find)
 import Data.Either (Either(..), either)
@@ -68,10 +73,6 @@ type Implementation = ApiRequest -> Effect Reply
 -- | A request as the client sends it: method, URL (with its query), and body text.
 type Wire = { method :: String, url :: String, body :: String }
 
--- | A reply: the status, and the body through its shape, in the round-end World form the replies are written in.
-reply :: forall a. Shape a -> Int -> a -> Reply
-reply = replyIn Shape.Snapshot
-
 -- | A reply in a given format. The premise format leaves an absent optional field out.
 replyIn :: forall a. Shape.Format -> Shape a -> Int -> a -> Reply
 replyIn format s status a = { status, body: stringify (encodeWith format s a) }
@@ -100,7 +101,13 @@ type Outgoing = { captures :: Array (Tuple String String), query :: Array (Tuple
 
 -- | One bidirectional part of a request: how a value is read from it, and written to it. Every part of an
 -- | endpoint is stated once, so the reader and the writer cannot name different keys.
-newtype Part a b = Part { read :: Incoming -> Either Reply b, write :: a -> Outgoing }
+newtype Part a b = Part { read :: Incoming -> Either Reply b, write :: a -> Outgoing, doc :: Doc }
+
+-- | What a request carries, as a published description reads it: its path captures and its body.
+type Doc = { params :: Array { name :: String, integer :: Boolean }, body :: Maybe Desc }
+
+noDoc :: Doc
+noDoc = { params: [], body: Nothing }
 
 instance Functor (Part a) where
   map f (Part p) = Part p { read = map f <<< p.read }
@@ -109,10 +116,11 @@ instance Apply (Part a) where
   apply (Part f) (Part x) = Part
     { read: \i -> f.read i <*> x.read i
     , write: \a -> let l = f.write a in let r = x.write a in { captures: l.captures <> r.captures, query: l.query <> r.query, body: l.body <|> r.body }
+    , doc: { params: f.doc.params <> x.doc.params, body: f.doc.body <|> x.doc.body }
     }
 
 instance Applicative (Part a) where
-  pure b = Part { read: \_ -> Right b, write: \_ -> nothing }
+  pure b = Part { read: \_ -> Right b, write: \_ -> nothing, doc: noDoc }
 
 nothing :: Outgoing
 nothing = { captures: [], query: [], body: Nothing }
@@ -122,6 +130,7 @@ capture :: forall a. String -> (a -> String) -> Part a String
 capture name get = Part
   { read: \i -> Right (fromMaybe "" (Object.lookup name i.captures))
   , write: \a -> nothing { captures = [ Tuple name (get a) ] }
+  , doc: noDoc { params = [ { name, integer: false } ] }
   }
 
 -- | A capture that is a whole number; any other text is a 404 naming it.
@@ -129,6 +138,7 @@ intCapture :: forall a. String -> (a -> Int) -> Part a Int
 intCapture name get = Part
   { read: \i -> let s = fromMaybe "" (Object.lookup name i.captures) in maybe (Left (failWith 404 s)) Right (Int.fromString s)
   , write: \a -> nothing { captures = [ Tuple name (show (get a)) ] }
+  , doc: noDoc { params = [ { name, integer: true } ] }
   }
 
 -- | A capture that names a View; any other text is a 404 naming it.
@@ -136,6 +146,7 @@ viewCapture :: forall a. String -> (a -> View) -> Part a View
 viewCapture name get = Part
   { read: \i -> let s = fromMaybe "" (Object.lookup name i.captures) in maybe (Left (failWith 404 s)) Right (parseView s)
   , write: \a -> nothing { captures = [ Tuple name (viewName (get a)) ] }
+  , doc: noDoc { params = [ { name, integer: false } ] }
   }
 
 -- | An optional query value.
@@ -143,6 +154,7 @@ optionalParam :: forall a. String -> (a -> Maybe String) -> Part a (Maybe String
 optionalParam key get = Part
   { read: \i -> Right (Object.lookup key i.query)
   , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc v) ]) (get a) }
+  , doc: noDoc
   }
 
 -- | An optional whole-number query value; any other text is a 400 naming it.
@@ -152,6 +164,7 @@ optionalIntParam key get = Part
       Nothing -> Right Nothing
       Just s -> maybe (Left (failWith 400 (key <> " must be an integer, got " <> s))) (Right <<< Just) (Int.fromString s)
   , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc (show v)) ]) (get a) }
+  , doc: noDoc
   }
 
 -- | A query value that is empty when it is missing, and always sent.
@@ -159,6 +172,7 @@ param :: forall a. String -> (a -> String) -> Part a String
 param key get = Part
   { read: \i -> Right (fromMaybe "" (Object.lookup key i.query))
   , write: \a -> nothing { query = [ Tuple key (enc (get a)) ] }
+  , doc: noDoc
   }
 
 -- | A query flag: on when its value is `true`, and sent only when on.
@@ -166,6 +180,7 @@ flag :: forall a. String -> (a -> Boolean) -> Part a Boolean
 flag key get = Part
   { read: \i -> Right (Object.lookup key i.query == Just "true")
   , write: \a -> nothing { query = if get a then [ Tuple key "true" ] else [] }
+  , doc: noDoc
   }
 
 -- | A comma-separated query value; blank items are dropped.
@@ -173,6 +188,7 @@ commaParam :: forall a. String -> (a -> Array String) -> Part a (Array String)
 commaParam key get = Part
   { read: \i -> Right (filter (_ /= "") (split (Pattern ",") (fromMaybe "" (Object.lookup key i.query))))
   , write: \a -> nothing { query = [ Tuple key (joinWith "," (map enc (get a))) ] }
+  , doc: noDoc
   }
 
 -- | The body, through its shape; a body that does not decode is a 400.
@@ -180,20 +196,34 @@ bodyOf :: forall a b. Shape b -> (a -> b) -> Part a b
 bodyOf s get = Part
   { read: \i -> decodeBody s i.body
   , write: \a -> nothing { body = Just (stringify (encodeWith Shape.Authored s (get a))) }
+  , doc: noDoc { body = Just s.desc }
   }
 
 -- | An endpoint: its method, its path (`:name` is a capture), and how its operation's payload is
 -- | read from and written to a request.
 type Endpoint b = { method :: String, path :: String, part :: Part b b, access :: Access }
 
--- | Who may call an endpoint. Every endpoint is `Admin` unless the table says otherwise, so a new route
--- | is private until someone decides it is not.
-data Access = Admin | Open
+-- | Who may call an endpoint, and, for an open one, how it is published. Every endpoint is `Admin` unless the table
+-- | says otherwise, so a new route is private until someone decides it is not, and only an open route can be published.
+data Access = Admin | Open (Maybe Publish)
+
+isOpen :: Access -> Boolean
+isOpen = case _ of
+  Admin -> false
+  Open _ -> true
+
+-- | The services built outside this repository, each with its own OpenAPI document.
+data Service = Transcription | Narrative
+
+derive instance Eq Service
+
+-- | How an open route is published: to which service, and what it does.
+type Publish = { service :: Service, summary :: String }
 
 derive instance Eq Access
 
 -- | A request for one endpoint of the table, without its payload's fields.
-type Entry a = { name :: String, method :: String, path :: Array String, access :: Access, read :: Incoming -> Either Reply a }
+type Entry a = { name :: String, method :: String, path :: Array String, access :: Access, doc :: Doc, read :: Incoming -> Either Reply a }
 
 segmentsOf :: String -> Array String
 segmentsOf = filter (_ /= "") <<< split (Pattern "/")
@@ -220,7 +250,7 @@ instance (Endpoints a row, Endpoints b row) => Endpoints (Sum a b) row where
 
 instance (IsSymbol name, Payload args p, Row.Cons name (Endpoint p) _t row) => Endpoints (Constructor name args) row where
   rowsOf _ r inj =
-    [ { name: reflectSymbol name, method: e.method, path: segmentsOf e.path, access: e.access, read: map (inj <<< Constructor <<< fromPayload) <<< p.read } ]
+    [ { name: reflectSymbol name, method: e.method, path: segmentsOf e.path, access: e.access, doc: p.doc, read: map (inj <<< Constructor <<< fromPayload) <<< p.read } ]
     where
     name = Proxy :: Proxy name
     e = Record.get name r
@@ -285,9 +315,9 @@ endpoints = table
         round <- optionalIntParam "round" _.round
         in { id, view, round }
   , "BalanceSheetLinks": get "/api/runs/:id/balancesheets" (capture "id" identity)
-  , "BalanceSheet": (get "/api/runs/:id/balancesheet/:token" ((\id token -> { id, token }) <$> capture "id" _.id <*> capture "token" _.token)) { access = Open }
-  , "OpenApi": (get "/api/openapi/:service" (capture "service" identity)) { access = Open }
-  , "RoundReport": (get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)) { access = Open }
+  , "BalanceSheet": (get "/api/runs/:id/balancesheet/:token" ((\id token -> { id, token }) <$> capture "id" _.id <*> capture "token" _.token)) { access = Open Nothing }
+  , "OpenApi": (get "/api/openapi/:service" (capture "service" identity)) { access = Open Nothing }
+  , "RoundReport": (get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)) { access = Open (Just { service: Narrative, summary: "What one round produced, to write a report from." }) }
   , "Compare": get "/api/compare"
       ado
         runs <- commaParam "runs" _.runs
@@ -305,8 +335,8 @@ endpoints = table
   , "Step": post "/api/runs/:id/step" (capture "id" identity)
   , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
   , "StartSession": post "/api/sessions" (bodyOf startSessionShape identity)
-  , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open }
-  , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open }
+  , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open (Just { service: Transcription, summary: "The round a session is on, and which seats have spoken." }) }
+  , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open (Just { service: Transcription, summary: "Submit one seat's text for the round that is open." }) }
   , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
   , "Unarchive": post "/api/runs/:id/unarchive" (capture "id" identity)
   , "Delete": endpoint "DELETE" "/api/runs/:id" ((\id confirm -> { id, confirm }) <$> capture "id" _.id <*> param "confirm" _.confirm)
@@ -353,12 +383,15 @@ wire :: ApiRequest -> Wire
 wire = sent <<< endpoints.write
 
 -- | Every endpoint with who may call it, for the test that walks them.
-endpointAccess :: Array { name :: String, method :: String, path :: String, pattern :: Array String, access :: Access }
-endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinWith "/" (map fill r.path), pattern: r.path, access: r.access }) endpoints.rows
+endpointAccess :: Array { name :: String, method :: String, path :: String, pattern :: Array String, access :: Access, doc :: Doc, publish :: Maybe Publish }
+endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinWith "/" (map fill r.path), pattern: r.path, access: r.access, doc: r.doc, publish: publishOf r.access }) endpoints.rows
   where
   fill s = case stripPrefix (Pattern ":") s of
     Just _ -> "1"
     Nothing -> s
+  publishOf = case _ of
+    Open p -> p
+    Admin -> Nothing
 
 -- | The names of the table's endpoints, one per operation of `ApiRequest`, in the order of the type.
 endpointNames :: Array String
@@ -381,7 +414,7 @@ startSessionShape = object "StartSession" ado
 -- | The body of `POST /api/sessions/:id/transcripts`.
 submissionShape :: Shape Submission
 submissionShape = object "Submission" ado
-  seat <- fieldOf "seat" "the seat speaking" stringShape _.seat
+  seat <- fieldOf "seat" "the seat speaking" (refersTo (show RefActor) stringShape) _.seat
   round <- fieldOf "round" "the round it is for" intShape _.round
   text <- fieldOf "text" "what the seat said" stringShape _.text
   in { seat, round, text }

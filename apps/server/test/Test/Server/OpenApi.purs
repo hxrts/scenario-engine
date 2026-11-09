@@ -5,11 +5,14 @@ module Test.Server.OpenApi (spec) where
 
 import Prelude
 
+import Handlers.Api.Route (Service(..), submissionShape, endpointAccess, isOpen, route, wire)
+
+import Data.Array (find, elem, filter, all, any, length, sort, zipWith)
+
 import Core.Shape (Format(..), Shape, decodeJsonWith, Desc(..), TagForm(..), jsonSchema, schemaComponents)
-import Data.Array (elem, filter, all, any, length, sort, zipWith)
 import Data.Either (isRight, either)
-import Handlers.Api.Route (submissionShape, endpointAccess, Access(..), route, wire)
-import Views.Keys as Keys
+import Views.Keys (viewShape)
+import Handlers.Api.Contract (SessionStarted, SessionState)
 
 import Data.Argonaut.Core (Json, isNull, jsonNull, stringify, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
@@ -23,11 +26,11 @@ import Effect.Aff (Aff, delay)
 import Effect.Class (liftEffect)
 import Effects.Api (ApiRequest(..), Reply)
 import Foreign.Object as Object
-import Server.OpenApi (Service(..), document, published, serviceName, services)
+import Server.OpenApi (documentsOf, document, published, serviceName, services)
 import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (fail, shouldEqual)
+import Test.Spec.Assertions (shouldEqual)
 import Testkit.Meridian (anyRounds, premise)
 import Testkit.Store (open, storeOver)
 
@@ -117,18 +120,27 @@ spec = describe "JSON Schema and OpenAPI" do
     pathsOf Narrative `shouldEqual` [ "/api/runs/{id}/rounds/{round}/report" ]
     (wire (GetSession "x")).url `shouldEqual` "/api/sessions/x"
     (wire (RoundReport { id: "x", round: 2 })).url `shouldEqual` "/api/runs/x/rounds/2/report"
-    published # traverse_ \p -> case map _.access (firstNamed p.operation) of
-      Just Open -> pure unit
-      _ -> fail (p.operation <> " is published but is not an open route")
   it "the integration contract's example payloads read through their Shapes" do
     let
       reads :: forall a. Shape a -> String -> Boolean
       reads shape text = isRight (decodeJsonWith Snapshot shape (parsed text))
-    reads Keys.sessionState "{\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
-    reads Keys.sessionStarted "{\"id\":\"run-1\",\"balanceSheets\":[{\"actor\":\"US\",\"kind\":\"Playable Actor\",\"path\":\"/balancesheet/run-1/abc123\"}]}" `shouldEqual` true
+    reads (viewShape :: Shape SessionState) "{\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
+    reads (viewShape :: Shape SessionStarted) "{\"id\":\"run-1\",\"balanceSheets\":[{\"actor\":\"US\",\"kind\":\"Playable Actor\",\"path\":\"/balancesheet/run-1/abc123\"}]}" `shouldEqual` true
     isRight (decodeJsonWith Authored submissionShape (parsed "{\"seat\":\"US\",\"round\":1,\"text\":\"We sell ten Energy to Germany.\"}")) `shouldEqual` true
-    map _.name (filter (\e -> e.access == Open && e.name `elem` [ "GetSession", "SubmitTranscript", "RoundReport" ]) endpointAccess) # sort # shouldEqual [ "GetSession", "RoundReport", "SubmitTranscript" ]
+    map _.name (filter (\e -> isOpen e.access && e.name `elem` [ "GetSession", "SubmitTranscript", "RoundReport" ]) endpointAccess) # sort # shouldEqual [ "GetSession", "RoundReport", "SubmitTranscript" ]
     map _.path (filter (\e -> e.name == "StartSession") endpointAccess) `shouldEqual` [ "/api/sessions" ]
+  it "each route's documented refusals are the ones it makes, and status lists its values" do
+    let
+      codes op = maybe [] _.errors (find ((_ == op) <<< _.operation) published)
+    codes "GetSession" `shouldEqual` [ 404 ]
+    codes "SubmitTranscript" `shouldEqual` [ 400, 404, 409 ]
+    codes "RoundReport" `shouldEqual` [ 404, 500 ]
+    contains (Pattern "\"enum\":[\"running\",\"completed\",\"failed\"]") (stringify (document Transcription)) `shouldEqual` true
+    length published `shouldEqual` length (filter (isJust <<< _.publish) endpointAccess)
+  it "an unknown Premise has no documents, and its error names the known ones" do
+    ctx <- anyRounds <$> premise
+    either identity (const "") (documentsOf [ ctx ] { premise: "nope", server: "x" }) `shouldEqual` "no premise named nope; known premises: meridian"
+    (isRight (documentsOf [ ctx ] { premise: "meridian", server: "x" })) `shouldEqual` true
   it "no reference in a document dangles" do
     services # traverse_ \s -> do
       let doc = document s
@@ -155,6 +167,3 @@ spec = describe "JSON Schema and OpenAPI" do
     (accepts narrative <$> replySchema narrative "/api/runs/{id}/rounds/{round}/report" "get" <*> pure (parsed report.body)) `shouldEqual` Just true
   where
   resolves doc ref = isJust (stripPrefix (Pattern "#/components/schemas/") ref >>= \n -> at "components" doc >>= at "schemas" >>= at n)
-  firstNamed name = case endpointAccess # map (\e -> if e.name == name then [ e ] else []) # join of
-    [ e ] -> Just e
-    _ -> Nothing

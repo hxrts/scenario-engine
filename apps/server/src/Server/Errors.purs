@@ -1,14 +1,10 @@
--- | The HTTP reply helpers and the error vocabulary of the read and write handlers: a JSON reply
--- | with its status, the 400 for a view that cannot be given, why a stored run cannot be served,
--- | and the decode error that names what failed.
+-- | The reply helpers and refusals of the read and write handlers: why a stored run cannot be served, and the
+-- | smart constructors of each refusal an operation may declare (`Handlers.Api.Contract`). Each stays polymorphic in
+-- | the rest of the row, so a handler's refusals are exactly those its operation's entry lists.
 module Server.Errors
   ( describe
-  , ok
   , Answer
-  , ApiError
-  , status
-  , message
-  , apiReply
+  , ok
   , badRequest
   , notFound
   , conflict
@@ -19,67 +15,41 @@ module Server.Errors
 
 import Prelude
 
-import Core.Shape (Shape)
 import Data.Either (Either(..), either)
-import Effects.Api (Reply)
+import Data.Variant (Variant, inj)
 import Effects.Signatures (RunError(..))
-import Handlers.Api.Route as Route
+import Type.Proxy (Proxy(..))
 
 describe :: RunError -> String
 describe = case _ of
   Missing -> "not found"
   Unreadable why -> why
 
--- | Why a request is refused. The status is total over the constructors, and the text is the whole message.
-data ApiError
-  = BadRequest String
-  | NotFound String
-  | Conflict String
-  | Internal String
+-- | What a handler produces: its reply, or a refusal from its row.
+type Answer :: Row Type -> Type -> Type
+type Answer e a = Either (Variant e) a
 
-status :: ApiError -> Int
-status = case _ of
-  BadRequest _ -> 400
-  NotFound _ -> 404
-  Conflict _ -> 409
-  Internal _ -> 500
+ok :: forall m e a. Applicative m => a -> m (Answer e a)
+ok = pure <<< Right
 
-message :: ApiError -> String
-message = case _ of
-  BadRequest m -> m
-  NotFound m -> m
-  Conflict m -> m
-  Internal m -> m
+badRequest :: forall m e a. Applicative m => String -> m (Answer (badRequest :: String | e) a)
+badRequest = pure <<< Left <<< inj (Proxy :: Proxy "badRequest")
 
--- | What a handler produces: a reply, or why it is refused.
-type Answer = Either ApiError Reply
+notFound :: forall m e a. Applicative m => String -> m (Answer (notFound :: String | e) a)
+notFound = pure <<< Left <<< inj (Proxy :: Proxy "notFound")
 
--- | The HTTP reply for an answer.
-apiReply :: Answer -> Reply
-apiReply = either (\e -> Route.failWith (status e) (message e)) identity
+conflict :: forall m e a. Applicative m => String -> m (Answer (conflict :: String | e) a)
+conflict = pure <<< Left <<< inj (Proxy :: Proxy "conflict")
 
-badRequest :: forall m. Applicative m => String -> m Answer
-badRequest = pure <<< Left <<< BadRequest
-
-notFound :: forall m. Applicative m => String -> m Answer
-notFound = pure <<< Left <<< NotFound
-
-conflict :: forall m. Applicative m => String -> m Answer
-conflict = pure <<< Left <<< Conflict
-
-internal :: forall m. Applicative m => String -> m Answer
-internal = pure <<< Left <<< Internal
-
--- | A 200 reply through the reply's shape.
-ok :: forall m a. Applicative m => Shape a -> a -> m Answer
-ok s = pure <<< Right <<< Route.reply s 200
+internal :: forall m e a. Applicative m => String -> m (Answer (internal :: String | e) a)
+internal = pure <<< Left <<< inj (Proxy :: Proxy "internal")
 
 -- | A view, or a 400 with the reason it cannot be given (for example an out-of-range round).
-viewOr :: forall m a. Applicative m => Shape a -> Either String a -> m Answer
-viewOr s = either badRequest (ok s)
+viewOr :: forall m e a. Applicative m => Either String a -> m (Answer (badRequest :: String | e) a)
+viewOr = either badRequest ok
 
 -- | A run's reply, or a 404 for a run that is missing and a 500 for one that cannot be read.
-replyOr :: forall m a. Applicative m => String -> (a -> m Answer) -> Either RunError a -> m Answer
+replyOr :: forall m e a b. Applicative m => String -> (a -> m (Answer (notFound :: String, internal :: String | e) b)) -> Either RunError a -> m (Answer (notFound :: String, internal :: String | e) b)
 replyOr id f = case _ of
   Right a -> f a
   Left Missing -> notFound ("no run " <> id)

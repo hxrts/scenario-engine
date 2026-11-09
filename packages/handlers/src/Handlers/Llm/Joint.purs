@@ -3,14 +3,24 @@ module Handlers.Llm.Joint
   ( joint
   , interpreter
   , exchanges
+  , jointRequest
+  , unknownNames
   ) where
 
 import Prelude
+
+import Laws.World (WorldFields, namesOfKind, WorldState, templateTerms)
+
+import Core.Shape (allValues, kindsNamed, namesIn, Format(..), encodeWith)
+import Data.Argonaut.Core (Json)
+import Data.Array (elem, filter, mapMaybe, nub, null)
+import Data.Maybe (Maybe(..))
+import Data.String (joinWith)
+import Data.Tuple (Tuple(..))
+import Foreign.Object as Object
+import Laws.Types (RefKind, ExchangeId, RoundIndex)
 import Core.Map (values)
 import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointCandidateTransactions)
-import Core.Shape (Format(..), encodeWith)
-import Laws.Types (ExchangeId, RoundIndex)
-import Laws.World (WorldState, templateTerms)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Effect.Aff (Aff)
@@ -28,7 +38,11 @@ joint b request = go 0 original
   go n payload = do
     out <- send b interpretCall (interpretCall.key request) payload
     case out.decoded of
-      Right r -> pure (Right r.candidateTransactions)
+      Right r -> case unknownNames request (encodeWith Snapshot interpretCall.wire r) of
+        bad
+          | not (null bad) && n < maxCorrections -> go (n + 1) (correction original out.text (joinWith "; " bad))
+          -- after the corrections the reply stands, and the engine refuses what it cannot use, on the record
+          | otherwise -> pure (Right r.candidateTransactions)
       Left err
         | n < maxCorrections -> go (n + 1) (correction original out.text err)
         | otherwise -> pure (Left err)
@@ -41,9 +55,25 @@ interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (E
 interpreter b w round transcripts = do
   let
     request :: JointRequest
-    request = { round, transcripts, actors: map _.id (values w.actors), exchanges: exchanges w, resources: map _.id (values w.resources), transformations: map _.id (values w.transformations), templates: map templateTerms w.templates }
+    request = jointRequest w round transcripts
   r <- joint b request
   pure (map (jointCandidateTransactions (\s -> Map.member s w.actors) transcripts) r)
+
+-- | The one way a joint pass's payload is built. Its names are the World's, for every kind the reply's description
+-- | can name, so any Premise supplies them and none can leave a kind out.
+jointRequest :: forall r. Record (WorldFields r) -> RoundIndex -> Array Transcript -> JointRequest
+jointRequest w round transcripts = { round, transcripts, names: Object.fromFoldable (map entry kinds), templates: map templateTerms w.templates }
+  where
+  kinds = filter (\k -> show k `elem` kindsNamed interpretCall.wire.desc) (allValues :: Array RefKind)
+  entry k = Tuple (show k) (namesOfKind w k)
+
+-- | What a reply names that its payload does not offer, each with the names it could have used.
+unknownNames :: JointRequest -> Json -> Array String
+unknownNames request reply = nub (mapMaybe unknown (namesIn interpretCall.wire.desc reply))
+  where
+  unknown (Tuple kind name) = case Object.lookup kind request.names of
+    Just names | not (name `elem` names) -> Just ("unknown " <> kind <> " " <> name <> "; use one of " <> joinWith ", " names)
+    _ -> Nothing
 
 exchanges :: WorldState -> Array ExchangeId
 exchanges w = map _.id (values w.exchanges)

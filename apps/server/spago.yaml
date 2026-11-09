@@ -27,6 +27,7 @@ package:
     - sp-views
     - sp-flags
     - sp-experiments
+    - variant
     - newtype
   run:
     main: Server

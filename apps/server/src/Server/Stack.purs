@@ -22,14 +22,14 @@ import Handlers.SqlStore (openStore, sqlStore)
 import Handlers.Store (StoreBackend, interpretObserve, interpretStore)
 import Handlers.System (SystemDevices, interpretClock, interpretEntropy, interpretProcess)
 import Run (Run, case_, on, run)
-import Server.Errors (Answer)
+import Server.Cache (Profiles)
 import Server.Implementation (answer)
 import Server.Rows (SERVER)
 import Server.Premises (Premises)
 import Views.Common (StoredRun)
 import Views.Metrics (roundMetrics)
 
-type ServerCache = Cache StoredRun Answer
+type ServerCache = Cache StoredRun Profiles
 
 type Devices = { system :: SystemDevices, store :: StoreBackend, cache :: ServerCache, sessions :: SessionHost }
 

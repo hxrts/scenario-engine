@@ -2,11 +2,11 @@
 -- | (docs/03_premise.md). Core knows none of it.
 module Laws.Types (module Laws.Types, module Core.Types) where
 
+import Core.Shape (Desc(..), refersTo, Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, enumName, field, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Core.Types (Id(..), idText, idShape, ActorTag, ResourceTag, ExchangeTag, ActorId, ResourceId, ExchangeId, Quantity, Price, Ratio, RoundIndex, RoundOffset, Interval, Holdings, CostFunction, Exchange)
 import Prelude
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, enumName, field, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Foldable (class Foldable)
@@ -22,7 +22,7 @@ import Data.Newtype (un)
 import Data.Show.Generic (genericShow)
 import Data.String (Pattern(..), Replacement(..), replaceAll, split)
 import Data.String as String
-import Type.Proxy (Proxy)
+import Type.Proxy (Proxy(..))
 
 -- Identifiers ----------------------------------------------------------------
 
@@ -71,6 +71,18 @@ instance RefKindOf ProcedureTag where
 
 instance RefKindOf RuleKindTag where
   refKindOf _ = RefRuleKind
+
+-- | An id described as naming its kind of thing in the World, so a vocabulary can be derived from the description.
+refIdShape :: forall t. RefKindOf t => Shape (Id t)
+refIdShape = refersTo (show (refKindOf (Proxy :: Proxy t))) idShape
+
+-- | The name of an agreement template.
+templateNameShape :: Shape String
+templateNameShape = refersTo (show RefTemplate) stringShape
+
+-- | An id the engine assigns during a game, which no World at load can list.
+assignedIdShape :: forall t. Shape (Id t)
+assignedIdShape = idShape { desc = DPrim "engine-assigned id" }
 
 data TransformationTag
 data ProcedureTag
@@ -490,10 +502,10 @@ directionShape = genericEnum "Direction"
 
 flowScopeShape :: Shape FlowScope
 flowScopeShape = recordOf "FlowScope"
-  ( field @"governor" "the Actor that governs the Rule" idShape
-      &. field @"counterparty" "the other party" idShape
+  ( field @"governor" "the Actor that governs the Rule" refIdShape
+      &. field @"counterparty" "the other party" refIdShape
       &. field @"direction" "inbound to the governor, outbound from it, or either way" directionShape
-      &. field @"over" "the Resources the Rule covers" (arrayOf idShape)
+      &. field @"over" "the Resources the Rule covers" (arrayOf refIdShape)
   )
 
 flowEffectShape :: forall v. Shape v -> Shape (FlowEffect v)
@@ -505,19 +517,19 @@ flowEffectShape v = genericSum "FlowEffect"
 levyBasisShape :: Shape LevyBasis
 levyBasisShape = genericSum "LevyBasis"
   { "PerUnit": atTagged "per unit moved" unitShape
-  , "AdValorem": atTagged "on the value moved, at this Exchange's price" idShape
+  , "AdValorem": atTagged "on the value moved, at this Exchange's price" refIdShape
   }
 
 levyRecipientShape :: Shape LevyRecipient
 levyRecipientShape = genericEnum "LevyRecipient"
 
 levyShape :: forall v. Shape v -> Shape (LevyF v)
-levyShape v = recordShape "Levy" { rate: v, basis: levyBasisShape, in: idShape, to: levyRecipientShape }
+levyShape v = recordShape "Levy" { rate: v, basis: levyBasisShape, in: refIdShape, to: levyRecipientShape }
 
 ruleShape :: Shape (RuleF Q)
 ruleShape = genericSum "Rule"
-  { "FlowRule": atTagged "a Rule on Transfers between two groups" (recordShape "FlowRule" { kind: idShape, scope: flowScopeShape, effect: flowEffectShape qShape })
-  , "HoldingRule": atTagged "a Rule reducing what the holder of a Resource can have drawn" (recordShape "HoldingRule" { kind: idShape, resource: idShape, reduce: qShape })
+  { "FlowRule": atTagged "a Rule on Transfers between two groups" (recordShape "FlowRule" { kind: refIdShape, scope: flowScopeShape, effect: flowEffectShape qShape })
+  , "HoldingRule": atTagged "a Rule reducing what the holder of a Resource can have drawn" (recordShape "HoldingRule" { kind: refIdShape, resource: refIdShape, reduce: qShape })
   }
 
 ruleKindDeclShape :: Shape RuleKindDecl
@@ -539,24 +551,24 @@ ruleFormShape = genericSum "RuleForm"
 -- | Entering an agreement.
 enterBody :: forall v. Shape v -> Shape (EnterF v)
 enterBody v = recordOf "Enter"
-  ( field @"template" "the template of the agreement" stringShape
+  ( field @"template" "the template of the agreement" templateNameShape
       &. field @"args" "the value of each of its arguments" (arrayOf (recordShape "Arg" { name: stringShape, value: v }))
-      &. field @"parties" "the Actor bound to each of its parties; every one must sign" (arrayOf (recordShape "Party" { role: stringShape, actor: idShape }))
+      &. field @"parties" "the Actor bound to each of its parties; every one must sign" (arrayOf (recordShape "Party" { role: stringShape, actor: refIdShape }))
   )
 
 -- | A Transfer.
 transferBody :: forall v. Shape v -> Shape { from :: ActorId, to :: ActorId, resource :: ResourceId, quantity :: v }
 transferBody v = recordOf "Transfer"
-  ( field @"from" "the giving Actor" idShape
-      &. field @"to" "the receiving Actor" idShape
-      &. field @"resource" "the Resource" idShape
+  ( field @"from" "the giving Actor" refIdShape
+      &. field @"to" "the receiving Actor" refIdShape
+      &. field @"resource" "the Resource" refIdShape
       &. field @"quantity" "the quantity" v
   )
 
 ruleChangeShape :: Shape (RuleChangeF Q)
 ruleChangeShape = genericSum "RuleChange"
   { "Enact": atTagged "enact a Rule" ruleShape
-  , "Repeal": atTagged "repeal a Rule by its id" idShape
+  , "Repeal": atTagged "repeal a Rule by its id" assignedIdShape
   }
 
 intentShape :: Shape Intent
@@ -570,7 +582,7 @@ intentShape = genericSum "Intent"
   }
   where
   tradeShape = recordOf "Trade"
-    ( field @"exchange" "the Exchange" idShape
+    ( field @"exchange" "the Exchange" refIdShape
         &. field @"quantity" "+ buys, - sells the Exchange's base Resource" qShape
         &. field @"limitPrice" "the limit price, if any" (optionalOf qShape)
     )
@@ -582,13 +594,13 @@ intentShape = genericSum "Intent"
         <*> fieldOf "limitPrice" "the limit price, which a routed order must state; an order without one is rejected" ((optionalOf qShape) { desc = qShape.desc }) _.limitPrice
     )
   pairShape = recordOf "Pair"
-    ( field @"base" "the base Resource" idShape
-        &. field @"quote" "the quote Resource" idShape
+    ( field @"base" "the base Resource" refIdShape
+        &. field @"quote" "the quote Resource" refIdShape
     )
   transferShape = transferBody qShape
   transformShape = recordOf "Transform"
-    ( field @"by" "the Actor that runs it" idShape
-        &. field @"transformation" "the transformation" idShape
+    ( field @"by" "the Actor that runs it" refIdShape
+        &. field @"transformation" "the transformation" refIdShape
         &. field @"quantity" "the quantity run" qShape
     )
 

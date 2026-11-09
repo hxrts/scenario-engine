@@ -898,3 +898,16 @@ amountRefs = case _ of
   K.Least p -> amountRefs p.left <> amountRefs p.right
   K.ShareOf s -> amountRefs s.limit <> Array.concatMap amountRefs s.among
   _ -> []
+
+-- | The names a World offers a reference of this kind. Every kind is answered, so a new kind does not compile until it is.
+namesOfKind :: forall r. Record (WorldFields r) -> RefKind -> Array String
+namesOfKind w = case _ of
+  RefResource -> map idText (Array.fromFoldable (Map.keys w.resources))
+  RefExchange -> map idText (Array.fromFoldable (Map.keys w.exchanges))
+  RefTransformation -> map idText (Array.fromFoldable (Map.keys w.transformations))
+  RefActor -> map idText (Array.fromFoldable (Map.keys w.actors))
+  RefRuleKind -> map idText (Array.fromFoldable (Map.keys w.ruleKinds))
+  RefTemplate -> Array.fromFoldable (Map.keys w.templates)
+  RefProcedure -> []
+  RefStrategy -> []
+  RefParameter -> []

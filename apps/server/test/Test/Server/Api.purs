@@ -6,8 +6,9 @@ import Prelude
 
 import Test.Server.Host (testHost)
 
-import Views.Keys (ViewKey)
+import Views.Keys (ViewKey, viewShape)
 import Views.Keys as Keys
+import Views.Actor (History)
 import Schema.Decode (decodeError)
 import Core.Shape as Shape
 
@@ -18,7 +19,6 @@ import Effects.Cache (forgetRuns)
 import Effects.Signatures (CACHE, _cache)
 import Handlers.Cache (interpretCache)
 import Run (EFFECT, Run, interpret, on, runBaseEffect, send)
-import Server.Errors (Answer)
 import Views.Common (StoredRun)
 import Type.Row (type (+))
 import Core.Draw (Seed(..))
@@ -40,7 +40,7 @@ import Assembly.Recipe (encodeSpec)
 import Handlers.Api.Route (route)
 import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
-import Server.Cache (cached, cachedAgency)
+import Server.Cache (Profiles, cached, cachedAgency)
 import Server.Stack (ServerCache, implement, newServerCache, runServer, systemDevices)
 import Server.Launch (startup)
 import Server.Read (loadRun)
@@ -49,7 +49,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (anyRounds, premise)
 
-inCache :: ServerCache -> Run (CACHE StoredRun Answer + EFFECT + ()) ~> Effect
+inCache :: ServerCache -> Run (CACHE StoredRun Profiles + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
 
 type Env =
@@ -96,25 +96,25 @@ spec = describe "API status rules, startup and cache" do
         r <- env.api "GET" ("/api/runs/run-1/" <> view) ""
         r.status `shouldEqual` 200
         either (\e -> liftEffect (throw (view <> ": " <> e))) pure (decodeError (Shape.parse Shape.Snapshot k.shape r.body))
-    transformations <- decoded "transformations" Keys.transformations
+    transformations <- decoded "transformations" (Keys.viewKey @"Transformations")
     length transformations.columns `shouldSatisfy` (_ > 0)
-    economy <- decoded "economy" Keys.economy
+    economy <- decoded "economy" (Keys.viewKey @"Economy")
     length economy.totals.series `shouldSatisfy` (_ > 0)
-    representation <- decoded "representation" Keys.representation
+    representation <- decoded "representation" (Keys.viewKey @"Representation")
     length representation.columns `shouldSatisfy` (_ > 0)
-    procedures <- decoded "procedures" Keys.procedures
+    procedures <- decoded "procedures" (Keys.viewKey @"Procedures")
     length procedures.columns `shouldSatisfy` (_ > 0)
-    events <- decoded "events" Keys.events
+    events <- decoded "events" (Keys.viewKey @"Events")
     length events.columns `shouldSatisfy` (_ > 0)
-    actions <- decoded "actions" Keys.actions
+    actions <- decoded "actions" (Keys.viewKey @"Actions")
     length actions.byRound.rows `shouldSatisfy` (_ > 0)
-    balance <- decoded "balance" Keys.balance
+    balance <- decoded "balance" (Keys.viewKey @"Balance")
     length balance.completion.columns `shouldSatisfy` (_ > 0)
-    exchanges <- decoded "exchanges" Keys.exchanges
+    exchanges <- decoded "exchanges" (Keys.viewKey @"Exchanges")
     length exchanges `shouldSatisfy` (_ > 1)
     actor <- env.api "GET" "/api/runs/run-1/actor/US" ""
     actor.status `shouldEqual` 200
-    history <- either (\e -> liftEffect (throw ("actor: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot Keys.history actor.body))
+    history <- either (\e -> liftEffect (throw ("actor: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot (viewShape :: Shape.Shape History) actor.body))
     length history.table.rows `shouldSatisfy` (_ > 0)
   it "the agency analysis answers 200, and the same reply is kept for the same query" do
     env <- setup
@@ -327,8 +327,8 @@ spec = describe "API status rules, startup and cache" do
     c <- liftEffect newServerCache
     loads <- liftEffect (Ref.new 0)
     let
-      answer status = liftEffect (Ref.modify_ (_ + 1) loads) *> pure { status, body: "" }
-      read key status = void (liftEffect (inCache c (cachedAgency key (map Right (answer status)))))
+      answer status = liftEffect (Ref.modify_ (_ + 1) loads) *> pure (if status == 200 then Right [] else Left status)
+      read key status = void (liftEffect (inCache c (cachedAgency key (answer status))))
       count = liftEffect (Ref.read loads)
     read "bad" 400
     read "bad" 400

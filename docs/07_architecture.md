@@ -20,6 +20,50 @@ These terms are for people working on the code. The anchors are defined in [01 T
 | **Compile step** | The code in `packages/laws` that writes each settled mechanism as kernel values, with the static refusals decided first ([03 §14](03_premise.md#14-compilation-to-the-kernel)). |
 | **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose. |
 
+## System Wiring
+
+What runs, and what it connects to. Arrows point from the caller to what it calls. The handlers, engine and adapters run inside the server or CLI process.
+
+```text
+ Audio transcription       Newspaper narrative       Browser: landing page,
+ (separate repository)     (separate repository)     balance sheets, admin dashboard
+           │                         │                         │
+           │ session status,         │ round report            │ dashboard API,
+           │ a seat's text           │                         │ admin session cookie
+           │ (open routes)           │ (open route)            │
+           └─────────────────────────┼─────────────────────────┘
+                                     │ HTTPS
+                                     ▼
+                                   nginx
+                                     │
+                                     ▼
+ ┌─ apps/server ───────────────────────┐      ┌─ apps/cli ──────────────┐
+ │ HTTP ──► Gate ──► route table       │      │ sim, session, compile   │◄── facilitator
+ │ OpenAPI documents, hosted sessions  │      │ facilitator console     │    at a terminal
+ └──────────────────┬──────────────────┘      └────────────┬────────────┘
+                    └──────────────────┬───────────────────┘
+                                       ▼
+                       effect rows and their handlers
+                       (round runner, Run Store, model calls)
+                          │                         │
+                          ▼                         ▼
+                  pure engine: laws, core       adapters
+                  (resolveRound)                    │
+                                                    │
+        ┌─────────────┬───────────────┬─────────────┼─────────────┐
+        ▼             ▼               ▼             ▼             ▼
+     Adapters.Pi   Adapters.SQLite  Adapters.    Adapters.    Adapters.Clock,
+        │             │             Filesystem   Console      Random, Process,
+        ▼             ▼               │             │         Digest, Exit
+     pi process    runs.db            ▼             ▼             │
+        │          (Run Store)     Premise files,  terminal       ▼
+        ▼                          evidence,       (CLI only)    operating system
+     Interence                     .env, openapi/
+     provider
+```
+
+The two external services see only the open routes, whose contract is the OpenAPI documents (06 §8.2). Every other route needs the admin session. Model calls leave the system only through the `pi` process.
+
 ## 1. Principles
 
 These govern every package. They are what a change is checked against.
@@ -71,7 +115,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `premises` | `core`, `laws`, `schema`, `assembly` | Authored Premises, presets, fixtures and the Premise file tree, as typed values ([03 §12a](03_premise.md#12a-how-premises-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `laws`, `schema` | Checking expectations, runs and objectives against records | Effects, playing Runs |
 | `effects` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly`, `effects` | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's routing and client, and the pure simulation fold | Adapter imports; `views`, `experiments` or `premises` imports; the API's operation semantics; a browser-facing client importing a Node module |
+| `handlers` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly`, `effects`, `views` (`Handlers.Api.Contract` only) | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's contract, routing and client, and the pure simulation fold | Adapter imports; `experiments` or `premises` imports; the API's operation semantics; a browser-facing client importing a Node module |
 | `adapters` | `handlers` (the device types of the SQL handler only) | Raw devices, and every FFI module outside the apps | Runs, prompts, Premises, any handler function |
 | `views` | `core`, `laws`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `assembly`, `experiments` or `premises` imports; objective evaluation of their own |
 | `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
@@ -141,7 +185,7 @@ The environment is the strategy's `View` ([02 §4](02_kernel.md#4-strategies)). 
 simulate :: Seed -> PreparedRun -> Either AssemblyError SimRun
 ```
 
-**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client. Each row declares its `Access`, `Admin` unless the table says `Open`; `Gate.gated` in `apps/server` checks it before the operation runs, against the password in the server's `.env` ([06 §8.3](06_simulator.md#83-public-and-admin-surfaces)).
+**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client. `Handlers.Api.Contract` states what each operation answers: its reply Shape, format, success status and the row of refusal labels it may make, one entry per constructor. A handler returns its reply value or one of those refusals, `dispatch` encodes it, and a refusal the entry does not declare does not compile. Each row declares its `Access`, `Admin` unless the table says `Open`; `Gate.gated` in `apps/server` checks it before the operation runs, against the password in the server's `.env` ([06 §8.3](06_simulator.md#83-public-and-admin-surfaces)).
 
 ```purescript
 type API r = (apiCall :: ApiF | r)   -- every route: Call ApiRequest (Reply -> a)
@@ -255,13 +299,17 @@ Most of what a person or a program touches in this system is produced from a sma
  ApiRequest           ── table ──────────────► endpoints
  endpoints            ── parse ──────────────► apps/server
  endpoints            ── wire ───────────────► Handlers.Api.Client
- endpoints, Shapes    ── document ───────────► OpenAPI documents
+ endpoints, contract  ── document ───────────► OpenAPI documents
+ contract             ── dispatch ───────────► apps/server
+ contract             ── send ───────────────► Handlers.Api.Client
  Handlers.Api.Client  ── fetch ──────────────► apps/dashboard
 ```
 
 **Reshaping a Premise.** Composition, derivation and filtering are read-only over the authored source, and each fails loudly rather than doing nothing: a duplicate key, a patch that names nothing, or a kept thing that refers to a dropped one ([03 §12a](03_premise.md#12a-how-premises-are-made)).
 
 Typed names make a builder accept only the right kind of id, so naming an Exchange where an Actor belongs fails to compile. A single walk over a World's references serves both validation and instantiation, so a new kind of reference is handled in one place.
+
+**The names a model may use come from Shapes.** A Shape marks an id with the kind of thing it names (`refersTo`). The joint pass walks its reply's description for those kinds and offers each one's names from the World being played (`Handlers.Llm.Joint.jointRequest`), so a Premise supplies nothing and cannot leave a kind out, and a new kind does not compile until `namesOfKind` answers it. A reply naming something the World lacks gets a correction; one still wrong after the corrections stands, and the engine refuses it on the record. An id only the engine assigns, a Rule's, is marked as such.
 
 **Formats come from Shapes.** A `Shape` carries a codec for each JSON format and a description. The Premise files, the stored Runs, the prose and what a model is told it may do are therefore the same statement of the type ([§1](#1-principles)).
 
@@ -275,7 +323,7 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **The views describe their own columns.** The dashboard's glossary is built from the columns the views use, and the compiler writes the same list for the dashboard tests, so neither can drift from the views.
 
-**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. The OpenAPI documents for the external services ([06 §8.2](06_simulator.md#82-external-services)) take their paths and methods from the same table, and `Server.OpenApi.published` gives each published route its Shapes.
+**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. `Handlers.Api.Contract` has one entry per constructor, stating its reply Shape and refusals, read by the server's `dispatch`, the client's `send`, and the OpenAPI documents for the external services ([06 §8.2](06_simulator.md#82-external-services)), which take their paths and methods from the table and their statuses by reflecting the entry's row of refusals. An entry's reply Shape is found from its reply type (`Views.Keys.ViewShape`); `Created` states a 201 in the Authored format. `Views.Keys.ViewReplies` does the same per View: one label per `View` constructor, read by the server's `answerView` and the client's `viewKey`. Only an open route can be published (`Access`).
 
 **A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([06 §9.5](06_simulator.md#95-balancesheet-pages)).
 

@@ -55,6 +55,12 @@ _premises:
     spago run -p sp-cli --main Transcript
     spago run -p sp-server --main OpenApi
 
+# One Premise's OpenAPI documents: its references list the World's names (--server url, --out dir)
+[positional-arguments]
+openapi premise="meridian" *args:
+    @just _premises
+    p="$1"; shift; spago run -p sp-server --main OpenApi -- --premise "$p" "$@"
+
 # fmt-check, deps, layout, derived, build, test
 check: _fmt-check build _deps _layout _impurity _derived test _docs
 

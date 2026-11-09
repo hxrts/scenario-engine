@@ -12,6 +12,15 @@ module Core.Shape
   , Shape
   , Desc(..)
   , jsonSchema
+  , jsonSchemaIn
+  , schemaComponentsIn
+  , class Inject
+  , inject
+  , class Exhausts
+  , refersTo
+  , kindsNamed
+  , namesIn
+  , allValues
   , schemaComponents
   , Codec
   , DField
@@ -144,6 +153,8 @@ data Desc
   | DKeyed Desc -- an object whose keys name its entries (a Map, an Actor catalog)
   | DTuple Desc Desc -- a two-element array
   | DRef String -- a recursive description, named where it is defined
+  | DOneOf String (Array String) -- a text that is one of these, under its name
+  | DName String -- a text that names a thing of this kind in the World being played
 
 derive instance Eq Desc
 
@@ -429,6 +440,27 @@ instance Payload (Argument b) b where
 instance Payload rest p => Payload (Product (Argument b) rest) (Tuple b p) where
   toPayload (Product (Argument b) rest) = Tuple b (toPayload rest)
   fromPayload (Tuple b p) = Product (Argument b) (fromPayload p)
+
+-- | A constructor of a sum by its name, from its payload. The right-nested representation is walked by name.
+class Inject :: Symbol -> Type -> Type -> Constraint
+class Inject name rep p | name rep -> p where
+  inject :: Proxy name -> p -> rep
+
+instance Payload args p => Inject name (Constructor name args) p where
+  inject _ = Constructor <<< fromPayload
+else instance Payload args p => Inject name (Sum (Constructor name args) rest) p where
+  inject _ = Inl <<< Constructor <<< fromPayload
+else instance Inject name rest p => Inject name (Sum a rest) p where
+  inject n = Inr <<< inject n
+
+-- | Removes each constructor's name from a row, leaving what no constructor names: `Exhausts rep row ()` says the
+-- | row has exactly one label per constructor.
+class Exhausts :: Type -> Row Type -> Row Type -> Constraint
+class Exhausts rep row left | rep row -> left
+
+instance (Exhausts a row mid, Exhausts b mid left) => Exhausts (Sum a b) row left
+
+instance Row.Cons name t left row => Exhausts (Constructor name args) row left
 
 -- | The record of constructor descriptions a sum needs: one field per constructor.
 class SumRow :: Type -> Row Type -> Constraint
@@ -747,6 +779,8 @@ jsonShape = prim "Json" identity Right
 descKeys :: Desc -> Array String
 descKeys = case _ of
   DPrim _ -> []
+  DName _ -> []
+  DOneOf _ _ -> []
   DArray d -> descKeys d
   DOpt d -> descKeys d
   DRec _ fields -> concatMap (\f -> [ f.key ] <> descKeys f.shape) fields
@@ -838,40 +872,91 @@ recursive name f = (mk unit) { desc = (f (mk unit)).desc }
     , missing: Nothing
     }
 
+-- | The same values, described as naming a thing of this kind.
+refersTo :: forall a. String -> Shape a -> Shape a
+refersTo kind s = s { desc = DName kind }
+
+-- | The kinds of thing a description can name.
+kindsNamed :: Desc -> Array String
+kindsNamed = Array.nub <<< go
+  where
+  go = case _ of
+    DName k -> [ k ]
+    DArray x -> go x
+    DOpt x -> go x
+    DKeyed x -> go x
+    DTuple a b -> go a <> go b
+    DRec _ fs -> Array.concatMap (go <<< _.shape) fs
+    DSum _ _ cs -> Array.concatMap (go <<< _.payload) cs
+    _ -> []
+
+-- | Every name a value in the Snapshot format holds, with its kind, read along its description.
+namesIn :: Desc -> Json -> Array (Tuple String String)
+namesIn d j = case d of
+  DName k -> maybe [] (\s -> [ Tuple k s ]) (toString j)
+  DArray x -> maybe [] (Array.concatMap (namesIn x)) (toArray j)
+  DOpt x -> if isNull j then [] else namesIn x j
+  DKeyed x -> maybe [] (Array.concatMap (namesIn x) <<< Object.values) (toObject j)
+  DTuple a b -> case toArray j of
+    Just [ x, y ] -> namesIn a x <> namesIn b y
+    _ -> []
+  DRec _ fs -> Array.concatMap (\f -> maybe [] (namesIn f.shape) (toObject j >>= Object.lookup f.key)) fs
+  DSum _ _ cs -> fromMaybe [] do
+    o <- toObject j
+    tag <- Object.lookup "tag" o >>= toString
+    c <- Array.find ((_ == tag) <<< _.tag) cs
+    v <- Object.lookup "values" o >>= toArray >>= Array.head
+    pure (namesIn c.payload v)
+  _ -> []
+
+-- | Every value of a sum of constructors with no argument.
+allValues :: forall a rep. Generic a rep => EnumCtors rep => Array a
+allValues = map _.value (enumCtors (Proxy :: Proxy rep) to)
+
 -- | The JSON Schema of a description, in the Snapshot format the API replies in. A recursive reference points
 -- | into `components/schemas`; `schemaComponents` gives the definitions a description needs.
 jsonSchema :: Desc -> Json
-jsonSchema = case _ of
-  DPrim "Int" -> typed "integer"
-  DPrim "Boolean" -> typed "boolean"
-  DPrim "null" -> typed "null"
-  DPrim "Json" -> obj []
-  DPrim _ -> typed "string"
-  DArray d -> obj [ Tuple "type" (fromString "array"), Tuple "items" (jsonSchema d) ]
-  DOpt d -> obj [ Tuple "anyOf" (fromArray [ jsonSchema d, typed "null" ]) ]
-  DRec name fields -> obj
-    [ Tuple "title" (fromString name)
-    , Tuple "type" (fromString "object")
-    , Tuple "properties" (obj (map (\f -> Tuple f.key (described f.desc (jsonSchema f.shape))) fields))
-    , Tuple "required" (fromArray (map (fromString <<< _.key) (Array.filter (not <<< isOptional <<< _.shape) fields)))
-    ]
-  DSum name _ ctors -> obj [ Tuple "title" (fromString name), Tuple "oneOf" (fromArray (map ctor ctors)) ]
-  DKeyed d -> obj [ Tuple "type" (fromString "object"), Tuple "additionalProperties" (jsonSchema d) ]
-  DTuple a b -> obj [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ jsonSchema a, jsonSchema b ]), Tuple "minItems" (fromNumber 2.0), Tuple "maxItems" (fromNumber 2.0) ]
-  DRef name -> obj [ Tuple "$ref" (fromString ("#/components/schemas/" <> name)) ]
+jsonSchema = jsonSchemaIn (const [])
+
+-- | The JSON Schema of a description, a named reference listing what `names` offers its kind. A kind with no names
+-- | stays a plain string.
+jsonSchemaIn :: (String -> Array String) -> Desc -> Json
+jsonSchemaIn names = schema
   where
+  schema = case _ of
+    DPrim "Int" -> typed "integer"
+    DPrim "Boolean" -> typed "boolean"
+    DPrim "null" -> typed "null"
+    DPrim "Json" -> obj []
+    DPrim _ -> typed "string"
+    DName k -> case names k of
+      [] -> typed "string"
+      ns -> obj [ Tuple "type" (fromString "string"), Tuple "enum" (fromArray (map fromString ns)) ]
+    DOneOf name values -> obj [ Tuple "title" (fromString name), Tuple "type" (fromString "string"), Tuple "enum" (fromArray (map fromString values)) ]
+    DArray d -> obj [ Tuple "type" (fromString "array"), Tuple "items" (schema d) ]
+    DOpt d -> obj [ Tuple "anyOf" (fromArray [ schema d, typed "null" ]) ]
+    DRec name fields -> obj
+      [ Tuple "title" (fromString name)
+      , Tuple "type" (fromString "object")
+      , Tuple "properties" (obj (map (\f -> Tuple f.key (described f.desc (schema f.shape))) fields))
+      , Tuple "required" (fromArray (map (fromString <<< _.key) (Array.filter (not <<< isOptional <<< _.shape) fields)))
+      ]
+    DSum name _ ctors -> obj [ Tuple "title" (fromString name), Tuple "oneOf" (fromArray (map ctor ctors)) ]
+    DKeyed d -> obj [ Tuple "type" (fromString "object"), Tuple "additionalProperties" (schema d) ]
+    DTuple a b -> obj [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ schema a, schema b ]), Tuple "minItems" (fromNumber 2.0), Tuple "maxItems" (fromNumber 2.0) ]
+    DRef name -> obj [ Tuple "$ref" (fromString ("#/components/schemas/" <> name)) ]
   typed t = obj [ Tuple "type" (fromString t) ]
   obj = fromObject <<< Object.fromFoldable
   isOptional = case _ of
     DOpt _ -> true
     _ -> false
-  described text schema = if text == "" then schema else maybe schema (fromObject <<< Object.insert "description" (fromString text)) (toObject schema)
+  described text js = if text == "" then js else maybe js (fromObject <<< Object.insert "description" (fromString text)) (toObject js)
   ctor c = case c.form of
     Tagged -> tagged c
-    OneKey -> obj [ Tuple "type" (fromString "object"), Tuple "properties" (obj [ Tuple c.tag (jsonSchema c.payload) ]), Tuple "required" (fromArray [ fromString c.tag ]), Tuple "maxProperties" (fromNumber 1.0) ]
+    OneKey -> obj [ Tuple "type" (fromString "object"), Tuple "properties" (obj [ Tuple c.tag (schema c.payload) ]), Tuple "required" (fromArray [ fromString c.tag ]), Tuple "maxProperties" (fromNumber 1.0) ]
     KindArg -> obj [ Tuple "type" (fromString "string"), Tuple "pattern" (fromString ("^" <> c.tag <> ":")) ]
     Bare -> obj [ Tuple "const" (fromString c.tag) ]
-    Literal -> jsonSchema c.payload
+    Literal -> schema c.payload
     Mixed -> obj []
   tagged c = obj
     [ Tuple "type" (fromString "object")
@@ -881,7 +966,7 @@ jsonSchema = case _ of
             , Tuple "values"
                 ( obj
                     ( if isUnit c.payload then [ Tuple "type" (fromString "array"), Tuple "maxItems" (fromNumber 0.0) ]
-                      else [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ jsonSchema c.payload ]), Tuple "minItems" (fromNumber 1.0), Tuple "maxItems" (fromNumber 1.0) ]
+                      else [ Tuple "type" (fromString "array"), Tuple "prefixItems" (fromArray [ schema c.payload ]), Tuple "minItems" (fromNumber 1.0), Tuple "maxItems" (fromNumber 1.0) ]
                     )
                 )
             ]
@@ -891,7 +976,11 @@ jsonSchema = case _ of
 
 -- | The named definitions that recursive references in a description resolve to.
 schemaComponents :: Desc -> Array (Tuple String Json)
-schemaComponents top = Array.nubByEq (\a b -> fst a == fst b) (Array.mapMaybe (\name -> Tuple name <<< jsonSchema <$> Array.find (named name) (walk top)) (refs (walk top)))
+schemaComponents = schemaComponentsIn (const [])
+
+-- | The definitions of `schemaComponents`, their references listing what `names` offers each kind.
+schemaComponentsIn :: (String -> Array String) -> Desc -> Array (Tuple String Json)
+schemaComponentsIn names top = Array.nubByEq (\a b -> fst a == fst b) (Array.mapMaybe (\name -> Tuple name <<< jsonSchemaIn names <$> Array.find (named name) (walk top)) (refs (walk top)))
   where
   refs = Array.mapMaybe case _ of
     DRef n -> Just n
@@ -942,7 +1031,7 @@ refined msg p s = s { codec = \fmt -> let c = s.codec fmt in c { dec = \j -> c.d
 
 -- | A value written as its name: `nameOf` writes it, and a text that names none of `values` is the error given.
 nameShape :: forall a. String -> String -> (a -> String) -> Array a -> Shape a
-nameShape name message nameOf values = prim name (fromString <<< nameOf) \j -> note message (toString j >>= \s -> Array.find (\v -> nameOf v == s) values)
+nameShape name message nameOf values = (prim name (fromString <<< nameOf) \j -> note message (toString j >>= \s -> Array.find (\v -> nameOf v == s) values)) { desc = DOneOf name (map nameOf values) }
 
 -- | Omit the value from the premise format when `p` holds (an empty list, a default).
 omittedWhen :: forall a. (a -> Boolean) -> Shape a -> Shape a
@@ -1004,6 +1093,8 @@ prose = go 0
   go :: Int -> Desc -> String
   go n = case _ of
     DPrim name -> name
+    DName kind -> kind <> " id"
+    DOneOf name _ -> name
     DArray d -> "list of " <> go n d
     DOpt d -> "optional " <> go n d
     DKeyed d -> "object of " <> go n d

@@ -5,18 +5,24 @@ module Handlers.Api.Client
   ( Fetch
   , runApi
   , replyText
+  , send
   ) where
 
 import Prelude
 
-import Core.Shape (Format(..), parse)
+import Core.Shape (class Inject, Format(..), parse)
 import Data.Either (Either(..), either)
+import Data.Generic.Rep (class Generic)
+import Data.Symbol (class IsSymbol)
 import Effect.Aff (Aff, attempt)
 import Effect.Exception (message)
-import Effects.Api (API, ApiF(..), Reply, _apiCall)
+import Effects.Api (API, ApiF(..), ApiRequest, Reply, _apiCall, call)
+import Handlers.Api.Contract (class EntryOf, Operations, request)
 import Handlers.Api.Route (Wire, errorShape)
 import Handlers.Api.Route as Route
+import Prim.Row as Row
 import Run (Run, case_, on, run)
+import Schema.Decode (decodeError)
 import Type.Row (type (+))
 
 -- | The fetch device: sends a request and resolves to its reply. A failed request resolves with status 0
@@ -30,6 +36,21 @@ runApi fetch = run (case_ # on _apiCall (\(Call req k) -> k <$> sendOver fetch r
   sendOver f req = do
     r <- attempt (f (Route.wire req))
     pure (either (\e -> { status: 0, body: message e }) identity r)
+
+-- | Send the operation of a constructor's name; its reply decoded as the contract states.
+send
+  :: forall @name rep p op a e t
+   . IsSymbol name
+  => Generic ApiRequest rep
+  => Inject name rep p
+  => Row.Cons name op t Operations
+  => EntryOf op a e
+  => Fetch
+  -> p
+  -> Aff (Either String a)
+send fetch p = (\reply -> replyText reply >>= decodeError <<< parse sent.op.format sent.op.reply) <$> runApi fetch (call sent.request)
+  where
+  sent = request @name p
 
 -- | The reply's body when it is a success (2xx); otherwise the error the reply carries: the `error` field
 -- | of its JSON body, or its text, or its status.

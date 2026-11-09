@@ -28,6 +28,8 @@ package:
     - refs
     - strings
     - js-uri
+    - sp-views
+    - variant
   test:
     main: Test.Handlers.Main
     dependencies:

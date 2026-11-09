@@ -6,31 +6,35 @@ module Test.Handlers.Llm (spec) where
 
 import Prelude
 
+import Core.Shape (Desc(..), kindsNamed, Format(..), descKeys, encodeWith, prose)
+import Data.Foldable (sum, elem, for_)
+
+import Handlers.Llm.Joint (jointRequest, interpreter)
+import Data.Array (sort, fromFoldable, length, mapMaybe)
+import Data.Map as Map
+import Foreign.Object as Object
+import Laws.Types (idText, Id(..), Intent, IntentF(..), intentShape)
+import Data.Maybe (Maybe(..), maybe)
+import Effect.Ref as Ref
+import Effect.Class (liftEffect)
+
 import Control.Monad.Error.Class (throwError)
 import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
 import Laws.Engine.Prepare (observe)
 import Core.Num as Q
-import Laws.Types (Id(..), Intent, IntentF(..), intentShape)
 import Data.Argonaut.Core (stringify, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array (length, mapMaybe)
 import Data.Either (Either(..), either, hush, isLeft)
-import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
 import Data.String (Pattern(..), contains)
 import Data.String as String
 import Data.String.Regex (match) as Regex
 import Data.String.Regex.Flags (global)
 import Data.String.Regex.Unsafe (unsafeRegex)
 import Data.Array.NonEmpty as NEA
-import Data.Foldable (elem, for_)
 import Data.String.CodeUnits as SCU
 import Effect.Aff (Aff, attempt, makeAff, nonCanceler)
-import Effect.Class (liftEffect)
 import Effect.Exception (error, message)
-import Effect.Ref as Ref
 import Handlers.Llm.Backend (Backend)
-import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Speak (speak)
 import Handlers.Llm.Wire (decodeJoint, decodeText)
 import Handlers.Llm.Call (interpretCall, speakCall)
@@ -41,8 +45,6 @@ import Assembly.Types (PreparedRun)
 import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
-import Core.Shape (Format(..), descKeys, encodeWith, prose)
-import Foreign.Object as Object
 
 tr :: String -> String -> Transcript
 tr seat text = { seat: Id seat, text }
@@ -77,6 +79,18 @@ example = Transfer { from: Id "US", to: Id "DE", resource: Id "M", quantity: Q.f
 
 sample :: ProposedJoint
 sample = { author: Id "US", intents: [], signers: [ Id "DE" ], agreed: [ Id "US" ] }
+
+-- | How many ids in a description do not say what they name.
+plainIds :: Desc -> Int
+plainIds = case _ of
+  DPrim "Id" -> 1
+  DArray x -> plainIds x
+  DOpt x -> plainIds x
+  DKeyed x -> plainIds x
+  DTuple a b -> plainIds a + plainIds b
+  DRec _ fs -> sum (map (plainIds <<< _.shape) fs)
+  DSum _ _ cs -> sum (map (plainIds <<< _.payload) cs)
+  _ -> 0
 
 spec :: Spec Unit
 spec = do
@@ -114,8 +128,35 @@ spec = do
         _ -> fail "one CandidateTransaction should decode"
 
     it "the joint pass's prompt requires the exact ids its payload lists" do
-      contains (Pattern "exact id given in `actors`, `exchanges`, `resources`, `transformations` or `templates`") interpretPrompt `shouldEqual` true
-      for_ [ "resources", "transformations", "templates" ] \key -> elem key (descKeys interpretCall.request.desc) `shouldEqual` true
+      contains (Pattern "exactly as `names` lists it") interpretPrompt `shouldEqual` true
+
+    it "every id a reply can hold says what it names, except one the engine assigns" do
+      plainIds interpretCall.wire.desc `shouldEqual` 0
+      sort (kindsNamed interpretCall.wire.desc) `shouldEqual` [ "actor", "exchange", "resource", "rule kind", "template", "transformation" ]
+
+    it "the payload names every kind a reply can hold, from the World played" do
+      g <- unseated
+      let request = jointRequest g.world 1 []
+      sort (Object.keys request.names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
+      Object.lookup "resource" request.names `shouldEqual` Just (map idText (fromFoldable (Map.keys g.world.resources)))
+
+    it "a reply naming what the World lacks gets a correction, and the corrected reply stands" do
+      g <- unseated
+      calls <- liftEffect (Ref.new 0)
+      let
+        wrong = (jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]) { intents = [ Transfer { from: Id "US", to: Id "DE", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
+        right = jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]
+        answer _ input = if contains (Pattern "unknown resource Energy; use one of") input then replyJoint [ right ] else replyJoint [ wrong ]
+      j <- single =<< jointWith g (answering calls answer) [ tr "US" "I give DE ten Energy", tr "DE" "I take ten Energy" ]
+      j.draft.intents `shouldEqual` right.intents
+      liftEffect (Ref.read calls) >>= (_ `shouldEqual` 2)
+
+    it "a reply still naming what the World lacks after its corrections stands, for the engine to refuse" do
+      g <- unseated
+      let wrong = (jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]) { intents = [ Transfer { from: Id "US", to: Id "DE", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
+      backend <- answerWith (replyJoint [ wrong ])
+      j <- single =<< jointWith g backend [ tr "US" "I give DE ten Energy", tr "DE" "I take ten Energy" ]
+      j.draft.intents `shouldEqual` wrong.intents
 
     it "a joint reply can enter an agreement the transcripts describe" do
       let

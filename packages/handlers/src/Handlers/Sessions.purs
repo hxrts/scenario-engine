@@ -121,4 +121,4 @@ stateOf hosted = do
   status <- Ref.read hosted.status
   taken <- Ref.read hosted.submitted
   let done e = Set.member (Tuple e round) taken
-  pure { round, status: show status, window: hosted.window, submitted: filter done hosted.humans, awaiting: filter (not <<< done) hosted.humans }
+  pure { round, status, window: hosted.window, submitted: filter done hosted.humans, awaiting: filter (not <<< done) hosted.humans }

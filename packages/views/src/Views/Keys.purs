@@ -1,55 +1,28 @@
--- | The replies of the API, each with one shape (docs/06_simulator.md §8): the server encodes a view
--- | through its key, and the dashboard decodes it through the same key, so the two cannot disagree and
--- | neither names a view's type by hand. The shapes write the round-end World form, which is the form the
--- | implicit record codec wrote: keys descending, a `Maybe` as its value or null.
+-- | The Shape of a reply, found from its type, and the reply of each view of a stored run
+-- | (docs/06_simulator.md §8). The server encodes a view through its entry and the dashboard decodes it through the same
+-- | one. Shapes write the round-end World form: keys descending, a `Maybe` as its value or null.
 module Views.Keys
   ( ViewKey
-  , launched
-  , batched
-  , resumed
-  , archived
-  , deleted
-  , derived
-  , agencyDetail
-  , sets
-  , runSet
-  , renamedSet
-  , experiment
-  , overview
-  , balances
-  , exchanges
-  , transformations
-  , economy
-  , representation
-  , procedures
-  , assertions
-  , wholeEconomy
-  , objectives
-  , standings
-  , netWorth
-  , actions
-  , drivers
-  , balance
-  , events
-  , table
-  , runList
-  , premise
-  , premises
-  , glossary
-  , actorList
-  , history
-  , roundReport
-  , balanceSheet
-  , balanceSheetLinks
-  , sessionStarted
-  , sessionState
-  , compare
+  , class ViewShape
+  , viewShape
+  , class ViewFields
+  , viewFields
+  , ViewReplies
+  , viewKey
+  , class ViewRow
+  , class ViewAnswers
+  , viewAnswer
+  , answerView
   ) where
 
 import Prelude
 
+import Schema.Run (RunStatus, runStatusShape, DeriveKind, deriveKindShape)
+
 import Core.Num (Kind, kindShape)
-import Core.Shape (Shape, RecF, boolShape, fieldOf, intShape, listOf, object, objectValuesOf, optionalOf, stringShape)
+import Core.Shape (class Exhausts, class Inject, Format(..), RecF, Shape, boolShape, encodeWith, fieldOf, inject, intShape, jsonShape, listOf, object, objectValuesOf, optionalOf, stringShape)
+import Data.Argonaut.Core (Json)
+import Data.Generic.Rep (class Generic, Constructor, NoArguments, Sum(..), from, to)
 import Data.Maybe (Maybe)
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Foreign.Object (Object)
@@ -59,19 +32,12 @@ import Record as Record
 import Record.Builder (Builder)
 import Record.Builder as Builder
 import Type.Proxy (Proxy(..))
-import Schema.View (View(..))
+import Schema.View (View)
 import Views.Actions (ActionsView)
 import Views.Balance (BalanceView)
-import Views.Common (Chart, Table)
-import Views.Compare (CompareView)
-import Views.Actor (ActorList, History)
-import Views.Report (RoundReport)
-import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
+import Views.Common (Chart, StoredRun, Table)
 import Laws.World (Event, eventShape)
-import Views.Glossary (Glossary)
-import Views.Overview (RunList, RunOverview)
-import Views.Premise (Premise)
-import Schema.Run (DeriveKind, deriveKindShape)
+import Views.Overview (RunOverview)
 
 -- | A view of a stored run, and the shape of its reply.
 type ViewKey a = { view :: View, shape :: Shape a }
@@ -97,6 +63,9 @@ instance ViewShape Boolean where
 
 instance ViewShape Kind where
   viewShape = kindShape
+
+instance ViewShape RunStatus where
+  viewShape = runStatusShape
 
 instance ViewShape DeriveKind where
   viewShape = deriveKindShape
@@ -137,147 +106,77 @@ instance
     where
     field = Proxy :: Proxy key
 
-table :: Shape Table
-table = viewShape
+instance ViewShape Json where
+  viewShape = jsonShape
 
-chart :: Shape Chart
-chart = viewShape
+-- | Every view of a stored run and its reply, by `View` constructor: the one statement of what a view answers.
+type ViewReplies =
+  ( "Overview" :: RunOverview
+  , "Balances" :: Table
+  , "Exchanges" :: Array Chart
+  , "Transformations" :: Table
+  , "Economy" :: { totals :: Chart, flows :: Table, pressure :: Table }
+  , "Representation" :: Table
+  , "Procedures" :: Table
+  , "Assertions" :: Table
+  , "WholeEconomy" :: Table
+  , "Objectives" :: Table
+  , "Standings" :: Table
+  , "NetWorth" :: Chart
+  , "Actions" :: ActionsView
+  , "Drivers" :: Table
+  , "Balance" :: BalanceView
+  , "Events" :: Table
+  )
 
-actionsView :: Shape ActionsView
-actionsView = viewShape
+-- | The `View` of a label, with the Shape its reply has.
+viewKey
+  :: forall @name rep a t
+   . Generic View rep
+  => Inject name rep Unit
+  => Row.Cons name a t ViewReplies
+  => ViewShape a
+  => ViewKey a
+viewKey = { view: to (inject (Proxy :: Proxy name) unit), shape: viewShape }
 
-balanceView :: Shape BalanceView
-balanceView = viewShape
+-- | A record with one per-view function, from a stored run to its reply in `m (f a)`. A view with no entry in
+-- | `ViewReplies`, or an entry with no view, does not compile.
+class ViewRow :: Type -> (Type -> Type) -> (Type -> Type) -> Row Type -> Constraint
+class ViewRow rep m f row | rep m f -> row
 
-economyView :: Shape { totals :: Chart, flows :: Table, pressure :: Table }
-economyView = viewShape
+instance (ViewRow a m f l, ViewRow b m f r, Row.Union l r row) => ViewRow (Sum a b) m f row
 
-runOverview :: Shape RunOverview
-runOverview = viewShape
+instance (Row.Cons name a t ViewReplies, Row.Cons name (StoredRun -> m (f a)) () row) => ViewRow (Constructor name NoArguments) m f row
 
-runList :: Shape RunList
-runList = viewShape
+class ViewAnswers :: Type -> (Type -> Type) -> (Type -> Type) -> Row Type -> Constraint
+class ViewAnswers rep m f impl where
+  viewAnswer :: Record impl -> StoredRun -> rep -> m (f Json)
 
--- | `GET /api/premise`: the premises the launch form offers.
-premises :: Shape (Array Premise)
-premises = viewShape
+instance (ViewAnswers a m f impl, ViewAnswers b m f impl) => ViewAnswers (Sum a b) m f impl where
+  viewAnswer impl r = case _ of
+    Inl x -> viewAnswer impl r x
+    Inr x -> viewAnswer impl r x
 
-premise :: Shape Premise
-premise = viewShape
+instance
+  ( IsSymbol name
+  , Functor m
+  , Functor f
+  , ViewShape a
+  , Row.Cons name a t ViewReplies
+  , Row.Cons name (StoredRun -> m (f a)) s impl
+  ) =>
+  ViewAnswers (Constructor name NoArguments) m f impl where
+  viewAnswer impl r _ = map (map (encodeWith Snapshot (viewShape :: Shape a))) (Record.get (Proxy :: Proxy name) impl r)
 
-glossary :: Shape Glossary
-glossary = viewShape
-
-actorList :: Shape ActorList
-actorList = viewShape
-
-sessionStarted :: Shape { id :: String, balanceSheets :: Array BalanceSheetLink }
-sessionStarted = viewShape
-
-sessionState :: Shape { round :: Int, status :: String, window :: Int, submitted :: Array String, awaiting :: Array String }
-sessionState = viewShape
-
-balanceSheet :: Shape BalanceSheet
-balanceSheet = viewShape
-
-balanceSheetLinks :: Shape (Array BalanceSheetLink)
-balanceSheetLinks = viewShape
-
-roundReport :: Shape RoundReport
-roundReport = viewShape
-
-history :: Shape History
-history = viewShape
-
-compare :: Shape CompareView
-compare = viewShape
-
-key :: forall a. View -> Shape a -> ViewKey a
-key view shape = { view, shape }
-
-overview :: ViewKey RunOverview
-overview = key Overview runOverview
-
-balances :: ViewKey Table
-balances = key Balances table
-
-exchanges :: ViewKey (Array Chart)
-exchanges = key Exchanges (listOf chart)
-
-transformations :: ViewKey Table
-transformations = key Transformations table
-
-economy :: ViewKey { totals :: Chart, flows :: Table, pressure :: Table }
-economy = key Economy economyView
-
-representation :: ViewKey Table
-representation = key Representation table
-
-procedures :: ViewKey Table
-procedures = key Procedures table
-
-wholeEconomy :: ViewKey Table
-wholeEconomy = key WholeEconomy table
-
-assertions :: ViewKey Table
-assertions = key Assertions table
-
--- | The named Run sets.
-sets :: Shape { sets :: Array { name :: String, baseline :: String, runs :: Array String } }
-sets = viewShape
-
-runSet :: Shape { name :: String, baseline :: String, runs :: Array String }
-runSet = viewShape
-
-experiment :: Shape { set :: String, runs :: Array String }
-experiment = viewShape
-
-renamedSet :: Shape { name :: String }
-renamedSet = viewShape
-
--- | The agency analysis beyond its table.
-agencyDetail :: Shape { criteria :: Table, profile :: Table }
-agencyDetail = viewShape
-
-objectives :: ViewKey Table
-objectives = key Objectives table
-
-standings :: ViewKey Table
-standings = key Standings table
-
-netWorth :: ViewKey Chart
-netWorth = key NetWorth chart
-
-actions :: ViewKey ActionsView
-actions = key Actions actionsView
-
-drivers :: ViewKey Table
-drivers = key Drivers table
-
-balance :: ViewKey BalanceView
-balance = key Balance balanceView
-
-events :: ViewKey Table
-events = key Events table
-
--- Reply shapes of the write endpoints ------------------------------------------------------------
-
-launched :: Shape { id :: String, playerSeed :: Int }
-launched = viewShape
-
--- | One run of a batch: its Premise and its run.
-batched :: Shape { premise :: String, id :: String, playerSeed :: Int }
-batched = viewShape
-
-resumed :: Shape { id :: String, rounds :: Int }
-resumed = viewShape
-
-archived :: Shape { id :: String, archived :: Boolean }
-archived = viewShape
-
-deleted :: Shape { deleted :: String }
-deleted = viewShape
-
--- | The reply to a derive; `recordsMatch` only for a rerun.
-derived :: Shape { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
-derived = viewShape
+-- | Run the function of a view, encoding its reply through the view's Shape.
+answerView
+  :: forall rep m f row
+   . Generic View rep
+  => Exhausts rep ViewReplies ()
+  => ViewRow rep m f row
+  => ViewAnswers rep m f row
+  => Record row
+  -> StoredRun
+  -> View
+  -> m (f Json)
+answerView impl r = viewAnswer impl r <<< from
