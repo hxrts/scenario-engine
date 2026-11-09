@@ -13,7 +13,7 @@ import Prelude
 
 import Core.Num (Q, qShape)
 import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericSettingSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, settingSum)
-import Core.Types (transformBody, repealBody, Capability, Direction(..), EntityId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Rules.Types (transformBody, repealBody, Capability, Direction(..), EntityId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), MarketId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))

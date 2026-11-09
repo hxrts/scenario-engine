@@ -6,7 +6,7 @@ module Cli.Transcript (capstoneGame, checkExchanges, writeRecording) where
 
 import Prelude
 
-import Core.Types (Id(..))
+import Rules.Types (Id(..))
 import Data.Array (foldM)
 import Data.Either (Either(..))
 import Effects.Signatures (CONSOLE, FILES, INTERPRET, InterpretF(..), _interpret)

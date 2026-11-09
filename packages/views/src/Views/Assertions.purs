@@ -4,8 +4,8 @@ module Views.Assertions (assertions, columns) where
 
 import Prelude
 
-import Core.Invariants (Failure)
-import Core.World (RoundRecord)
+import Rules.Invariants (Failure)
+import Rules.World (RoundRecord)
 import Data.Array (all, concat, filter, index, mapWithIndex, null)
 import Data.Maybe (maybe)
 import Data.String (Pattern(..), contains, joinWith)

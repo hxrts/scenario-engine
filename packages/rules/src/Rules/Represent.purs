@@ -1,6 +1,6 @@
 -- | Representation estimates (docs/02_type_system.md §7). The engine only computes and
 -- | stores this round's adjustment factors; the Aggregate's Policy applies them next round.
-module Core.Represent (estimate) where
+module Rules.Represent (Observation, estimate) where
 
 import Prelude
 
@@ -9,27 +9,26 @@ import Core.Map (entries, sumInto)
 import Core.Draw (draw)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (BehaviorDomain, EntityId, IntentF(..), Proposal, Ratio, Representation)
-import Core.World (Event(..), WorldState)
-import Data.Array (concatMap, foldl, null)
+import Rules.Types (BehaviorDomain, EntityId, Ratio, Representation, ResourceId)
+import Rules.World (Event(..), WorldState)
+import Data.Array (concatMap, filter, foldl, null)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 
+-- | One Actor's proposed quantity of a Resource, as read from what it validly proposed.
+type Observation = { actor :: EntityId, resource :: ResourceId, quantity :: Q }
+
 -- | A Representation names the Resource whose purchases are observed. The observation is the actor's
 -- | validated buy quantity as proposed: the sum of its Trade quantities over screened Proposals,
 -- | before funding scales them and before clearing. It is what the actor asked to buy, not its
 -- | executed fill.
-observation :: WorldState -> Representation -> Array Proposal -> Maybe Q
-observation w rep ps =
+observation :: Representation -> Array Observation -> Maybe Q
+observation rep os =
   let
-    orders = concatMap (\p -> if p.author == rep.actor then concatMap trade p.intents else []) ps
-    trade = case _ of
-      Trade o | maybe false (\m -> m.base == rep.observes) (Map.lookup o.market w.markets) -> [ o.quantity ]
-      Route r | r.pair.base == rep.observes -> [ r.quantity ]
-      _ -> []
+    orders = map _.quantity (filter (\o -> o.actor == rep.actor && o.resource == rep.observes) os)
   in
     if null orders then Nothing else Just (Q.sumQ (map (max Q.zero) orders))
 
@@ -47,11 +46,11 @@ deviation w rep observed = do
 
 -- | This round's adjustment factors: 1 + Σ shrinkage × weight × deviation per Aggregate and
 -- | domain, over the Representations that have an observation and a non-zero reference.
-estimate :: WorldState -> Array Proposal -> { factors :: Map EntityId (Map BehaviorDomain Ratio), events :: Array Event }
-estimate w ps =
+estimate :: WorldState -> Array Observation -> { factors :: Map EntityId (Map BehaviorDomain Ratio), events :: Array Event }
+estimate w observed =
   let
     terms = concatMap
-      ( \rep -> case observation w rep ps of
+      ( \rep -> case observation rep observed of
           Just obs | Just dev <- deviation w rep obs -> [ { rep, term: Q.mul rep.estimator.shrinkage (Q.mul rep.weight dev) } ]
           _ -> []
       )

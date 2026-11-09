@@ -21,7 +21,7 @@ import Schema.Run (Spec)
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
 import Server.Cache (cached, cachedAgency)
 import Core.Draw (Seed(..))
-import Core.Types (Id(..))
+import Rules.Types (Id(..))
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip, zipWith)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int

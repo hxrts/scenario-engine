@@ -1,6 +1,6 @@
 -- | Resolution (docs/02_type_system.md): phase by phase, start with every obligation admissible, remove
 -- | what fails its conditions, and repeat on the set still standing. Removed obligations stay removed,
--- | so the procedure terminates. Every condition of a pass reads the set the pass began with, so the
+-- | so resolution terminates. Every condition of a pass reads the set the pass began with, so the
 -- | result does not depend on the order couplings were given in. Survivors post in canonical order.
 module Core.Kernel.Resolve
   ( Kernel
@@ -18,12 +18,11 @@ module Core.Kernel.Resolve
 import Prelude
 
 import Core.Kernel.Post (Ledger, Opening, Outcome(..), accountOf, available, post)
-import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), LawChange, Limit(..), Obligation, Party(..), Short(..), StockRef)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), LawChange, Limit(..), Obligation, Party(..), Short(..), StockRef, Endpoint(..), Flow)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
+import Core.Map (lookupQ)
 import Core.Types (EntityId)
-import Core.World (Endpoint(..), Flow)
 import Data.Array (all, concat, elem, filter, foldl, index, length, mapWithIndex, nub, sort, sortWith)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)

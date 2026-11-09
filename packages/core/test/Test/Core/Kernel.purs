@@ -7,17 +7,15 @@ import Core.Kernel.Post (Account(..), Outcome(..), available, post)
 import Core.Kernel.Consume (ConsumeError(..), due, partiesOf, spawned, validateTemplates)
 import Core.Kernel.Resolve (Fate(..), Kernel, resolve)
 import Core.Kernel.Types (Account(HeldBy, Created, Destroyed)) as K
-import Core.Kernel.Types (Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Limit(..), Obligation, Party(..), Short(..), noNext)
+import Core.Kernel.Types (Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Limit(..), Obligation, Party(..), Short(..), noNext, Endpoint(..))
 import Core.Num as Q
 import Core.Types (Id(..), ResourceId)
-import Core.World (Endpoint(..))
 import Data.Array (reverse)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
-import Test.Core.Build (q)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -188,3 +186,6 @@ pay id who x onShort when = { id, obligor: Named (Id who), effect: Move { from: 
 
 needs :: Int -> Guarded Unit Unit String
 needs i = { condition: Performed { index: i, bond: Whole }, reason: Just "other" }
+
+q :: String -> Q.Q
+q s = fromMaybe Q.zero (Q.parse s)

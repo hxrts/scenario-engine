@@ -3,7 +3,7 @@
 -- | applies the Settlement's ledger to every Entity and Market at once and fails the round if any
 -- | Account would go negative. That check is an invariant assertion: settlement and escrow should
 -- | make it unreachable, and a failure rejects the round rather than recording a corrupt state.
-module Core.Engine.Commit
+module Rules.Engine.Commit
   ( EngineError(..)
   , resolveRound
   ) where
@@ -12,18 +12,18 @@ import Prelude
 
 import Core.Map (entries, sumMaps)
 
-import Core.Engine.Circulate (circulate)
-import Core.Engine.Fund (fund)
-import Core.Engine.Prepare (prepareRound)
-import Core.Engine.Screen (duplicatedIds, screen, withinMaximums)
-import Core.Engine.Settle (Settlement, settle)
+import Rules.Engine.Circulate (circulate)
+import Rules.Engine.Fund (fund)
+import Rules.Engine.Prepare (prepareRound)
+import Rules.Engine.Screen (duplicatedIds, screen, withinMaximums)
+import Rules.Engine.Settle (Settlement, settle)
 import Core.Kernel.Post (Account(..), ledgerByAccount)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Proposal (submissionOrder)
-import Core.Represent as Represent
-import Core.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, SignedProposal)
-import Core.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
+import Rules.Proposal (submissionOrder)
+import Rules.Represent as Represent
+import Rules.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, Proposal, SignedProposal, IntentF(..))
+import Rules.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
 import Data.Array (concatMap, elem, filter, find, findMap, sortWith)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
@@ -77,10 +77,19 @@ resolveValid w0 inputs0 =
       <> map (\r -> rejection w.round r.proposal r.reason) bounded.rejected
     funded = fund w items
     -- estimates read the validated proposed quantities, before funding scales them (§7.4)
-    estimates = Represent.estimate w (map _.proposal items)
+    estimates = Represent.estimate w (concatMap (observationsOf w <<< _.proposal) items)
     settled = circulate w (settle w funded.items)
   in
     commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
+
+-- | What a screened Proposal says its author set out to buy: the quantities of its Trades and routed Trades.
+observationsOf :: WorldState -> Proposal -> Array Represent.Observation
+observationsOf w p = concatMap trade p.intents
+  where
+  trade = case _ of
+    Trade o | Just m <- Map.lookup o.market w.markets -> [ { actor: p.author, resource: m.base, quantity: o.quantity } ]
+    Route r -> [ { actor: p.author, resource: r.pair.base, quantity: r.quantity } ]
+    _ -> []
 
 commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
 commit w inputs screenEvents factors st = do

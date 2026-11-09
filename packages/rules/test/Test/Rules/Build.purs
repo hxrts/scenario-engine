@@ -1,12 +1,12 @@
 -- | The core suite's test inputs: `core` depends on nothing, so its tests cannot use `Schema.Build`.
-module Test.Core.Build where
+module Test.Rules.Build where
 
 import Prelude
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.World (WorldState)
-import Core.Types (ResourceId, ResourceTag, Draw, DrawSource(..), Capability, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Market, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedProposal, Transferability(..), Transformation, proposalId)
+import Rules.World (WorldState)
+import Rules.Types (ResourceId, ResourceTag, Draw, DrawSource(..), Capability, Controller(..), Direction(..), Entity, EntityId, EntityKind(..), EntityTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Market, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedProposal, Transferability(..), Transformation, proposalId)
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))

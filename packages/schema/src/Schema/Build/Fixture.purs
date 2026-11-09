@@ -14,7 +14,7 @@ module Schema.Build.Fixture
 import Prelude (map, (<<<))
 
 import Core.Num (Q)
-import Core.Types (EntityTag, Id, Intent, SignedProposal)
+import Rules.Types (EntityTag, Id, Intent, SignedProposal)
 import Schema.Build.Named (class Named, named)
 import Data.Map (Map)
 import Data.Map as Map

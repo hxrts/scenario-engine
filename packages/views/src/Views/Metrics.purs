@@ -10,7 +10,7 @@ module Views.Metrics
 import Prelude
 
 import Core.Market (marketPrice)
-import Core.World (RoundResult)
+import Rules.World (RoundResult)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Views.Common (exact)

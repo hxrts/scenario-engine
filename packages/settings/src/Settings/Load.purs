@@ -15,7 +15,7 @@ module Settings.Load
 import Prelude
 
 import Core.Shape (decodeJsonWith, Format(..))
-import Core.Strategy (Strategy)
+import Rules.Strategy (Strategy)
 import Data.Argonaut.Core (Json, fromObject, toObject)
 import Data.Argonaut.Decode (parseJson)
 import Data.Argonaut.Parser (jsonParser)

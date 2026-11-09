@@ -11,7 +11,7 @@ module Schema.Setting.Actor
 
 import Core.Num (qShape)
 import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, field, genericSettingSum, listOf, optionalOf, recordOf, stringShape, (&.))
-import Core.Types (idShape)
+import Rules.Types (idShape)
 import Schema.Gameboard (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- Tags ----------------------------------------------------------------------------------------

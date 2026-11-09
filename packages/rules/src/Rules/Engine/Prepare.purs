@@ -2,22 +2,22 @@
 -- | beginning-of-round observations. Prepare applies deliveries due this round and rule changes
 -- | scheduled at the last boundary; `observe` builds an Entity's View of the prepared snapshot.
 -- | Nothing here reads a Proposal, so this is the first phase and imports no other engine phase.
-module Core.Engine.Prepare
+module Rules.Engine.Prepare
   ( prepareRound
   , observe
   ) where
 
 import Prelude
 
-import Core.Engine.Compile (changeOf, deliveredOf, runCoupling)
+import Rules.Engine.Compile (changeOf, deliveredOf, runCoupling)
 import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
 import Core.Map (entries, sumMaps)
 
 import Core.Kernel.Consume (partiesOf)
 import Core.Num as Q
-import Core.Query (holderOf, marketsOf, priceOf)
-import Core.Types (Entity)
-import Core.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
+import Rules.Query (holderOf, marketsOf, priceOf)
+import Rules.Types (Entity)
+import Rules.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
 import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)

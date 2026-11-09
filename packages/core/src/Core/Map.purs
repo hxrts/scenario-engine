@@ -5,6 +5,7 @@ module Core.Map
   , sumInto
   , sumMaps
   , groupBy
+  , lookupQ
   ) where
 
 import Prelude
@@ -14,6 +15,7 @@ import Core.Num as Q
 import Data.Array (fromFoldable)
 import Data.Map (Map)
 import Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 
 -- | A Map's values, in key order.
@@ -35,3 +37,7 @@ sumMaps = Map.unionWith Q.add
 -- | Group items into arrays by key, keeping their order.
 groupBy :: forall k a. Ord k => (a -> k) -> Array a -> Map k (Array a)
 groupBy key xs = Map.fromFoldableWith (flip (<>)) (map (\x -> Tuple (key x) [ x ]) xs)
+
+-- | What a Map holds at a key, zero if it holds nothing.
+lookupQ :: forall k. Ord k => k -> Map k Q -> Q
+lookupQ k m = fromMaybe Q.zero (Map.lookup k m)

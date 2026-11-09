@@ -12,7 +12,7 @@ module Settings.Meridian.Markets
   ) where
 
 import Prelude (negate)
-import Core.World (FlowGate)
+import Rules.World (FlowGate)
 import Settings.Meridian.Names (n)
 import Core.Num (Q)
 
@@ -27,7 +27,7 @@ import Settings.Kit.Markets (MarketTerms, accessIn, market)
 
 import Settings.Meridian.Entities (entities)
 
-import Core.Types (EntityId, Holdings, Market, MarketId)
+import Rules.Types (EntityId, Holdings, Market, MarketId)
 import Data.Map (Map)
 
 markets :: Map MarketId Market

@@ -63,17 +63,17 @@ module Effects.Signatures
 
 import Prelude
 
-import Core.Invariants (Failure)
-import Core.Proposal (ProposalBody)
+import Rules.Invariants (Failure)
+import Rules.Proposal (ProposalBody)
 import Schema.Joint (JointProposal, Transcript)
 import Schema.Run (RunStatus, Spec)
 import Core.Draw (Seed)
-import Core.Engine.Commit (EngineError)
-import Core.Types (EntityId, ProposalId, RoundIndex)
+import Rules.Engine.Commit (EngineError)
+import Rules.Types (EntityId, ProposalId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Game.Types (Game)
-import Core.World (Manifest, RoundRecord, RoundResult, View, WorldState)
+import Rules.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Type.Proxy (Proxy(..))
 
 -- | A seat's Proposals in Propose, its signatures in Sign, and its transcript for the round in

@@ -10,7 +10,7 @@ module Settings.Kit.Fixtures
 
 import Prelude
 import Core.Shape (encodeWith, Format(..))
-import Core.Types (Capability, EntityId, MarketId, ResourceId, SignedProposal, TransformationId)
+import Rules.Types (Capability, EntityId, MarketId, ResourceId, SignedProposal, TransformationId)
 import Data.Argonaut.Core (Json)
 import Data.Array (mapWithIndex)
 import Data.Array as Array

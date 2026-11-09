@@ -1,9 +1,9 @@
 -- | Engine phase 4 (docs/02_type_system.md §8.1): screen and interpret. Each submitted Proposal is
 -- | checked for duplicate ids, signature completeness, shape, authority, and transfer conditions. A
 -- | Proposal that fails lapses or is rejected and recorded; the rest become screened Items. The
--- | authority predicates live in Core.Authority, the Resource holder and the Intent selectors in
--- | Core.Query.
-module Core.Engine.Screen
+-- | authority predicates live in Rules.Authority, the Resource holder and the Intent selectors in
+-- | Rules.Query.
+module Rules.Engine.Screen
   ( Item
   , Levy
   , screen
@@ -13,17 +13,17 @@ module Core.Engine.Screen
 
 import Prelude
 
-import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
-import Core.Engine.Compile (flowLaws)
+import Rules.Authority (executor, routeMarkets, validIntent, worldFacts)
+import Rules.Engine.Compile (flowLaws)
 import Core.Kernel.Law (appliesTo, emitted, refuses)
 import Core.Kernel.Resolve (consents)
 import Core.Kernel.Types (Condition(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (aggregateOf, capabilitiesOf, holderOf, lookupQ, marketsOf, procedureSupport, transfersOf, transformsOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Id(..), Intent, IntentF(..), MarketId, Proposal, ProposalId, ResourceId, RuleKindId, SignedProposal, holderDraw, jointIntent)
-import Core.World (Cause(..), Event(..), RejectReason(..), WorldState, lapse, rejection)
+import Rules.Query (aggregateOf, capabilitiesOf, holderOf, lookupQ, marketsOf, procedureSupport, transfersOf, transformsOf)
+import Rules.Types (Capability, CollectiveProcedureId, EntityId, Id(..), Intent, IntentF(..), MarketId, Proposal, ProposalId, ResourceId, RuleKindId, SignedProposal, holderDraw, jointIntent)
+import Rules.World (Cause(..), Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
 import Data.Either (Either(..))

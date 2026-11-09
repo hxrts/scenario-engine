@@ -10,29 +10,31 @@ const { walk } = require("./lib/walk");
 
 const allowed = {
   core: [],
-  schema: ["core"],
+  // the authored vocabulary and the settlement sequence over the kernel: what core must not see
+  rules: ["core"],
+  schema: ["core", "rules"],
   // the round checker and the run checker: pure, over the engine's values and the premise's expectations
-  checks: ["core", "schema"],
-  board: ["core", "schema"],
-  policy: ["core", "schema"],
+  checks: ["core", "rules", "schema"],
+  board: ["core", "rules", "schema"],
+  policy: ["core", "rules", "schema"],
   // the one domain package where board and policy meet: assembly
-  game: ["core", "schema", "board", "policy"],
-  settings: ["core", "schema", "game"],
-  effects: ["core", "schema", "board", "policy", "game"],
-  handlers: ["core", "schema", "board", "policy", "game", "effects"],
+  game: ["core", "rules", "schema", "board", "policy"],
+  settings: ["core", "rules", "schema", "game"],
+  effects: ["core", "rules", "schema", "board", "policy", "game"],
+  handlers: ["core", "rules", "schema", "board", "policy", "game", "effects"],
   adapters: ["handlers"],
   // the pure views over a stored run: projections and checks, no run and no game
-  views: ["core", "schema", "checks"],
+  views: ["core", "rules", "schema", "checks"],
   // the counterfactuals and agency over pure `simulate`; presented through views
-  experiments: ["core", "schema", "checks", "views", "game", "handlers"],
+  experiments: ["core", "rules", "schema", "checks", "views", "game", "handlers"],
   // test support only (the shared fixtures of every suite); no src module imports it. It reads the premise
   // files through the filesystem adapter, so it keeps the adapters edge
-  testkit: ["core", "schema", "settings", "game", "adapters", "handlers", "checks", "views", "effects"],
+  testkit: ["core", "rules", "schema", "settings", "game", "adapters", "handlers", "checks", "views", "effects"],
   // the flag parser the apps read their arguments with: no workspace dependency, and no effect library (in `pure`)
   flags: [],
   cli: null, server: null, dashboard: null, // apps may depend on anything
 };
-const pure = ["core", "schema", "board", "policy", "game", "checks", "views", "experiments", "flags"];
+const pure = ["core", "rules", "schema", "board", "policy", "game", "checks", "views", "experiments", "flags"];
 const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node-");
 
 // Import rules for source modules, checked on the `import` lines of each src/ file.

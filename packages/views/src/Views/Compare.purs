@@ -22,8 +22,8 @@ import Prelude
 
 import Schema.Gameboard (Gameboard)
 import Core.Num (Kind(..))
-import Core.Query (accountsOf, holding)
-import Core.Types (EntityId)
+import Rules.Query (accountsOf, holding)
+import Rules.Types (EntityId)
 import Data.String (joinWith)
 import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, mapMaybe, nub, sortWith, uncons)
 import Data.Either (hush)

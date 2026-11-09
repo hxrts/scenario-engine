@@ -12,7 +12,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, idShape)
+import Rules.Types (EntityId, idShape)
 import Core.Shape (RecF, Shape, arrayOf, atFields, fieldOf, genericTypedSum, object, optionalOf, intShape, prim, stringShape)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Array (concatMap, foldl)

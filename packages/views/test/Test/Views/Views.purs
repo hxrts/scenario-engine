@@ -6,7 +6,7 @@ module Test.Views.Views (spec) where
 
 import Prelude
 
-import Core.Types (Id(..), ResourceTag)
+import Rules.Types (Id(..), ResourceTag)
 
 import Testkit.Edit (onEntity)
 
@@ -18,7 +18,7 @@ import Schema.Gameboard (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Core.Query (holding)
+import Rules.Query (holding)
 import Data.Array (all, filter, find, index, length, mapWithIndex)
 import Data.Map as Map
 import Data.Either (Either(..), isLeft)

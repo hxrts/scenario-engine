@@ -15,10 +15,10 @@ module Schema.Joint
 
 import Prelude
 
-import Core.Proposal (ProposalBody, proposalAt)
+import Rules.Proposal (ProposalBody, proposalAt)
 import Core.Shape (recordShape, Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
-import Core.Types (EntityId, MarketId, Proposal, ProposalCore, RoundIndex, idShape, intentShape)
+import Rules.Types (EntityId, MarketId, Proposal, ProposalCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
 import Data.Either (Either, either)
 import Data.Map (Map)

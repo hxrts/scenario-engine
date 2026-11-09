@@ -15,13 +15,11 @@ module Core.Kernel.Post
 
 import Prelude
 
-import Core.Kernel.Types (Short(..))
-import Core.Map (entries, sumInto)
+import Core.Kernel.Types (Short(..), Endpoint(..), Flow)
+import Core.Map (entries, sumInto, lookupQ)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
 import Core.Types (EntityId, MarketId, ResourceId)
-import Core.World (Endpoint(..), Flow)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Map as Map

@@ -12,10 +12,10 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (tradesOf)
-import Core.Slice (event, exchanges, read, runSlice, select, total, whereEq, whereGt)
-import Core.Types (EntityId)
-import Core.World (RoundRecord)
+import Rules.Query (tradesOf)
+import Rules.Slice (event, exchanges, read, runSlice, select, total, whereEq, whereGt)
+import Rules.Types (EntityId)
+import Rules.World (RoundRecord)
 import Data.String (joinWith)
 import Data.Array (concat, concatMap, filter, index, mapWithIndex, zipWith)
 import Data.Maybe (Maybe(..), maybe)

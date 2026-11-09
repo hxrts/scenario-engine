@@ -1,0 +1,27 @@
+package:
+  name: sp-rules
+  dependencies:
+    - prelude
+    - sp-core
+    - arrays
+    - argonaut-codecs
+    - const
+    - either
+    - foldable-traversable
+    - integers
+    - maybe
+    - newtype
+    - ordered-collections
+    - record
+    - strings
+    - tuples
+  test:
+    main: Test.Rules.Main
+    dependencies:
+      - effect
+      - js-bigints
+      - argonaut-core
+      - spec
+      - spec-node
+      - quickcheck
+      - spec-quickcheck

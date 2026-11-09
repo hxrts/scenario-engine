@@ -4,8 +4,8 @@ module Cli.Simulate (Simulation, simulation, presets) where
 import Prelude
 
 import Core.Draw (Seed)
-import Core.Invariants (checkAfter)
-import Core.World (RoundResult, WorldState)
+import Rules.Invariants (checkAfter)
+import Rules.World (RoundResult, WorldState)
 import Data.Either (Either(..))
 import Data.Foldable (foldM, for_, traverse_)
 import Data.Maybe (Maybe, maybe)

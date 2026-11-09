@@ -5,7 +5,7 @@ module Handlers.Llm.Narrate
   ) where
 
 import Prelude
-import Core.World (RoundResult)
+import Rules.World (RoundResult)
 import Data.Array (null)
 import Data.Either (either)
 import Data.String (joinWith)

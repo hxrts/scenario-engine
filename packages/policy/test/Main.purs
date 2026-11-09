@@ -5,16 +5,16 @@ import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, fac
 import Schema.Build.Intent (repeal, route, transfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey, fromHolder, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
-import Core.World (seeded, Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
+import Rules.World (seeded, Cause(..), Event(..), Mechanism(..), RejectReason(..), View, WorldState, coupled)
 import Prelude
 
 import Core.Num as Q
 import Core.Draw (Seed(..))
 import Core.Map (values)
-import Core.Engine.Prepare (observe, prepareRound)
-import Core.Engine.Screen (screen)
-import Core.Types (ResourceId, Capability(..), Direction(..), EntityId, EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), proposalId, samePositions, traverseIntent)
-import Core.Slice (event, pickOf)
+import Rules.Engine.Prepare (observe, prepareRound)
+import Rules.Engine.Screen (screen)
+import Rules.Types (ResourceId, Capability(..), Direction(..), EntityId, EntityTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), proposalId, samePositions, traverseIntent)
+import Rules.Slice (event, pickOf)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
 import Data.Newtype (un)
@@ -29,9 +29,9 @@ import Data.Maybe (Maybe(..), fromMaybe', maybe)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect (Effect)
 import Foreign.Object as Object
-import Core.Proposal (ProposalBody)
+import Rules.Proposal (ProposalBody)
 import Policy.Interpret (Env, envFor, nameOnly, propose, sign)
-import Core.Strategy (Expr(..), MarketRef(..), Strategy, SignRule(..), Template(..))
+import Rules.Strategy (Expr(..), MarketRef(..), Strategy, SignRule(..), Template(..))
 import Data.Array as Array
 import Policy.Strategy (strategyRefs)
 import Test.Spec (describe, it)

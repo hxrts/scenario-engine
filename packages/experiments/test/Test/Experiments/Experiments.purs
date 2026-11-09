@@ -15,10 +15,10 @@ import Schema.Gameboard (Outcome(..))
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
-import Core.Query (priceOf)
+import Rules.Query (priceOf)
 import Core.Num as Q
-import Core.Types (Id(..))
-import Core.Slice (event, matches, exchanges, conversions)
+import Rules.Types (Id(..))
+import Rules.Slice (event, matches, exchanges, conversions)
 import Data.Array (concatMap, elem, filter, last, length, range)
 import Data.Foldable (for_, maximum)
 import Data.Map as Map

@@ -18,8 +18,8 @@ import Control.Alt ((<|>))
 import Core.Num (Kind(..))
 import Core.Map as CoreMap
 import Core.Num as Q
-import Core.Query (accountsOf, holding, isAggregate)
-import Core.Types (EntityId, ResourceId)
+import Rules.Query (accountsOf, holding, isAggregate)
+import Rules.Types (EntityId, ResourceId)
 import Data.String (joinWith)
 import Data.Array (any, concatMap, cons, filter, find, fromFoldable, head, nub, range, sort)
 import Data.Either (Either(..))

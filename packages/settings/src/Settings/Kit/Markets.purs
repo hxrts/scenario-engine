@@ -8,7 +8,7 @@ module Settings.Kit.Markets
 
 import Prelude
 import Core.Map (values)
-import Core.Types (Capability(..), CostFunction, Entity, EntityId, Holdings, Market, MarketId, Payment, ResourceId)
+import Rules.Types (Capability(..), CostFunction, Entity, EntityId, Holdings, Market, MarketId, Payment, ResourceId)
 import Data.Array (elem, mapMaybe, nub, sort)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..))

@@ -4,8 +4,8 @@ module Handlers.Play (interpretPlay) where
 
 import Prelude
 
-import Core.Engine.Commit (EngineError)
-import Core.World (RoundResult, WorldState)
+import Rules.Engine.Commit (EngineError)
+import Rules.World (RoundResult, WorldState)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either)
 import Data.Foldable (traverse_)

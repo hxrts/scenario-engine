@@ -22,7 +22,7 @@ module Schema.Round
 import Prelude
 
 import Core.Num (Q)
-import Core.Types (BehaviorDomain, EntityId, MarketId, ProposalId, ResourceId, RoundIndex, proposalId)
+import Rules.Types (BehaviorDomain, EntityId, MarketId, ProposalId, ResourceId, RoundIndex, proposalId)
 import Data.Identity (Identity)
 import Data.Map (Map)
 import Data.Map as Map

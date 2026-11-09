@@ -207,7 +207,7 @@ format (Q u) =
 -- | steps; leftover steps go to the largest remainders, and ties go to the earlier index, so
 -- | callers must order their inputs canonically. Weights must be non-negative (a negative weight
 -- | fails loudly). If the weights sum to zero, nothing is allocated and every share is zero.
--- | Kept: Market's weights are sign-filtered, Settle's are a Transform's use times its quantity (at
+-- | Kept: a Market's weights are sign-filtered, a pool's are an order's use times its quantity (at
 -- | least its minimum, which is zero by default), and Circulate's flow amounts are checked non-negative when a round starts.
 allocate :: BigInt -> Q -> Array Q -> Array Q
 allocate unit (Q total) weights

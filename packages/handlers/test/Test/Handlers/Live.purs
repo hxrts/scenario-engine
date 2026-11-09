@@ -11,9 +11,9 @@ import Testkit.Meridian (unseated)
 import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
-import Core.Types (EntityId, Id(..), IntentF(..), ProposalId)
-import Core.Slice (event, matches, pickOf, exchanges)
-import Core.World (RoundRecord, RoundResult, WorldState, renderReason)
+import Rules.Types (EntityId, Id(..), IntentF(..), ProposalId)
+import Rules.Slice (event, matches, pickOf, exchanges)
+import Rules.World (RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map as Map

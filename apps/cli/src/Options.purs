@@ -18,7 +18,7 @@ import Data.Either (Either(..), note)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), split, trim)
 import Data.Traversable (traverse)
-import Core.Types (Id(..))
+import Rules.Types (Id(..))
 import Data.Int as Int
 import Game.Experiment (Experiment(..), ExperimentRequest)
 import Data.Maybe (Maybe(..))

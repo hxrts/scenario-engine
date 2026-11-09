@@ -238,8 +238,8 @@ type PCtor a =
   , inject :: Json -> Maybe (Either String a)
   }
 
-pay :: forall b. Shape b -> { enc :: b -> Json, dec :: Json -> Either String b }
-pay s = s.codec Authored
+payload :: forall b. Shape b -> { enc :: b -> Json, dec :: Json -> Either String b }
+payload s = s.codec Authored
 
 -- | `{ "tag": payload }`: a one-key object.
 oneKey :: forall a b. String -> String -> Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
@@ -248,10 +248,10 @@ oneKey tag desc s proj inj =
   , desc
   , payload: s.desc
   , form: OneKey
-  , project: \x -> map (\b -> fromObject (Object.singleton tag ((pay s).enc b))) (proj x)
+  , project: \x -> map (\b -> fromObject (Object.singleton tag ((payload s).enc b))) (proj x)
   , inject: \j -> case toObject j of
       Just o -> case Object.toUnfoldable o of
-        [ Tuple k body ] | k == tag -> Just (map inj ((pay s).dec body))
+        [ Tuple k body ] | k == tag -> Just (map inj ((payload s).dec body))
         _ -> Nothing
       Nothing -> Nothing
   }
@@ -263,9 +263,9 @@ kindArg t s proj inj =
   , desc: t.desc
   , payload: s.desc
   , form: KindArg
-  , project: \x -> map (\b -> fromString (prefix <> fromMaybe "" (toString ((pay s).enc b)))) (proj x)
+  , project: \x -> map (\b -> fromString (prefix <> fromMaybe "" (toString ((payload s).enc b)))) (proj x)
   , inject: \j -> case toString j >>= stripPrefix of
-      Just rest -> Just (map inj ((pay s).dec (fromString rest)))
+      Just rest -> Just (map inj ((payload s).dec (fromString rest)))
       Nothing -> Nothing
   }
   where
@@ -290,14 +290,14 @@ literal s proj inj =
   , desc: "a literal value, written without a tag"
   , payload: s.desc
   , form: Literal
-  , project: \x -> map (pay s).enc (proj x)
-  , inject: \j -> case (pay s).dec j of
+  , project: \x -> map (payload s).enc (proj x)
+  , inject: \j -> case (payload s).dec j of
       Right b -> Just (Right (inj b))
       Left _ -> Nothing
   }
 
 -- | A constructor written as another shape's value, with no tag of its own: the value is the
--- | sub-shape's form (a joint Proposal's transfers are written as plain Transfer objects). It reads whenever the
+-- | sub-shape's form. It reads whenever the
 -- | sub-shape reads, so it belongs after the tagged constructors of its sum.
 embedded :: forall a b. Shape b -> (a -> Maybe b) -> (b -> a) -> PCtor a
 embedded s proj inj =
@@ -305,8 +305,8 @@ embedded s proj inj =
   , desc: "a value in its own form"
   , payload: s.desc
   , form: Mixed
-  , project: \x -> map (pay s).enc (proj x)
-  , inject: \j -> case (pay s).dec j of
+  , project: \x -> map (payload s).enc (proj x)
+  , inject: \j -> case (payload s).dec j of
       Right b -> Just (Right (inj b))
       Left _ -> Nothing
   }
@@ -810,10 +810,10 @@ keyedOf :: forall a. Shape a -> Shape (Array (Tuple String a))
 keyedOf s =
   { desc: DKeyed s.desc
   , codec: \_ ->
-      { enc: \kvs -> objectOf Authored (map (\(Tuple k v) -> Tuple k ((pay s).enc v)) kvs)
+      { enc: \kvs -> objectOf Authored (map (\(Tuple k v) -> Tuple k ((payload s).enc v)) kvs)
       , dec: \j -> do
           o <- note "expected an object" (toObject j)
-          traverse (\(Tuple k v) -> map (Tuple k) ((pay s).dec v)) (Object.toUnfoldable o)
+          traverse (\(Tuple k v) -> map (Tuple k) ((payload s).dec v)) (Object.toUnfoldable o)
       }
   , absent: Array.null
   , missing: Just []
@@ -895,10 +895,10 @@ keyedBy :: forall k v. Ord k => (String -> k) -> (k -> String) -> (k -> Shape v)
 keyedBy fromKey toKey entry =
   { desc: DKeyed (entry (fromKey "")).desc
   , codec: \_ ->
-      { enc: \m -> objectOf Authored (map (\(Tuple k v) -> Tuple (toKey k) ((pay (entry k)).enc v)) (Map.toUnfoldable m))
+      { enc: \m -> objectOf Authored (map (\(Tuple k v) -> Tuple (toKey k) ((payload (entry k)).enc v)) (Map.toUnfoldable m))
       , dec: \j -> do
           o <- note "expected an object" (toObject j)
-          Map.fromFoldable <$> traverse (\(Tuple k v) -> let key = fromKey k in map (Tuple key) ((pay (entry key)).dec v)) (Object.toUnfoldable o :: Array (Tuple String Json))
+          Map.fromFoldable <$> traverse (\(Tuple k v) -> let key = fromKey k in map (Tuple key) ((payload (entry key)).dec v)) (Object.toUnfoldable o :: Array (Tuple String Json))
       }
   , absent: const false
   , missing: Nothing

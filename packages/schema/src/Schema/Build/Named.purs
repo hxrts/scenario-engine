@@ -8,7 +8,7 @@ module Schema.Build.Named
 
 import Prelude
 
-import Core.Types (Id(..))
+import Rules.Types (Id(..))
 
 class Named a t where
   named :: a -> Id t

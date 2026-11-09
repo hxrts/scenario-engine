@@ -3,23 +3,23 @@
 -- | Entity's net position after settlement, in list order; the rules from every holder run last, in
 -- | Entity then Resource order. One function over the data, no rule-specific paths. `circulate` is
 -- | the only export.
-module Core.Engine.Circulate
+module Rules.Engine.Circulate
   ( circulate
   ) where
 
 import Prelude
 
-import Core.Engine.Compile (delivery, fractionLaw, payCoupling, runCoupling)
-import Core.Engine.Settle (Settlement, net, transfer)
+import Rules.Engine.Compile (delivery, fractionLaw, payCoupling, runCoupling)
+import Rules.Engine.Settle (Settlement, net, transfer)
 import Core.Kernel.Law (forHolder)
 import Core.Kernel.Post (Account(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (entitiesOf, holding, lookupQ)
-import Core.Slice (runLegQuery)
-import Core.Types (EntityId)
-import Core.World (addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
+import Rules.Query (entitiesOf, holding, lookupQ)
+import Rules.Slice (runLegQuery)
+import Rules.Types (EntityId)
+import Rules.World (addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
 import Data.Array (filter, findIndex, foldl, fromFoldable, index, length, any, head)
 import Data.Map (Map)
 import Data.Map as Map

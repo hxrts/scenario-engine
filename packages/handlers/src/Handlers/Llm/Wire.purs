@@ -23,8 +23,8 @@ import Prelude
 
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
-import Core.Types (EntityId, MarketId, RoundIndex, idShape)
-import Core.World (Event, View, eventShape, viewShape)
+import Rules.Types (EntityId, MarketId, RoundIndex, idShape)
+import Rules.World (Event, View, eventShape, viewShape)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either)
 import Data.Array (drop, length, zip, (..))

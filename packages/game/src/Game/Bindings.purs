@@ -7,9 +7,9 @@ module Game.Bindings
 
 import Prelude
 
-import Core.Proposal (submissionOrder)
-import Core.Strategy (Strategy)
-import Core.Types (EntityId, RoundIndex, SignedProposal)
+import Rules.Proposal (submissionOrder)
+import Rules.Strategy (Strategy)
+import Rules.Types (EntityId, RoundIndex, SignedProposal)
 import Data.Array (concatMap, elem, filter, nub, sortWith)
 import Data.Map as Map
 import Data.Tuple (Tuple(..))

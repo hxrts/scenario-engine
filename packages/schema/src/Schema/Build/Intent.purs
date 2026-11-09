@@ -14,7 +14,7 @@ module Schema.Build.Intent
   ) where
 
 import Core.Num (Q)
-import Core.Types (EntityTag, Intent, IntentF(..), MarketId, MarketTag, ResourceTag, RuleChangeF(..), RuleF, RuleTag, TransformationTag)
+import Rules.Types (EntityTag, Intent, IntentF(..), MarketId, MarketTag, ResourceTag, RuleChangeF(..), RuleF, RuleTag, TransformationTag)
 import Schema.Build.Named (class Named, named)
 import Data.Maybe (Maybe(..))
 

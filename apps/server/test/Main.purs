@@ -19,9 +19,9 @@ import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
 import Testkit.Meridian (anyRounds, setting)
-import Core.Types (Id(..))
+import Rules.Types (Id(..))
 import Data.Map as Map
-import Core.World (Event(..), RoundRecord)
+import Rules.World (Event(..), RoundRecord)
 import Effects.Launch (Launched)
 import Handlers.Api.Route (route)
 import Server.Stack (implement, newServerCache)

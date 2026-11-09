@@ -1,6 +1,6 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
-packages := "core schema checks board policy game settings effects handlers adapters views experiments testkit flags cli server dashboard"
+packages := "core rules schema checks board policy game settings effects handlers adapters views experiments testkit flags cli server dashboard"
 
 _default:
     @just --list

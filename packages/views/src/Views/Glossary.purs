@@ -7,7 +7,7 @@ module Views.Glossary (Glossary, allColumns, glossary) where
 
 import Prelude
 
-import Core.World (Focus)
+import Rules.World (Focus)
 import Data.Array (concatMap, nubBy, sortBy)
 import Data.Function (on)
 import Data.Maybe (maybe)

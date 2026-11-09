@@ -38,6 +38,10 @@ module Core.Kernel.Types
   , Trigger(..)
   , Operation(..)
   , Law
+  , Endpoint(..)
+  , Flow
+  , endpointShape
+  , flowShape
   , KernelShapes
   , amountShape
   , couplingShape
@@ -48,8 +52,10 @@ module Core.Kernel.Types
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, arrayOf, atTagged, boolShape, genericEnum, genericSum, intShape, mapOf, optionalOf, recordShape, recursive, stringShape, unitShape)
-import Core.Types (EntityId, MarketId, ResourceId, RoundOffset, RoundIndex, idShape)
+import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith, arrayOf, atTagged, boolShape, genericEnum, genericSum, intShape, mapOf, optionalOf, recordShape, recursive, stringShape, unitShape)
+import Core.Types (EntityId, MarketId, Quantity, ResourceId, RoundOffset, RoundIndex, idShape)
+import Data.Argonaut.Decode (class DecodeJson)
+import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
 import Data.Map (Map)
@@ -65,6 +71,35 @@ type Phase = Int
 
 -- | Rationing priority: lower fills first.
 type Tier = Int
+
+-- | Where one settled leg moved from or to, as the ledger records it.
+data Endpoint = Held EntityId | InMarket MarketId | Source | Sink
+
+derive instance Eq Endpoint
+derive instance Ord Endpoint
+derive instance Generic Endpoint _
+instance Show Endpoint where
+  show a = genericShow a
+
+instance EncodeJson Endpoint where
+  encodeJson = encodeWith Snapshot endpointShape
+
+instance DecodeJson Endpoint where
+  decodeJson = decodeJsonWith Snapshot endpointShape
+
+endpointShape :: Shape Endpoint
+endpointShape = genericSum "Endpoint"
+  { "Held": atTagged "an Entity's account" idShape
+  , "InMarket": atTagged "a Market's reserves" idShape
+  , "Source": atTagged "where a Resource is created" unitShape
+  , "Sink": atTagged "where a Resource ends" unitShape
+  }
+
+-- | One settled leg: what was owed, and what moved.
+type Flow = { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Quantity, moved :: Quantity }
+
+flowShape :: Shape Flow
+flowShape = recordShape "Flow" { from: endpointShape, to: endpointShape, resource: idShape, owed: qShape, moved: qShape }
 
 -- | Who an obligation binds: a named party, or one a template binds from its parent.
 data Party = Named EntityId | Bound Param

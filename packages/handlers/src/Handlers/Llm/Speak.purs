@@ -4,8 +4,8 @@ module Handlers.Llm.Speak
   ) where
 
 import Prelude
-import Core.Types (EntityId)
-import Core.World (View)
+import Rules.Types (EntityId)
+import Rules.World (View)
 import Data.Either (either)
 import Effect.Aff (Aff)
 import Handlers.Llm.Call (speakCall)

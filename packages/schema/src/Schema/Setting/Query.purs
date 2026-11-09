@@ -8,8 +8,8 @@ module Schema.Setting.Query
   ) where
 
 import Core.Shape (Shape, atBare, atOneKey, genericSettingSum, nameShape, optionalOf, recordShape)
-import Core.Types (EntityId, ResourceId, idShape)
-import Core.World (CausePattern, LegAggregate(..), LegQuery, Side(..), Window(..))
+import Rules.Types (EntityId, ResourceId, idShape)
+import Rules.World (CausePattern, LegAggregate(..), LegQuery, Side(..), Window(..))
 import Data.Maybe (Maybe)
 import Record as Record
 import Type.Proxy (Proxy(..))

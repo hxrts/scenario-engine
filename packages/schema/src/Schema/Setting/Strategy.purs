@@ -14,13 +14,13 @@ import Partial.Unsafe (unsafeCrashWith)
 import Core.Sum (ctor)
 import Prelude
 
-import Core.Query (transfersOf, transformsOf)
+import Rules.Query (transfersOf, transformsOf)
 import Core.Shape (genericSettingSum, atOneKey, atEmbedded, iso, partialIso, Format(..), Shape, arrayOf, atLiteral, decodeJsonWith, embedded, encodeWith, field, fieldOf, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, recordOf, recordShape, recursive, requiredMaybe, settingSum, stringShape, unitShape, (&.))
 import Core.Num (qShape)
-import Core.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfId)
+import Rules.Strategy (Clause, Cond, Expr, IntentTemplate, MarketRef, RecordQuery, SignRule, Strategy, Template(..), selfId)
 import Schema.Setting.Intent (ruleBody)
 import Schema.Setting.Query (legQueryShape)
-import Core.Types (CollectiveProcedureId, EntityId, IntentF(..), ResourceId, TransformationId, idShape, jointIntent, ownTransformBody, repealBody, transferBody)
+import Rules.Types (CollectiveProcedureId, EntityId, IntentF(..), ResourceId, TransformationId, idShape, jointIntent, ownTransformBody, repealBody, transferBody)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError)
 import Data.Array as Array

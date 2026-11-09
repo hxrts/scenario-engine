@@ -7,8 +7,8 @@ import Prelude
 
 import Testkit.Store (open, storeOver)
 import Core.Draw (Seed(..))
-import Core.Types (Entity, EntityId, Id(..), Transferability(..))
-import Core.World (Focus)
+import Rules.Types (Entity, EntityId, Id(..), Transferability(..))
+import Rules.World (Focus)
 import Data.Either (Either(..), isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))

@@ -9,10 +9,10 @@ import Prelude
 import Control.Monad.Error.Class (throwError)
 import Core.Draw (Seed(..))
 import Schema.Joint (JointProposal, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
-import Core.Engine.Prepare (observe)
+import Rules.Engine.Prepare (observe)
 import Core.Num as Q
-import Core.Types (Id(..), Intent, IntentF(..), intentShape)
-import Core.World (RoundResult)
+import Rules.Types (Id(..), Intent, IntentF(..), intentShape)
+import Rules.World (RoundResult)
 import Data.Argonaut.Core (stringify, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (length, mapMaybe)

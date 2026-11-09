@@ -9,7 +9,7 @@ import Prelude
 import Checks.Round (checkRound)
 import Checks.Run (checkRun)
 import Core.Shape (Format(..), Shape, decodeJsonWith, encodeWith)
-import Core.World (manifestShape, roundRecordShape, worldStateShape)
+import Rules.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (drop, index)

@@ -28,7 +28,7 @@ import Checks.Objectives (evaluateObjectives)
 import Core.Map as CoreMap
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
-import Core.Types (EntityId)
+import Rules.Types (EntityId)
 import Data.Array (any, catMaybes, filter, length, mapWithIndex, null, sort)
 import Data.Foldable (maximum, minimum)
 import Data.Tuple (Tuple(..))

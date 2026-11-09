@@ -5,7 +5,7 @@
 -- | accumulates a ledger of net changes; nothing is written to World State until Commit.
 -- | `Settlement`, `Account`, and `Ledger` are defined here because this is the first phase that
 -- | produces them; Circulate and Commit import them.
-module Core.Engine.Settle
+module Rules.Engine.Settle
   ( Settlement
   , settle
   , net
@@ -14,9 +14,9 @@ module Core.Engine.Settle
 
 import Prelude
 
-import Core.Engine.Fund (Scaled, scaleOf)
+import Rules.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Compile (delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
+import Rules.Engine.Compile (delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -24,9 +24,9 @@ import Core.Kernel.Ration (fillPool)
 import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
-import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf)
-import Core.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
+import Rules.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
+import Rules.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf)
+import Rules.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
 import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -141,20 +141,20 @@ type Allocation =
 markets :: WorldState -> Array Scaled -> Settlement -> Settlement
 markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
   where
-  explicit :: Array Route.Slice
+  explicit :: Array (Route.Slice ProposalId)
   explicit = concatMap
     ( \s -> concat $ mapWithIndex
         ( \i intent -> case intent of
-            Trade o -> [ { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, intent: i, quantity: Q.mul (scaleOf s s.item.proposal.author) o.quantity, limitPrice: o.limitPrice } ]
+            Trade o -> [ { market: o.market, entity: s.item.proposal.author, pid: s.item.proposal.id, position: i, quantity: Q.mul (scaleOf s s.item.proposal.author) o.quantity, limitPrice: o.limitPrice } ]
             _ -> []
         )
         s.item.proposal.intents
     )
     scaled
   -- routed Trades are split across their candidate Markets (docs/02 §5.2), against the net of the explicit Trades
-  orders = explicit <> Route.plan w (foldl (\m o -> sumInto o.market o.quantity m) Map.empty explicit) routed
+  orders = explicit <> Route.plan w.markets (foldl (\m o -> sumInto o.market o.quantity m) Map.empty explicit) routed
 
-  routed :: Array Route.Routed
+  routed :: Array (Route.Routed ProposalId)
   routed = concatMap
     ( \s -> concat $ mapWithIndex
         ( \i intent -> case intent of
@@ -177,8 +177,8 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
         let
           paid = Q.mul r.price f.quantity
         in
-          case runCoupling w a.ledger (fillCoupling id m { entity: f.order.entity, pid: f.order.pid, intent: f.order.intent, quantity: f.quantity, paid }) of
-            posted -> addEvents [ coupled w.round posted.flows (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.intent, mechanism: Curve id }) ] a { ledger = posted.ledger }
+          case runCoupling w a.ledger (fillCoupling id m { entity: f.order.entity, pid: f.order.pid, intent: f.order.position, quantity: f.quantity, paid }) of
+            posted -> addEvents [ coupled w.round posted.flows (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.position, mechanism: Curve id }) ] a { ledger = posted.ledger }
     in
       if null os then acc
       else

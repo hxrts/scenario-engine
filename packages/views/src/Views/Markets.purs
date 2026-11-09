@@ -14,8 +14,8 @@ module Views.Markets
   ) where
 
 import Prelude
-import Core.World (Focus, RoundRecord, WorldState)
-import Core.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
+import Rules.World (Focus, RoundRecord, WorldState)
+import Rules.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
 import Views.Common (listedHolding, Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
 
 import Core.Map (entries, sumInto)
@@ -23,8 +23,8 @@ import Core.Map (entries, sumInto)
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
-import Core.Query (lookupQ, priceOf, totalHolding)
-import Core.Slice (Slice, conversions, count, describeSlice, event, exchanges, read, runSlice, select, sunk, total, transfers, whereEq, whereGt)
+import Rules.Query (lookupQ, priceOf, totalHolding)
+import Rules.Slice (Slice, conversions, count, describeSlice, event, exchanges, read, runSlice, select, sunk, total, transfers, whereEq, whereGt)
 import Schema.Recurring (kinds)
 import Data.Array (concatMap, filter, foldl, fromFoldable, index, mapMaybe)
 import Data.Either (Either(..), hush)

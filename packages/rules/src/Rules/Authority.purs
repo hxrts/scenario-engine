@@ -2,7 +2,7 @@
 -- | the executor an Intent acts through, and whether an Entity governs a Rule. The Policy layer,
 -- | the adapters, screening, and the invariants all use these predicates, so they live apart from
 -- | any engine phase.
-module Core.Authority
+module Rules.Authority
   ( executor
   , Facts
   , worldFacts
@@ -17,9 +17,9 @@ import Prelude
 
 import Core.Kernel.Resolve (holdsAll)
 import Core.Kernel.Types (Condition(..), Party(..))
-import Core.Query (holderOf, marketsOf)
-import Core.Types (Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
-import Core.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
+import Rules.Query (holderOf, marketsOf)
+import Rules.Types (Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
+import Rules.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
 import Data.Array (any, elem, filter, find, null)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), isJust, isNothing, maybe)

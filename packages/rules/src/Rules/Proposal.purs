@@ -2,7 +2,7 @@
 -- | numbered and identified, which Proposals an Entity is asked to sign, and how the signatures
 -- | attach to them. Pure; the round runner
 -- | (`Effects.Round`) calls these and runs the effects.
-module Core.Proposal
+module Rules.Proposal
   ( ProposalBody
   , proposalsOf
   , proposalAt
@@ -13,8 +13,8 @@ module Core.Proposal
 
 import Prelude
 
-import Core.Query (isAggregate)
-import Core.Types (Entity, EntityId, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
+import Rules.Query (isAggregate)
+import Rules.Types (Entity, EntityId, MarketId, Proposal, ProposalF, ProposalId, RoundIndex, SignedProposal, proposalId, submissionIndex)
 import Core.Num (Q)
 import Data.Array (concatMap, elem, filter, mapWithIndex, nub, sort)
 import Data.Maybe (fromMaybe)

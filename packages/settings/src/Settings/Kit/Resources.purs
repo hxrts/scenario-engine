@@ -3,7 +3,7 @@ module Settings.Kit.Resources
   ( capacity
   ) where
 
-import Core.Types (ResourceDefinition, Transferability(..))
+import Rules.Types (ResourceDefinition, Transferability(..))
 import Data.Maybe (Maybe(..))
 import Schema.Build.World (noResource)
 import Schema.Gameboard (capacityCategory)

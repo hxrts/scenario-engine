@@ -13,14 +13,14 @@ module Checks.Round
 
 import Prelude
 
-import Core.Engine.Compile (changeOf, deliveredOf)
+import Rules.Engine.Compile (changeOf, deliveredOf)
 import Core.Map (entries)
 
 import Core.Num (Q)
-import Core.Query (holding, reserveOf)
-import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
-import Core.Slice (event, orKind, read, select)
-import Core.World (RoundResult)
+import Rules.Query (holding, reserveOf)
+import Rules.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
+import Rules.Slice (event, orKind, read, select)
+import Rules.World (RoundResult)
 import Data.Array (concat, concatMap, mapMaybe, sort, sortWith)
 import Data.Identity (Identity(..))
 import Data.Map as Map

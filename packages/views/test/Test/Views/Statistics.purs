@@ -13,8 +13,8 @@ import Test.Views.Support (toStoredWith)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Types (EntityId, Id(..), IntentF(..), ResourceId)
-import Core.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, coupled, rejection)
+import Rules.Types (EntityId, Id(..), IntentF(..), ResourceId)
+import Rules.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, coupled, rejection)
 import Data.Array (find, index, length, take)
 import Data.Foldable (foldl)
 import Data.Map as Map

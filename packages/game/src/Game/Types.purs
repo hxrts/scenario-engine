@@ -8,10 +8,10 @@ module Game.Types
   , Bindings
   ) where
 
-import Core.Proposal (ProposalBody)
-import Core.Strategy (InWorld, Strategy)
-import Core.Types (EntityId, ProposalId, RoundIndex)
-import Core.World (Manifest, WorldState)
+import Rules.Proposal (ProposalBody)
+import Rules.Strategy (InWorld, Strategy)
+import Rules.Types (EntityId, ProposalId, RoundIndex)
+import Rules.World (Manifest, WorldState)
 import Data.Map (Map)
 
 -- | What answers a seat's Propose and Sign steps. Agent and Human seats are answered by live play; a

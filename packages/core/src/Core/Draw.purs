@@ -45,11 +45,11 @@ u64 :: BigInt -> BigInt
 u64 = asUintN 64
 
 fnv :: String -> BigInt
-fnv = foldl step offset <<< toCharArray
+fnv = foldl stir offset <<< toCharArray
   where
   offset = fromChunks [ 0xcbf2, 0x9ce4, 0x8422, 0x2325 ]
   prime = fromChunks [ 0x0001, 0x0000, 0x01b3 ]
-  step h c = u64 ((h `xor` fromInt (toCharCode c)) * prime)
+  stir h c = u64 ((h `xor` fromInt (toCharCode c)) * prime)
 
 -- | SplitMix64 finalizer.
 mix :: BigInt -> BigInt

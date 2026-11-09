@@ -1,16 +1,16 @@
 -- | World State, Views, events, and round records
 -- | (docs/02_type_system.md §4, §8; docs/04_instantiated_game.md §9).
-module Core.World where
+module Rules.World (module Rules.World, module Core.Kernel.Types) where
 
 import Prelude
 
 import Core.Draw (Seed(..), drawVersion)
-import Core.Kernel.Types (KernelShapes, Pending, Template, TemplateId, pendingShape, templateShape)
+import Core.Kernel.Types (Endpoint(..), Flow, KernelShapes, Pending, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
-import Core.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
+import Rules.Types (capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Entity, EntityId, EntityKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Market, MarketId, Payment, Price, Proposal, ProposalId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedProposal, Transferability, Transformation, TransformationId, drawSourceShape, entityShape, idShape, proposalShape, ruleKind, ruleKindDeclShape, ruleShape, signedProposalShape, transferabilityShape)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -152,18 +152,8 @@ data ShortfallEffect
   | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Entity receives
 
 -- | Where a leg of a settlement starts or ends: an Entity, a Market, nowhere, or nothing.
-data Endpoint = Held EntityId | InMarket MarketId | Source | Sink
-
-derive instance Eq Endpoint
-derive instance Ord Endpoint
-derive instance Generic Endpoint _
-instance Show Endpoint where
-  show = genericShow
-
 -- | One leg: a quantity of a Resource owed from one endpoint to another, and how much of it moved.
 -- | A shortfall is `moved < owed`.
-type Flow = { from :: Endpoint, to :: Endpoint, resource :: ResourceId, owed :: Quantity, moved :: Quantity }
-
 -- | How an Intent's quantities were settled: along a Market's curve, as a conversion, or moved directly.
 data Mechanism
   = Curve MarketId
@@ -226,12 +216,6 @@ derive instance Eq ShortfallEffect
 derive instance Generic ShortfallEffect _
 instance Show ShortfallEffect where
   show = genericShow
-
-instance EncodeJson Endpoint where
-  encodeJson = encodeWith Snapshot endpointShape
-
-instance DecodeJson Endpoint where
-  decodeJson = decodeJsonWith Snapshot endpointShape
 
 instance EncodeJson Mechanism where
   encodeJson = encodeWith Snapshot mechanismShape
@@ -501,17 +485,6 @@ rejectReasonShape = genericSum "RejectReason"
   , "MissingBundledOrder": atTagged "the Transfer has no matching bundled order" unitShape
   , "Blocked": atTagged "blocked by a Rule of this kind" idShape
   }
-
-endpointShape :: Shape Endpoint
-endpointShape = genericSum "Endpoint"
-  { "Held": atTagged "an Entity's account" idShape
-  , "InMarket": atTagged "a Market's reserves" idShape
-  , "Source": atTagged "where a Resource is created" unitShape
-  , "Sink": atTagged "where a Resource ends" unitShape
-  }
-
-flowShape :: Shape Flow
-flowShape = recordShape "Flow" { from: endpointShape, to: endpointShape, resource: idShape, owed: qShape, moved: qShape }
 
 mechanismShape :: Shape Mechanism
 mechanismShape = genericSum "Mechanism"

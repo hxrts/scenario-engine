@@ -17,10 +17,10 @@ module Views.Actions
 
 import Prelude
 
-import Core.Query (droppedProposals)
-import Core.Slice (Select, Slice, conversions, count, describeSlice, event, exchanges, orKind, runSlice, transfers, whereEq, whereNamed)
-import Core.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
-import Core.World (RejectReason, RoundRecord)
+import Rules.Query (droppedProposals)
+import Rules.Slice (Select, Slice, conversions, count, describeSlice, event, exchanges, orKind, runSlice, transfers, whereEq, whereNamed)
+import Rules.Types (EntityId, Id(..), IntentF(..), Proposal, ProposalId)
+import Rules.World (RejectReason, RoundRecord)
 import Data.Array (any, concatMap, elem, filter, find, foldl, length, sortBy)
 import Data.Maybe (Maybe, maybe)
 import Views.Common (Field, cellOf, columnsOf, tableOf, Column, Statistic, StoredRun, Table, col, column, players, records)

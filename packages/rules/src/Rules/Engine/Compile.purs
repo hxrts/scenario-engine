@@ -1,5 +1,5 @@
 -- | The compile step: each settled mechanism written as couplings, which the kernel then posts.
-module Core.Engine.Compile
+module Rules.Engine.Compile
   ( WorldKernel
   , kernelOf
   , fillCoupling
@@ -25,9 +25,9 @@ import Core.Kernel.Law (holderParam, quantityParam, recipientParam)
 import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
-import Core.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
+import Rules.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
+import Rules.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
+import Rules.World (Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
 import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
 import Data.Map as Map

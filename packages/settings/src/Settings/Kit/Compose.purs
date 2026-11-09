@@ -9,8 +9,8 @@ module Settings.Kit.Compose
 
 import Prelude
 import Core.Num (Q)
-import Core.Strategy (Strategy)
-import Core.Types (Market, MarketId, PolicyId, ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
+import Rules.Strategy (Strategy)
+import Rules.Types (Market, MarketId, PolicyId, ResourceDefinition, ResourceId, RuleKindDecl, RuleKindId, Transformation, TransformationId, idText)
 import Data.Array as Array
 import Data.Map (Map)
 import Data.Map as Map

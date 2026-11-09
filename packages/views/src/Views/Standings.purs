@@ -20,9 +20,9 @@ import Core.Map as CoreMap
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
 import Core.Num as Q
-import Core.Query (holding)
-import Core.Types (EntityId)
-import Core.World (WorldState)
+import Rules.Query (holding)
+import Rules.Types (EntityId)
+import Rules.World (WorldState)
 import Data.Array (filter, length, nub, sortBy)
 import Data.Map (Map)
 import Data.Map as Map

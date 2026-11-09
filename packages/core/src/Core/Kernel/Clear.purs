@@ -13,7 +13,7 @@ import Core.Kernel.Route (bounds)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
+import Core.Map (lookupQ)
 import Core.Types (Market, Price, Quantity)
 import Data.Array (filter)
 import Data.Maybe (Maybe)

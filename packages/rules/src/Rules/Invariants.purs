@@ -3,7 +3,7 @@
 -- | checks run after resolution, in the test suites, the simulator, the setting golden tests,
 -- | and the adapter's round store and CLI reports. The engine does not call them, so a round
 -- | that passes the engine but fails a check is reported, not blocked.
-module Core.Invariants
+module Rules.Invariants
   ( Failure
   , failureShape
   , check
@@ -23,14 +23,14 @@ import Type.Proxy (Proxy(..))
 
 import Core.Map (entries, sumInto)
 
-import Core.Authority (authorized, executor, worldFacts)
-import Core.Engine.Commit (resolveRound)
-import Core.Engine.Prepare (prepareRound)
+import Rules.Authority (authorized, executor, worldFacts)
+import Rules.Engine.Commit (resolveRound)
+import Rules.Engine.Prepare (prepareRound)
 import Core.Num as Q
-import Core.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
-import Core.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
-import Core.Slice (conversions, event, foldEvents, ignore, select)
-import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
+import Rules.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
+import Rules.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
+import Rules.Slice (conversions, event, foldEvents, ignore, select)
+import Rules.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
 import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, reverse, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)

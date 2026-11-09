@@ -12,10 +12,9 @@ module Core.Kernel.Ration
 
 import Prelude
 
-import Core.Map (entries, sumInto)
+import Core.Map (entries, sumInto, lookupQ)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (lookupQ)
 import Core.Types (EntityId, ResourceId)
 import Data.Array (any, elem, filter, foldl, fromFoldable, nub, partition, sort, zipWith)
 import Data.Map (Map)

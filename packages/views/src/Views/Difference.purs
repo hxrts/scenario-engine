@@ -9,9 +9,9 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (accountsOf, lookupQ, priceOf)
-import Core.Types (EntityId, MarketId, ResourceId)
-import Core.World (WorldState)
+import Rules.Query (accountsOf, lookupQ, priceOf)
+import Rules.Types (EntityId, MarketId, ResourceId)
+import Rules.World (WorldState)
 import Views.Common (listedHolding)
 import Data.Array (concatMap, filter, fromFoldable, nub, sort)
 import Data.Map as Map

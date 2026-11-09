@@ -10,9 +10,9 @@ module Handlers.SqlStore
 
 import Prelude
 
-import Core.Invariants (failureShape)
+import Rules.Invariants (failureShape)
 import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse, stringShape)
-import Core.World (manifestShape, roundRecordShape, worldStateShape)
+import Rules.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Core (fromString, stringify)
 import Data.Argonaut.Decode.Error (printJsonDecodeError)
 import Data.Array (filterA, head, length, (!!))

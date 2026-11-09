@@ -15,7 +15,7 @@ import Prelude ((<>))
 
 import Data.Array (elem)
 
-import Core.Types (Capability, EntityId, MarketId, TransformationId)
+import Rules.Types (Capability, EntityId, MarketId, TransformationId)
 import Schema.Build.Base (mayTrade, mayTransfer, mayTransform)
 import Settings.Meridian.Names (n)
 import Settings.Meridian.Rules (accessBan, tariff)

@@ -41,7 +41,7 @@ else instance Pick name r b => Pick name (Sum (Constructor other a) r) b where
 else instance Fail (Beside (Text "The sum has no constructor named ") (QuoteLabel name)) => Pick name rep b where
   pick _ _ = Nothing
 
--- | The payload of one constructor: `ctor @"Trade"`.
+-- | The payload of one constructor: `ctor @"Name"`.
 ctor :: forall @name a rep b. Generic a rep => Pick name rep b => a -> Maybe b
 ctor x = pick (Proxy :: Proxy name) (from x)
 

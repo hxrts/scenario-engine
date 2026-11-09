@@ -127,12 +127,12 @@ function arms(bare, onArm) {
 // Sources the rules are read from ------------------------------------------------------------------
 
 function loadContext() {
-  const world = read("packages/core/src/Core/World.purs");
+  const world = read("packages/rules/src/Rules/World.purs");
   const eventBlock = (/^data Event\n([\s\S]*?)\n\n/m.exec(world) || [])[1] || "";
-  const eventKinds = need("Event constructors in Core.World", [...lex(eventBlock).bare.join("\n").matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1]));
-  const types = read("packages/core/src/Core/Types.purs");
+  const eventKinds = need("Event constructors in Rules.World", [...lex(eventBlock).bare.join("\n").matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1]));
+  const types = read("packages/rules/src/Rules/Types.purs");
   const intentBlock = (/^data IntentF[^\n]*\n([\s\S]*?)\n\n/m.exec(types) || [])[1] || "";
-  const intentCtors = need("IntentF constructors in Core.Types", [...lex(intentBlock).bare.join("\n").matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1]));
+  const intentCtors = need("IntentF constructors in Rules.Types", [...lex(intentBlock).bare.join("\n").matchAll(/^\s*[=|]\s*([A-Z]\w*)/gm)].map((m) => m[1]));
 
   const routeText = read(routeFile);
   const route = lex(routeText);
@@ -165,7 +165,7 @@ const specFile = "packages/schema/src/Schema/Run.purs";
 const inTest = (f) => /\/test\//.test(f);
 const inSrc = (f) => /\/src\//.test(f);
 const bannedWords = /\b(region|carrier|deployment|deal|military|tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|meridian|capacit)/i;
-const enginePath = "packages/core/src/Core/Engine/";
+const enginePath = "packages/rules/src/Rules/Engine/";
 const shapeFile = "packages/core/src/Core/Shape.purs";
 const header = "(header)";
 const isCodecInstance = (s) => /^instance-(Encode|Decode)Json-/.test(s);

@@ -15,7 +15,7 @@ import Settings.Meridian.Rules (withholding)
 import Schema.Build.Base (cumulative, final, holdingOf, mayTrade, mayTransfer, mayTransform, payeeReceipts, shortfallOf, shortfallRounds, volumeOf)
 import Schema.Build.World (atLeast, criterion, finishes, matching, metric, neverShort, own, totalAtLeast)
 import Schema.Gameboard (ActorDefinition)
-import Core.Types (Capability, Entity, EntityId, MarketId)
+import Rules.Types (Capability, Entity, EntityId, MarketId)
 import Data.Tuple (Tuple, fst)
 
 type CatalogSeat = Tuple EntityId (Tuple Entity ActorDefinition)

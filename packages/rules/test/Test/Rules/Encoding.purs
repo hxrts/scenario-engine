@@ -1,20 +1,20 @@
 -- | Every current mechanism written as a kernel value, before the engine changes (work plan P3). The
 -- | function over `RejectReason` is total, so a new reason cannot go unencoded.
-module Test.Core.Encoding (encoding) where
+module Test.Rules.Encoding (encoding) where
 
 import Prelude
 
 import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Guarded, Hold, Law, LawChange(..), Limit(..), Obligation, Operation(..), Party(..), Short(..), Solver(..), Spawn, Subject(..), Template, Trigger(..), noNext)
 import Core.Num as Q
-import Core.Types (Capability(..), Id(..), Rule, EntityId, ResourceId, MarketId)
-import Core.World (Cause(..), Mechanism(..), RejectReason(..))
+import Rules.Types (Capability(..), Id(..), Rule, EntityId, ResourceId, MarketId)
+import Rules.World (Cause(..), Mechanism(..), RejectReason(..))
 import Data.Array (length)
 import Data.Array as Array
 import Data.Generic.Rep (class Generic)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Show.Generic (genericShow)
-import Test.Core.Build (q)
+import Test.Rules.Build (q)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 

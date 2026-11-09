@@ -5,11 +5,11 @@ module Handlers.Replay
 
 import Prelude
 
-import Core.World (RoundRecord, RoundResult, WorldState)
+import Rules.World (RoundRecord, RoundResult, WorldState)
 import Data.Array (any, filter, range)
 import Data.Either (Either(..))
 import Data.Foldable (intercalate)
-import Core.Engine.Commit (EngineError)
+import Rules.Engine.Commit (EngineError)
 import Game.Types (Game)
 import Game.Bindings (scriptBindings)
 import Handlers.Seats (SeatEnv, playPure)

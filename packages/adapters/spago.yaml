@@ -20,6 +20,8 @@ package:
   test:
     main: Test.Adapters.Main
     dependencies:
+      - sp-core
+      - sp-rules
       - console
       - sp-views
       - sp-testkit
