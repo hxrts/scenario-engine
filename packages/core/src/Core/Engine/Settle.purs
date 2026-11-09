@@ -16,7 +16,7 @@ import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Compile (delivery, fillCoupling, payCoupling, ruleChange, runCoupling, transformCoupling)
+import Core.Engine.Compile (delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -27,7 +27,7 @@ import Core.Num as Q
 import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
 import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf)
 import Core.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
-import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith)
+import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
@@ -63,13 +63,16 @@ settle w scaled0 =
 -- | The Transformations whose inputs a joint Proposal's filled Transforms need and its executors do not hold.
 -- | Escrow funds a joint Proposal's inputs, so this is a backstop.
 shortInputs :: WorldState -> Allocation -> Scaled -> Array TransformationId
-shortInputs w allocation s = concat (mapWithIndex one s.item.proposal.intents)
+shortInputs w allocation s = map _.tid (nubByEq (\a b -> a.index == b.index) (mapMaybe (\c -> if c.fate == Shorted then index needed c.obligation else Nothing) dry.consumed))
   where
+  -- resolved on the opening holdings: nothing has posted yet
+  dry = runCoupling w Map.empty (jointInputs (map (\x -> { by: x.by, resource: x.resource, amount: x.amount, index: x.index }) needed))
+  needed = concat (mapWithIndex one s.item.proposal.intents)
   one i = case _ of
     Transform t
       | Just q <- Map.lookup (Tuple s.item.proposal.id i) allocation.fills
-      , Just tr <- Map.lookup t.transformation w.transformations
-      , any (\(Tuple r u) -> holding w t.by r < Q.mul u q) (entries tr.inputs) -> [ t.transformation ]
+      , Just tr <- Map.lookup t.transformation w.transformations ->
+          map (\(Tuple r u) -> { by: t.by, resource: r, amount: Q.mul u q, index: i, tid: t.transformation }) (entries tr.inputs)
     _ -> []
 
 jointShort :: WorldState -> Allocation -> Scaled -> Boolean

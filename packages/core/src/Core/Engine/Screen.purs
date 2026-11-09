@@ -14,6 +14,8 @@ module Core.Engine.Screen
 import Prelude
 
 import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
+import Core.Kernel.Resolve (consents)
+import Core.Kernel.Types (Condition(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
@@ -52,6 +54,9 @@ routesOf w who caps intents = Map.fromFoldable (concat (mapWithIndex one intents
     Route r -> [ Tuple i (routeMarkets (worldFacts w) who caps r.pair) ]
     _ -> []
 
+-- | A condition on who has signed.
+type Clause = Condition Capability Unit
+
 -- | Whose authority an Intent is checked against: the executor's own capabilities, for an
 -- | ordinary Proposal, or the capabilities a procedure authorizes, for a procedure Proposal.
 data Standing = OwnAuthority | ProcedureAuthority (Array Capability)
@@ -89,7 +94,7 @@ screen w duplicated { proposal: p, signatures } =
     reject reason = Left [ rejection w.round p.id reason ]
     ownCaps = capabilitiesOf w p.author
     ordinary
-      | not (all (_ `elem` signed) signers) = Left [ lapse w.round p.id ]
+      | not (consents signed (Consent signers :: Clause)) = Left [ lapse w.round p.id ]
       | joint && not (all jointIntent p.intents) = reject JointBundlesOnlyTransfers
       | otherwise = case validate w p signers OwnAuthority of
           Left reason -> reject reason
@@ -110,7 +115,7 @@ checkIntent :: WorldState -> Proposal -> Array EntityId -> Standing -> Intent ->
 checkIntent w p signers standing i = case Map.lookup who w.entities of
   Nothing -> Left (UnknownEntity who)
   Just _
-    | not (who `elem` signers) -> Left (MustSign who)
+    | not (consents signers (Consent [ who ] :: Clause)) -> Left (MustSign who)
     | otherwise -> validIntent (worldFacts w) caps who i *> ownerSigned
   where
   who = executor p i
@@ -119,7 +124,7 @@ checkIntent w p signers standing i = case Map.lookup who w.entities of
     ProcedureAuthority cs -> cs
   ownerSigned = case i of
     Transform t | Just tr <- Map.lookup t.transformation w.transformations, tr.ownerSigns -> case holderDraw tr >>= (holderOf w <<< _.resource) of
-      Just o | o `elem` signers -> Right unit
+      Just o | consents signers (Consent [ o ] :: Clause) -> Right unit
       _ -> Left (OwnerMustSign t.transformation)
     _ -> Right unit
 
@@ -133,7 +138,8 @@ procedureProposal w p signed pid = case Map.lookup p.author w.entities >>= aggre
   Just a | Just proc <- Map.lookup pid a.procedures ->
     let
       support = procedureSupport proc p.author signed
-      passes = support > proc.threshold
+      -- the author's own signature carries no weight, so it is not counted
+      passes = consents (filter (_ /= p.author) signed) (WeightedConsent { weights: proc.weights, residual: proc.residualWeight, threshold: proc.threshold } :: Clause)
       outcome = ProcedureOutcome { round: w.round, proposal: p.id, support, threshold: proc.threshold, executed: passes }
       -- A member with no weight in the procedure acts for the Aggregate without signing (docs/02 §2.2).
       agents = filter (\m -> not (Map.member m proc.weights)) a.members

@@ -10,6 +10,7 @@ module Core.Engine.Compile
   , delivery
   , deliveredOf
   , ruleChange
+  , jointInputs
   , changeOf
   , runCoupling
   ) where
@@ -19,13 +20,13 @@ import Prelude
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
 import Core.Kernel.Law (holderParam)
-import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
+import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (capabilitiesOf, holding, reserveOf)
 import Core.Types (Capability, EntityId, Id(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleId, TransformationId, idText)
 import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
-import Data.Array (elem, head, mapMaybe)
+import Data.Array (elem, filter, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
@@ -201,3 +202,26 @@ changeOf (PendingCoupling p) = head p.coupling.obligations >>= \o -> case o.effe
   K.Change (K.SetLaw x) -> Just (Tuple (Id x.id) (Just x.law))
   K.Change (K.RemoveLaw id) -> Just (Tuple (Id id) Nothing)
   _ -> Nothing
+
+-- | The inputs of a joint Proposal's filled Transforms, each bound whole to every other: if one party
+-- | cannot perform, none does. Each obligation's id is its Transform's position among the inputs.
+jointInputs :: Array { by :: EntityId, resource :: ResourceId, amount :: Q, index :: Int } -> Couple
+jointInputs inputs =
+  { obligations: mapWithIndex obligation inputs
+  , holds: []
+  , solver: Nothing
+  , ration: { tier: 0, whole: true, scaleGroup: Nothing }
+  , phase: 2
+  , cause: Nothing
+  , consented: []
+  }
+  where
+  others i = filter (_ /= i) (range 0 (length inputs - 1))
+  obligation i x =
+    { id: show x.index
+    , obligor: K.Named x.by
+    , effect: K.Move { from: named x.by, to: K.Destroyed, resource: x.resource, owed: K.Exactly x.amount }
+    , when: map (\j -> { condition: K.Performed { index: j, bond: K.Whole }, reason: Nothing }) (others i)
+    , onShort: K.Reject
+    , next: K.noNext
+    }

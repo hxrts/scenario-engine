@@ -15,6 +15,8 @@ module Core.Authority
 
 import Prelude
 
+import Core.Kernel.Resolve (holdsAll)
+import Core.Kernel.Types (Condition(..), Party(..))
 import Core.Query (holderOf, marketsOf)
 import Core.Types (Capability(..), EntityId, FlowEffect(..), LevyBasis(..), Intent, IntentF(..), MarketId, Pair, Proposal, ResourceId, RuleChangeF(..), RuleF(..), Rule, RuleId, RuleKindDecl, RuleKindId, Transferability(..), conforms, ruleKind, TransformationId)
 import Core.World (Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
@@ -75,18 +77,19 @@ viewFacts v =
 -- | the invariants, and the Strategy interpreter all ask it.
 authorized :: Facts -> Array Capability -> EntityId -> Intent -> Boolean
 authorized facts caps who = case _ of
-  Trade o -> MayTrade o.market `elem` caps
+  Trade o -> needs [ MayTrade o.market ]
   -- a routed order needs some trade capability here; `routeCandidates` checks the Market it uses
   Route _ -> any isTrade caps
   -- only a Restricted Resource's transfer is authority-gated (§2.3)
-  Transfer t -> t.from == who && (facts.transferability t.resource == Just Free || MayTransfer t.resource `elem` caps)
-  Transform t -> MayTransform t.transformation `elem` caps && t.by == who
-  ChangeRule (Enact r) -> MayEnact (ruleKind r) `elem` caps
+  Transfer t -> t.from == who && (facts.transferability t.resource == Just Free || needs [ MayTransfer t.resource ])
+  Transform t -> t.by == who && needs [ MayTransform t.transformation ]
+  ChangeRule (Enact r) -> needs [ MayEnact (ruleKind r) ]
   -- an unknown Rule is not authorized to be repealed
-  ChangeRule (Repeal id) -> maybe false (\r -> MayEnact (ruleKind r) `elem` caps) (facts.rule id)
+  ChangeRule (Repeal id) -> maybe false (\r -> needs [ MayEnact (ruleKind r) ]) (facts.rule id)
   where
   isTrade (MayTrade _) = true
   isTrade _ = false
+  needs required = holdsAll (\_ c -> c `elem` caps) (map (\capability -> Holds { party: Named who, capability }) required :: Array (Condition Capability Unit))
 
 -- | Whether an Entity governs a Rule: the governor of its flows, or the holder of the Resource it reduces. Enacting
 -- | and repealing both require it.

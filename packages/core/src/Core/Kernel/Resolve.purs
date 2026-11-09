@@ -11,6 +11,8 @@ module Core.Kernel.Resolve
   , amountOf
   , endpointOf
   , resolve
+  , consents
+  , holdsAll
   ) where
 
 import Prelude
@@ -110,8 +112,8 @@ holds :: forall cap law query reason cause. Kernel cap query -> Ledger -> Set Ke
 holds k ledger standing ci c o = case _ of
   Performed p -> Set.member (Tuple ci p.index) standing
   StockAtLeast x -> stock k ledger x.stock >= amountOf k ledger x.amount
-  Consent ps -> all (_ `elem` c.consented) ps
-  WeightedConsent w -> Q.add w.residual (Q.sumQ (map (\e -> lookupQ e w.weights) (nub c.consented))) > w.threshold
+  Consent ps -> consents c.consented (Consent ps)
+  WeightedConsent w -> consents c.consented (WeightedConsent w)
   PriceWithin limit -> case limit, k.price of
     AtMost p, Just x -> x <= p
     AtLeast p, Just x -> x >= p
@@ -123,6 +125,20 @@ holds k ledger standing ci c o = case _ of
   owed = case o.effect of
     Move l -> amountOf k ledger l.owed
     Change _ -> Q.zero
+
+-- | Whether a consent condition holds, given who has signed.
+consents :: forall cap query. Array EntityId -> Condition cap query -> Boolean
+consents consented = case _ of
+  Consent ps -> all (_ `elem` consented) ps
+  WeightedConsent w -> Q.add w.residual (Q.sumQ (map (\e -> lookupQ e w.weights) (nub consented))) > w.threshold
+  _ -> true
+
+-- | Whether a party satisfies every capability condition, against what it holds.
+holdsAll :: forall cap query. (EntityId -> cap -> Boolean) -> Array (Condition cap query) -> Boolean
+holdsAll has = all case _ of
+  Holds { party: Named e, capability } -> has e capability
+  Holds { party: Bound _ } -> false
+  _ -> true
 
 -- | Whether an obligation that rejects a shortfall could not perform on the settlement so far.
 cannotPerform :: forall cap law query reason. Kernel cap query -> Ledger -> Obligation cap law query reason -> Boolean
