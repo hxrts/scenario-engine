@@ -36,7 +36,7 @@ import Core.Num as Q
 import Laws.Types (ActorId, Id(..), IntentF(..))
 import Handlers.Llm.Backend (Backend, Call, backend)
 import Schema.Joint (ProposedJoint, jointReplyShape)
-import Handlers.Llm.Call (ModelCall, interpretCall, narrateCall, speakCall)
+import Handlers.Llm.Call (ModelCall, interpretCall, speakCall)
 import Handlers.Llm.Wire (textReplyShape)
 import Handlers.Recording (Turn, Recording, turnShape)
 import Schema.Decode (decodeError)
@@ -73,7 +73,7 @@ tradeTenEnergy =
 replyJoint :: Array ProposedJoint -> String
 replyJoint ps = stringify (encodeWith Snapshot jointReplyShape { candidateTransactions: ps })
 
--- | The reply text of a narrator or seat with this text.
+-- | The reply text of a seat with this text.
 replyText :: String -> String
 replyText s = stringify (encodeWith Snapshot textReplyShape { text: s })
 
@@ -88,10 +88,10 @@ replyTextOf x = case toObject x.reply >>= Object.lookup "value" of
   Nothing -> ""
   Just v
     | x.effect == interpretCall.effect -> either (const "") (replyOf interpretCall) (decodeJsonWith Snapshot interpretCall.recorded v)
-    | otherwise -> either (const "") (replyOf narrateCall) (decodeJsonWith Snapshot narrateCall.recorded v)
+    | otherwise -> either (const "") (replyOf speakCall) (decodeJsonWith Snapshot speakCall.recorded v)
 
 -- | What a call is keyed on: its effect, round and seats. The payload says them: a joint pass
--- | carries `transcripts`, a narrator `events`, and a seat `actor`.
+-- | carries `transcripts` and a seat `actor`.
 type Key = { effect :: String, round :: Int, seats :: Array String }
 
 keyOfPayload :: String -> Either String Key
@@ -107,7 +107,7 @@ keyOfPayload input = do
       names <- traverse (\t -> note "a transcript has no seat" (toObject t >>= Object.lookup "seat" >>= toString)) seats
       pure { effect: interpretCall.effect, round, seats: names }
     _, Just a -> pure { effect: speakCall.effect, round, seats: [ fromMaybe "" (toString a) ] }
-    _, _ -> pure { effect: narrateCall.effect, round, seats: [] }
+    _, _ -> Left "the payload is neither a joint pass nor a seat"
 
 keyOfTurn :: Turn -> Key
 keyOfTurn x = { effect: x.effect, round: x.round, seats: x.seats }

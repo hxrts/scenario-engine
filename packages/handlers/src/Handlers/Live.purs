@@ -1,7 +1,7 @@
 -- | The Live handler (docs/04_run.md §8, §11): runs `runRound` unchanged in Aff.
 -- | Human seats type one transcript per round at their prompt, within the propose window; AI-agent
 -- | seats speak through their own model call; the round's transcripts go to one joint pass (INTERPRET).
--- | Each round is recorded with those transcripts, then narrated (NARRATE). This module answers only
+-- | Each round is recorded with those transcripts. This module answers only
 -- | what needs a person or a model; `Handlers.Seats.handleSeats` answers every other seat beneath it.
 -- | There is no clarification and no confirmation.
 module Handlers.Live (Live, runLive) where
@@ -14,10 +14,10 @@ import Control.Monad.Error.Class (throwError)
 import Control.Parallel (parallel, sequential)
 import Laws.Types (ActorId, RoundIndex)
 import Schema.Joint (JointCandidateTransaction, Transcript)
-import Laws.World (RoundResult, View, WorldState)
+import Laws.World (View, WorldState)
 import Laws.Engine.Commit (EngineError)
 import Data.Map as Map
-import Data.Either (Either(..), either, isLeft)
+import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
@@ -26,7 +26,7 @@ import Effect.Exception (error)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
-import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
+import Effects.Signatures (INTERPRET, InterpretF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
 import Assembly.Types (PreparedRun, SeatBinding(..))
 import Handlers.Seats (RecordSink, handleSeats, seatEnv)
 import Effects.Round (runGame)
@@ -44,7 +44,6 @@ type Live =
   , say :: String -> Effect Unit -- a line for the facilitator
   , notify :: ActorId -> String -> Aff Unit -- a message to the seat that needs no answer
   , interpret :: RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction)) -- the round's joint pass
-  , narrate :: Boolean -> RoundResult -> Aff String -- the round's front page; the Boolean is whether its joint pass did not decode
   , speak :: ActorId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
   , record :: RecordSink -- persist the round
   }
@@ -62,7 +61,7 @@ prompt :: ActorId -> RoundIndex -> String
 prompt seat round = "[round " <> show round <> ", propose window] " <> show seat <> "> "
 
 -- | What the live layer leaves for `handleSeats`: every seat operation it does not answer.
-type Beneath = SEAT_INPUT + INTERPRET + NARRATE + AFF + ()
+type Beneath = SEAT_INPUT + INTERPRET + AFF + ()
 
 -- | Play a game live: the round program runs on the game's world and seats. What a Human or Agent seat
 -- | says is answered here; everything else falls through to `handleSeats`. Every human is prompted in
@@ -70,17 +69,14 @@ type Beneath = SEAT_INPUT + INTERPRET + NARRATE + AFF + ()
 -- | when it closes says nothing that round.
 runLive :: Live -> PreparedRun -> Aff (Either EngineError WorldState)
 runLive live game = do
-  -- set by the round's joint pass when its reply does not decode; read and cleared when the round is narrated
-  failed <- liftEffect (Ref.new false)
   window <- liftEffect (Ref.new Nothing)
   runBaseAff
     ( handleSeats (seatEnv live.seed game) game.seats
         ( interpret
             ( case_
                 # on _seatInput (seat window)
-                # on _interpret (\x -> liftAff (joint failed x))
+                # on _interpret (\x -> liftAff (joint x))
                 # on _record (\x -> liftAff (record window x))
-                # on _narrate (\x -> liftAff (narrate failed x))
             )
             (runGame game.inWorld game.rounds game.world)
         )
@@ -130,17 +126,11 @@ runLive live game = do
     liftEffect (Ref.write Nothing window)
     liftEffect (live.record r transcripts) $> next
 
-  narrate :: Ref Boolean -> NarrateF ~> Aff
-  narrate failed (Narrate r k) = do
-    f <- liftEffect (Ref.read failed <* Ref.write false failed)
-    k <$> live.narrate f r
-
   -- A transcript that does not decode submits nothing for the round, and each human speaker is
-  -- told so. Nothing is asked back. The round is marked, so its front page is a plain listing.
-  joint :: forall b. Ref Boolean -> InterpretF b -> Aff b
-  joint failed (Interpret round transcripts k) = do
+  -- told so. Nothing is asked back.
+  joint :: forall b. InterpretF b -> Aff b
+  joint (Interpret round transcripts k) = do
     out <- live.interpret round transcripts
-    liftEffect (Ref.write (isLeft out) failed)
     case out of
       Left why -> for_ transcripts \t -> case binding t.seat of
         Just Human -> live.notify t.seat ("Round " <> show round <> ": the transcripts could not be read (" <> why <> "), so nothing was submitted")

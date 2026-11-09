@@ -23,7 +23,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
-import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
+import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
 import Strategy.InWorld (strategyOf)
 import Laws.StrategyRules (StrategyRules, InWorld)
 import Strategy.Interpret (Env, envFor)
@@ -33,9 +33,9 @@ import Type.Row (type (+))
 
 -- | One round: prepare and observe (pure). Seats speak; the round's transcripts are read in one
 -- | joint pass. Then Propose and Sign for every Strategy and seat, `resolveRound` (pure), recorded with
--- | its transcripts and narrated. A seat that says nothing, and a round where nobody speaks, make no
+-- | its transcripts. A seat that says nothing, and a round where nobody speaks, make no
 -- | joint call.
-runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
+runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError RoundResult)
 runRound inWorld w0 = do
   let
     w = prepareRound w0
@@ -62,7 +62,6 @@ runRound inWorld w0 = do
     result = resolveRound w (assembleSigned candidateTransactions signatures jointNumbered)
   for_ result \r -> do
     lift _record (Record r transcripts unit)
-    void (lift _narrate (Narrate r identity))
   pure result
   where
   proposeFor = decide Strategy.propose \e v -> lift _seatInput (Propose e.id v identity)
@@ -78,7 +77,7 @@ runRound inWorld w0 = do
   env e = envFor { params: inWorld.params, seed: w0.seed, source: "strategy" } e.id
 
 -- | Run `n` rounds from `w`, stopping at the first engine failure.
-runGame :: forall r. InWorld -> Int -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError WorldState)
+runGame :: forall r. InWorld -> Int -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + r) (Either EngineError WorldState)
 runGame inWorld n w
   | n <= 0 = pure (Right w)
   | otherwise = runRound inWorld w >>= case _ of

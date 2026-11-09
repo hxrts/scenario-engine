@@ -1,6 +1,6 @@
 -- | `session`: the facilitator console for a live game (docs/05_meridian.md §19). Human seats type one
 -- | transcript per round; every other seat is an AI agent. Each round reads all transcripts in one joint pass,
--- | then shows the front page and the balance sheets. The session's run is saved to the Run Store; a failure
+-- | then shows the balance sheets. The session's run is saved to the Run Store; a failure
 -- | (a language-model backend, input ending early, a store fault) marks the run failed with its cause.
 module Cli.Session (Options, Prepared, prepare, session, evidenceDir, SESSION) where
 
@@ -80,8 +80,7 @@ session o { parts, game } = do
   humans = humansOf o
   briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.possibleWorld.explicitActors)
 
--- | What is shown after each round: the front page, and the human seats' balance sheets.
-report :: Array ActorId -> RoundResult -> String -> Array String
-report humans r front =
-  [ "\n=== Front page, round " <> show r.record.round <> " ===\n" <> front ]
-    <> map (\e -> "Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> quantity v) (Map.toUnfoldable e.accounts))) (filter (\e -> e.id `elem` humans) (CoreMap.values r.world.actors))
+-- | What is shown after each round: the human seats' balance sheets.
+report :: Array ActorId -> RoundResult -> Array String
+report humans r =
+  map (\e -> "Balance sheet " <> show e.id <> ": " <> joinWith ", " (map (\(Tuple k v) -> show k <> " " <> quantity v) (Map.toUnfoldable e.accounts))) (filter (\e -> e.id `elem` humans) (CoreMap.values r.world.actors))

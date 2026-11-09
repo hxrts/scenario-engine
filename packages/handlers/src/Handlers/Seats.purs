@@ -24,7 +24,7 @@ import Data.Array (find)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
+import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
 import Foreign.Object (Object)
 import Assembly.Types (Bindings, PreparedRun, ScriptRound, SeatBinding(..))
 import Strategy.Interpret (Env, envFor)
@@ -60,9 +60,9 @@ answer strategy scripted env bs e v = case Map.lookup e bs of
 
 -- | Interpret SEAT_INPUT over a game's bindings, leaving the other effects. A machine seat has no
 -- | transcript, so Speak answers Nothing and the joint pass is never called: a simulated run makes no
--- | model call. Narration answers the empty text, since no front page is written without live play.
-handleSeats :: forall r a. SeatEnv -> Bindings -> Run (SEAT_INPUT + INTERPRET + NARRATE + r) a -> Run r a
-handleSeats env bs = interpret (on _seatInput handle (on _interpret silent (on _narrate quiet send)))
+-- | model call.
+handleSeats :: forall r a. SeatEnv -> Bindings -> Run (SEAT_INPUT + INTERPRET + r) a -> Run r a
+handleSeats env bs = interpret (on _seatInput handle (on _interpret silent send))
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
@@ -72,9 +72,6 @@ handleSeats env bs = interpret (on _seatInput handle (on _interpret silent (on _
 
   silent :: InterpretF ~> Run r
   silent (Interpret _ _ k) = pure (k (Right []))
-
-  quiet :: NarrateF ~> Run r
-  quiet (Narrate _ k) = pure (k "")
 
 -- | Where a round goes once it is resolved: the round, with the transcripts read for it.
 type RecordSink = RoundResult -> Array Transcript -> Effect Unit

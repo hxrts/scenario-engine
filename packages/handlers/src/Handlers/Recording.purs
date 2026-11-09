@@ -19,7 +19,7 @@ import Data.Maybe (Maybe(..))
 
 -- | One model call: the effect it served, the round and the seats whose transcripts it carried (the
 -- | key a replay matches on, never the prompt text), the encoded typed request, and the encoded typed
--- | reply. A call with no seat (the narrator's) has no seats.
+-- | reply.
 type Turn = { effect :: String, round :: Int, seats :: Array String, request :: Json, reply :: Json }
 
 turnShape :: Shape Turn

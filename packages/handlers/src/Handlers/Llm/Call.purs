@@ -5,7 +5,6 @@ module Handlers.Llm.Call
   , Key
   , seatText
   , interpretCall
-  , narrateCall
   , speakCall
   , decodeWith
   ) where
@@ -15,8 +14,8 @@ import Prelude
 import Core.Shape (Shape, stringShape)
 import Laws.Types (ActorId, Id(..))
 import Data.Either (Either)
-import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
-import Handlers.Llm.Wire (JointRequest, NarrateRequest, SpeakRequest, decodeReply, jointRequestShape, narrateRequestShape, speakRequestShape, textReplyShape)
+import Handlers.Llm.Prompt (interpretPrompt, speakPrompt)
+import Handlers.Llm.Wire (JointRequest, SpeakRequest, decodeReply, jointRequestShape, speakRequestShape, textReplyShape)
 import Schema.Joint (ProposedJoint, jointReplyShape)
 
 -- | What a call concerns, for the recording: its round and the seats whose transcripts it carries.
@@ -56,9 +55,6 @@ interpretCall =
 textCall :: forall p. String -> String -> Shape p -> (p -> Key) -> ModelCall p { text :: String } String
 textCall effect prompt request key =
   { effect, prompt, request, wire: textReplyShape, recorded: stringShape, project: _.text, rewire: \t -> { text: t }, key }
-
-narrateCall :: ModelCall NarrateRequest { text :: String } String
-narrateCall = textCall "narrate" narratePrompt narrateRequestShape \r -> { round: r.round, seats: [] }
 
 speakCall :: ModelCall SpeakRequest { text :: String } String
 speakCall = textCall "seat:speak" speakPrompt speakRequestShape \r -> { round: r.view.round, seats: [ seatText r.explicitActor ] }

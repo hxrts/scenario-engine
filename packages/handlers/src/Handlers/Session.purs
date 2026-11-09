@@ -18,7 +18,6 @@ import Effects.Signatures (LiveF(..))
 import Handlers.Live (runLive)
 import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
-import Handlers.Llm.Narrate (narrator)
 import Handlers.Llm.Speak (speak)
 import Handlers.Store (Metric, StoreBackend, recorder, settle)
 
@@ -40,12 +39,8 @@ interpretLive d (PlayLive r k) = do
     , say: d.say
     , notify: \_ text -> liftEffect (d.say ("  " <> text))
     , interpret: interpreter d.llm r.game.world
-    , narrate: \failed result -> do
-        front <- narrator d.llm failed result
-        liftEffect (for_ (r.report result front) d.say)
-        pure front
     , speak: speak d.llm r.briefing
-    , record: save
+    , record: \result transcripts -> save result transcripts *> for_ (r.report result) d.say
     }
     r.game
   liftEffect (settle d.store r.id "" out)

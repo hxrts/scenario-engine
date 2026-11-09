@@ -33,11 +33,10 @@ import Effect.Exception (error, message)
 import Effect.Ref as Ref
 import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
-import Handlers.Llm.Narrate (listing, narrator)
 import Handlers.Llm.Speak (speak)
 import Handlers.Llm.Wire (decodeJoint, decodeText)
-import Handlers.Llm.Call (interpretCall, narrateCall, speakCall)
-import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
+import Handlers.Llm.Call (interpretCall, speakCall)
+import Handlers.Llm.Prompt (interpretPrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
@@ -75,7 +74,7 @@ stringField key text = do
   o <- toObject json
   Object.lookup key o >>= toString
 
--- | One round with no seat strategies: its record is what the front page is written from.
+-- | One round with no seat strategies: its record.
 oneRound :: PreparedRun -> Aff RoundResult
 oneRound g = do
   let out = playPure (seatEnv (Seed 1) g) (g).seats g.inWorld 1 g.world
@@ -97,16 +96,13 @@ spec = do
       let names p = maybe [] (mapMaybe (map (\m -> String.take (String.length m - 2) (String.drop 1 m))) <<< NEA.toArray) (Regex.match (unsafeRegex "`[a-zA-Z_]+`" global) p)
       for_
         [ { prompt: interpretCall.prompt, keys: descKeys interpretCall.request.desc <> descKeys interpretCall.wire.desc }
-        , { prompt: narrateCall.prompt, keys: descKeys narrateCall.request.desc <> descKeys narrateCall.wire.desc }
         , { prompt: speakCall.prompt, keys: descKeys speakCall.request.desc <> descKeys speakCall.wire.desc }
         ]
         \c -> for_ (names c.prompt) \n -> elem n c.keys `shouldEqual` true
   describe "Prompts" do
-    it "each request has its own task: the joint pass reconciles, the narrator writes the front page, a seat speaks" do
+    it "each request has its own task: the joint pass reconciles, a seat speaks" do
       contains (Pattern "reconcile them into CandidateTransactions") interpretPrompt `shouldEqual` true
-      contains (Pattern "front page") narratePrompt `shouldEqual` true
       contains (Pattern "one to three sentences") speakPrompt `shouldEqual` true
-      contains (Pattern "Never invent quantities") narratePrompt `shouldEqual` true
 
     it "the joint pass's prompt renders its action list and its reply schema from the shapes" do
       contains (Pattern (prose intentShape.desc)) interpretPrompt `shouldEqual` true
@@ -143,7 +139,7 @@ spec = do
     it "text that is not JSON does not decode" do
       isLeft (decodeJoint "not json") `shouldEqual` true
 
-    it "a narrator or seat reply decodes its text; a reply without text does not" do
+    it "a seat reply decodes its text; a reply without text does not" do
       decodeText "{\"text\":\"Exchanges moved.\"}" `shouldEqual` Right "Exchanges moved."
       isLeft (decodeText "{\"candidateTransactions\":[]}") `shouldEqual` true
 
@@ -287,26 +283,7 @@ spec = do
       rec <- liftEffect (Ref.read turns)
       length rec `shouldEqual` 0
 
-  describe "Front page and AI-agent seats" do
-    it "a round whose joint pass did not decode gets the plain listing, and makes no model call" do
-      g <- unseated
-      r <- oneRound g
-      counter <- liftEffect (Ref.new 0)
-      text <- narrator (answering counter (\_ _ -> replyText "Exchanges moved.")) true r
-      text `shouldEqual` listing r
-      calls <- liftEffect (Ref.read counter)
-      calls `shouldEqual` 0
-
-    it "the model's front page is its text; a reply that does not decode is the plain listing" do
-      g <- unseated
-      r <- oneRound g
-      good <- answerWith (replyText "Exchanges moved.")
-      narrated <- narrator good false r
-      narrated `shouldEqual` "Exchanges moved."
-      bad <- answerWith "not json"
-      fallback <- narrator bad false r
-      fallback `shouldEqual` listing r
-
+  describe "AI-agent seats" do
     it "a seat speaks its reply text; a reply that does not decode is an empty transcript" do
       g <- unseated
       view <- case Map.lookup (Id "DE") g.world.actors of

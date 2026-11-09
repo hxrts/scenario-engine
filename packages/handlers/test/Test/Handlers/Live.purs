@@ -1,5 +1,5 @@
 -- | Live play (docs/06_simulator.md §7.4) against a stub model: the human seats type, the AI seats
--- | speak, the round's transcripts go through one joint pass, and the front page is narrated. The stub
+-- | speak, the round's transcripts go through one joint pass. The stub
 -- | model answers each call with a typed reply encoded as its text, so the prompts, decoding, and
 -- | fallbacks of `Handlers.Llm` run as they do in production. No test calls a real model; the billed
 -- | check is `Test.Adapters.LiveInterpret`, which is not part of the suite.
@@ -27,9 +27,8 @@ import Effect.Ref as Ref
 
 import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
-import Handlers.Llm.Narrate (listing, narrator)
 import Handlers.Llm.Speak (speak)
-import Handlers.Llm.Prompt (interpretPrompt, narratePrompt)
+import Handlers.Llm.Prompt (interpretPrompt)
 import Schema.Joint (ProposedJoint)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
@@ -42,11 +41,10 @@ import Test.Spec.Assertions (shouldEqual)
 import Core.Num as Q
 
 -- | The stub model for live play: the joint pass proposes a trade when a transcript names one, the
--- | narrator writes a fixed front page, and each AI seat says one line.
+-- | model has each AI seat say one line.
 model :: String -> String -> String
 model template input
   | template == interpretPrompt = replyJoint (if contains (Pattern "buy ten energy") input then [ tradeTenEnergy ] else [])
-  | template == narratePrompt = replyText "Exchanges moved."
   | otherwise = replyText "nothing"
 
 -- | A stub model answering `answer`, with the number of calls it has been asked.
@@ -61,7 +59,7 @@ jointAnswers ps template input
   | template == interpretPrompt = replyJoint ps
   | otherwise = model template input
 
-type Session = { records :: Array RoundResult, narration :: Array String, notices :: Array String }
+type Session = { records :: Array RoundResult, notices :: Array String }
 
 -- | The US player's script: buy in Round 1, then nothing.
 scripted :: String -> Aff String
@@ -73,7 +71,6 @@ scripted prompt
 liveWith :: PreparedRun -> Int -> (ActorId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
 liveWith g0 n seat input backend = do
   recs <- liftEffect (Ref.new [])
-  texts <- liftEffect (Ref.new [])
   notes <- liftEffect (Ref.new [])
   let g = g0 { seats = Map.fromFoldable (map (\e -> Tuple e (seat e)) (Map.keys g0.world.actors # Array.fromFoldable)) }
   _ <- runLive
@@ -84,14 +81,10 @@ liveWith g0 n seat input backend = do
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
     , speak: speak backend (const "Secure energy at a fair price.")
-    , narrate: \failed r -> do
-        t <- narrator backend failed r
-        liftEffect (Ref.modify_ (_ <> [ t ]) texts)
-        pure t
     , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
     }
     (g { rounds = n })
-  { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
+  { records: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read notes)
 
 -- | Replay the recorded rounds: the same worlds, with no model call.
 replayedRecords :: PreparedRun -> Int -> Array RoundResult -> Array RoundRecord
@@ -118,7 +111,6 @@ spec = do
       out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Script []) scripted backend
       length out.records `shouldEqual` 3
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
-      out.narration `shouldEqual` [ "Exchanges moved.", "Exchanges moved.", "Exchanges moved." ]
       replayed g 3 out.records `shouldEqual` map _.world out.records
       replayedRecords g 3 out.records `shouldEqual` map _.record out.records
 
@@ -130,14 +122,12 @@ spec = do
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` false
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
 
-    it "an undecodable joint reply: the front page is the plain listing, and only the joint pass calls the model (its first call and two corrections)" do
+    it "an undecodable joint reply: only the joint pass calls the model (its first call and two corrections)" do
       g <- unseated
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
-      map listing out.records `shouldEqual` out.narration
-      map (contains (Pattern "Round 1:")) out.narration `shouldEqual` [ true ]
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 3
 
@@ -207,7 +197,6 @@ spec = do
         , notify: \_ _ -> pure unit
         , interpret: interpreter backend g.world
         , speak: speak backend (const "")
-        , narrate: \failed r -> narrator backend failed r
         , record: \_ _ -> pure unit
         }
         base
@@ -225,9 +214,8 @@ spec = do
       length out.records `shouldEqual` 5
       replayed g 5 out.records `shouldEqual` map _.world out.records
   where
-  -- a joint pass that does not decode, and a narrator and seats that answer normally
+  -- a joint pass that does not decode, and seats that answer normally
   garbled :: String -> String -> String
   garbled template input
     | template == interpretPrompt = if contains (Pattern "buy ten energy") input then "not json" else replyJoint []
-    | template == narratePrompt = "not json"
     | otherwise = replyText "nothing"

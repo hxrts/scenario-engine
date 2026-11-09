@@ -10,12 +10,9 @@ module Effects.Signatures
   , RecordF(..)
   , INTERPRET
   , InterpretF(..)
-  , NARRATE
-  , NarrateF(..)
   , _seatInput
   , _record
   , _interpret
-  , _narrate
   , _observe
   , _store
   , OBSERVE
@@ -102,14 +99,6 @@ data InterpretF a = Interpret RoundIndex (Array Transcript) (Either String (Arra
 derive instance Functor InterpretF
 
 type INTERPRET r = (interpret :: InterpretF | r)
-
--- | Resolved events to the front-page text; narration adds no facts. Every round
--- | requests one; only live play answers with text (simulation and replay answer with the empty text).
-data NarrateF a = Narrate RoundResult (String -> a)
-
-derive instance Functor NarrateF
-
-type NARRATE r = (narrate :: NarrateF | r)
 
 -- | A stored value: the value, or why the stored text does not read back.
 type Stored a = Either String a
@@ -201,9 +190,6 @@ _record = Proxy
 
 _interpret :: Proxy "interpret"
 _interpret = Proxy
-
-_narrate :: Proxy "narrate"
-_narrate = Proxy
 
 _observe :: Proxy "observe"
 _observe = Proxy
@@ -313,14 +299,14 @@ _play :: Proxy "play"
 _play = Proxy
 
 -- | A live session of a run already registered: its game and id, what the seats are briefed with, how
--- | long a propose window lasts in seconds (0 for none), and the lines shown after each front page.
+-- | long a propose window lasts in seconds (0 for none), and the lines shown after each round.
 type LiveRequest =
   { seed :: Seed
   , game :: PreparedRun
   , id :: String
   , window :: Int
   , briefing :: ActorId -> String
-  , report :: RoundResult -> String -> Array String
+  , report :: RoundResult -> Array String
   }
 
 -- | Play a live session and settle its run. The reply is why it failed, rendered, or `Right`.

@@ -6,10 +6,8 @@
 -- | `Adapters.Pi`.
 module Handlers.Llm.Wire
   ( JointRequest
-  , NarrateRequest
   , SpeakRequest
   , jointRequestShape
-  , narrateRequestShape
   , speakRequestShape
   , textReplyShape
   , correctionShape
@@ -24,7 +22,7 @@ import Prelude
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
 import Core.Shape (Format(..), Shape, arrayOf, field, intShape, jsonShape, parse, recordOf, recordShape, requiredOf, stringShape)
 import Laws.Types (ActorId, ExchangeId, RoundIndex, idShape)
-import Laws.World (Event, View, eventShape, viewShape)
+import Laws.World (View, viewShape)
 import Data.Argonaut.Core (Json)
 import Data.Either (Either)
 import Data.Array (drop, length, zip, (..))
@@ -42,19 +40,13 @@ type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, acto
 jointRequestShape :: Shape JointRequest
 jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), actors: (arrayOf idShape), exchanges: (arrayOf idShape) }
 
--- | The narrator's payload: the round and its resolved events.
-type NarrateRequest = { round :: RoundIndex, events :: Array Event }
-
-narrateRequestShape :: Shape NarrateRequest
-narrateRequestShape = recordShape "NarrateRequest" { round: intShape, events: (arrayOf eventShape) }
-
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { explicitActor :: ActorId, briefing :: String, view :: View }
 
 speakRequestShape :: Shape SpeakRequest
 speakRequestShape = recordShape "SpeakRequest" { explicitActor: idShape, briefing: stringShape, view: viewShape }
 
--- | A narrator's or seat's reply: one object with a `text` string.
+-- | A seat's reply: one object with a `text` string.
 textReplyShape :: Shape { text :: String }
 textReplyShape = recordOf "TextReply"
   ( field @"text" "the text" (requiredOf stringShape)
@@ -100,7 +92,7 @@ decodeJoint = map _.candidateTransactions <<< decodeJointReply
 decodeJointReply :: String -> Either String { candidateTransactions :: Array ProposedJoint }
 decodeJointReply = decodeReply jointReplyShape
 
--- | A narrator or seat reply's text.
+-- | A seat reply's text.
 decodeText :: String -> Either String String
 decodeText text = map _.text (decodeReply textReplyShape text)
 
