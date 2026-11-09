@@ -131,11 +131,11 @@ This section carries the Gameboard's economic values into World State. The value
 
 Holdings, reserves, cost curves, Market access, and Rules come from the Gameboard. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
 
-Each Market starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Gameboard's initial Rules. Starting feasibility is a Planned check ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
+Each Market starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Gameboard's initial Rules. World State holds them as authored Rules, and each compiles to a kernel law when it applies ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Starting feasibility is a Planned check ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
 
 ### 7.2 Recurring flows
 
-The recurring cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed. It is evaluated each round. Coverage merges retarget its entries ([§4.2](#42-partitioning)). Reconciliation of the cycle is Planned ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)).
+The recurring cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed, as authored recurring rules. It is evaluated each round, when each rule compiles to a coupling or a stock law ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Coverage merges retarget its entries ([§4.2](#42-partitioning)). Reconciliation of the cycle is Planned ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)).
 
 ### 7.3 Seeds and randomness
 
@@ -158,6 +158,8 @@ A run's state is:
 - the World State ([02 §8](02_type_system.md#8-world-state-and-round-resolution));
 - the appended round records, one per round ([§11](#11-round-execution));
 - the manifest.
+
+World State includes the **pending** couplings and the **templates** table ([02 §3.4](02_type_system.md#34-successors)). Instantiation starts both empty. Pending couplings are consumed at the round boundary, and the kernel's spawns append to the list as a run goes.
 
 A run folds the round runner over the World State for the configured number of rounds. The live, simulated, and replayed runs share one round runner and one set of effect rules, and only their handlers differ ([02 §8.4](02_type_system.md#84-effects-and-handlers)). The instance a runner plays is the Game that assembly builds ([§10](#10-initialization-pipeline)). No other instance type exists.
 
@@ -195,11 +197,11 @@ Assembly builds the Game. It resolves the overrides, runs instantiation, and the
 
 ## 11. Round Execution
 
-This section gives the order of one round as the runner executes it. A live session runs a Game through the live runner. Each seat's binding answers. A Human seat types its transcript in the propose window, and an Agent seat answers through its own model call. A Strategy or Script seat answers from its binding. An in-world Entity answers through its Policy.
+This section gives the order of one round as the runner executes it. Propose and Sign are the round runner's vocabulary: it gathers Proposals and signatures, and the engine screens them and compiles them to couplings ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). A live session runs a Game through the live runner. Each seat's binding answers. A Human seat types its transcript in the propose window, and an Agent seat answers through its own model call. A Strategy or Script seat answers from its binding. An in-world Entity answers through its Policy.
 
 The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner's own work. Steps 1, 2, and 7 to 10 are engine phases that the runner calls. The phases and their guarantees are defined in the canonical sequence ([02 §8.1](02_type_system.md#81-canonical-resolution-sequence)).
 
-1. **Prepare (phase 1, engine).** The engine applies the round's due deliveries and the Rule changes scheduled at the last boundary. Each change is recorded as an event.
+1. **Prepare (phase 1, engine).** The engine consumes every pending coupling due at the boundary, in phase then tier order: deliveries, Rule changes scheduled at the last boundary, and any authored successors. Each move or change is recorded as an event, and each consumption can spawn successors.
 2. **Observe (phase 2, engine).** Each Entity's View is built from the prepared state.
 3. **Speak.** Each Entity without an in-world Policy speaks: a human's typed transcript, an AI agent's model call, or silence. Strategy, Script, and unbound seats are silent.
 4. **Joint pass.** If any transcript exists, one joint pass reads all of them together into Proposals ([§11.2](#112-live-session)). If none exists, the round makes no model call.
@@ -215,7 +217,7 @@ The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner'
 
 A round record holds the round number, its inputs, and its events.
 
-- **Inputs**: every submitted signed Proposal, with its signatures, including those that later lapsed or were rejected. Replay needs the full set, and the events say what was dropped.
+- **Inputs**: every submitted signed Proposal, with its signatures, including those that later lapsed or were rejected, in the authored vocabulary. The couplings compiled from them are not stored: replay recompiles them from the inputs, and the events say what was dropped.
 - **Events**: the outcomes of the round, whose kinds are defined in the Type System ([02 §2.5](02_type_system.md#25-glossary)). Events record executed quantities. A partial fill appears as a smaller leg, and a shortfall as moved less than owed on a leg.
 
 Replay answers seats from the recorded Proposals and signatures, so it makes no model call ([06 §4](06_simulator.md#4-seat-policies)).
@@ -230,7 +232,7 @@ Live play turns typed transcripts into Proposals and signatures. Players give no
 - **Signatures.** Negotiation happens out of band, and human and AI agent seats give no separate signature. Each speaker whose transcript describes a Proposal counts as signing it. The joint pass reconciles the transcripts into one Proposal.
 - **Strategy and Script seats** answer through their binding.
 
-Admissibility is enforced by the engine at screening, whichever source produced a Proposal ([02 §3.1](02_type_system.md#31-intent-validation)).
+Admissibility is enforced by the engine at screening, whichever source produced a Proposal ([03 §12.5](03_gameboard.md#125-static-refusals)).
 
 ## 12. Validation
 

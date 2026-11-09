@@ -63,9 +63,9 @@ Each run stores its overrides in its spec and its initial World State in its man
 
 ## 4. Seat Policies
 
-The engine accepts only Intents ([02 §4](02_type_system.md#4-policies)). In simulation each seat is bound, at assembly, to a **seat Policy** ([04 §3.1](04_instantiated_game.md#31-selection-and-control)). Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
+The engine accepts only Intents ([03 §10.4](03_gameboard.md#104-available-actions)). In simulation each seat is bound, at assembly, to a **seat Policy** ([04 §3.1](04_instantiated_game.md#31-selection-and-control)). Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
-The simulator runs two machine bindings: a preset strategy and a script of literal Proposals and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's objective ([05 §9.3](05_test_instance.md#93-objectives)). Presets run on the shared decision-language interpreter that NPC and Aggregate Policies use ([02 §4.4](02_type_system.md#44-shared-decision-language-interpreter), [INV-29](02_type_system.md#inv-29)).
+The simulator runs two machine bindings: a preset strategy and a script of literal Proposals and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's objective ([05 §9.3](05_test_instance.md#93-objectives)). Presets run on the shared decision-language interpreter that NPC and Aggregate Policies use ([03 §8.1](03_gameboard.md#81-shared-interpreter), [INV-29](02_type_system.md#inv-29)).
 
 Every kind sees only its Actor's authorized view ([INV-16](02_type_system.md#inv-16)) and maps it to Intents. Every accepted Intent is recorded, so every run replays from its round records. Seat Policies never mutate World State: each Intent passes ordinary validation and settlement.
 
@@ -75,7 +75,7 @@ The simulator never invents default decisions. A seat meant to stay silent is bo
 
 ### 4.2 Presets
 
-Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the settings package's preset file, compiled into each setting. A setting binds the presets to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Markets the seat can access with the lowest and highest opening price ([02 §4.4](02_type_system.md#44-shared-decision-language-interpreter)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
+Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the settings package's preset file, compiled into each setting. A setting binds the presets to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Markets the seat can access with the lowest and highest opening price ([03 §8](03_gameboard.md#8-policy-catalog)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
 
 | Preset | Behaviour |
 |---|---|
@@ -119,7 +119,7 @@ Two operations drive a run: **run to completion**, and **extend**, which continu
 
 ### 6.1 Invalid actions and failures
 
-An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules ([02 §3.2](02_type_system.md#32-infeasible-actions)). The round record keeps both the proposed and the executed action.
+An invalid action is an ordinary outcome. It is recorded with its reason and handled by the engine's deterministic reject or partial-fill rules ([02 §3.6](02_type_system.md#36-infeasible-actions)). The round record keeps both the proposed and the executed action.
 
 An invariant violation is reported, not blocked. The round's assertions are stored beside it, the status stays `completed`, and the run list counts them. The store keeps the configuration, the seeds, every round's state and record, and the violated invariant, so a failure can be reproduced and turned into a regression test.
 
@@ -158,16 +158,17 @@ Each assertion checks one invariant from the Type System master table ([02 §9](
 | Resource consistency | [INV-04](02_type_system.md#inv-04) | Implemented |
 | Stock-flow reconciliation | [INV-05](02_type_system.md#inv-05) | Implemented |
 | Market solvency | [INV-06](02_type_system.md#inv-06) | Implemented |
-| Price is not production | [INV-07](02_type_system.md#inv-07) | Implemented (no leg a Market curve settles comes from the source or goes to the sink) |
+| Price is not production | [INV-07](02_type_system.md#inv-07) | Implemented (no leg a Market curve or a plain Transfer settles crosses the economy's boundary) |
 | Account partition | [INV-08](02_type_system.md#inv-08) | Implemented per round for Resources drawn from their holder |
 | Representation consistency | [INV-09](02_type_system.md#inv-09) | Implemented for the estimator bound |
-| Signature completeness | [INV-10](02_type_system.md#inv-10) | Implemented |
+| Consent completeness | [INV-10](02_type_system.md#inv-10) | Implemented |
 | Order independence | [INV-11](02_type_system.md#inv-11) | Implemented as `orderIndependent`, which replays the round in other orders. Run by §14 test 3, not per round in play |
 | Policy reproducibility | [INV-12](02_type_system.md#inv-12) | Not checked per round. Covered by §14 tests 2 and 13 |
 | Deterministic replay | [INV-13](02_type_system.md#inv-13) | Tested by §14 test 2 |
 | Resolution consistency | [INV-14](02_type_system.md#inv-14) | Tested by §14 test 12 |
 | Single authoritative state | [INV-15](02_type_system.md#inv-15) | Not checked per round. Structural: the engine's one round update holds a single World State |
 | Information isolation | [INV-16](02_type_system.md#inv-16) | Deferred until players see different information |
+| Obligation consumption | [INV-37](02_type_system.md#inv-37) | Implemented (no due obligation stays pending; `checkAfter` also reports more boundary settlements than obligations due) |
 
 Simulator invariants [INV-29](02_type_system.md#inv-29) and [INV-30](02_type_system.md#inv-30) are checked by the handler suite, and [INV-31](02_type_system.md#inv-31) by §14 test 13. Conservation checks read each Resource's declared properties and the Transformations that produce or consume it ([INV-04](02_type_system.md#inv-04), [INV-05](02_type_system.md#inv-05)). They hard-code no Resource, because a Resource can be produced, consumed, reserved, or issued by design, so a blanket "totals are constant" check would be wrong.
 
@@ -202,7 +203,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 | **Run ID, name, status** | Identity and lifecycle state, with `created`, `reason` (for a failed run), and the derivation link (`source`, with its `kind` in the spec). |
 | **Manifest** | The manifest defined in [04 Terms](04_instantiated_game.md#terms), stored with the run. The preset, player seed, round count, and overrides are in the spec ([04 §9](04_instantiated_game.md#9-runtime-state-and-lifecycle)). |
 | **Round records** | Append-only Proposals, signatures, lapsed Proposals, proposed and executed actions, procedure Proposals with their support and outcome, stored Representation estimates, and events. |
-| **Snapshots** | One per round. The initial World State is in the manifest. |
+| **Snapshots** | One per round. The initial World State is in the manifest. A snapshot holds the World State, including `pending` and `templates` ([02 §3.4](02_type_system.md#34-successors)). |
 | **Assertions** | Failures per round, with their invariant IDs. |
 | **Metrics** | Derived projections (for example `price:<market>` after each round), tagged with the version of the metric definitions (`v1`). |
 
@@ -216,7 +217,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 **Rejection reasons.** A `RejectReason` is stored as a structured value, so a stored event reads back equal to the event that was recorded. Its display text is derived from the value when shown and is not stored.
 
-**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 1, and there are no migrations: a change to the schema starts a new store. The one exception is additive: `scenario_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
+**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 2 (`schemaVersionCurrent`), and there are no migrations: a change to the schema starts a new store. Version 2 removed `deliveries` and `scheduled` from snapshots, which `pending` replaces. The one exception is additive: `scenario_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
 
 | Table | Columns | Key |
 |---|---|---|
@@ -382,6 +383,6 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and snapshots with the pure run, and replay from the stored records. The run is identical ([INV-31](02_type_system.md#inv-31)). |
 | 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference setting. Under the `RandomValid` baseline, every Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Actors with no measurable effect are pinned as balancing findings, so a setting change is noticed. |
 
-Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third snapshot matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
+The settings suite also runs the authored agreements of [03 §15](03_gameboard.md#15-authoring-laws-and-agreements), which are not a mandatory game test. The core suite covers only the kernel, and the rest of the former core tests are in `packages/rules/test`. Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third snapshot matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 
 **Live interpretation check (one-off, billed, not in CI).** One real model call over fixed transcripts checks that the reply decodes and that a joint Proposal reconciles. It needs an explicit opt-in, and no suite runs it.

@@ -5,7 +5,7 @@
 
 ## 1. Purpose
 
-Meridian is the provisional reference setting. It gives concrete values to every choice that the [Type System](02_type_system.md), the [Gameboard](03_gameboard.md) and the [Instantiated Game](04_instantiated_game.md) leave open. The golden fixtures and test suites run against it, so each value is also a check. Terms follow the [Type System glossary](02_type_system.md#25-glossary), and invariants are cited by ID.
+Meridian is the provisional reference setting. It gives concrete values to every choice that the [Type System](02_type_system.md), the [Gameboard](03_gameboard.md) and the [Instantiated Game](04_instantiated_game.md) leave open. The golden fixtures and test suites run against it, so each value is also a check. Terms follow the [Type System glossary](02_type_system.md#25-glossary) and the [Gameboard Terms](03_gameboard.md#terms), and invariants are cited by ID.
 
 # Part I: Type System Configuration
 
@@ -51,7 +51,7 @@ The `defence-goods` Market trades Military for Money, so a deployment and a sale
 
 ### 3.3 Facilities
 
-- **Energy shipping** (`energy-shipping`). Capacity 60 E per round, at a flat cost of 0.3 M per E paid by the sender, with no delay. Every order needs SHIP's signature. A cross-region Energy Transfer is valid only in the same Proposal as a shipping order of the same quantity ([03 §5.5](03_gameboard.md#55-geography-access-and-rules)). If SHIP signs more than 60 E of shipments in a round, every shipping Proposal of that round is rejected as a unit ([Type System §5.3](02_type_system.md#53-facilities-costed-transformations)). Logistics investment adds 10 E of capacity from the next round. Governments restrict shipping by Rules ([§13.2](#132-trade-restrictions-and-the-tariff)).
+- **Energy shipping** (`energy-shipping`). Capacity 60 E per round, at a flat cost of 0.3 M per E paid by the sender, with no delay. Every order needs SHIP's signature. A cross-region Energy Transfer is valid only in the same Proposal as a shipping order of the same quantity ([03 §5.5](03_gameboard.md#55-geography-access-and-rules)). If SHIP signs more than 60 E of shipments in a round, every shipping Proposal of that round is rejected as a unit ([Gameboard §5.3](03_gameboard.md#53-facilities)). Logistics investment adds 10 E of capacity from the next round. Governments restrict shipping by Rules ([§13.2](#132-trade-restrictions-and-the-tariff)).
 - **Defence procurement** (`defense-procurement`; China orders from its own facility, `defense-procurement-cn`, with payee CN_PRIVATE). Capacity 30 Mil per round, backed by CHIP's 15 semiconductor units, one unit per 2 Mil. Units CHIP withholds, or that investment draws, cut capacity in proportion. **p(q) = 8 + 0.5q**, **C(q) = 8q + 0.25q²**, where q is the total Military ordered this round. Every order settles at the uniform price C(Q)/Q. Money and Energy are escrowed at screening at the full-capacity price, 15.5 M/Mil. Over-subscription is allocated in whole Military units, as in [Fixture F](#26-fixture-f-simultaneous-conflicting-orders). The payee is DEF, which passes 25% of its procurement revenue to US_WORKERS as variable wages.
 - **Public attention** (`public-attention`). **p(q) = 3 + 0.2q**, **C(q) = 3q + 0.1q²**, where q is the total Soft Power generated this round. Capacity 50 units per round, one Soft Power per unit and at most 10 per order. The payee is WORLD_HOUSEHOLDS, standing in for the media sector.
 
