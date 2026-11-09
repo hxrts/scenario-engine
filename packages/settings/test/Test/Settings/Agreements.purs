@@ -199,6 +199,13 @@ spec = describe "New designs, written with no core change" do
     holding (after 7 w) b goods `shouldEqual` q 3
     (after 7 w).pending `shouldEqual` []
 
+  it "a successor naming a party its parent did not bind fails the round" do
+    let
+      parent = agreement kind [ a ]
+        [ clause "open" (named a) { from: Created, to: held (named a), resource: goods, owed: Exactly (q 1) } Cap [] (noNext { performed = [ spawn "next" 1 [] [ Tuple "who" (named b) ] ] }) ]
+      w = world { pending = [ due 1 parent ], templates = Map.fromFoldable [ step "next" [] [ "who" ] (agreement kind [] []) ] }
+    either show (const "resolved") (resolveRound w []) `shouldEqual` "invalid successor: (OutsideParent \"next\" B)"
+
   describe "a renegotiable step needs a fresh signature" do
     let
       renew = agreement kind []

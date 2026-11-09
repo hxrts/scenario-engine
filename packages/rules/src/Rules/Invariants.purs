@@ -72,7 +72,7 @@ check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) c
 
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
-checkAfter before r = check (prepareRound before) r <> consumedOnce before r
+checkAfter before r = check (prepareRound before) r <> successors before r <> consumedOnce before r
 
 -- | INV-11 Order independence over a resolver: resolving the round's inputs in other orders gives the same
 -- | World State. Not part of `check`, which reads a finished round: this one plays the round again.
@@ -124,13 +124,18 @@ inv02 w r = concatMap one (executed r)
 -- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
 -- | membership (its kind). Only holdings and Rules move.
 inv03 :: WorldState -> RoundResult -> Array Failure
-inv03 before r = concatMap one (entitiesOf (r.world)) <> concatMap stranger (filter new r.world.pending)
+inv03 before r = concatMap one (entitiesOf (r.world)) <> successors before r
   where
   one e = case Map.lookup e.id before.entities of
     Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
     _ -> []
+
+-- | INV-03 for successors: one carries its parent's signers, and may bind only those already bound. It
+-- | needs the world before Prepare, since Prepare both consumes the parent and spawns the successor.
+successors :: WorldState -> RoundResult -> Array Failure
+successors before r = concatMap stranger (filter new r.world.pending)
+  where
   new p = not (p `elem` before.pending)
-  -- a successor carries its parent's signers, and may bind only those it was already bound to
   bound = concatMap (partiesOf <<< _.coupling <<< unwrap) before.pending
   stranger (PendingCoupling p)
     | null p.coupling.consented = []

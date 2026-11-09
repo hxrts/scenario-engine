@@ -14,7 +14,7 @@ import Core.Map (entries, sumMaps)
 
 import Rules.Engine.Circulate (circulate)
 import Rules.Engine.Fund (fund)
-import Rules.Engine.Prepare (prepareRound)
+import Rules.Engine.Prepare (prepareChecked)
 import Rules.Engine.Screen (duplicatedIds, screen, withinMaximums)
 import Rules.Engine.Settle (Settlement, settle)
 import Core.Kernel.Post (Account(..), ledgerByAccount)
@@ -36,12 +36,14 @@ data EngineError
   = NegativeBalance EntityId ResourceId -- an invariant failure: settlement should make this unreachable
   | NegativeReserve MarketId ResourceId -- likewise, for Market reserves
   | NegativeFlow EntityId EntityId -- a fixed flow with a negative amount: a World State the setting codec would refuse
+  | InvalidSuccessor String -- a due coupling spawned what its parent may not
 
 derive instance Eq EngineError
 instance Show EngineError where
   show (NegativeBalance e r) = "negative balance: " <> show e <> " " <> show r
   show (NegativeReserve m r) = "negative reserve: " <> show m <> " " <> show r
   show (NegativeFlow from to) = "negative fixed flow: " <> show from <> " to " <> show to
+  show (InvalidSuccessor why) = "invalid successor: " <> why
 
 -- | Resolve one round. The World State is prepared first, so the caller passes it in
 -- | either prepared or not; the result is the same.
@@ -65,9 +67,13 @@ prepared round = case _ of
   _ -> false
 
 resolveValid :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
-resolveValid w0 inputs0 =
+resolveValid w0 inputs0 = case prepareChecked w0 of
+  Left e -> Left (InvalidSuccessor (show e))
+  Right prepared' -> resolvePrepared prepared' inputs0
+
+resolvePrepared :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
+resolvePrepared w inputs0 =
   let
-    w = prepareRound w0
     inputs = sortWith submissionOrder inputs0
     screened = map (screen w (duplicatedIds inputs)) inputs
     bounded = withinMaximums w (concatMap (either (const []) pure) screened)
