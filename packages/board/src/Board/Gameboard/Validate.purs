@@ -11,11 +11,11 @@ module Board.Gameboard.Validate
 
 import Prelude
 
-import Core.Map (values)
+import Core.Map (entries, values)
 
 import Board.Gameboard.Instantiate (instantiate, withoutActor)
 import Board.Gameboard.Reconcile (reconcile)
-import Schema.Gameboard (ActorDefinition, Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
+import Schema.Gameboard (Bound(..), Fallback(..), Gameboard, InstantiationConfig, Measure(..), MetricRef)
 import Schema.Gameboard as Schema
 import Board.Error (ValidationError(..))
 import Core.Query (aggregateOf, isAggregate)
@@ -64,7 +64,7 @@ validateGameboard gb config =
     <> map (UnknownReference RefEntity <<< idText) (filter (\e -> not (Map.member e gb.actors)) (fromFoldable (Map.keys config.fallbacks)))
   delays = map (NegativeDelay <<< _.id) (filter (\t -> t.delay < 0) facilities)
   capacities = concatMap productionHeld w.recurring
-    <> concatMap coverageAggregate (Map.toUnfoldable gb.actors :: Array (Tuple EntityId ActorDefinition))
+    <> concatMap coverageAggregate (entries gb.actors)
     <> concatMap schemeTarget gb.schemes
     <> (map (\g -> DuplicateCapacityOwner (show (NEA.head g))) (filter (\g -> NEA.length g > 1) (group (sort (concatMap (\e -> fromFoldable (Map.keys e.capacities)) entities # filter (\c -> not (sharedProduction c)))))))
   -- production capacity is held by each producer under one name; every other capacity has one owner
@@ -81,8 +81,8 @@ validateGameboard gb config =
     Just (ImplicitCoverage agg) | Map.member agg w.entities && not (isAggregateId agg) -> [ CoverageNotAggregate e agg ]
     _ -> []
   schemeTarget s = if Map.member s.target w.entities && not (isAggregateId s.target) then [ SchemeTargetNotAggregate s.id s.target ] else []
-  fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (Map.toUnfoldable gb.actors :: Array _)
-  objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (Map.toUnfoldable gb.actors :: Array _)
+  fallbacks = concatMap (\(Tuple e d) -> if not d.required && isNothing d.fallback then [ MissingFallback e ] else []) (entries gb.actors)
+  objectives = concatMap (\(Tuple e d) -> if isNothing d.objective then [ MissingObjective e ] else []) (entries gb.actors)
   procedures = concatMap
     (\x -> if any (\p -> not (all (_ `elem` x.entity.capabilities) p.authorizes)) (values x.aggregate.procedures) then [ ProcedureExceedsAuthority x.entity.id ] else [])
     aggregates

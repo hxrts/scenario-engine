@@ -9,7 +9,7 @@ module Board.Gameboard.Instantiate
 
 import Prelude
 
-import Core.Map (sumMaps)
+import Core.Map (entries, sumMaps)
 
 import Schema.Gameboard (Fallback(..), Gameboard, gameboardRef, InitialWorld, InstantiationConfig)
 import Schema.Recurring (isRequirement, kinds, normalize)
@@ -32,7 +32,7 @@ instantiate :: Gameboard -> InstantiationConfig -> Either (Array ValidationError
 instantiate gb config =
   let
     errors = controllerErrors <> representationErrors
-    world = foldl applyFallback (gb.world { entities = map setController gb.world.entities }) (Map.toUnfoldable unselected :: Array _)
+    world = foldl applyFallback (gb.world { entities = map setController gb.world.entities }) (entries unselected)
     final = (seeded config.seed world)
       { representations = mapMaybe toRepresentation config.representations }
   in
@@ -45,7 +45,7 @@ instantiate gb config =
   selected e = Map.member e config.seats || Map.member e config.npcs
   unselected = Map.mapMaybeWithKey (\e d -> if selected e then Nothing else Just (fromMaybe (fromMaybe PermittedOmission d.fallback) (Map.lookup e config.fallbacks))) gb.actors
   controllerErrors =
-    concatMap (\(Tuple e d) -> if d.required && not (selected e) then [ RequiredNotSelected e ] else []) (Map.toUnfoldable gb.actors :: Array _)
+    concatMap (\(Tuple e d) -> if d.required && not (selected e) then [ RequiredNotSelected e ] else []) (entries gb.actors)
       <> concatMap
         ( \e -> case Map.lookup e gb.actors of
             Just d | d.seat -> []
@@ -57,7 +57,7 @@ instantiate gb config =
             Just d | p `elem` d.npc -> []
             _ -> [ ControllerNotAllowed e ]
         )
-        (Map.toUnfoldable config.npcs :: Array _)
+        (entries config.npcs)
   representationErrors = concatMap
     ( \r -> case schemeOf r.scheme of
         Just s | r.actor `elem` s.eligibleActors && selected r.actor -> []

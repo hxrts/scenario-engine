@@ -18,7 +18,7 @@ import Core.World (Focus, RoundRecord, WorldState)
 import Core.Types (EntityId, TransformationId, idText, Market, MarketId, ResourceId)
 import Views.Common (Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
 
-import Core.Map (sumInto)
+import Core.Map (entries, sumInto)
 
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
@@ -56,7 +56,7 @@ markets r =
         , points: recordPoints r \rec -> exact (runSlice (boughtVolume id) rec.events)
         }
     )
-    (Map.toUnfoldable r.manifest.initial.markets :: Array _)
+    (entries r.manifest.initial.markets)
 
 facilities :: StoredRun -> Table
 facilities r = tableOf "Facilities" facilityFields

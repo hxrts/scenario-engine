@@ -25,9 +25,8 @@ import Control.Alt ((<|>))
 import Schema.Run (deriveKindShape)
 import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Core.Shape (class Payload, Shape, arrayOf, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
+import Core.Shape (class Payload, Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
 import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
-import Data.Argonaut.Decode (decodeJson)
 import Data.Array (catMaybes, filter, findMap, length, zipWith)
 import Data.Either (Either(..), either)
 import Data.Bifunctor (lmap)
@@ -350,7 +349,7 @@ seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Ju
   encode = maybe jsonNull (maybe jsonNull (fromNumber <<< toNumber))
   decode j
     | isNull j = Right (Just Nothing)
-    | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJson j) <#> (Just <<< Just)
+    | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJsonWith Snapshot intShape j) <#> (Just <<< Just)
 
 -- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Game.Recipe`).
 deriveShape :: Shape DeriveRequest

@@ -6,6 +6,7 @@
 module Test.Handlers.Stub
   ( answering
   , backendOf
+  , decodeRecording
   , digest
   , jointOf
   , replayCall
@@ -17,7 +18,7 @@ module Test.Handlers.Stub
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
-import Core.Shape (Format(..), decodeJsonWith, encodeWith)
+import Core.Shape (Format(..), arrayOf, decodeJsonWith, encodeWith)
 import Data.Argonaut.Core (stringify, toArray, toNumber, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (uncons)
@@ -37,7 +38,8 @@ import Handlers.Llm.Backend (Backend, Call, backend)
 import Schema.Joint (ProposedJoint, jointReplyShape)
 import Handlers.Llm.Call (ModelCall, interpretCall, narrateCall, speakCall)
 import Handlers.Llm.Wire (textReplyShape)
-import Handlers.Recording (Exchange, Recording)
+import Handlers.Recording (Exchange, Recording, exchangeShape)
+import Schema.Decode (decodeError)
 
 -- | The stub digest: sixteen characters, as the adapter's is, with no hashing.
 digest :: String -> String
@@ -127,3 +129,7 @@ replayCall rec = do
           | otherwise -> do
               liftEffect (Ref.write tail next)
               pure { text: replyTextOf x, raw: "" }
+
+-- | The recording file's text, read back through its shape.
+decodeRecording :: String -> Either String Recording
+decodeRecording text = jsonParser text >>= decodeError <<< decodeJsonWith Snapshot (arrayOf exchangeShape)

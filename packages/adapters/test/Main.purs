@@ -30,7 +30,8 @@ import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Handlers.Simulate (simulate, simulateWith)
 import Handlers.Seats (seatEnv)
 import Testkit.Meridian (orThrow, presetSeats)
-import Test.Adapters.Files (createStoreAtVersion, fileExists, removeFile, setRawSpec)
+import Node.FS.Sync (exists)
+import Test.Adapters.Files (createStoreAtVersion, removeFile, setRawSpec)
 import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
 import Test.Adapters.Primitives as PrimitiveTests
@@ -115,8 +116,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
       opened <- liftEffect (try (openReadOnly path))
       (isLeft opened) `shouldEqual` true
-      exists <- liftEffect (fileExists path)
-      exists `shouldEqual` false
+      present <- liftEffect (exists path)
+      present `shouldEqual` false
 
     it "a read-only open sees a store" do
       let path = "run-store-readonly-test.db"

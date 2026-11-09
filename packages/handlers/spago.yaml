@@ -9,7 +9,6 @@ package:
     - sp-policy
     - sp-game
     - sp-effects
-    - argonaut-codecs
     - argonaut-core
     - effect
     - either

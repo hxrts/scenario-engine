@@ -14,6 +14,8 @@ module Game.Assemble
 
 import Prelude
 
+import Core.Map (entries)
+
 import Game.Bindings (strategyBindings)
 
 import Board.Gameboard.Instantiate (instantiate)
@@ -80,7 +82,7 @@ checkSeats seats bindings = do
 -- | Every Strategy bound to a seat names only what the setting has. A catalog Policy or preset was
 -- | checked at load; a Strategy bound directly (the capstone's, an `assemble` caller's) is checked here.
 checkStrategies :: forall m r t k. Names m r t k -> Bindings -> Either GameError Unit
-checkStrategies names bindings = traverse_ check (Map.toUnfoldable bindings :: Array _)
+checkStrategies names bindings = traverse_ check (entries bindings)
   where
   check (Tuple e binding) = case binding of
     Strategy s -> checkRefs ("seat " <> unwrap e) names s

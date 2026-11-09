@@ -42,9 +42,7 @@ import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
 import Game.Types (Game)
-import Data.Argonaut.Decode (fromJsonString)
-import Schema.Decode (decodeError)
-import Test.Handlers.Stub (answering, backendOf, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
+import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Core.Shape (Format(..), descKeys, encodeWith, prose)
@@ -259,7 +257,7 @@ spec = do
       j1 <- single =<< jointWith g live [ tr "US" "buy ten energy" ]
       rec <- liftEffect (Ref.read exchanges)
       length rec `shouldEqual` 1
-      back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (decodeError (fromJsonString (encodeRecording rec)))
+      back <- either (\e -> throwError (error ("the recording should decode: " <> e))) pure (decodeRecording (encodeRecording rec))
       replay <- liftEffect (replayCall back)
       j2 <- single =<< jointWith g (backendOf replay) [ tr "US" "buy ten energy" ]
       j2.signed `shouldEqual` j1.signed

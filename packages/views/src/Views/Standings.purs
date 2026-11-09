@@ -14,6 +14,8 @@ module Views.Standings
 
 import Prelude
 
+import Core.Map (entries)
+
 import Core.Map as CoreMap
 import Core.Market (marketPrice)
 import Core.Num (Kind(..), Q)
@@ -65,7 +67,7 @@ standingsOf r = map standing ranked
   where
   start = netWorths r.manifest.initial
   finals = netWorths (final r)
-  ranked = sortBy (\(Tuple _ a) (Tuple _ b) -> compare b a) (Map.toUnfoldable finals :: Array (Tuple EntityId Q))
+  ranked = sortBy (\(Tuple _ a) (Tuple _ b) -> compare b a) (entries finals)
   rankOf v = 1 + length (filter (\(Tuple _ u) -> u > v) ranked)
   standing (Tuple e v) = { player: e, netWorth: v, change: Q.sub v (fromMaybe Q.zero (Map.lookup e start)), rank: rankOf v }
 

@@ -53,6 +53,8 @@ module Views.Common
 
 import Prelude
 
+import Core.Map (entries)
+
 import Record as Record
 import Core.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
 import Core.Types (idText, EntityId, ProposalId, ResourceId)
@@ -286,7 +288,7 @@ outcomeLabel executed = if executed then "executed" else "lapsed"
 -- | The players of a World State: its Actors, every Entity except the Aggregates (which are residual
 -- | representations, not players), in Entity order.
 players :: WorldState -> Array EntityId
-players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (Map.toUnfoldable w.entities :: Array _))
+players w = map fst (filter (\(Tuple _ e) -> not (isAggregate e)) (entries w.entities))
 
 -- | A collective procedure the run recorded: its Proposal, the members who signed it, and whether it
 -- | executed, with its support against its threshold. Drivers and Representation both render their

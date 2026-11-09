@@ -41,3 +41,18 @@ sum-projection packages/schema/src/Schema/Setting/Intent.purs intentShape a trad
 sum-projection packages/schema/src/Schema/Setting/Strategy.purs templateShape a joint Proposal and a Procedure share one Template constructor, split by their procedure and shape
 test-literal packages/policy/test/Main.purs main format-pinning test: a nested Procedure in Strategy JSON must not decode
 name-literal packages/adapters/src/Adapters/SQLite.purs roundsTable a table name of the store, not the specification key that spells the same word
+# Each line names why this one hit is correct to keep; the rule's fix text applies everywhere else.
+hand-instance packages/core/src/Core/World.purs instance-Show-RejectReason the text is the rejection's display text (renderReason), the one place it is written
+hand-json apps/dashboard/src/Dashboard/Chart.purs chartRows a chart row's keys are the series names, known only at run time; no shape can name them
+hand-json apps/dashboard/src/Dashboard/Chart.purs barRows a chart row's keys are the series names, known only at run time; no shape can name them
+hand-json apps/dashboard/src/Dashboard/Components.purs stackedBars a bar row's keys are the action kinds, known only at run time; no shape can name them
+name-literal apps/dashboard/src/Dashboard/Launch.purs emptyForm the launch form's own default preset (docs/06 §9.1), not a copy of a list: it is checked against GET /api/setting's presets
+name-literal packages/schema/src/Schema/Setting/Fixture.purs procedureShape the name of this record's shape, in which an Event kind's name is reused as an English word
+implicit-codec apps/server/test/Main.purs main format-pinning test: request and reply JSON are the wire format of docs/06 §8.1
+implicit-codec packages/adapters/test/Test/Adapters/Pi.purs streamOf format-pinning test: the raw pi event stream of docs/06 §5
+intent-walk packages/handlers/test/Test/Handlers/Shock.purs roundKinds the test's own label per kind of Intent; a label is not a walk of an Intent's references
+intent-walk packages/policy/src/Policy/Interpret.purs zeroQuantity one rule per kind of Intent (a ChangeRule has no quantity), not a walk of its references
+alias packages/views/src/Views/Common.purs quantity a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
+alias packages/views/src/Views/Common.purs price a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
+alias packages/views/src/Views/Common.purs ratio a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
+alias packages/views/src/Views/Common.purs exact a chart value is sent exactly, and the name states that a cell is not a display value

@@ -2,11 +2,9 @@
 // Finds manual implementations of something that should be derived from one description (docs/07 §3):
 // a hand projection of a sum, a hand codec, a slice of the Events written as a `case`, a name written twice.
 //
-//   derived.js                     compare the hits with scripts/check/derived.baseline (the gate)
+//   derived.js                     the gate: any hit outside scripts/check/derived.allow fails
 //   derived.js --list              print every hit as `file:line rule-id text`, with a count per rule
 //   derived.js --samples           run each rule on its samples in scripts/check/samples
-//   derived.js --lower-baseline    record counts that fell; refuses a count that rose
-//   derived.js --write-baseline    create the baseline when there is none
 //   --root DIR                        read the sources of another checkout
 //
 // Hits named in scripts/check/derived.allow are correct to keep and are not counted.
@@ -20,7 +18,6 @@ const rootArg = process.argv.indexOf("--root");
 const root = rootArg === -1 ? path.join(__dirname, "..", "..") : path.resolve(process.argv[rootArg + 1]);
 const flag = (f) => process.argv.includes(f);
 
-const baselineFile = path.join(scriptsDir, "derived.baseline");
 const allowFile = path.join(scriptsDir, "derived.allow");
 const samplesDir = path.join(scriptsDir, "samples");
 
@@ -342,24 +339,6 @@ function readAllow(hits) {
   return { allowed, problems };
 }
 
-// Baseline -------------------------------------------------------------------------------------------
-
-const countByFile = (hits) => {
-  const c = new Map();
-  for (const h of hits) c.set(`${h.rule} ${h.file}`, (c.get(`${h.rule} ${h.file}`) || 0) + 1);
-  return c;
-};
-const writeBaseline = (c) => fs.writeFileSync(baselineFile, [...c.keys()].sort().map((k) => `${k} ${c.get(k)}`).join("\n") + "\n");
-function readBaseline() {
-  const c = new Map();
-  fs.readFileSync(baselineFile, "utf8").split("\n").filter((l) => l.trim() && !l.startsWith("#")).forEach((l) => {
-    const m = /^(\S+) (\S+) (\d+)$/.exec(l);
-    if (!m) fail(`scripts/check/derived.baseline: a line is 'rule-id file count': ${l}`);
-    c.set(`${m[1]} ${m[2]}`, Number(m[3]));
-  });
-  return c;
-}
-
 const summary = (hits) => {
   const byRule = {};
   for (const h of hits) byRule[h.rule] = (byRule[h.rule] || 0) + 1;
@@ -400,38 +379,10 @@ function main() {
 
   const { allowed, problems } = readAllow(hits);
   const counted = hits.filter((h) => !allowed.has(`${h.rule}\t${h.file}\t${h.symbol}`));
-  const current = countByFile(counted);
-
-  if (flag("--write-baseline")) {
-    if (fs.existsSync(baselineFile)) fail("scripts/check/derived.baseline exists; use --lower-baseline to record a fall");
-    writeBaseline(current);
-    console.log(`wrote the baseline: ${counted.length} hits`);
-    return;
-  }
-  if (!fs.existsSync(baselineFile)) fail("no scripts/check/derived.baseline: run `node scripts/check/derived.js --write-baseline` once");
-  const base = readBaseline();
-
-  if (flag("--lower-baseline")) {
-    const rose = [...current].filter(([k, n]) => n > (base.get(k) || 0));
-    if (rose.length) fail(`a count rose, so the baseline is not rewritten:\n  ${rose.map(([k, n]) => `${k}: ${n}, baseline ${base.get(k) || 0}`).join("\n  ")}`);
-    writeBaseline(current);
-    console.log(`lowered the baseline: ${counted.length} hits`);
-    return;
-  }
-
-  const errors = [...problems];
-  const keys = new Set([...current.keys(), ...base.keys()]);
-  for (const k of [...keys].sort()) {
-    const [rule, file] = k.split(" ");
-    const now = current.get(k) || 0;
-    const was = base.get(k) || 0;
-    if (now > was) {
-      const added = counted.filter((h) => h.rule === rule && h.file === file).map((h) => `    ${h.file}:${h.line} ${h.text}`).join("\n");
-      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: new code added a manual implementation.\n  fix: ${fixes[rule]}\n  hits:\n${added}`);
-    } else if (now < was) {
-      errors.push(`${rule} ${file}: ${now} hits, baseline ${was}: the count fell.\n  fix: run \`node scripts/check/derived.js --lower-baseline\` and commit scripts/check/derived.baseline`);
-    }
-  }
+  const errors = [
+    ...problems,
+    ...counted.map((h) => `${h.file}:${h.line} ${h.rule} ${h.text}\n  fix: ${fixes[h.rule]}`),
+  ];
   console.log(`check-derived: ${counted.length} hits, ${hits.length - counted.length} allowed\n${summary(counted)}`);
   if (errors.length) { console.error(errors.map((e) => `check-derived: ${e}`).join("\n")); process.exit(1); }
 }

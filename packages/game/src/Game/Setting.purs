@@ -6,6 +6,8 @@ module Game.Setting (GameboardParts, Setting(..), checkSetting, checkRefs) where
 
 import Prelude
 
+import Core.Map (entries)
+
 import Board.Error (ValidationError(..))
 import Board.Gameboard.Validate (Names, gameboardNames, unknownNames, validateGameboard)
 import Core.Strategy (Strategy)
@@ -14,7 +16,6 @@ import Core.World (WorldState)
 import Data.Array (concatMap, filter, head)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
-import Data.Map as Map
 import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
@@ -35,7 +36,7 @@ data Setting
 checkSetting :: GameboardParts -> Either GameError GameboardParts
 checkSetting p = do
   gameboard <- lmapInvalid (validateGameboard p.gameboard p.config)
-  traverse_ (\(Tuple (Id name) s) -> checkRefs ("policy " <> name) (gameboardNames gameboard) s) (Map.toUnfoldable gameboard.policies :: Array _)
+  traverse_ (\(Tuple (Id name) s) -> checkRefs ("policy " <> name) (gameboardNames gameboard) s) (entries gameboard.policies)
   traverse_ (\(Tuple name s) -> checkRefs ("preset " <> name) (gameboardNames gameboard) s) (Object.toUnfoldable p.presets :: Array _)
   pure p { gameboard = gameboard }
   where

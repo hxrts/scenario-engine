@@ -1,8 +1,7 @@
 -- | File-system and process helpers for the adapter tests: Run Store files, scratch directories, a
 -- | fake `pi` on the PATH (the process boundary without a model), and plain text reads and writes.
 module Test.Adapters.Files
-  ( fileExists
-  , removeFile
+  ( removeFile
   , createStoreAtVersion
   , setRawSpec
   , tempDir
@@ -19,12 +18,9 @@ import Data.Maybe (fromMaybe)
 import Effect (Effect)
 import Node.Encoding (Encoding(..))
 import Node.FS.Perms (permsAll)
-import Node.FS.Sync (chmod, exists, mkdir', mkdtemp, readTextFile, rm', writeTextFile)
+import Node.FS.Sync (chmod, mkdir', mkdtemp, readTextFile, rm', writeTextFile)
 import Node.Path (dirname)
 import Node.Process (lookupEnv, setEnv)
-
-fileExists :: String -> Effect Boolean
-fileExists = exists
 
 removeFile :: String -> Effect Unit
 removeFile path = rm' path { force: true, maxRetries: 0, recursive: false, retryDelay: 100 }

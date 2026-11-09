@@ -9,6 +9,8 @@ module Checks.Objectives
 
 import Prelude
 
+import Core.Map (entries)
+
 import Schema.Gameboard (Bound(..), Gameboard, Measure(..), MetricRef, Outcome(..), Span(..))
 import Core.Num (Q)
 import Core.Num as Q
@@ -17,7 +19,6 @@ import Core.Slice (conversionPaymentsTo, conversions, count, read, runSlice, sho
 import Core.Types (EntityId)
 import Core.World (RoundResult)
 import Data.Array (all, any, concatMap, last, null, zipWith)
-import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 
@@ -27,7 +28,7 @@ type ObjectiveResult = { actor :: EntityId, description :: String, criteria :: A
 
 -- | Evaluate every Actor's objective over a run's round records. Never affects the economy.
 evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
-evaluateObjectives gb records = concatMap one (Map.toUnfoldable gb.actors :: Array _)
+evaluateObjectives gb records = concatMap one (entries gb.actors)
   where
   one (Tuple actor def) = case def.objective of
     Nothing -> []

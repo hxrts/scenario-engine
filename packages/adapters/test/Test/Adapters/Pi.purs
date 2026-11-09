@@ -16,7 +16,8 @@ import Data.String (Pattern(..), contains)
 import Effect.Aff (Aff, attempt)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
-import Test.Adapters.Files (fileExists, installPi, readFileText, removeTree, restorePath, tempDir, writeFileText)
+import Node.FS.Sync (exists)
+import Test.Adapters.Files (installPi, readFileText, removeTree, restorePath, tempDir, writeFileText)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -58,7 +59,7 @@ spec = describe "pi process boundary (no model)" do
         liftEffect (writeFileText (dir <> "/reply.jsonl") (streamOf "first" <> "\n" <> streamOf "{\"text\":\"second\"}" <> "\n"))
         out <- pi { model: "fake/model", rawDir: dir <> "/raw" } "system" "input"
         out.text `shouldEqual` "{\"text\":\"second\"}"
-        present <- liftEffect (fileExists out.raw)
+        present <- liftEffect (exists out.raw)
         present `shouldEqual` true
         raw <- liftEffect (readFileText out.raw)
         contains (Pattern "message_end") raw `shouldEqual` true

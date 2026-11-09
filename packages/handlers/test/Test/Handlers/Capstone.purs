@@ -28,15 +28,13 @@ import Handlers.Llm.Backend (Backend)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Recording (Recording)
 import Settings.Meridian.Capstone (JointLine, jointLines, matchesExpect)
-import Data.Argonaut.Decode (fromJsonString)
-import Schema.Decode (decodeError)
-import Test.Handlers.Stub (backendOf, replayCall)
+import Test.Handlers.Stub (backendOf, decodeRecording, replayCall)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 -- | `packages/settings/capstone/transcript.json`, decoded to its recording.
 recording :: Aff Recording
-recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< decodeError <<< fromJsonString
+recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< decodeRecording
 
 -- | One joint pass over a single transcript from the US seat.
 jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointProposal))

@@ -14,13 +14,13 @@ module Handlers.Simulate
 
 import Prelude
 
+import Core.Map (entries)
+
 import Core.Draw (Seed)
 import Core.Engine.Commit (EngineError)
-import Core.Types (EntityId)
 import Core.World (Manifest, RoundRecord, RoundResult, WorldState)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
-import Data.Map as Map
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Game.Error (GameError(..))
@@ -37,7 +37,7 @@ type Checkpoint = { world :: WorldState, done :: Int }
 
 -- | A game with a human or agent seat cannot be simulated: its answers come from live play.
 machineOnly :: Game -> Either GameError Unit
-machineOnly g = traverse_ check (Map.toUnfoldable g.seats :: Array (Tuple EntityId SeatBinding))
+machineOnly g = traverse_ check (entries g.seats)
   where
   check (Tuple e b) = case b of
     Human -> Left (NotSimulable e)

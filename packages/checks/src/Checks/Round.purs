@@ -13,6 +13,8 @@ module Checks.Round
 
 import Prelude
 
+import Core.Map (entries)
+
 import Core.Num (Q)
 import Core.Query (holding, reserveOf)
 import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
@@ -121,9 +123,9 @@ check round ex ob = concat (Object.values (Object.fromHomogeneous comparers))
                 Just (Identity got) -> whole (mk k1 k2) got q
                 Nothing -> [ Mismatch round (mk k1 k2) "absent" (show q) ]
           )
-          (Map.toUnfoldable inner :: Array _)
+          (entries inner)
       )
-      (Map.toUnfoldable expected :: Array _)
+      (entries expected)
 
   whole :: forall a. Eq a => Show a => Field -> a -> a -> Array Failure
   whole field got want = if got == want then [] else [ Mismatch round field (show got) (show want) ]
