@@ -14,7 +14,7 @@ The sections below specify the anchors and the types built on them: Actor and it
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is an Actor or an Aggregate. An Actor is represented explicitly and driven by a controller: a seat, whose Strategy is supplied from outside the Premise, or a non-playable Actor, whose Strategy is part of the Premise. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). Actors and Aggregates own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [05 §9](05_meridian.md#9-actor-catalog) and [§10](05_meridian.md#10-aggregate-catalog).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the Premise, and for a non-playable Actor a Strategy that is part of the Premise. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [05 §9](05_meridian.md#9-actor-catalog) and [§10](05_meridian.md#10-aggregate-catalog).
 
 ### 2.2 Three projections of an Actor
 
@@ -30,7 +30,7 @@ Membership never lets several Aggregates own the same assets.
 
 ### 2.3 Resource
 
-A Resource's transferability is Free (it moves on its holder's consent alone), Restricted (each movement needs the transfer capability, [§2.4](#24-capability)), or NonTransferable. A category is a Premise's own grouping, which the engine never reads. A Resource that nothing authored produces or consumes is conserved. Money, the numeraire, is the unit of account for views; the engine does not read it, since a settled Flow names its own Resource.
+A Resource's transferability is Free (it moves on its holder's consent alone), Restricted (each movement needs the transfer capability, [§2.4](#24-capability)), or Non-transferable. A category is a Premise's own grouping, which the engine never reads. A Resource that nothing authored produces or consumes is conserved. Money, the numeraire, is the unit of account for views; the engine does not read it, since a settled Flow names its own Resource.
 
 An account is a quantity of a Resource owned by exactly one Actor or Exchange, and a holding is the quantity an Actor or an Exchange's reserves hold.
 
@@ -86,7 +86,7 @@ Each obligation carries conditions, each with what its failure reports:
 
 | Condition | Holds when |
 |---|---|
-| `Performed` | Another obligation of the transaction is still standing, bound by a **Whole** or **Proportional** bond. |
+| `Performed` | Another obligation of the transaction is still standing, bound by a `Whole` or `Proportional` bond. |
 | `StockAtLeast` | A stock holds at least an amount. |
 | `Consent` | The named parties have signed the transaction. |
 | `WeightedConsent` | Residual weight plus the signed weights exceed a threshold. |
@@ -129,7 +129,7 @@ Infeasible actions are rejected or partially executed by deterministic rules. Th
 
 ## 4. Strategies
 
-This section says what a Strategy sees and returns. It produces the engine's input from the authorized View of the Actor it drives, as a function of the View, its memory and the turn. The authored form of that input, the decision language, and the declarative StrategyRules are in [03 §8](03_premise.md#8-strategy-catalog) and [03 §10.4](03_premise.md#104-available-actions).
+This section says what a Strategy sees and returns. A Strategy produces the engine's input from the authorized View of the Actor it drives, as a function of the View, its memory and the turn. The authored form of that input, the decision language, and the declarative `StrategyRules` are in [03 §8](03_premise.md#8-strategy-catalog) and [03 §10.4](03_premise.md#104-available-actions).
 
 **Strategy + View + Memory + Turn → input**
 
@@ -137,7 +137,7 @@ A View is what a Strategy sees at the start of a round: its own Actor, prices, t
 
 ### 4.1 Strategy kinds
 
-A Strategy is declarative (StrategyRules run on the shared interpreter: non-playable Actor rules, Aggregate baselines and seat presets), an AI agent (a language model given the role's briefing and View), or a human (whose text is interpreted into input). Their replay is specified in [06 §4](06_simulator.md#4-seat-strategies) and [04 §7.3](04_run.md#73-seeds-and-randomness).
+A Strategy is declarative (`StrategyRules` run on the shared interpreter: non-playable Actor rules, Aggregate baselines and seat presets), an AI agent (a language model given the role's briefing and View), or a human (whose text is interpreted into input). Their replay is specified in [06 §4](06_simulator.md#4-seat-strategies) and [04 §7.3](04_run.md#73-seeds-and-randomness).
 
 ### 4.2 Strategy rules
 
@@ -155,13 +155,13 @@ Every Aggregate has a baseline Strategy for its implicit population. It declares
 
 This section defines how quantity is priced and exchanged, and what stays closed in core. Pricing never creates an asset ([INV-07](#inv-07)). Two solvers cannot be written as conditions, because they divide one limit among many: clearing, and routing and rationing. They are a closed set, selected by data.
 
-### 5.1 CostFunction
+### 5.1 Cost function
 
-A CostFunction is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round.
+A cost function is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round.
 
 ### 5.2 Exchanges
 
-An Exchange's terms are data read each Round rather than a value that is consumed, which makes it a standing Transaction. It has a base Resource (the good), a quote Resource (the denomination), a CostFunction, a position, reserves and an access list of Actors. It buys and sells on the same cost function, within domain and reserve limits. It cannot supply a Resource it does not hold. Each round's fills are ordinary transactions whose settled Flows post at the cleared rate.
+An Exchange's terms are data read each Round rather than a value that is consumed, which makes it a standing Transaction. It has a base Resource (the good), a quote Resource (the denomination), a cost function, a position, reserves and an access list of Actors. It buys and sells on the same cost function, within domain and reserve limits. It cannot supply a Resource it does not hold. Each round's fills are ordinary transactions whose settled Flows post at the cleared rate.
 
 ### 5.3 Routing
 
@@ -194,7 +194,7 @@ Every Resource stock reconciles each round:
 
 **Closing stock = Opening stock + Production + Issuance − Consumption − Destruction − Decay**
 
-Here Consumption is the use of a Resource, not the consumption of an obligation. Moves between accounts sum to zero, including Exchange reserves ([INV-05](#inv-05)). A Hold moves nothing, so it has no term here. Delayed movements count as production or destruction of their Resource. The authored recurring cycle that moves quantities between holders each round is in [03 §5.4](03_premise.md#54-recurring-cycle).
+Here Consumption is the use of a Resource, not the consumption of an obligation. Moves between accounts sum to zero, including Exchange reserves ([INV-05](#inv-05)). A hold moves nothing, so it has no term here. Delayed movements count as production or destruction of their Resource. The authored recurring cycle that moves quantities between holders each round is in [03 §5.4](03_premise.md#54-recurring-cycle).
 
 ## 7. Aggregates and Representation
 
@@ -247,7 +247,7 @@ This is the single authoritative sequence. The other docs reference it and do no
 - **Funding from the opening World.** Each party's claims are funded from its holdings at the start of the round. At screening, each accepted input escrows its maximum cost. Joint feasibility and pro-rata scaling are checked against these escrows ([§3.6](#36-infeasible-actions)). Unused escrow is released at commit.
 - **Credit at commit.** Proceeds and receipts are credited when the round commits and are usable only next round. Selling and buying both draw on opening holdings.
 
-Rationing is configured by tier, whole or scaled, and scale group ([§5.4](#54-rationing)). Three shortage laws hold for every Premise. The authored tiers that produce them are in [03 §10.1](03_premise.md#101-candidate-transaction-rules).
+Rationing is configured by tier, whole or scaled, and scale group ([§5.4](#54-rationing)). Three shortage behaviours hold for every Premise. The authored tiers that produce them are in [03 §10.1](03_premise.md#101-candidate-transaction-rules).
 
 1. **One short Resource scales everything a scale group executes.** Its funding scale is the smallest ratio of available to claimed across all Resources it claims, and that one factor scales every scaled claim in the group.
 2. **Whole claims fill first, and overflow drops them all.** They are funded before scaled claims and are never scaled. A party whose whole demand on a Resource exceeds its holding loses every whole claim on it. Scaled claims then share a pool pro rata.
@@ -279,7 +279,7 @@ The invariant table is the one numbered table for the whole system; other docs c
 |---|---|---|
 | <a id="inv-01"></a>INV-01 | Unified action semantics: all participants act through the same input and validation, and every settlement names by its Cause what produced it. A settlement of a candidate Transaction's input ([03 §10.1](03_premise.md#101-candidate-transaction-rules)) matches that input. | Checked |
 | <a id="inv-02"></a>INV-02 | Authority separation: a party exercises only the capabilities its `Holds` conditions name, within scope. | Checked |
-| <a id="inv-03"></a>INV-03 | No authority amplification: membership, Representation, collective decisions and fallbacks never confer or remove capabilities or holdings. A round never changes an Actor's capabilities or kind. A Successor names only parties bound from its parent. | Checked |
+| <a id="inv-03"></a>INV-03 | No authority amplification: membership, Representation, collective decisions and fallbacks never confer or remove capabilities or holdings. A round never changes an Actor's capabilities or kind. A successor names only parties bound from its parent. | Checked |
 | <a id="inv-04"></a>INV-04 | Resource consistency: holdings change only by a recorded settled Flow. Each Actor's holdings change by exactly what the round's settled Flows say. No holding or Exchange reserve is negative. | Checked |
 | <a id="inv-05"></a>INV-05 | Stock-flow reconciliation: every Resource stock reconciles each round ([§6](#6-economic-circulation)): its change in total equals what settled Flows created from `Source` less what they sent to `Sink`. Moves net to zero, and no account accumulates without a declared outflow. | Checked |
 | <a id="inv-06"></a>INV-06 | Exchange solvency: Exchange positions stay within their cost domain, and pool fills never exceed what the pool can draw or its escrowed ceiling. | Checked |
@@ -326,7 +326,7 @@ This section sets the numeric and random rules for every economic value. Mechani
   - **Quantity** (Money and Resource counts): a whole number has no decimals. Otherwise at most two, trailing zeros trimmed (`12`, `12.5`, `12.25`). A non-zero value that rounds to zero shows as `<0.01`.
   - **Price** (quote per base unit): displayed as a Quantity.
   - **Ratio** (Gini, influence, shrinkage, factors, support, levy rates): always two decimals. Chart ticks take the chart's kind and are never parsed back.
-- **Floating point.** No float enters economic state. The only Transformation of a quantity to a float is for chart plotting. Integers that are not economic values, such as rounds, seeds and counts, stay integers.
+- **Floating point.** No float enters economic state. The only conversion of a quantity to a float is for chart plotting. Integers that are not economic values, such as rounds, seeds and counts, stay integers.
 
 Which kind each page uses is set by [06 §9](06_simulator.md#9-pages).
 

@@ -34,24 +34,24 @@ An invalid configuration fails before any economic state is created ([§10](#10-
 
 ## 3. Actors, Controllers, and Fallbacks
 
-This section says who controls each Actor, and what happens to an Actor that nothing controls.
+This section covers Actors with a definition, not Aggregates: who controls each one, and what happens to one that nothing controls.
 
 ### 3.1 Selection and control
 
 Selection decides which Actors a Run plays. Control decides who answers for each one.
 
-- An Actor is selected when it appears in `seats` or `nonPlayableActors`. Each selected Actor has exactly one controller, a seat or a non-playable Actor ([INV-23](02_kernel.md#inv-23)).
+- An Actor is selected when it appears in `seats` or `nonPlayableActors`. Each selected Actor has exactly one controller, a seat or an in-world Strategy ([INV-23](02_kernel.md#inv-23)).
 - **Seat.** Allowed only if the Actor's definition permits seats, which is the default ([03 §6.2](03_premise.md#62-actor-definitions)). The seat's Strategy is bound outside the Premise, to a human's transcript, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-strategies)). Swapping it never changes the Actor's definition. The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
-- **non-playable Actor.** Allowed only if the Strategy is in the Actor's non-playable Actor list. The Strategy is in-world ([03 §8](03_premise.md#8-strategy-catalog)).
+- **Non-playable Actor.** Allowed only if the Strategy is in the Actor's list of non-playable Actor Strategies. The Strategy is in-world ([03 §8](03_premise.md#8-strategy-catalog)).
 - **Required.** A required Actor must be selected.
 - **Unselected.** Unless its fallback applies, an unselected Actor keeps the Premise's default controller, the seat of its own id. A seat with no binding submits nothing. Assembly neither asks for nor accepts a binding for an unselected Actor.
 - **Live seats.** In live play, each listed human is bound to a Human seat, and every other configured seat to an Agent.
-- **Seat bindings.** A seat binding answers a seat's Propose and Sign steps: StrategyRules, a Script (literal candidate Transactions and signatures per Round), an Agent (a model call per Round), or a Human (a transcript per Round).
+- **Seat bindings.** A seat binding answers a seat's Propose and Sign steps: `StrategyRules`, a Script (literal candidate Transactions and signatures per Round), an Agent (a model call per Round), or a Human (a transcript per Round).
 - **Binding errors.** Every configured seat has exactly one bound seat Strategy. A binding for a non-playable Actor, an Aggregate, or an unknown id is an error, and so is a configured seat with no binding ([§10](#10-initialization-pipeline)).
 
 ### 3.2 Fallback resolution
 
-A fallback decides what happens to an Actor that no seat or non-playable Actor controls.
+A fallback decides what happens to an Actor that no seat or in-world Strategy controls.
 
 For each unselected Actor, in Actor-id order, the first of these applies:
 
@@ -83,7 +83,7 @@ Representations are assigned separately ([§5](#5-representation-assignment)).
 
 An Aggregate's economic accounts are the residual after explicitly modeled accounts are assigned to other Actors ([02 §2.2](02_kernel.md#22-three-projections-of-an-actor)). Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
-- its accounts are summed into the Aggregate, and the Actor leaves World;
+- its accounts are summed into the Aggregate, and the Actor leaves the World;
 - its procedure weight folds into the residual weight ([§4.1](#41-resolving-the-three-projections));
 - every reference to it is retargeted to the Aggregate. These are exchange access, groups, flows, shares, production, requirements, Transformation payment recipients, effect holders, Rules in force and scheduled, Aggregate member lists, and other Aggregates' procedure weights. Self-flows and self-shares are dropped. Identical production entries stay one. Requirements for the same Actor and Resource are summed when both are explicit amounts. Two that are "equal to purchases" stay one. An explicit amount and a purchases-based one stay two;
 - a merged Actor is no longer in the World, so it cannot be chosen as a representative ([§5](#5-representation-assignment)).
@@ -96,7 +96,7 @@ Two resolutions that differ only in explicitness must describe the same initial 
 
 ## 5. Representation Assignment
 
-This section says how a configuration activates a scheme for an Actor. Each entry in the configuration's representations activates a scheme ([03 §9](03_premise.md#9-representation-schemes)) for one Actor. The World Representation takes its target, domain, observed Resource, estimator, and identifier from the scheme. It takes its Actor and weight, which defaults to 1, from the entry.
+This section says how a configuration activates a scheme for an Actor. Each entry in the configuration's representations activates a scheme ([03 §9](03_premise.md#9-representation-schemes)) for one Actor. The Representation in the World takes its target, domain, observed Resource, estimator, and identifier from the scheme. It takes its Actor and weight, which defaults to 1, from the entry.
 
 Instantiation checks that the scheme exists and that the Actor is eligible for it and selected ([§10](#10-initialization-pipeline)). Its planned checks are in [03 §12.3](03_premise.md#123-not-yet-checked-planned). The adjustment factor, and how it is applied in the round, are in [02 §7.3](02_kernel.md#73-representation-pipeline) and [§7.4](02_kernel.md#74-estimation-semantics).
 
@@ -104,11 +104,11 @@ Instantiation checks that the scheme exists and that the Actor is eligible for i
 
 This section says how each Strategy instance is bound to its Actor. A Strategy is bound by reference to the catalog ([03 §8](03_premise.md#8-strategy-catalog)):
 
-- a non-playable Actor Actor's controller names its Strategy, from the configuration's non-playable Actor list or from an institutional fallback;
-- an Aggregate's baseline is its aggregate's Strategy;
+- a non-playable Actor's controller names its Strategy, from the configuration's `nonPlayableActors` or from an institutional fallback;
+- an Aggregate's Strategy is its baseline;
 - a seat's Strategy is bound by the simulator or session, not by instantiation ([06 §4](06_simulator.md#4-seat-strategies)).
 
-A Strategy instance is the catalog StrategyRules together with the Actor it governs. Its parameters are the Premise's named values ([03 §11](03_premise.md#11-initialization-constraints)). Strategies are fixed for the Run. A rule change alters the World's Rules, never a Strategy. The stored factors start empty. **Planned**: triggers for Strategies.
+A Strategy instance is the catalog `StrategyRules` together with the Actor it governs. Its parameters are the Premise's named values ([03 §11](03_premise.md#11-initialization-constraints)). Strategies are fixed for the Run. A rule change alters the World's Rules, never a Strategy. The stored factors start empty. **Planned**: triggers for Strategies.
 
 ## 7. Economic Initialization
 
@@ -166,8 +166,8 @@ This section gives the ordered steps that turn a Premise and configuration into 
 
 Instantiation is one pure, atomic function. It takes a Premise and a configuration, and returns the initial World or every error. Decoding, merging, and validation of the Premise run before it ([03 §12.1](03_premise.md#121-load-pipeline)). It runs these steps:
 
-1. **Checks.** Every required Actor is selected. Seats go only to Actors that allow them. non-playable Actor Strategies appear in their Actor's list. Each scheme exists, and each representing Actor is eligible and selected. Errors: `RequiredNotSelected`, `ControllerNotAllowed`, `UnknownScheme`, and `IneligibleRepresentative`. Any error returns the full list, and no world is produced.
-2. **Controllers.** Each selected Actor receives its seat or non-playable Actor controller.
+1. **Checks.** Every required Actor is selected. Seats go only to Actors that allow them. Non-playable Actor Strategies appear in their Actor's list. Each scheme exists, and each representing Actor is eligible and selected. Errors: `RequiredNotSelected`, `ControllerNotAllowed`, `UnknownScheme`, and `IneligibleRepresentative`. Any error returns the full list, and no world is produced.
+2. **Controllers.** Each selected Actor receives its seat or in-world Strategy as its controller.
 3. **Fallbacks.** Each unselected Actor is resolved by its fallback, in Actor-id order ([§3.2](#32-fallback-resolution)). Coverage merges run as in [§4.2](#42-partitioning).
 4. **Seed and Representations.** The World takes the game seed. Each Representation is built from its scheme and weight ([§5](#5-representation-assignment)).
 5. **Manifest.** The result is the World and its manifest.
@@ -177,20 +177,20 @@ Assembly builds what a runner plays. It resolves the overrides, runs instantiati
 | Error | Raised when |
 |---|---|
 | `Invalid` | Instantiation or validation fails. It carries the validation errors. |
-| `Unresolved` | An override or bound StrategyRules name something the Premise lacks. |
+| `Unresolved` | An override or bound `StrategyRules` name something the Premise lacks. |
 | `UnboundSeat` / `NotASeat` | A configured seat has no binding, or a binding names something that is not a configured seat. |
 | `LiteralOverrides` | Overrides are given to a literal Premise. |
 | `RoundsOutside` | A launch's round count is outside the round range. |
 
 ## 11. Round Execution
 
-This section gives the order of one round as the runner executes it. Propose and Sign are the round runner's vocabulary: it gathers candidate Transactions and signatures, and the engine screens them and compiles them to transactions ([03 §14](03_premise.md#14-compilation-to-the-kernel)). A live session runs through the live runner. Each seat's binding answers. A Human seat types its transcript in the propose window, and an Agent seat answers through its own model call. A StrategyRules or Script seat answers from its binding. An in-world Actor answers through its Strategy.
+This section gives the order of one round as the runner executes it. Propose and Sign are the round runner's vocabulary: it gathers candidate Transactions and signatures, and the engine screens them and compiles them to transactions ([03 §14](03_premise.md#14-compilation-to-the-kernel)). A live session runs through the live runner. Each seat's binding answers. A Human seat types its transcript in the propose window, and an Agent seat answers through its own model call. A `StrategyRules` or Script seat answers from its binding. An in-world Actor answers through its Strategy.
 
 The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner's own work. Steps 1, 2, and 7 to 10 are engine phases that the runner calls. The phases and their guarantees are defined in the canonical sequence ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)).
 
 1. **Prepare (phase 1, engine).** The engine consumes every pending transaction due at the boundary, in phase then tier order: scheduled Flows, Rule changes scheduled at the last boundary, and any authored successors. Each move or change is recorded as an event, and each consumption can spawn successors.
 2. **Observe (phase 2, engine).** Each Actor's View is built from the prepared state.
-3. **Speak.** Each Actor without an in-world Strategy speaks: a human's typed transcript, an AI agent's model call, or silence. StrategyRules, Script, and unbound seats are silent.
+3. **Speak.** Each Actor without an in-world Strategy speaks: a human's typed transcript, an AI agent's model call, or silence. `StrategyRules`, Script, and unbound seats are silent.
 4. **Joint pass.** If any transcript exists, one joint pass reads all of them together into candidate Transactions ([§11.2](#112-live-session)). If none exists, the round makes no model call.
 5. **Propose (phase 3a).** Every Actor, in Actor-id order, drafts candidate Transactions against the same beginning-of-round View. An in-world Strategy drafts from its View, and a seat drafts through its binding. The joint candidate Transactions are numbered after each author's own, so replay assigns the same ids. They join the drafted candidate Transactions.
 6. **Sign (phase 3b).** Every Actor is asked to sign the candidate Transactions it may sign: non-Aggregate candidate Transactions that are not its own and that name it as a signer. Human and Agent seats give no separate signature. The joint pass records their agreement.
@@ -217,7 +217,7 @@ Live play turns typed transcripts into candidate Transactions and signatures. Pl
 - **Joint pass.** One model call reads all the transcripts together into candidate Transactions. If the reply does not decode, the pass makes up to two corrections, so at most three calls. If the last reply still does not decode, the pass yields no candidate Transactions, each human is told that nothing was submitted, and the round proceeds.
 - AI agent seats speak in the same round pass. Their transcripts are read with the human transcripts.
 - **Signatures.** Negotiation happens out of band, and human and AI agent seats give no separate signature. Each speaker whose transcript describes a candidate Transaction counts as signing it. The joint pass reconciles the transcripts into one candidate Transaction.
-- StrategyRules and Script seats answer through their binding.
+- `StrategyRules` and Script seats answer through their binding.
 
 Admissibility is enforced by the engine at screening, whichever source produced a candidate Transaction ([03 §12.5](03_premise.md#125-static-refusals)).
 

@@ -235,8 +235,8 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200. 400 without a matching `confirm`. 404 |
 | `GET /api/compare?runs=a,b[&exchange=m]` | Compare a Run set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `exchange` is unknown |
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
-| `GET /api/agency` | Agency analysis of a Premise (§10.4): every seat plays `preset`, then each Actor in turn plays `alternative`. | 200. 400 for an unknown Premise, a bad seed, or an unknown preset |
-| `GET /api/agency/detail` | The same analysis, beyond its table: each Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
+| `GET /api/agency` | Agency analysis of a Premise (§10.4): every seat plays `preset`, then each Playable Actor in turn plays `alternative`. | 200. 400 for an unknown Premise, a bad seed, or an unknown preset |
+| `GET /api/agency/detail` | The same analysis, beyond its table: each Playable Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
 | `POST /api/experiments` | Run a Variant Experiment (§11) and save its runs as a named set. | 200 with the set and its run IDs. 400 for a name in use, an empty experiment, a bad round count, or a game that does not start. |
 | `GET /api/sets` | The named Run sets. | 200 with the sets. |
 | `GET /api/sets/:name/summary` | The final measures across a set's runs (§11). | 200 with the table. 404 for an unknown set. 500 when one of its runs cannot be read. |
@@ -265,6 +265,7 @@ The Dashboard has three pages, each with its own hash route and a top bar that l
 ### 9.1 Simulation Runs
 
 The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, Premise, seeds, completed rounds, status, failing assertions, reason for a failure, archive flag, and source. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. A Show archived runs toggle adds archived runs. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown. Resume appears only for a completed run that has a preset, and never for a failed or interrupted run. Archive, Unarchive, and Delete (which requires the run's id to be confirmed) are under "Manage this run" on the run page.
+
 ### 9.2 Run Details
 
 The page opens with a header of the run's facts. Its sections follow in order: key figures; marginal prices of each Exchange; standings; net worth over time; actions; drivers (rules enacted and repealed, procedure outcomes, shortfalls); balance measures (spread and Gini); objectives; the final balance sheet of every Actor (`Initial`, `Current`, `Change`); and one Actor's balance sheet, selected from the run's Actors, defaulting to the first seat.
@@ -308,9 +309,9 @@ With both seeds and every draw key fixed, the difference is the intervention's t
 
 ### 10.4 Agency analysis
 
-For each Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_meridian.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
+For each Playable Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_meridian.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
 
-The Compare page's Agency (fixed baseline) tab shows one row per Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Actor: its measures under the alternative, and its criteria met either way.
+The Compare page's Agency (fixed baseline) tab shows one row per Playable Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Playable Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Playable Actor: its measures under the alternative, and its criteria met either way.
 
 ### 10.5 Saved comparisons
 
@@ -355,7 +356,7 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 4 | Direct Exchange | [Fixture A](05_meridian.md#21-fixture-a-direct-exchange) and its limit-price variant A2. Fixture values; [INV-04](02_kernel.md#inv-04), [INV-06](02_kernel.md#inv-06). |
 | 5 | Germany and EU | [Fixture B](05_meridian.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a pair: Germany signs against not signing. The procedure executes in the same round only when support exceeds the threshold ([INV-10](02_kernel.md#inv-10)); signing moves no resources ([INV-03](02_kernel.md#inv-03)). |
 | 6 | SME Representation | [Fixture C](05_meridian.md#23-fixture-c-small-business-owner-representation), C1 to C3, and C1 with shrinkage 0. The factor applies in the following round, and shrinkage 0 leaves it at 1. Seeded-noise cases are checked in the premises suite ([INV-09](02_kernel.md#inv-09), [INV-13](02_kernel.md#inv-13)). |
-| 7 | non-playable Actor response | [Fixture D](05_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment ([INV-12](02_kernel.md#inv-12)). |
+| 7 | Non-playable Actor response | [Fixture D](05_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment ([INV-12](02_kernel.md#inv-12)). |
 | 7b | Reservation | [Fixture R](05_meridian.md#133-military-deployment) and R-alone: a deployment reserves a Resource, a sale of the same Resource is scaled, and the reservation is released at commit ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05)). |
 | 7c | Deployer | The shipped `Deployer` preset with the other seats Passive. The scaled deployment and sale occur in the rounds the reference price is above its threshold, with the exact values of [05 §13.3](05_meridian.md#133-military-deployment). |
 | 7d | Investor | Five seats play `Investor`. The capacity investment executes, and no Rejected event says the candidate Transaction "must sign". |
@@ -367,7 +368,7 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 11 (b) | Trade restriction, Fixture E2 | [Fixture E2](05_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the US enacts an `AccessBan` on China in round 2, in force from round 3, and China reciprocates, effective round 4. The fixture's values hold. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test): the reference Premise instantiated with an implicit and an explicit government ([INV-14](02_kernel.md#inv-14)). |
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and round-end Worlds with the pure run, and replay from the stored records. The run is identical ([INV-31](02_kernel.md#inv-31)). |
-| 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference Premise. Under the `RandomValid` baseline, every Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Actors with no measurable effect are pinned as balancing findings, so a Premise change is noticed. |
+| 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference Premise. Under the `RandomValid` baseline, every Playable Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Playable Actors with no measurable effect are pinned as balancing findings, so a Premise change is noticed. |
 
 The premises suite also runs the authored agreements of [03 §15](03_premise.md#15-authoring-laws-and-agreements), which are not a mandatory test. The core suite covers only the kernel, and the rest of the former core tests are in `packages/laws/test`. Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third round-end World matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 

@@ -75,7 +75,7 @@ This section describes what a player experiences in one round. Each round runs t
 1. **Briefing.** Players receive the current state of the world.
 2. **Negotiation.** Players talk freely, persuade, bluff, and strike joint candidate Transactions. This happens entirely outside the game. The game has no negotiation protocol.
 3. **Submission.** Each human submits one transcript of what they intend to do this round. A trade may be described by one party, by both, or by neither. Once submitted, a player has no further input that round.
-4. **Resolution.** Every player, non-playable Actor, and exchange action resolves together as one update. Nothing is ordered within a round, and what a round computes is visible in the next round ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)).
+4. **Resolution.** The actions of every player, non-playable Actor, and Exchange resolve together as one update. Nothing is ordered within a round, and what a round computes is visible in the next round ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)).
 5. **Reporting.** Players receive updated balance sheets and a front page describing the round.
 
 **Propose, then sign.** Negotiation works in two steps. Each party proposes actions, then signs the candidate Transactions that name it and that it accepts. A joint candidate Transaction needs every named party's signature, so the two sides cannot disagree about its terms. A joint candidate Transaction that is missing a signature lapses. A counteroffer is a new candidate Transaction for the next round ([03 §10.1](03_premise.md#101-candidate-transaction-rules)). A transcript that describes a joint candidate Transaction counts as its speaker's agreement to it. When the interpreter reads the transcripts together, it reconciles matching descriptions into one candidate Transaction, adjusting details slightly where needed. A joint candidate Transaction that only one side describes lapses.
@@ -104,9 +104,8 @@ Exchanges trade existing resources at prices that rise and fall with demand. Tra
 
 This section explains how small participants can shape a larger economy. Both mechanisms are bounded, and neither gives a player the aggregate's holdings or authority.
 
-**Representation.** A small actor's decisions count as evidence about similar actors. If a small business buys less energy than usual, the aggregate that stands for small businesses buys somewhat less in the following round. The adjustment is capped and includes some random variation. The business's own purchase still executes once, from its own budget. Players know their choices move the aggregate, so they are not unbiased samples. That influence is kept explicit and bounded ([02 §7](02_kernel.md#7-aggregates-and-representation)).
-
-**Collective procedure.** A bloc acts when members whose combined weight passes the threshold sign its candidate Transaction. The bloc then acts in that same round with its own resources and authority. Otherwise it lapses ([03 §6.3](03_premise.md#63-aggregates)).
+- **Representation.** A small actor's decisions count as evidence about similar actors. If a small business buys less energy than usual, the aggregate that stands for small businesses buys somewhat less in the following round. The adjustment is capped and includes some random variation. The business's own purchase still executes once, from its own budget. Players know their choices move the aggregate, so they are not unbiased samples. That influence is kept explicit and bounded ([02 §7](02_kernel.md#7-aggregates-and-representation)).
+- **Collective procedure.** A bloc acts when members whose combined weight passes the threshold sign its candidate Transaction. The bloc then acts in that same round with its own resources and authority. Otherwise it lapses ([03 §6.3](03_premise.md#63-aggregates)).
 
 ## 6. Evaluation
 
@@ -136,7 +135,7 @@ This section lists the rules that every Premise and every rule should respect.
 - **Unequal but interdependent.** Power is deliberately unequal, yet every role has a capability, a dependency that others control, and an objective that others can help or obstruct. Agency matters more than equal starting resources.
 - **Small players matter.** Representation and collective procedures let a small participant shift a larger economy, with influence that is real but bounded ([§5](#5-small-players-matter)).
 - **The core is a small kernel; agreements are authored.** Core offers stocks, flows, laws and conditional obligations. Trades, signatures, procedures, schedules and depreciation are vocabulary a Premise writes, so a new kind of agreement needs no change to the engine's core ([02 §10](02_kernel.md#10-design-boundaries)).
-- **Consequences, not scripts.** Outcomes emerge from decisions meeting exchanges. Non-player actors keep fixed motives, so players change the world others respond to, not the way they respond.
+- **Consequences, not scripts.** Outcomes emerge from decisions meeting exchanges. Actors that no player controls keep fixed motives, so players change the world others respond to, not the way they respond.
 
 ## 8. Document Map
 

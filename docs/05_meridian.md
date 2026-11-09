@@ -20,7 +20,7 @@ Meridian has four circulating Resources, all abstract game units. Energy is one 
 | **Military** | Mil | Restricted. Transferred by Actors holding the transfer capability (the governments) | None | Yes, by deployment | Deployable force. Created by procurement, lost in attrition |
 | **Soft Power** | S | Non-transferable | 10% per simulated year | No | Influence from campaigns and aid, spent on strikes |
 
-Capacities are NonTransferable Resources with no Exchange. They limit what an Actor can produce or do in a round.
+Capacities are non-transferable Resources with no Exchange. They limit what an Actor can produce or do in a round.
 
 ## 3. Exchanges and Transformations
 
@@ -150,7 +150,7 @@ Investment in round r changes capacity from round r+1. Fixture `circulation` che
 
 ## 9. Actor Catalog
 
-Meridian has fifteen seat Actors and one non-playable Actor, China. This table is the one description of each Actor.
+Meridian has fifteen Playable Actors and one non-playable Actor, China. This table is the one description of each of them.
 
 <!-- check-docs: actors -->
 
@@ -183,7 +183,7 @@ Where a seat is not explicit, its accounts are controlled by a default Strategy 
 
 | Actor | Fallback when not explicit |
 |---|---|
-| US, CN | Required explicit. Human or non-playable Actor controller |
+| US, CN | Required explicit. Human or in-world Strategy controller |
 | DE | Government accounts held in the EU Aggregate as member-government accounts. Germany's weight folds into the EU's residual weights ([§14.2](#142-resolution-consistency)) |
 | IN, JP, UK, BR, SA, NG | `government-default-v0` controls the same accounts: baseline spending, no discretionary actions |
 | ENCO, CHIP, SHIP, DEF | `firm-default-v0` controls the same accounts: sells Energy above 30 E on every Energy Exchange it has access to (its own node, or both nodes for SHIP) and signs `energy-shipping` candidate Transactions |
@@ -228,7 +228,7 @@ Meridian has seven Aggregates. Each has accounts and a baseline Strategy. Only t
 | ENERGY_SUPPLIERS | Other Energy Producers | Production not held by explicit Actors | Both | Energy supply |
 | WORLD_HOUSEHOLDS | Other World Households | Residual household activity | Asia | Household demand. Media and relief payee |
 
-**EU_POOL is an account, not an Actor, and has no capabilities by design.** It is the one Actor with Atlantic exchange access and no trade capability ([03 §5.2](03_premise.md#52-exchanges)), so the pool-to-EU transfer counts as a same-region transfer. Its authority comes from the EU's `eu-solidarity` procedure. Its Strategy (`solidarity-pool-v0`) has no rules and no signatures. [Fixtures B2 and B2-pool](#22-fixture-b-germany-and-the-eu-collective-procedure) exercise the pool-to-EU transfer.
+**EU_POOL is an account, not an explicit Actor, and has no capabilities by design.** It is the one Actor with Atlantic exchange access and no trade capability ([03 §5.2](03_premise.md#52-exchanges)), so the pool-to-EU transfer counts as a same-region transfer. Its authority comes from the EU's `eu-solidarity` procedure. Its Strategy (`solidarity-pool-v0`) has no rules and no signatures. [Fixtures B2 and B2-pool](#22-fixture-b-germany-and-the-eu-collective-procedure) exercise the pool-to-EU transfer.
 
 ### 10.1 Germany and the EU
 
@@ -339,21 +339,21 @@ A joint candidate Transaction settles atomically once every required signer sign
 The Run set varies one uncertainty, the Energy shock, in two named cases.
 
 - **Calm case.** The reference Run, with its one scheduled event. In Round 3, `ENERGY_SUPPLIERS`' Strategy reads the `disruption-round` parameter and cuts its maximum offer by 20 E (12 Atlantic, 8 Asia). A cut never takes the offer below zero, so a cut at or above the offer removes it and never turns it into a purchase. Production continues, and unreleased output accumulates in its holdings. The disruption is predeclared configuration, not an AI intervention.
-- **Major case.** The same disruption moved to Round 1, with both cuts at or above the offers (Atlantic 60, Asia 40), so each region's supply is zero that round. It is not the default Run. It flips the Atlantic price across 3.0 in both directions and changes four presets' Atlantic actions. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and major 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, Accumulator, Trader and Deployer change what they propose in Rounds 2, 3 and 5, and Opportunistic in Rounds 2 to 4. The EU's solidarity candidate Transaction is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so CrisisResponse does not flip. The flip is pinned by a test ([Simulator §14](06_simulator.md#14-mandatory-tests)).
+- **Major case.** The same disruption moved to Round 1, with both cuts at or above the offers (Atlantic 60, Asia 40), so each region's supply is zero that round. It is not the default Run. It flips the Atlantic price across 3.0 in both directions and changes four presets' Atlantic actions. With every seat on `Conservative`, the end-of-round Atlantic prices are calm 2.89, 3.14, 3.32, 3.12, 2.86 and major 3.07, 3.19, 3.11, 2.92, 2.77. Asia moves from 2.16–2.80 to 2.48–2.88. With every seat on one preset, `Accumulator`, `Trader` and `Deployer` change what they propose in Rounds 2, 3 and 5, and `Opportunistic` in Rounds 2 to 4. The EU's solidarity candidate Transaction is published in Round 2 and not in Round 5. In the `Conservative` run the Atlantic price never reaches 3.5, so `CrisisResponse` does not flip. The flip is pinned by a test ([Simulator §14](06_simulator.md#14-mandatory-tests)).
 
 # Part III: Run Configuration
 
 ## 14. Run Configuration
 
 - **Game ID:** `meridian/meridian-test-01`, the Premise id then its label. **Premise:** `meridian`, version `v0`.
-- **Seats / non-playable Actor Actors / Aggregates:** 15 / 1 (China) / 7. **Rounds:** 5 rounds of 1 year ([§6.2](#62-time-horizon)).
+- **Seats / non-playable Actors / Aggregates:** 15 / 1 (China) / 7. **Rounds:** 5 rounds of 1 year ([§6.2](#62-time-horizon)).
 - **Game seed:** `26021` (its only use in v0 is SME sampling noise).
 
 ### 14.1 Seat assignments
 
 Seats 1–15 drive, in order: US, DE, IN, JP, UK, BR, SA, NG, ENCO, CHIP, SHIP, DEF, LABOR, SME, AID.
 
-China is Actor `CN`, controlled by the non-playable Actor `china-strategic-v0`. It has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0`, with Germany among its members and both collective procedures active. No human controls it. The `sme-energy-sample` Representation is active.
+China is Actor `CN`, controlled by the in-world Strategy `china-strategic-v0`. It has no seat. Germany is a seat. The EU is an Aggregate under `eu-coordination-v0`, with Germany among its members and both collective procedures active. No human controls it. The `sme-energy-sample` Representation is active.
 
 ### 14.2 Resolution consistency
 
@@ -428,7 +428,7 @@ Each fixture is a small world filtered from Meridian, with the Actors it needs a
 - **C4.** Golden test, not a fixture file. Round r+1 price above 3.5 M/E, factor 0.95 from a 4 E observation. Baseline 32 E. Target 32 × 0.95 = 30.4 E.
 - **C5.** Seeded noise, game seed 26021, noise spread 0.10. Factor 0.9358. Next-round target for a 4 E observation lies in [37, 39] E. A proposed 0 E still gives exactly 35 E.
 
-## 24. Fixture D: China Responds as a non-playable Actor
+## 24. Fixture D: China Responds as a Non-Playable Actor
 
 - **D.** US orders 12 Mil in Round 1. China observes it and orders 4 Mil in Round 2. Round 1: US Military 95 → 92 (3 attrition, 9 returned). Round 2: cost 36 M at 9 M/Mil. China Money 255 → 219, Energy 95 → 87. CN_PRIVATE 210 → 246. Round 3: China Military 88 → 92.
 - **D-minor** (golden). US orders 8 Mil of `major-military-action`. Rejected. US Military stays at 95.
@@ -442,7 +442,7 @@ Each fixture is a small world filtered from Meridian, with the Actors it needs a
 
 - **F.** US, UK and JP order 15, 8 and 9 Mil against a capacity of 30, with escrow at 15.5 M/Mil: US 232.5, UK 124, JP 139.5 M. Allocation 30/32 gives 14.0625, 7.5 and 8.4375. Fills US 14, UK 8, JP 8 (the spare unit goes to UK). Cost C(30) = 465 M. US pays 217 M and uses 28 E. UK and JP pay 124 M each and use 16 E each. DEF receives 465 M and passes 116.25 M to US_WORKERS. Reversing submission order gives identical fills.
 
-## 27. Fixture G: candidate Transactions and Signatures
+## 27. Fixture G: Candidate Transactions and Signatures
 
 - **G1.** SA transfers 20 E to JP and JP transfers 48 M to SA, and JP signs. SA 155 → 203 M, 110 → 90 E. JP 150 → 102 M, 40 → 60 E.
 - **G2.** As G1, JP does not sign. The candidate Transaction lapses. SA 155 M, 110 E. JP 150 M, 40 E.

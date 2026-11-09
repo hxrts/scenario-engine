@@ -33,7 +33,7 @@ These govern every package. They are what a change is checked against.
 - **One-way dependencies.** A package depends only on the packages in its row of the table in [§3](#3-codebase-layout). Packages at the same level never import each other.
 - **Narrow seams.** Packages meet at the small interfaces in [§4](#4-key-interfaces). Code behind an interface can change without touching its callers. Replacing an adapter (the SQLite store, the model provider) changes nothing in the domain packages, effects or handlers: the new adapter implements the same primitives.
 - **Each described type is described once.** A type that crosses a boundary has one Shape, and its codecs and prose are derived from it. Hand-written instances, projections and name lists that repeat a description are defects.
-- **Interfaces are derived; behaviour is hand-written.** Codecs, action lists, routes and decoders come from declarations. The StrategyRules interpreter, agent framing, human facilitation, view projections and API semantics are written by hand.
+- **Interfaces are derived; behaviour is hand-written.** Codecs, action lists, routes and decoders come from declarations. The `StrategyRules` interpreter, agent framing, human facilitation, view projections and API semantics are written by hand.
 - **Economics live in one place.** Only the settlement sequence in `laws`, over the kernel in `core`, changes the economy. Every settled Flow posts through `Core.Kernel.Post`. Apps compose and hold no economic logic.
 - **Premises are data.** Premises, instantiation configurations, fixtures and presets are authored in a typed DSL and compiled to data. The engine reads only the compiled data. Fixture expected values are literals, never computed. The formats are owned by [02](02_kernel.md) (the `Snapshot` format of round-end Worlds) and [03](03_premise.md) (the Premise format).
 - **Small.** One concept per module. No frameworks inside the core.
@@ -63,10 +63,10 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | Package | May depend on | Owns | Must not own |
 |---|---|---|---|
 | `core` | nothing | The kernel; the description algebra; numerics, draws, the cost curve, and the id, quantity and curve types | Any authored vocabulary (Intent, candidate Transaction, Rule, Transformation and the like); Premise knowledge, authoring formats, operations, runs, a second codec for a described type |
-| `laws` | `core` | The authored vocabulary and the settlement sequence: World and Events, Intent and candidate Transaction types, the StrategyRules language, the compile step, `resolveRound`, authority, Representation and per-round invariants | Premise knowledge, authoring formats, operations, runs |
+| `laws` | `core` | The authored vocabulary and the settlement sequence: World and Events, Intent and candidate Transaction types, the `StrategyRules` language, the compile step, `resolveRound`, authority, Representation and per-round invariants | Premise knowledge, authoring formats, operations, runs |
 | `schema` | `core`, `laws` | The Premise format, the authoring DSL (including `Schema.Build.Agreement`), the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
 | `world` | `core`, `laws`, `schema` | World realization and validation, and their errors. It is separate from `assembly` so that the package boundary keeps what the world is apart from how seats decide | JSON, fixtures, seat bindings, strategy concepts |
-| `strategy` | `core`, `laws`, `schema` | The pure StrategyRules interpreter | Effect libraries, codecs, World access |
+| `strategy` | `core`, `laws`, `schema` | The pure `StrategyRules` interpreter | Effect libraries, codecs, World access |
 | `assembly` | `core`, `laws`, `schema`, `world`, `strategy` | Assembling a Premise into a `Game`; seat bindings, overrides and stored run specs. The only domain package where `world` and `strategy` meet | Effects, round execution, persistence, the player seed, Premise content |
 | `premises` | `core`, `laws`, `schema`, `assembly` | Authored Premises, presets, fixtures and the Premise file tree, as typed values ([03 §12a](03_premise.md#12a-how-premises-are-made)) | IO, compiling, decoders, computed expected values |
 | `checks` | `core`, `laws`, `schema` | Checking expectations, runs and objectives against records | Effects, playing Runs |
@@ -126,11 +126,11 @@ runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + REC
 
 Randomness needs no effect. Every draw is a pure function of the game seed or the player seed. The player seed is resolved once, before the call.
 
-**Strategy** (`strategy`). StrategyRules are pure and reduce to two functions over an environment. A seat, human or AI agent, answers the same two steps:
+**Strategy** (`strategy`). `StrategyRules` are pure and reduce to two functions over an environment. A seat, human or AI agent, answers the same two steps:
 
 ```purescript
 propose :: StrategyRules -> Env -> Array CandidateTransactionBody
-sign    :: StrategyRules -> Env -> Array CandidateTransactionId     -- chooses among the CandidateTransactions awaiting signature
+sign    :: StrategyRules -> Env -> Array CandidateTransactionId     -- chooses among the candidate Transactions awaiting signature
 ```
 
 The environment is the strategy's `View` ([02 §4](02_kernel.md#4-strategies)). A Strategy never touches the World.

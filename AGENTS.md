@@ -34,7 +34,7 @@ The system is implemented. `docs/` is the specification and the source of truth.
 Read them in order. Each layer builds on the one before it.
 
 1. `01_overview.md`: concept, the anchor Terms, and design principles
-2. `02_kernel.md`: what any World can be made of: the kernel and types, the canonical round sequence (§8.1), effects (§8.4), invariants `INV-xx` (§9), numerics (§9.1)
+2. `02_kernel.md`: what any World can be made of (the kernel and types), the canonical round sequence (§8.1), effects (§8.4), invariants `INV-xx` (§9), numerics (§9.1)
 3. `03_premise.md`: how a Premise is authored, and the vocabulary that compiles to the kernel
 4. `04_run.md`: how a Premise is assembled and realized as a Run, Round by Round
 5. `05_meridian.md`: *Meridian*, the reference Premise, and its golden fixtures
