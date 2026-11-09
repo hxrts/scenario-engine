@@ -162,11 +162,11 @@ Each assertion checks one invariant from the Type System master table ([02 §9](
 | Resource consistency | [INV-04](02_type_system.md#inv-04) | Implemented |
 | Stock-flow reconciliation | [INV-05](02_type_system.md#inv-05) | Implemented |
 | Market solvency | [INV-06](02_type_system.md#inv-06) | Implemented |
-| Price is not production | [INV-07](02_type_system.md#inv-07) | **Planned** |
+| Price is not production | [INV-07](02_type_system.md#inv-07) | Implemented (no leg a Market curve settles comes from the source or goes to the sink) |
 | Account partition | [INV-08](02_type_system.md#inv-08) | Implemented per round for Resources drawn from their holder |
 | Representation consistency | [INV-09](02_type_system.md#inv-09) | Implemented for the estimator bound |
 | Signature completeness | [INV-10](02_type_system.md#inv-10) | Implemented |
-| Order independence | [INV-11](02_type_system.md#inv-11) | **Planned** per round. Tested by §14 test 3 |
+| Order independence | [INV-11](02_type_system.md#inv-11) | Implemented as `orderIndependent`, which replays the round in other orders. Run by §14 test 3, not per round in play |
 | Policy reproducibility | [INV-12](02_type_system.md#inv-12) | Not checked per round. Covered by §14 tests 2 and 13 |
 | Deterministic replay | [INV-13](02_type_system.md#inv-13) | Tested by §14 test 2 |
 | Resolution consistency | [INV-14](02_type_system.md#inv-14) | Tested by §14 test 12 |
