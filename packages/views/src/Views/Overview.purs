@@ -121,7 +121,7 @@ sourceCell source deleted = case source of
 -- | A header fact: its label and its value ("" when the run does not record it).
 type Fact = { label :: String, value :: String }
 
--- | The overview of one run (`GET /api/runs/:id/overview`). `id` names the run these figures are of;
+-- | The overview of one run (`GET /api/runs/:id/:view` with `view=overview`). `id` names the run these figures are of;
 -- | `rounds` is the completed rounds, `target` the rounds the run was launched for, and `resumable`
 -- | whether Resume may be offered (docs/06_simulator.md §9.1: only a completed run can be extended);
 -- | `facts` is the header's fields in order.

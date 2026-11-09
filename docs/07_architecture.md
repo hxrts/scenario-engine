@@ -1,7 +1,7 @@
-# Technical Architecture
+# Architecture Guidelines
 
-**Version:** 0.4  
-**Scope:** Package layout, dependency direction, and the key interfaces between packages  
+**Version:** 0.5  
+**Scope:** Guidelines for building the system: implementation principles, package responsibilities, dependency rules and their checks, the seams between packages, and when to add a package or module  
 **Implementation language:** PureScript
 
 ---
@@ -12,85 +12,73 @@ The implementation terms of this doc. The type-system terms are in the [Type Sys
 
 | Term | Definition |
 |---|---|
-| **Layer** | One spec's share of the design: the Type System ([02](02_type_system.md)), Gameboard ([03](03_gameboard.md)), Instantiated Game ([04](04_instantiated_game.md)), Simulator and Dashboard ([06](06_simulator.md)), or this Architecture doc. The three game layers are described in [01 §3](01_overview.md#3-three-architectural-layers). |
-| **Round runner** | The effectful code (`Effects.Round`) that runs Propose and Sign for every Policy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
-| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose ([§4](#4-key-interfaces)). |
+| **Layer** | One spec's share of the design: the Type System ([02](02_type_system.md)), Gameboard ([03](03_gameboard.md)), Instantiated Game ([04](04_instantiated_game.md)), Simulator and Dashboard ([06](06_simulator.md)), or this Architecture doc. |
+| **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
+| **Shape** | A typed description of a type that crosses a described boundary. One Shape gives the type's codec for each JSON format and its prose. |
 
 ## 1. Principles
 
-- **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Impure work is an algebraic effect (Type System [§8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
-- **One-way dependencies.** A package depends only on the packages in its row of the table in [§3](#3-codebase-layout). Packages at the same level never import each other.
-- **Narrow seams.** Packages meet at the small interfaces in [§4](#4-key-interfaces). Code behind an interface can change without touching its callers.
-- **Three layers for impure work.** Each concern has one home:
+These govern every package. They are what a change is checked against.
+
+- **Pure core, effects at the edge.** The engine is a pure function ([INV-36](02_type_system.md#inv-36)). Impure work is an algebraic effect ([02 §8.4](02_type_system.md#84-effects-and-handlers)) interpreted by a handler chosen at the entry point.
+- **Three layers for impure work.** Each concern has one home.
   - **Adapters expose devices.** An adapter wraps one device (the filesystem, SQLite, a process, the clock, the OS seed) as raw primitives: text in, text out, or one statement. It knows nothing of games, runs, prompts or settings.
-  - **Effects define the program's interface to a device.** A module in `effects` declares the operations a program may request, with their typed requests and replies. It contains no implementation.
-  - **Handlers hold the program logic.** A handler interprets an effect's operations over a device primitive. Prompt building, reply decoding, fallbacks, run lifecycle, and recording belong here. Handlers never import adapters; the composition root wires the two.
-  - A new device is a new adapter; a new program need is a new operation and its handler. Domain rules are not in any of the three; they stay in `core`, `schema`, `board`, `policy`, `checks`, `game`, `views`, `experiments`, and `settings`.
-- **Settings are data.** Gameboards, instantiation configurations, fixtures, and presets are declarative data, authored in a typed PureScript DSL (`schema`'s builders) that compiles to JSON. The engine reads only the compiled files. Fixture expected values are literals, never computed.
+  - **Effects declare the program's interface to a device.** An effect module declares the operations a program may request, with their typed requests and replies. It contains no implementation. Each program's type lists the rows it may request, so a read program cannot write. For example, `OBSERVE` is the only row a Run Store read has.
+  - **Handlers hold the program logic.** A handler interprets an effect's operations over a device primitive. Prompt building, reply decoding, fallbacks, run lifecycle and recording belong here. Handlers never import adapters; the composition root wires the two.
+  - A new device is a new adapter. A new program need is a new operation with its handler. Domain rules are in none of the three: they stay in the domain packages.
+- **One-way dependencies.** A package depends only on the packages in its row of the table in [§3](#3-codebase-layout). Packages at the same level never import each other.
+- **Narrow seams.** Packages meet at the small interfaces in [§4](#4-key-interfaces). Code behind an interface can change without touching its callers. Replacing an adapter (the SQLite store, the model provider) changes nothing in the domain packages, effects or handlers: the new adapter implements the same primitives.
+- **Each described type is described once.** A type that crosses a boundary has one Shape, and its codecs and prose are derived from it. Hand-written instances, projections and name lists that repeat a description are defects.
+- **Interfaces are derived; behaviour is hand-written.** Codecs, action lists, routes and decoders come from declarations. The Strategy interpreter, agent framing, human facilitation, view projections and API semantics are written by hand.
+- **Economics live in one place.** Only `core` changes the economy. Apps compose and hold no economic logic.
+- **Settings are data.** Gameboards, instantiation configurations, fixtures and presets are authored in a typed DSL and compiled to data. The engine reads only the compiled data. Fixture expected values are literals, never computed. The formats are owned by [02](02_type_system.md) (the snapshot format) and [03](03_gameboard.md) (the setting format).
 - **Small.** One concept per module. No frameworks inside the core.
 
 ## 2. Runtime Shape
 
+The runtime is one pure engine and one round runner that calls it. A setting is assembled once into a `Game`, and every runner plays that same `Game`: the simulator folds it with the player seed, and live play runs it with human and agent seats.
+
 ```text
-   setting ──► game.assemble ──► Game  (manifest, world, in-world Strategies, rounds, one SeatBinding per seat)
-                                  │
-          ┌───────────────────────┴────────────────────────┐
-   simulate (pure fold, player seed)               runLive (Aff: human windows, agents)
-          │                                                │
-          └──────────── runRound (effectful) ──────────────┘
-           SEAT_INPUT, INTERPRET, RECORD, NARRATE; pure resolveRound inside
-                                  │ RECORD, STORE
-                                  ▼
-   Run Store ◄── OBSERVE ── server (Implementation) ◄── API ── Handlers.Api.Route ◄── dashboard (Handlers.Api.Client)
+   setting ──► assemble ──► Game
+                              │
+          ┌───────────────────┴───────────────────┐
+   simulate (pure fold)                     runLive (Aff)
+          └──────────── runRound (effectful) ─────┘
+           seat input; pure resolveRound inside
+                              │ record, store
+                              ▼
+   Run Store ◄── server ◄── API ◄── dashboard
 ```
 
-A setting is assembled once into a `Game` ([§4](#4-key-interfaces)), and every runner plays that same `Game`: the simulator folds it with the player seed, and live play runs it through `runLive`. Each round is one `runRound` call. Seats propose and sign through `SEAT_INPUT`; the pure engine resolves the signed Proposals and never authors or rewrites an Intent. Handlers choose where seat inputs come from and where records go. The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, the API, and the dashboard are in [06](06_simulator.md).
+Each round is one `runRound` call. Seats propose and sign through the seat-input effect. The pure engine resolves the signed Proposals and never authors or rewrites an Intent. Handlers choose where seat input comes from and where records go. The round rules are in [02](02_type_system.md) and [04](04_instantiated_game.md). The Run Store, API and dashboard are in [06](06_simulator.md).
 
 ## 3. Codebase Layout
 
-The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. `just check` runs `scripts/check/deps.js`, which holds the `allowed` table below and checks the `import` lines of each package's `src/`. It fails on a dependency outside the table, on a pure package that depends on an effect, `aff`, `run`, or `node-*` library, and on an import its layer may not make. `scripts/check/layout.js` holds the concept rules that imports cannot express, and fails on a `.js` module anywhere but `adapters` and the apps: FFI is a device. `scripts/check/docs.js` compares the tables of docs/05 marked `<!-- check-docs: name -->` with the compiled setting. `scripts/check/derived.js` reports manual implementations of what should be derived from one description, under one rule id each (hand projections, hand codecs, Event matches, repeated names). `just check` fails on any hit outside `scripts/check/derived.allow`, which lists the exceptions that are correct to keep, each with a reason. Each rule has a positive and a negative sample in `scripts/check/samples`, run by the same recipe.
+The project is a spago workspace. Each package is named `sp-<dir>` and compiles on its own. The table is the rule a builder follows: a package owns what its row says, must not own what its row excludes, and imports only from its row's dependencies. Modules are listed by `find packages apps -name '*.purs'`; they are not repeated here.
 
 | Package | May depend on | Owns | Must not own |
 |---|---|---|---|
-| `core` | nothing | The engine; World, Intent, and Proposal types; the Strategy language; the description algebra (`Shape`); numerics, draws, authority, and per-round invariants | Setting knowledge, authoring JSON, operations, runs, a second codec for a described type |
+| `core` | nothing | The engine; World, Intent and Proposal types; the Strategy language; the description algebra; numerics, draws, authority and per-round invariants | Setting knowledge, authoring formats, operations, runs, a second codec for a described type |
 | `schema` | `core` | The setting format, the authoring DSL, the run vocabulary, and the joint pass's values | Realization logic, validation errors, operations, behaviour |
-| `board` | `core`, `schema` | World realization and validation, and their errors. It is a separate package because it holds what the world is and cannot see how any participant decides (seat bindings or Strategies): the package boundary is what enforces that, so it is not merged into `game` for being small | JSON, fixtures, seat binding, policy concepts |
-| `policy` | `core`, `schema` | The pure Strategy interpreter | `run` or any effect library; codecs; World State access |
-| `game` | `core`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides, and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
-| `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures, and the setting file tree, as typed values. `Settings.Kit.*` holds the generic definitions, `Settings.Compose` the operations on a Setting, and `Settings.Catalog` the list the compiler reads ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
-| `checks` | `core`, `schema` | Checking expectations, runs, and objectives against records | Effects, running games |
+| `board` | `core`, `schema` | World realization and validation, and their errors. It is separate from `game` so that the package boundary keeps what the world is apart from how seats decide | JSON, fixtures, seat bindings, policy concepts |
+| `policy` | `core`, `schema` | The pure Strategy interpreter | Effect libraries, codecs, World State access |
+| `game` | `core`, `schema`, `board`, `policy` | Assembling a setting into a `Game`; seat bindings, overrides and stored run specs. The only domain package where `board` and `policy` meet | Effects, round execution, persistence, the player seed, setting content |
+| `settings` | `core`, `schema`, `game` | Authored settings, presets, fixtures and the setting file tree, as typed values ([03 §12a](03_gameboard.md#12a-how-settings-are-made)) | IO, compiling, decoders, computed expected values |
+| `checks` | `core`, `schema` | Checking expectations, runs and objectives against records | Effects, running games |
 | `effects` | `core`, `schema`, `board`, `policy`, `game` | The operation rows and the programs over them | Interpreters, handler records, domain rules, prompt text |
-| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of those operations: seats, live play, model calls, the Run Store, recording, replay, and API routing and client; and `Handlers.Simulate`, the fold over a `Game` and its round records, which imports no `board` or `policy` module | Adapter imports; `node-*` in `Api.Client`'s closure; `views`, `simulator`, or `experiments` imports; the API's operation semantics |
-| `adapters` | `handlers` (the device types of `Handlers.Sql` only) | Raw devices, and every FFI (`.js`) module outside the apps | Games, runs, prompts, settings, any handler function |
-| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts, bars, and statistics | Effects; `handlers`, `game`, `experiments`, or `settings` imports; objective evaluation of their own |
-| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure `Handlers.Simulate` only) | Counterfactuals, agency, and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
+| `handlers` | `core`, `schema`, `board`, `policy`, `game`, `effects` | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's routing and client, and the pure simulation fold | Adapter imports; `views`, `experiments` or `settings` imports; the API's operation semantics; a browser-facing client importing a Node module |
+| `adapters` | `handlers` (the device types of the SQL handler only) | Raw devices, and every FFI module outside the apps | Games, runs, prompts, settings, any handler function |
+| `views` | `core`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `game`, `experiments` or `settings` imports; objective evaluation of their own |
+| `experiments` | `core`, `schema`, `checks`, `views`, `game`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `board` or `policy` imports |
 | `testkit` | `core`, `schema`, `settings`, `game`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
-| `flags` | nothing | The command-line flag parser that `cli` and `server` read their arguments with | Any workspace or effect import |
+| `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` runs games and compiles settings; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
-Two deliberate exceptions to the layering: `testkit` depends on `adapters`, because it reads the setting files through the filesystem device. `handlers` does not list `checks`, so a handler never reaches the checkers.
+Two deliberate exceptions to the layering. `testkit` may import `adapters`, because it reads the setting files through the filesystem device. `handlers` does not import `checks`, so a handler never reaches the checkers.
 
-Module map, by layer. This names what each layer is for, not its files; the table above gives each package's contents, and `find packages apps -name '*.purs'` gives the current modules:
+**Where a new concept goes.** A concept that fits a package's row becomes a module in that package, named `<Package>.<Concept>`. A new package is added only when the build must enforce a boundary that module rules cannot: a concept that must not see something another package sees. A new package also needs a row in this table. A new device is a new adapter, and a new program need is an operation with its handler ([§1](#1-principles)).
 
-```text
-pure domain     core                    the engine and the types it reads
-                schema                  the setting format, the authoring DSL, the run vocabulary
-                board, policy           realizing a world; interpreting a Strategy
-                game                    assembling a setting into a playable Game
-                settings                authored content and fixtures, as typed values
-                checks, views           predicates and projections over records
-impure seams    effects                 the operations a program may request
-                handlers                the program logic over those operations
-                adapters                raw devices
-runners         experiments             folds over a Game (the fold itself is handlers' Handlers.Simulate)
-entry points    apps/cli, apps/server, apps/dashboard
-argument parser flags                   read by the entry points
-test support    testkit
-```
-
-A module is one concept, named `<Package>.<Concept>`. `Core.Engine.*` holds the engine's round phases, `Schema.Build.*` the authoring builders, and `Schema.Setting.*` the setting-format shapes.
-
-Compiled setting files (`packages/settings/<id>/` and `packages/settings/fixtures/`) are gitignored build output. `packages/settings/capstone/transcript.json` is generated by `just _settings` (`apps/cli`'s `Transcript`) and is gitignored with the rest of `packages/settings/capstone/`: the capstone's joint-pass recording, with no model call. The shadcn/ui components in `apps/dashboard/ui` are generated, not committed.
+Compiled setting files are gitignored build output, generated by the compiler and never hand-edited.
 
 ## 4. Key Interfaces
 
@@ -100,151 +88,67 @@ These are the seams. Every other piece is an internal detail of a package. Signa
 
 ```purescript
 assemble :: Setting -> Bindings -> Array Override -> Either GameError Game
--- Setting  = GameboardSetting parts | LiteralSetting { world, rounds }
 -- Bindings = Map EntityId SeatBinding
 -- SeatBinding = Strategy | Script (Array ScriptRound) | Agent | Human
--- Game.Bindings: strategyBindings; scriptBindings (from rounds' inputs, sorted by submissionOrder)
 ```
 
-**Instantiation and validation** (`board`). Pure:
+**Instantiation and validation** (`board`). Pure and atomic: it returns the initial world or every error.
 
 ```purescript
-validateGameboard :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) Gameboard
-instantiate       :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
+instantiate :: Gameboard -> InstantiationConfig -> Either (Array ValidationError) InitialWorld
 ```
 
-**Engine** (`core`, `Core.Engine.Commit`). Pure, and the only operation that changes the economy:
+**Engine** (`core`). Pure, and the only operation that changes the economy:
 
 ```purescript
 resolveRound :: WorldState -> Array SignedProposal -> Either EngineError RoundResult
 -- RoundResult = { world :: WorldState, record :: RoundRecord }
 ```
 
-**Policy** (`policy`). A Strategy is pure and reduces to two functions over an environment. A seat, human or AI agent, answers the same steps through `SEAT_INPUT`:
+**Round runner** (`effects`). Every Policy, seat or in-world, is evaluated through the same code in live play and in simulation, and then `resolveRound` is called. The round's effect row is the union of the rows it may request:
 
 ```purescript
-propose :: Strategy -> Env -> Array ProposalBody
-sign    :: Strategy -> Env -> Array ProposalId     -- chooses among view.toSign
-```
-
-`View` (Type System [§4](02_type_system.md#4-policies)) is everything a Policy sees. Its `toSign` field lists the Proposals awaiting that Policy's signature, and its `markets` field the Markets the Entity has access to, which the Strategy language's Market selectors (`MarketRef`) pick from.
-
-**Shape** (`core`, `Core.Shape`). A type that crosses a described boundary is described once, by a `Shape`. The same combinator calls give its codec for each format, and its prose. A record's Shape can be derived from a Shape per field (`recordShape`, over `RowToList`); a sum's from its `Generic` representation (`genericSum`, `genericSettingSum`, `genericTypedSum`, `genericEnum`), with one description per constructor, so a missing constructor is a compile error and writing a value cannot fall through. Hand-written `settingSum` lists remain only for guarded or merged cases (a setting Intent, a Strategy's Intent and Proposal templates, a fixture's Proposal reference). A description is a plain `Shape` value, and `EncodeJson` and `DecodeJson` instances call it through these:
-
-```purescript
-data Format = Authored | Snapshot          -- authored setting files; stored runs and model replies
-encodeWith     :: forall a. Format -> Shape a -> a -> Json
-decodeJsonWith :: forall a. Format -> Shape a -> Json -> Either JsonDecodeError a
-```
-
-**Event slices** (`core`, `Core.Slice`). A selector (`event @"Coupled"`, or a projection over legs and causes such as `exchanges`, `conversions`, `shortfalls`) names what to read; the kind and field names are checked at compile time against `Event`. A `Slice` is a value: its kinds, field filters, the field read, and its aggregate. `runSlice` evaluates it and `describeSlice` renders the same value as formula text, so a Statistic's or Glossary entry's formula is generated from its calculation. A computation that treats several kinds differently is a total fold, `foldEvents`, one handler per kind; a kind with no effect is `ignore`d, so a new kind fails to compile.
-
-**Effects** (`effects`). The impure vocabulary of the system. Each row is declared in `Effects.Signatures`, or `Effects.Api` for `API`, with no implementation:
-
-```purescript
-type SEAT_INPUT r = (seatInput :: SeatInputF | r)   -- Propose, Sign, Speak: a seat's Proposals, signatures, transcript
-type INTERPRET r  = (interpret :: InterpretF | r)   -- the round's transcripts to Intents (live play)
-type NARRATE r    = (narrate :: NarrateF | r)       -- the front page, requested after each round
-type RECORD r     = (record :: RecordF | r)         -- the round and the transcripts its joint pass read
-type OBSERVE r    = (observe :: ObserveF | r)       -- Run Store reads: a read program has only this row
-type STORE r      = (store :: StoreF | r)           -- Run Store lifecycle writes
-type API r        = (apiCall :: ApiF | r)           -- every HTTP route: Call ApiRequest (Reply -> a)
-type CLOCK r      = (clock :: ClockF | r)           -- now
-type ENTROPY r    = (entropy :: EntropyF | r)       -- one OS draw, for a player seed nobody gave
-type PROCESS r    = (process :: ProcessF | r)       -- this process's id and start time
-type FILES r      = (files :: FilesF | r)           -- environment variables and files
-type CONSOLE r    = (console :: ConsoleF | r)       -- the terminal
-type CACHE v w r  = (cache :: CacheF v w | r)       -- what a process keeps between requests
-type PLAY r       = (play :: PlayF | r)             -- one whole stored play, its lifecycle included
-type LIVE r       = (live :: LiveF | r)             -- one live session, settled at its end
-
 runRound :: forall r. InWorld -> WorldState -> Run (SEAT_INPUT + INTERPRET + RECORD + NARRATE + r) (Either EngineError RoundResult)
 ```
 
-`InWorld` is defined in `core` (`Core.Strategy`). The request and reply types of each operation are declared beside it. Randomness needs no effect: every draw is the pure `Core.Draw.draw` on the game seed or the player seed.
+Randomness needs no effect. Every draw is a pure function of the game seed or the player seed. The player seed is resolved once, before the call.
 
-**Replay** (`handlers`, `Handlers.Replay`). `runReplay` answers seats from a run's recorded Proposals and signatures (`docs/04 §11.1`). The test suites use it, and the server reaches it through `Handlers.Simulate.replayGame` to duplicate or rerun a live session.
-
-**Live play** (`handlers`, `Handlers.Live`). `runLive` plays a `Game` in `Aff`, and `Handlers.Session` answers `LIVE` with it. Its devices come from the composition root (`Cli.Stack`): a line of input, one window's wait, output, the model calls, and the record write. `Human` and `Agent` seats' transcripts are answered by the live handler, a layer over `Handlers.Seats.handleSeats`, which answers everything else:
+**Policy** (`policy`). A Strategy is pure and reduces to two functions over an environment. A seat, human or AI agent, answers the same two steps:
 
 ```purescript
-runLive :: Live -> Game -> Aff (Either EngineError WorldState)
+propose :: Strategy -> Env -> Array ProposalBody
+sign    :: Strategy -> Env -> Array ProposalId     -- chooses among the Proposals awaiting signature
 ```
 
-**Simulation** (`handlers`, `Handlers.Simulate`). The fold over a `Game`. It reads no entropy: the player seed is resolved before the call (`Effects.System.resolveSeed`, over `ENTROPY`).
+The environment is the policy's `View` ([02 §4](02_type_system.md#4-policies)). A Policy never touches World State.
+
+**Simulation** (`handlers`). The fold over a `Game`. It reads no entropy, and it is the only pure runner.
 
 ```purescript
-simulate   :: Seed -> Game -> Either GameError SimRun
--- SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
+simulate :: Seed -> Game -> Either GameError SimRun
 ```
 
-Variants take a per-round sink, so the server writes each round as it completes, or a checkpoint to resume from.
-
-**Checks** (`checks`). Pure predicates over records, shared by the golden tests, the capstone, views, and experiments:
+**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client.
 
 ```purescript
-checkRun           :: WorldState -> Array RoundResult -> Array Failure
-checkRound         :: Expect -> RoundResult -> Array Failure
-observe            :: RoundResult -> Observed
-evaluateObjectives :: Gameboard -> Array RoundResult -> Array ObjectiveResult
+type API r = (apiCall :: ApiF | r)   -- every route: Call ApiRequest (Reply -> a)
 ```
 
-Objectives are a view over the records and never touch the engine (Gameboard [§10.5](03_gameboard.md#105-evaluation)).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers) and the store in [06 §8](06_simulator.md#8-persistence).
 
-**API** (`effects` row `API`, `handlers` routing and client, `apps/server` semantics). Each route is one operation of the `API` row, and the route table is [06 §8.1](06_simulator.md#81-read-api-and-run-operations). A request is an `ApiRequest`, and a reply is a status and a body:
+## 5. Enforcement
 
-```purescript
--- handlers/Api/Route: the one endpoint table; parse and wire are folds over it, between HTTP and ApiRequest
-route  :: Implementation -> Request -> Effect Reply      -- Implementation = ApiRequest -> Effect Reply
--- handlers/Api/Client: answers each operation over a fetch device, text in and text out
-runApi :: forall a. Fetch -> Run (API + ()) a -> Aff a
-```
+Checks run under `just check`, and each fails the build on a violation. Each check has a positive and a negative sample, so a rule can be shown to fire.
 
-`Implementation` is supplied by `apps/server` (`Server.Implementation.implement`). Its reads come from `OBSERVE` and `views`, and its launch, derive, and resume from `game` and `Handlers.Simulate`. The dashboard's `Dashboard.Client` runs its operations through `Handlers.Api.Client` over its `fetch` device. The browser closure of `Handlers.Api.Client` imports no Node module.
+- **Dependency table.** Each package's imports stay in its row of [§3](#3-codebase-layout). Pure packages import no effect, async or Node library.
+- **Concept rules.** Rules that imports cannot express: foreign code (`.js`) lives only in adapters and apps.
+- **Impurity.** Only composition roots import adapters, and adapters use no domain words or domain imports.
+- **Derived rule.** Flags hand-written projections, codecs, event matches and repeated names where one description should generate them. Each exception is listed with its reason.
+- **Docs tables.** The marked tables in [05](05_test_instance.md) match the compiled setting.
+- **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
 
-**Handlers and devices.** A handler interprets operations over device primitives, records of raw functions an adapter implements. The logic (prompts, decoding, fallbacks, the joint pass, the run lifecycle, the SQL schema and statements) is in the handler, so an adapter knows nothing of games, runs, prompts or settings. Handlers never import adapters.
+Tests live in each package's own test directory and in the apps' suites. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
 
-**Programs and roots.** Application logic is a `Run` program over rows: the server's operations under `Server/` (the handler of `API`, in `apps/server` because it reads `views` and `experiments`) and the CLI's under `Cli/`. A composition root parses its arguments, builds devices from adapters, closes one program over its handlers, and exits: `Server`, `Server.Stack`, `Main`, `Compile`, `Transcript`, `Cli.Stack`, and the test suites. Only a root imports an adapter. `scripts/check/impurity.js` enforces this, and that an adapter imports no domain module and uses no domain word.
+## How the docs relate
 
-Each adapter implements one device: a model call, a digest, one SQL statement, query or transaction. Test stubs and the capstone's recording replay answer the same interfaces, and neither is production code.
-
-**Primitive flows** (`core`). Every settlement is one event of legs with a structural cause, so the record states what moved and what produced it. The types are in the [Type System](02_type_system.md).
-
-**Setting-neutral Core.** A setting declares its own kinds of Rule, its conditions on flows, and its recurring flows in the DSL. Core names none of them, and does nothing when a setting declares none. The `banned-word` rule of `scripts/check/derived.js` keeps scenario language out of `core`.
-
-**Run rows.** Run status and derivation kind are one vocabulary in `schema`; the store's text is converted only in `Handlers.SqlStore`. Server startup fails `running` rows it can tell were interrupted.
-
-The Run Store (`effects` rows `RECORD`, `STORE`, `OBSERVE`; `Handlers.Store`, `Handlers.SqlStore` over the SQL device of `Handlers.Sql`, and `Adapters.SQLite`). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`, so a read program cannot write. The operations are in [02 §8.4](02_type_system.md#84-effects-and-handlers); the schema and endpoints are in [06 §8](06_simulator.md#8-persistence).
-
-**Views** (`views/Views.*`). Every dashboard element is a pure projection of a stored run to one of these generic shapes, computed server-side. The dashboard renders them and computes nothing:
-
-```purescript
-type Table     = { title :: String, columns :: Array String, rows :: Array (Array String) }
-type Chart     = { title :: String, unit :: String, kind :: Kind, series :: Array { name :: String, points :: Array { round :: Int, value :: String } } }
-type Bars      = { title :: String, unit :: String, kind :: Kind, categories :: Array String, series :: Array { name :: String, values :: Array String } }
-type Statistic = { name :: String, question :: String, definition :: String, formula :: String }
-```
-
-`Kind` is the display kind ([06 §9](06_simulator.md#9-pages)). Which views exist, and their routes, are in [06](06_simulator.md). Each reply has one `Shape` in `Views.Keys` (`ViewKey`, a view with its shape): the server encodes through it and the dashboard decodes through it, so the two sides cannot disagree.
-
-**Data formats.** Two JSON formats cover overlapping types and are not interchangeable (`Core.Shape.Format`):
-
-- The **snapshot format** is the engine's own state as core's codecs write it: `WorldState`, round records, and manifests. Runs store it, and replay reads it back.
-- The **setting format** is the authored configuration: Gameboard sections, `instantiation.json`, seat presets, and fixtures. Its tagged unions are objects with exactly one key or `kind:argument` strings, empty keys are omitted, and it is described in `schema`.
-
-## 5. Coupling Rules
-
-- Only `core` changes the economy.
-- Each described type is described once: `core` for engine types, `schema` for setting-format types, and `effects` for operation payloads (plain records today, see [02 §8.4](02_type_system.md#84-effects-and-handlers)). Its codec, prose, and `EncodeJson`/`DecodeJson` come from that one description. Each operation is declared once, in `effects`. Action lists, routes, and decoders come from those declarations.
-- `core` imports no effect library and no IO. Its JSON codecs are the `EncodeJson`/`DecodeJson` instances declared beside each type, because PureScript forbids orphan instances. The engine never calls them.
-- Capabilities are rows. A read program has only `OBSERVE`, and a `ProposalBody` carries no author.
-- Policies never touch World State. They receive a `View` and return Proposals and signatures.
-- Economic rules live only in `core`. Views are computed in `views`, and the dashboard holds no business logic.
-- Interfaces are derived; behaviour (the Strategy interpreter, agent framing, human facilitation, view projections, `API` semantics) is hand-written.
-- Replacing an adapter (the SQLite store, the LLM provider) changes nothing in `core`, `board`, `policy`, `effects`, or `handlers`: the new adapter implements the same primitives.
-- Needing new engine code for a setting is a design finding to resolve in `core` ([05 §1](05_test_instance.md#1-purpose)).
-- Per-round checks are pure predicates in `checks` and `core/Invariants` (`check`, and `checkAfter` against the world a round was played from), shared by the tests, the simulator, and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
-
-## 6. Testing
-
-Each package has its own suite, and the apps have suites for the CLI, server, and dashboard. The dashboard's Playwright specs run against a server on the E2E port. The shared fixtures are `testkit`. The required tests, including golden fixtures, replay, and persistence, are in [06 §14](06_simulator.md#14-mandatory-tests). Interpretation tests are separate from economic tests ([06 §7.4](06_simulator.md#74-ai-interpretation-tests)). Commands to run them are in `AGENTS.md`.
+The spec docs (01 to 06) are the source of truth, and the implementation follows them. [AGENTS.md](../AGENTS.md) is the operator's guide: commands, and where each part of the implementation lives.
