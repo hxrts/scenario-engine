@@ -11,7 +11,7 @@ import Rules.Engine.Compile (delivery)
 import Rules.Authority (authorized, viewFacts, worldFacts)
 import Rules.Engine.Prepare (observe, prepareRound)
 import Data.Foldable (for_)
-import Rules.Invariants (check, orderIndependent, orderIndependentBy)
+import Rules.Invariants (check, orderIndependent, orderIndependentBy, checkAfter)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q, qShape)
 import Core.Num as Q
@@ -20,7 +20,7 @@ import Core.Shape as Shape
 import Rules.Query (drawable, holderOf, holding)
 import Rules.Represent as Represent
 import Rules.Slice (runLegQuery, select, conversions, count, describeSlice, event, exchanges, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Rules.World (Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, coupled, renderReason)
+import Rules.World (PendingCoupling(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, coupled, renderReason)
 import Rules.Types (Capability(..), Controller(..), Direction(..), EntityId, EntityKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Market, MarketTag, Proposal, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, proposalId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
@@ -841,6 +841,40 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         created = coupled 1 [ { from: Source, to: Held (Id "US"), resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { proposal: Id "none", intent: 0, mechanism: Curve (Id "EM") })
       invariantsOf w (withEvent created (empty w)) `shouldContain` "INV-07"
       invariantsOf w (withEvent (tradeE (Id "EM") (Id "US") Q.zero Q.zero) (empty w)) `shouldNotContain` "INV-07"
+    it "INV-07: a plain transfer that crosses the boundary" do
+      let
+        w = baseWorld [ actor "US" [] ]
+        minted = coupled 1 [ { from: Source, to: Held (Id "US"), resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { proposal: Id "none", intent: 0, mechanism: Direct })
+      invariantsOf w (withEvent minted (empty w)) `shouldContain` "INV-07"
+    it "INV-07: a Rule or a recipe may cross the boundary" do
+      let
+        w = baseWorld [ actor "US" [] ]
+        sunk = coupled 1 [ { from: Held (Id "US"), to: Sink, resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfRule { kind: Id "tariff" })
+      invariantsOf w (withEvent sunk (empty w)) `shouldNotContain` "INV-07"
+    it "INV-03: a successor naming a party its parent did not bind" do
+      let
+        w = baseWorld [ actor "US" [], actor "EU" [] ]
+        parent = delivery { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 1, cause: testCause }
+        stranger = delivery { round: 2, entity: Id "ZZ", resource: Id "M", quantity: Q.fromInt 1, cause: testCause }
+        signed = \(PendingCoupling p) -> PendingCoupling p { coupling { consented = [ Id "US" ] } }
+        result = (empty w) { world { pending = [ signed stranger ] } }
+      invariantsOf (w { pending = [ parent ] }) result `shouldContain` "INV-03"
+      invariantsOf (w { pending = [ parent ] }) ((empty w) { world { pending = [ signed parent ] } }) `shouldNotContain` "INV-03"
+    it "INV-37: an obligation that falls due and is not consumed" do
+      let
+        w = baseWorld [ actor "US" [] ]
+        kept = delivery { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 1, cause: testCause }
+      invariantsOf w ((empty w) { world { pending = [ kept ] } }) `shouldContain` "INV-37"
+    it "INV-37: an obligation due later stands, and one consumed twice is reported" do
+      let
+        w = baseWorld [ actor "US" [] ]
+        later = delivery { round: 2, entity: Id "US", resource: Id "M", quantity: Q.fromInt 1, cause: testCause }
+        deliveredEvent = Coupled { round: 1, legs: [ { from: Source, to: Held (Id "US"), resource: Id "M", owed: Q.fromInt 1, moved: Q.fromInt 1 } ], rate: Nothing, cause: testCause, delivered: true }
+        due = delivery { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 1, cause: testCause }
+        twice = (empty w) { record { events = [ deliveredEvent, deliveredEvent ] } }
+      invariantsOf w ((empty w) { world { pending = [ later ] } }) `shouldNotContain` "INV-37"
+      map _.invariant (checkAfter (w { pending = [ due ] }) twice) `shouldContain` "INV-37"
+      map _.invariant (checkAfter (w { pending = [ due, due ] }) twice) `shouldNotContain` "INV-37"
     it "INV-04: holdings that move between Entities with no event, though the totals balance" do
       let
         w = baseWorld [ actor "A" [], actor "B" [] ]

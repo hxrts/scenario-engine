@@ -21,6 +21,8 @@ import Data.Generic.Rep (class Generic)
 import Data.String as String
 import Type.Proxy (Proxy(..))
 
+import Core.Kernel.Consume (partiesOf)
+import Core.Kernel.Post (crossesBoundary)
 import Core.Map (entries, sumInto)
 
 import Rules.Authority (authorized, executor, worldFacts)
@@ -30,17 +32,18 @@ import Core.Num as Q
 import Rules.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
 import Rules.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
 import Rules.Slice (conversions, event, foldEvents, ignore, select)
-import Rules.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
-import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, reverse, take)
+import Rules.World (Cause(..), Endpoint(..), Mechanism(..), PendingCoupling(..), RoundResult, WorldState)
+import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, null, reverse, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
 import Data.Map as Map
+import Data.Newtype (unwrap)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 
 -- | A checked invariant (docs/02 §9), named by its number.
-data Invariant = INV01 | INV02 | INV03 | INV04 | INV05 | INV06 | INV07 | INV08 | INV09 | INV10
+data Invariant = INV01 | INV02 | INV03 | INV04 | INV05 | INV06 | INV07 | INV08 | INV09 | INV10 | INV37
 
 derive instance Eq Invariant
 
@@ -56,7 +59,7 @@ type Failure = { invariant :: String, detail :: String, expected :: String, obse
 
 type CheckFn = WorldState -> RoundResult -> Array Failure
 
-type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "INV04" :: CheckFn, "INV05" :: CheckFn, "INV06" :: CheckFn, "INV07" :: CheckFn, "INV08" :: CheckFn, "INV09" :: CheckFn, "INV10" :: CheckFn)
+type CheckRow = ("INV01" :: CheckFn, "INV02" :: CheckFn, "INV03" :: CheckFn, "INV04" :: CheckFn, "INV05" :: CheckFn, "INV06" :: CheckFn, "INV07" :: CheckFn, "INV08" :: CheckFn, "INV09" :: CheckFn, "INV10" :: CheckFn, "INV37" :: CheckFn)
 
 -- | How a failed check is stored.
 failureShape :: Shape Failure
@@ -65,11 +68,11 @@ failureShape = recordShape "Failure" { invariant: stringShape, detail: stringSha
 check :: forall rep. Generic Invariant rep => EnumFields rep CheckRow CheckFn => WorldState -> RoundResult -> Array Failure
 check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) checks)
   where
-  checks = { "INV01": inv01, "INV02": inv02, "INV03": inv03, "INV04": inv04, "INV05": inv05, "INV06": inv06, "INV07": inv07, "INV08": inv08, "INV09": inv09, "INV10": inv10 }
+  checks = { "INV01": inv01, "INV02": inv02, "INV03": inv03, "INV04": inv04, "INV05": inv05, "INV06": inv06, "INV07": inv07, "INV08": inv08, "INV09": inv09, "INV10": inv10, "INV37": inv37 }
 
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
-checkAfter = check <<< prepareRound
+checkAfter before r = check (prepareRound before) r <> consumedOnce before r
 
 -- | INV-11 Order independence over a resolver: resolving the round's inputs in other orders gives the same
 -- | World State. Not part of `check`, which reads a finished round: this one plays the round again.
@@ -121,11 +124,32 @@ inv02 w r = concatMap one (executed r)
 -- | INV-03 No authority amplification: a round never changes an Entity's capabilities or its
 -- | membership (its kind). Only holdings and Rules move.
 inv03 :: WorldState -> RoundResult -> Array Failure
-inv03 before r = concatMap one (entitiesOf (r.world))
+inv03 before r = concatMap one (entitiesOf (r.world)) <> concatMap stranger (filter new r.world.pending)
   where
   one e = case Map.lookup e.id before.entities of
     Just b | b.capabilities /= e.capabilities || b.kind /= e.kind -> [ failure INV03 (show e.id <> " changed its capabilities or membership") ]
     _ -> []
+  new p = not (p `elem` before.pending)
+  -- a successor carries its parent's signers, and may bind only those it was already bound to
+  bound = concatMap (partiesOf <<< _.coupling <<< unwrap) before.pending
+  stranger (PendingCoupling p)
+    | null p.coupling.consented = []
+    | otherwise = map (\e -> failure INV03 ("a successor names " <> show e <> ", who is not bound by its parent")) (filter (\e -> not (e `elem` bound)) (partiesOf p.coupling))
+
+-- | INV-37, on the world the round was played from: every due obligation is gone, every spawn is due
+-- | later, and no due obligation was consumed twice.
+inv37 :: WorldState -> RoundResult -> Array Failure
+inv37 _ r = map dropped (filter ((_ <= r.record.round) <<< _.due <<< unwrap) r.world.pending)
+  where
+  dropped (PendingCoupling p) = failure INV37 ("an obligation due in round " <> show p.due <> " was not consumed by round " <> show r.record.round)
+
+-- | INV-37's other half, which needs the world before Prepare consumed what fell due: each settled delivery
+-- | came from one due obligation.
+consumedOnce :: WorldState -> RoundResult -> Array Failure
+consumedOnce before r = if delivered > dueNow then [ failure INV37 (show delivered <> " obligations settled at the boundary of round " <> show r.record.round <> ", but only " <> show dueNow <> " fell due") ] else []
+  where
+  dueNow = length (filter ((_ <= r.record.round) <<< _.due <<< unwrap) before.pending)
+  delivered = length (filter (\c -> c.delivered && c.round == r.record.round) (select (event @"Coupled") r.record.events))
 
 -- | INV-01 Unified action semantics: every settlement the record shows names, by its Cause, the Intent,
 -- | the declared Rule kind, or the recurring-flow rule behind it; the cause is checked against the
@@ -241,11 +265,13 @@ inv05 before r = concatMap one resources
 inv07 :: WorldState -> RoundResult -> Array Failure
 inv07 _ r = concatMap one (select (event @"Coupled") r.record.events)
   where
+  -- what may cross the boundary: a Transformation's recipe, a Rule, a recurring flow. A price or a plain transfer never does.
   one c = case c.cause of
-    OfIntent { mechanism: Curve m } -> concatMap (bad m) c.legs
+    OfIntent { mechanism: Curve m } -> concatMap (bad (show m)) c.legs
+    OfIntent { mechanism: Direct } -> concatMap (bad "a transfer") c.legs
     _ -> []
-  bad m l
-    | l.from == Source || l.to == Sink = [ failure INV07 (show m <> " settled " <> show l.moved <> " " <> show l.resource <> " to or from outside the economy") ]
+  bad what l
+    | crossesBoundary l = [ failure INV07 (what <> " settled " <> show l.moved <> " " <> show l.resource <> " to or from outside the economy") ]
     | otherwise = []
 
 -- | INV-06 Market solvency: positions stay within the cost function's domain, and Transformation fills

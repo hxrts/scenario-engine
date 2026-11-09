@@ -7,6 +7,7 @@ module Core.Kernel.Post
   , Outcome(..)
   , Posted
   , accountOf
+  , crossesBoundary
   , adjust
   , available
   , ledgerByAccount
@@ -64,6 +65,10 @@ accountOf = case _ of
   InMarket m -> Just (Mkt m)
   Source -> Nothing
   Sink -> Nothing
+
+-- | Whether a leg enters or leaves the economy, rather than moving between holders.
+crossesBoundary :: Flow -> Boolean
+crossesBoundary l = l.from == Source || l.to == Sink
 
 -- | What an account can pay after the settlement so far, never below zero.
 available :: Opening -> Ledger -> Account -> ResourceId -> Q
