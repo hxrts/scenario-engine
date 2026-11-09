@@ -80,7 +80,7 @@ const serveFile = (req, res, root, file) => {
   });
 };
 
-// The public site and the admin dashboard: \`/\` is the landing page, \`/portfolio/...\` is the page each Actor is
+// The public site and the admin dashboard: \`/\` is the landing page, \`/balancesheet/...\` is the page each Actor is
 // given, \`/admin\` is the dashboard behind its password, and its hashed assets hold no data. Anything else is a 404.
 const siteRequest = (req, res, url, root, admin) => {
   const p = url.pathname;
@@ -100,7 +100,7 @@ const siteRequest = (req, res, url, root, admin) => {
     return;
   }
   if (p === "/") return serveFile(req, res, root, path.join(root, "landing.html"));
-  if (p.startsWith("/portfolio/")) return serveFile(req, res, root, index);
+  if (p.startsWith("/balancesheet/")) return serveFile(req, res, root, index);
   if (p.startsWith("/admin/assets/")) return serveFile(req, res, root, resolveStatic(root, p.slice("/admin".length)));
   if (p === "/admin" || p === "/admin/") {
     if (!hasSession(req, admin)) return send(req, res, 200, "text/html", loginPage(false), { "cache-control": "no-store" });

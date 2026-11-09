@@ -56,3 +56,7 @@ alias packages/views/src/Views/Common.purs quantity a cell's display kind by nam
 alias packages/views/src/Views/Common.purs price a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
 alias packages/views/src/Views/Common.purs ratio a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
 alias packages/views/src/Views/Common.purs exact a chart value is sent exactly, and the name states that a cell is not a display value
+intent-walk packages/views/src/Views/BalanceSheet.purs intentText a player-facing sentence per kind of Intent; a label is not a walk of the Intent
+name-literal packages/views/src/Views/BalanceSheet.purs doneTable the balance sheet's own column headings, for a player and not a glossary name
+name-literal packages/views/src/Views/BalanceSheet.purs exchangeTable the balance sheet's own column headings, for a player and not a glossary name
+name-literal packages/views/src/Views/BalanceSheet.purs transformationTable the balance sheet's own column headings, for a player and not a glossary name

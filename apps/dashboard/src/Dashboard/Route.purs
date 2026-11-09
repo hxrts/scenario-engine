@@ -13,7 +13,7 @@ import Routing.Hash (setHash)
 
 -- | The pages: Runs (the run list, with the selected run's results and actions; `Run id`
 -- | selects one), Prepare (launch runs), and Compare (runs side by side).
-data Route = Runs | Prepare | Run String | Compare (Array String)
+data Route = Runs | Prepare | Run String | Compare (Array String) | BalanceSheets
 
 derive instance Generic Route _
 derive instance Eq Route
@@ -21,7 +21,7 @@ instance Show Route where
   show = print route
 
 route :: RouteDuplex' Route
-route = root $ sum { "Runs": "runs" / noArgs, "Prepare": "prepare" / noArgs, "Run": "runs" / segment, "Compare": "compare" / rest }
+route = root $ sum { "Runs": "runs" / noArgs, "Prepare": "prepare" / noArgs, "BalanceSheets": "balancesheets" / noArgs, "Run": "runs" / segment, "Compare": "compare" / rest }
 
 href :: Route -> String
 href r = "#" <> print route r

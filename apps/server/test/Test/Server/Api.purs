@@ -150,6 +150,8 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     launch env 2
     launch env 2
+    (_.status <$> env.api "GET" "/api/runs/run-1/balancesheets" "") >>= (_ `shouldEqual` 200)
+    (_.status <$> env.api "GET" "/api/runs/run-1/balancesheet/nope" "") >>= (_ `shouldEqual` 404)
     report <- env.api "GET" "/api/runs/run-1/rounds/1/report" ""
     report.status `shouldEqual` 200
     (env.api "GET" "/api/runs/run-1/rounds/99/report" "" <#> _.status) >>= (_ `shouldEqual` 404)

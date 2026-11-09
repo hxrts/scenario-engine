@@ -283,6 +283,8 @@ endpoints = table
         view <- viewCapture "view" _.view
         round <- optionalIntParam "round" _.round
         in { id, view, round }
+  , "BalanceSheetLinks": get "/api/runs/:id/balancesheets" (capture "id" identity)
+  , "BalanceSheet": (get "/api/runs/:id/balancesheet/:token" ((\id token -> { id, token }) <$> capture "id" _.id <*> capture "token" _.token)) { access = Open }
   , "RoundReport": (get "/api/runs/:id/rounds/:round/report" ((\id round -> { id, round }) <$> capture "id" _.id <*> intCapture "round" _.round)) { access = Open }
   , "Compare": get "/api/compare"
       ado

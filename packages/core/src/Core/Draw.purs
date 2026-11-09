@@ -4,6 +4,7 @@ module Core.Draw
   ( Seed(..)
   , drawVersion
   , draw
+  , tokenFor
   ) where
 
 import Prelude
@@ -14,8 +15,11 @@ import Data.Argonaut.Encode (class EncodeJson)
 import Data.Array (foldl)
 import Data.Char (toCharCode)
 import Data.Newtype (class Newtype)
-import Data.String.CodeUnits (toCharArray)
-import JS.BigInt (BigInt, asUintN, fromInt, shr, xor)
+import Data.String.CodeUnits (toCharArray, fromCharArray)
+import Data.String.CodeUnits (length) as Text
+import Data.Array (replicate) as Array
+import Data.Int (hexadecimal)
+import JS.BigInt (BigInt, asUintN, fromInt, shr, toStringAs, xor)
 
 newtype Seed = Seed Int
 
@@ -40,6 +44,13 @@ serializeKey k =
 -- | A value in [0, 1) at 4-decimal precision.
 draw :: Seed -> DrawKey -> Q
 draw (Seed s) key = fromUnits (mix (fnv (show s <> "|" <> serializeKey key)) `mod` fromInt 10000)
+
+-- | A short token for a name under a seed: the name's FNV hash XORed with the seed, as 16 hex digits.
+-- | It is not a secret: anyone who knows the seed and the name can compute it.
+tokenFor :: Int -> String -> String
+tokenFor seed name = fromCharArray (Array.replicate (16 - Text.length hex) '0') <> hex
+  where
+  hex = toStringAs hexadecimal (u64 (fnv name `xor` fromInt seed))
 
 u64 :: BigInt -> BigInt
 u64 = asUintN 64

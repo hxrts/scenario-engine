@@ -18,15 +18,15 @@ import Schema.Run (DeriveKind(..), RunStatus(..), emptySpec, specPairs)
 import Checks.Objectives (evaluateObjectives)
 import Schema.PossibleWorld (Outcome(..))
 
-import Core.Draw (Seed(..))
+import Core.Draw (Seed(..), tokenFor)
 import Core.Num as Q
 import Laws.Query (holding)
-import Data.Array (all, filter, find, index, length, mapWithIndex)
+import Data.Array (all, filter, find, index, length, mapWithIndex, last, nub)
 import Data.Map as Map
 import Data.Either (Either(..), isLeft)
 import Data.Foldable (any, for_)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.String (Pattern(..), contains)
+import Data.String (Pattern(..), contains, split)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Handlers.Simulate (SimRun)
@@ -41,6 +41,8 @@ import Views.Common (Table, completed, exact, final, quantity)
 import Views.Balance (measures, measuresOf)
 import Views.Compare (balanceBars, baselineDiff, compatible, keyValues, netWorthCharts, standingsBars)
 import Views.Report (roundReport)
+import Views.BalanceSheet (balanceSheetAt, balanceSheetLinks)
+import Data.Int as Int
 import Views.Actor (actorHistory)
 import Views.Standings (standings, standingsOf)
 import Views.Glossary (glossary)
@@ -246,6 +248,21 @@ spec context = describe "Views and error paths" do
     map (filter (\b -> b.actor == "US" && b.resource == "E") <<< _.balances) report `shouldEqual` Just [ { actor: "US", resource: "E", holding: "80", change: "10" } ]
     map (_.events) report `shouldEqual` Just [ trade ]
     map _.round (roundReport one 2) `shouldEqual` Nothing
+
+  it "a balanceSheet opens by its token, and shows one Actor" do
+    ctx <- context
+    r <- play ctx (conservative 2)
+    let
+      stored = toStored "run-1" r
+      links = balanceSheetLinks stored
+      us = find (\l -> l.actor == "US") links
+      none = { title: "Objectives", columns: [], rows: [] }
+    map _.path us `shouldEqual` Just ("/balancesheet/run-1/" <> tokenFor (fromMaybe 0 (Int.fromString stored.playerSeed)) "US")
+    length (nub (map _.path links)) `shouldEqual` length links
+    map _.actor (balanceSheetAt stored none (fromMaybe "" (map (\l -> fromMaybe "" (last (split (Pattern "/") l.path))) us))) `shouldEqual` Just "US"
+    map _.actor (balanceSheetAt stored none "nope") `shouldEqual` Nothing
+    -- nothing in the sheet is another Actor's holdings: its one holdings table is this Actor's
+    map (_.title <<< _.holdings) (balanceSheetAt stored none (fromMaybe "" (map (\l -> fromMaybe "" (last (split (Pattern "/") l.path))) us))) `shouldEqual` Just "Balance sheet of US by round"
 
   it "the overview returns the header's facts, in order" do
     ctx <- context

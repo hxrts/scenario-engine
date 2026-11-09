@@ -9,6 +9,8 @@ module Dashboard.Client
   , overview
   , actors
   , actor
+  , balanceSheet
+  , balanceSheetLinks
   , runView
   , compare
   , agency
@@ -37,6 +39,7 @@ import Schema.Decode (decodeError)
 import Views.Common (Table)
 import Views.Compare (CompareView)
 import Views.Actor (ActorList, History)
+import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
 import Views.Glossary (Glossary)
 import Views.Keys (ViewKey)
 import Views.Keys as Keys
@@ -102,6 +105,14 @@ actors = typed Keys.actorList <<< Actors
 -- | One Actor's history.
 actor :: String -> String -> Aff (Either String History)
 actor id e = typed Keys.history (Actor id e)
+
+-- | One Actor's balanceSheet, by its token.
+balanceSheet :: String -> String -> Aff (Either String BalanceSheet)
+balanceSheet id token = typed Keys.balanceSheet (BalanceSheet { id, token })
+
+-- | Every Actor's balanceSheet path in a run.
+balanceSheetLinks :: String -> Aff (Either String (Array BalanceSheetLink))
+balanceSheetLinks = typed Keys.balanceSheetLinks <<< BalanceSheetLinks
 
 -- | One view of a run, decoded through its key; `balances` and `events` at a round take the round as well.
 runView :: forall a. ViewKey a -> String -> Maybe Int -> Aff (Either String a)

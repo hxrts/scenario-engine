@@ -116,11 +116,11 @@ spec = describe "HTTP device" do
       route' <- get port "/runs/run-1" []
       route'.status `shouldEqual` 200
       route'.text `shouldEqual` "<html>the index</html>"
-  it "the public site: the landing page, a portfolio page, and the admin page behind its password" do
+  it "the public site: the landing page, a balanceSheet page, and the admin page behind its password" do
     withSite \port -> do
       landing <- get port "/" []
       landing.text `shouldEqual` "<html>the landing page</html>"
-      (_.text <$> get port "/portfolio/run-1/abc" []) >>= (_ `shouldEqual` "<html>the index</html>")
+      (_.text <$> get port "/balancesheet/run-1/abc" []) >>= (_ `shouldEqual` "<html>the index</html>")
       locked <- get port "/admin/" []
       locked.text `shouldSatisfy` contains (Pattern "password")
       locked.text `shouldSatisfy` (not <<< contains (Pattern "the index"))

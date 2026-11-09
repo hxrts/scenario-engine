@@ -78,6 +78,8 @@ data ApiRequest
   | LaunchBatch LaunchBatch
   | Actors String
   | Actor String String
+  | BalanceSheetLinks String
+  | BalanceSheet { id :: String, token :: String }
   | RunView { id :: String, view :: View, round :: Maybe Int }
   | RoundReport { id :: String, round :: Int }
   | Compare { runs :: Array String, exchange :: Maybe String }

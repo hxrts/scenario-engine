@@ -7,6 +7,8 @@ module Server.Read
   , runInfo
   , getView
   , roundReportView
+  , balanceSheetLinksView
+  , balanceSheetView
   , actorsView
   , actorView
   , compareView
@@ -49,6 +51,7 @@ import Views.Keys as Keys
 import Views.Drivers as Drivers
 import Views.Actor as Actor
 import Views.Report (roundReport)
+import Views.BalanceSheet (balanceSheetAt, balanceSheetLinks)
 import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
@@ -179,6 +182,18 @@ actorsView id = withRun id (ok Keys.actorList <<< Actor.actorList)
 -- | `GET /api/runs/:id/rounds/:round/report`: what one round produced. A round the Run has not completed is a 404.
 roundReportView :: forall r. String -> Int -> Run (READS r) Answer
 roundReportView id round = withRun id \r -> maybe (notFound ("no round " <> show round <> " in " <> id)) (ok Keys.roundReport) (roundReport r round)
+
+-- | `GET /api/runs/:id/balancesheets`: every Actor's balanceSheet path, for the admin page.
+balanceSheetLinksView :: forall r. String -> Run (READS r) Answer
+balanceSheetLinksView id = withRun id (ok Keys.balanceSheetLinks <<< balanceSheetLinks)
+
+-- | `GET /api/runs/:id/balancesheet/:token`: the one balanceSheet a token opens.
+balanceSheetView :: forall r. Premises -> String -> String -> Run (READS r) Answer
+balanceSheetView premises id token = withRun id \r ->
+  let
+    objectives = either (const { title: "Objectives", columns: [], rows: [] }) (\p -> Overview.objectives p.possibleWorld r) (ofSpec premises r.spec)
+  in
+    maybe (notFound "no such balanceSheet") (ok Keys.balanceSheet) (balanceSheetAt r objectives token)
 
 actorView :: forall r. String -> String -> Run (READS r) Answer
 actorView id actor = withRun id (\r -> viewOr Keys.history (Actor.actorHistory r (Id actor)))

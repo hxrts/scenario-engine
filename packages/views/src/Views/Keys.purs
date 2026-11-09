@@ -39,6 +39,8 @@ module Views.Keys
   , actorList
   , history
   , roundReport
+  , balanceSheet
+  , balanceSheetLinks
   , sessionStarted
   , sessionState
   , compare
@@ -64,6 +66,7 @@ import Views.Common (Chart, Table)
 import Views.Compare (CompareView)
 import Views.Actor (ActorList, History)
 import Views.Report (RoundReport)
+import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
 import Laws.World (Event, eventShape)
 import Views.Glossary (Glossary)
 import Views.Overview (RunList, RunOverview)
@@ -173,6 +176,12 @@ sessionStarted = viewShape
 
 sessionState :: Shape { round :: Int, status :: String, window :: Int, submitted :: Array String, awaiting :: Array String }
 sessionState = viewShape
+
+balanceSheet :: Shape BalanceSheet
+balanceSheet = viewShape
+
+balanceSheetLinks :: Shape (Array BalanceSheetLink)
+balanceSheetLinks = viewShape
 
 roundReport :: Shape RoundReport
 roundReport = viewShape

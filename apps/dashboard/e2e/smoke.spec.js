@@ -123,7 +123,7 @@ test("#/runs/:id opens the Runs page with that run selected and its actions bene
 test("the top bar has Prepare, Runs and Compare, and no View item", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
   const nav = page.getByRole("navigation");
-  await expect(nav.getByRole("link")).toHaveText(["Prepare", "Runs", "Compare"]);
+  await expect(nav.getByRole("link")).toHaveText(["Prepare", "Runs", "Balance sheets", "Compare"]);
   await expect(nav.getByText("View", { exact: true })).toHaveCount(0);
 });
 

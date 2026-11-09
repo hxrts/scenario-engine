@@ -7,6 +7,12 @@ module Dashboard.Main (main) where
 
 import Prelude
 
+import Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets)
+import Web.HTML.Location (pathname)
+import Web.HTML.Window (location, document)
+import Data.String (Pattern(..), split)
+import Data.Array (filter, elem, find, findIndex, index, length, null)
+
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
 import Dashboard.Client as Client
@@ -23,7 +29,6 @@ import Dashboard.RunActions as Actions
 import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
 import Dashboard.Theme (themeToggle)
 import Dashboard.UI as UI
-import Data.Array (elem, filter, find, findIndex, index, length, null)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
@@ -50,7 +55,6 @@ import Routing.Hash (matchesWith)
 import Web.DOM.NonElementParentNode (getElementById)
 import Web.HTML (window)
 import Web.HTML.HTMLDocument (toNonElementParentNode)
-import Web.HTML.Window (document)
 
 -- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
 type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
@@ -493,6 +497,7 @@ shell current compareSet themeButton page = D.div
                           , children:
                               [ navLink "Prepare" Prepare (current == Prepare)
                               , navLink "Runs" Runs (isRuns current)
+                              , navLink "Balance sheets" BalanceSheets (current == BalanceSheets)
                               , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (length compareSet) <> ")") (Compare compareSet) (isCompare current)
                               ]
                           }
@@ -531,6 +536,7 @@ mkApp = do
   runsPage <- mkRuns grid
   prepare <- mkPrepare
   compare <- mkCompare grid
+  balanceSheets <- mkBalanceSheets
   toggle <- themeToggle
   component "App" \_ -> React.do
     glossary <- useLoad unit Client.glossary
@@ -547,6 +553,7 @@ mkApp = do
         Run id -> runsPage { selected: Just id }
         Prepare -> prepare unit
         Compare ids -> compare ids
+        BalanceSheets -> balanceSheets unit
     pure $ loaded glossary.value \g -> provider glossaryContext (Just g) [ shell current compareSet (toggle unit) page ]
 
 main :: Effect Unit
@@ -555,6 +562,13 @@ main = do
   case el of
     Nothing -> throw "no #root"
     Just e -> do
-      app <- mkApp
       r <- createRoot e
-      renderRoot r (app unit)
+      path <- pathname =<< location =<< window
+      case filter (_ /= "") (split (Pattern "/") path) of
+        [ "balancesheet", run, token ] -> do
+          grid <- mkDataTable
+          page <- mkBalanceSheet grid
+          renderRoot r (page { run, token })
+        _ -> do
+          app <- mkApp
+          renderRoot r (app unit)

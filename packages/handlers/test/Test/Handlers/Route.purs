@@ -45,6 +45,8 @@ nameOf = case _ of
   Actor _ _ -> "Actor"
   RunView _ -> "RunView"
   RoundReport _ -> "RoundReport"
+  BalanceSheetLinks _ -> "BalanceSheetLinks"
+  BalanceSheet _ -> "BalanceSheet"
   StartSession _ -> "StartSession"
   GetSession _ -> "GetSession"
   SubmitTranscript _ -> "SubmitTranscript"
@@ -79,6 +81,8 @@ examples =
   , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
   , Tuple (RoundReport { id: "run-1", round: 2 }) (g "/api/runs/run-1/rounds/2/report")
   , Tuple (GetSession "run-1") (g "/api/sessions/run-1")
+  , Tuple (BalanceSheetLinks "run-1") (g "/api/runs/run-1/balancesheets")
+  , Tuple (BalanceSheet { id: "run-1", token: "abc" }) (g "/api/runs/run-1/balancesheet/abc")
   , Tuple (StartSession { premise: Nothing, humans: [ "US" ], rounds: Nothing, window: Nothing, playerSeed: Nothing }) { method: "POST", url: "/api/sessions", body: "{\"humans\":[\"US\"]}" }
   , Tuple (SubmitTranscript { id: "run-1", submission: { seat: "US", round: 1, text: "hi" } }) { method: "POST", url: "/api/sessions/run-1/transcripts", body: "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}" }
   , Tuple (Compare { runs: [ "a", "b" ], exchange: Just "m 1" }) (g "/api/compare?runs=a,b&exchange=m%201")
