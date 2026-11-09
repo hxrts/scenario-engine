@@ -21,7 +21,7 @@ import Effects.Launch (runExperiment)
 import Server.Launch (launch, launchBatch, serverRole, settingInfo)
 import Server.Read (agencyDetailView, agencyView, compareView, entitiesView, entityView, getView, runSummaries)
 import Server.Rows (SERVER)
-import Server.Sets (deleteScenarioSet, renameScenarioSet, saveSet, setsView)
+import Server.Sets (deleteScenarioSet, renameScenarioSet, saveSet, setSummary, setsView)
 import Server.Settings (Settings, chosen)
 import Views.Glossary (glossary)
 import Views.Keys as Keys
@@ -52,6 +52,7 @@ answer settings request = do
     Step id -> stepRun settings id
     RunExperiment r -> either (pure <<< Left) (\p -> runExperiment serverRole p r) (chosen settings r.setting) >>= either badRequest (ok Keys.experiment)
     ListScenarioSets -> setsView
+    SetSummary name -> setSummary settings name
     SaveScenarioSet set -> saveSet set
     RenameScenarioSet r -> renameScenarioSet r
     DeleteScenarioSet name -> deleteScenarioSet name

@@ -79,6 +79,7 @@ data ApiRequest
   | Step String
   | RunExperiment ExperimentRequest
   | ListScenarioSets
+  | SetSummary String
   | SaveScenarioSet ScenarioSet
   | RenameScenarioSet { name :: String, to :: String }
   | DeleteScenarioSet String

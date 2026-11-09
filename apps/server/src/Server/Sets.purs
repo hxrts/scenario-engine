@@ -1,22 +1,36 @@
 -- | Named scenario sets (docs/06_simulator.md §10.5): a name, the ids of immutable runs, and the baseline. A set
 -- | never copies run data, and a run in a set cannot be deleted while the set names it.
-module Server.Sets (setsView, saveSet, renameScenarioSet, deleteScenarioSet, setsNaming) where
+module Server.Sets (setSummary, setsView, saveSet, renameScenarioSet, deleteScenarioSet, setsNaming) where
 
 import Prelude
 
-import Data.Array (any, elem, filter, notElem, null)
+import Data.Array (any, elem, filter, find, notElem, null)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
+import Data.Traversable (sequence, traverse)
 import Data.String (trim)
 import Effects.Observe (listRuns, listSets)
 import Effects.Signatures (OBSERVE, ScenarioSet)
 import Effects.Store (createSet, deleteSet, renameSet)
 import Run (Run)
-import Server.Errors (Answer, badRequest, conflict, notFound, ok)
+import Server.Errors (Answer, badRequest, conflict, describe, internal, notFound, ok)
+import Server.Read (loadRun)
+import Server.Settings (Settings, ofRun)
+import Views.Batch (batchSummary)
 import Server.Rows (READS, SERVER)
 import Type.Row (type (+))
 import Views.Keys as Keys
 
 setsView :: forall r. Run (READS r) Answer
 setsView = listSets >>= \sets -> ok Keys.sets { sets }
+
+-- | `GET /api/sets/:name/summary`: the final measures across a set's runs. A set's run that cannot be read is a 500.
+setSummary :: forall r. Settings -> String -> Run (READS r) Answer
+setSummary settings name = find (\s -> s.name == name) <$> listSets >>= case _ of
+  Nothing -> notFound ("no scenario set " <> name)
+  Just set -> traverse loadRun set.runs <#> sequence >>= case _ of
+    Left e -> internal ("a run of " <> name <> " cannot be read: " <> describe e)
+    Right runs -> ok Keys.table (batchSummary (ofRun settings) runs)
 
 -- | The sets that name a run.
 setsNaming :: forall r. String -> Run (OBSERVE + r) (Array ScenarioSet)

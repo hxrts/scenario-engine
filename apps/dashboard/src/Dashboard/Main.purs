@@ -305,7 +305,7 @@ mkCompare :: DataTable -> Component (Array String)
 mkCompare grid = do
   fetch <- fetched
   comparison <- mkComparison grid fetch
-  sets <- mkSets
+  sets <- mkSets grid
   component "Compare" \ids -> React.do
     everyRun <- useRunList 0
     let chooser baseline = loaded everyRun.value \t -> choices t ids baseline

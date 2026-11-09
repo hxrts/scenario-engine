@@ -276,6 +276,7 @@ endpoints = table
   , "AgencyDetail": get "/api/agency/detail" agencyQuery
   , "RunExperiment": post "/api/experiments" (bodyOf experimentRequestShape identity)
   , "ListScenarioSets": get "/api/sets" (pure unit)
+  , "SetSummary": get "/api/sets/:name/summary" (capture "name" identity)
   , "SaveScenarioSet": post "/api/sets" (bodyOf scenarioSetShape identity)
   , "RenameScenarioSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))
   , "DeleteScenarioSet": endpoint "DELETE" "/api/sets/:name" (capture "name" identity)

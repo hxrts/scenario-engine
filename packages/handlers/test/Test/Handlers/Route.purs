@@ -52,6 +52,7 @@ nameOf = case _ of
   Step _ -> "Step"
   RunExperiment _ -> "RunExperiment"
   ListScenarioSets -> "ListScenarioSets"
+  SetSummary _ -> "SetSummary"
   SaveScenarioSet _ -> "SaveScenarioSet"
   RenameScenarioSet _ -> "RenameScenarioSet"
   DeleteScenarioSet _ -> "DeleteScenarioSet"
@@ -84,6 +85,7 @@ examples =
   , Tuple (Step "run-1") (p "/api/runs/run-1/step" "{}")
   , Tuple (RunExperiment { setting: Nothing, name: "s", preset: "Passive", playerSeed: Just 1, rounds: Nothing, experiment: Parameters [] }) (p "/api/experiments" "{\"experiment\":{\"type\":\"parameters\"},\"name\":\"s\",\"playerSeed\":1,\"preset\":\"Passive\"}")
   , Tuple ListScenarioSets (g "/api/sets")
+  , Tuple (SetSummary "a") (g "/api/sets/a/summary")
   , Tuple (SaveScenarioSet { name: "a", baseline: "run-1", runs: [ "run-1" ] }) (p "/api/sets" "{\"baseline\":\"run-1\",\"name\":\"a\",\"runs\":[\"run-1\"]}")
   , Tuple (RenameScenarioSet { name: "a", to: "b" }) (p "/api/sets/a/rename" "{\"name\":\"b\"}")
   , Tuple (Archive "run-1") (p "/api/runs/run-1/archive" "{}")

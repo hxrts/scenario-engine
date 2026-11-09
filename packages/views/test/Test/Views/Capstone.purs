@@ -24,6 +24,8 @@ import Foreign.Object as Object
 import Effect.Aff (Aff)
 import Views.Agency (agencyTable)
 import Views.Assertions (assertions)
+import Views.Batch (batchSummary, measureRow, objectiveRow)
+import Views.Common (quantity)
 import Views.Difference (Difference, differenceOfWorlds)
 import Testkit.Capstone (load)
 import Testkit.Meridian (run)
@@ -57,6 +59,19 @@ checkObjectives ctx r expected = do
 
 spec :: Aff GameboardParts -> Spec Unit
 spec context = describe "Capstone (DSL-authored run)" do
+  it "a batch summary gives the mean, the spread, and the runs that met an objective" do
+    _ <- context
+    measureRow quantity "m" (map Q.fromInt [ 1, 2, 6 ]) `shouldEqual` [ "m", "3", quantity (Q.fromInt 3), quantity (Q.fromInt 5), "" ]
+    objectiveRow "o" [ true, false, true ] `shouldEqual` [ "o", "3", "", "", "2" ]
+    cap <- load
+    base <- run cap.playerSeed cap.game
+    let stored = toStored "capstone" base
+    case Array.head (batchSummary (const Nothing) [ stored, stored, stored ]).rows of
+      Just [ _, runs, _, spreadAcross, _ ] -> do
+        runs `shouldEqual` "3"
+        spreadAcross `shouldEqual` quantity Q.zero
+      other -> fail ("unexpected first row: " <> show other)
+
   it "a failed assertion shows its expected and observed values and its events; the clean run has none" do
     _ <- context
     cap <- load

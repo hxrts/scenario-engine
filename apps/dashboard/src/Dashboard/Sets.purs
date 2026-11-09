@@ -6,13 +6,14 @@ import Prelude
 
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (errorBlock, labelled, loaded, textInput)
+import Dashboard.Components (errorBlock, fetched, labelled, loaded, tableOf, textInput)
+import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
 import Dashboard.Route (Route(..), navigate)
 import Dashboard.UI as UI
 import Data.Array (filter, head, null)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -27,8 +28,9 @@ import React.Basic.Hooks as React
 ordered :: ScenarioSet -> Array String
 ordered s = [ s.baseline ] <> filter (_ /= s.baseline) s.runs
 
-mkSets :: Component (Array String)
-mkSets = component "ScenarioSets" \ids -> React.do
+mkSets :: DataTable -> Component (Array String)
+mkSets grid = fetched >>= \fetch -> component "ScenarioSets" \ids -> React.do
+  summary /\ setSummary <- useState' (Nothing :: Maybe String)
   version /\ setVersion <- useState' 0
   name /\ setName <- useState' ""
   renames /\ setRenames <- useState' ""
@@ -53,6 +55,7 @@ mkSets = component "ScenarioSets" \ids -> React.do
       , children:
           [ element UI.button { onClick: handler_ (navigate (Compare (ordered s))), children: [ D.text ("Open " <> s.name) ] }
           , D.span { className: "text-muted-foreground", children: [ D.text (joinWith ", " (ordered s)) ] }
+          , element UI.button { onClick: handler_ (setSummary (Just s.name)), children: [ D.text ("Summarize " <> s.name) ] }
           , element UI.button { onClick: handler_ (send (Client.renameSet s.name renames) (setRenames "")), children: [ D.text ("Rename " <> s.name) ] }
           , element UI.button { onClick: handler_ (send (Client.deleteSet s.name) (pure unit)), children: [ D.text ("Delete " <> s.name) ] }
           ]
@@ -72,5 +75,6 @@ mkSets = component "ScenarioSets" \ids -> React.do
                 ]
             }
         , errorBlock failure
+        , maybe (D.span_ []) (\n -> fetch { key: n <> "@" <> show version, load: map (tableOf grid) <$> Client.setSummary n }) summary
         ]
     }

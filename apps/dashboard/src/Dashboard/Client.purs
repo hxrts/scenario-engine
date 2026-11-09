@@ -18,6 +18,7 @@ module Dashboard.Client
   , deriveRun
   , sets
   , saveSet
+  , setSummary
   , renameSet
   , deleteSet
   , step
@@ -65,6 +66,9 @@ deriveRun id body = typed Keys.derived (Derive { id, body })
 -- | The named scenario sets.
 sets :: Aff (Either String { sets :: Array ScenarioSet })
 sets = typed Keys.sets ListScenarioSets
+
+setSummary :: String -> Aff (Either String Table)
+setSummary = typed Keys.table <<< SetSummary
 
 saveSet :: ScenarioSet -> Aff (Either String ScenarioSet)
 saveSet = typed Keys.scenarioSet <<< SaveScenarioSet
