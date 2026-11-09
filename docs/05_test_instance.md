@@ -479,7 +479,7 @@ Each round is one simulated year and follows the Type System canonical sequence 
 
 ### 13.2 Institutional changes
 
-Tariffs, shipment bans, withholding, and strikes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round. A tariff it enacts in round r is in force from round r+1.
+Tariffs, shipment bans, withholding, and strikes follow the Type System's timing ([§3](02_type_system.md#3-intents-and-economic-actions)): a tariff a procedure Proposal enacts in round r is in force from round r+1.
 
 ### 13.3 Military deployment
 
@@ -497,7 +497,7 @@ Soft Power is produced by campaigns and aid, spent on strikes, and decays at the
 
 ### 13.5 Proposals and signatures
 
-Out-of-band joint Proposals enter as Proposals whose signers are every party. Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
+Out-of-band joint Proposals enter as Proposals whose signers are every party. A Strategy can sign by rule, for example "sign what is addressed to me while Energy is at most 2.6 M/E". Fixture G shows the settle and lapse cases ([INV-10](02_type_system.md#inv-10)).
 
 ### 13.6 Energy disruption
 
@@ -825,8 +825,7 @@ The instance is a versioned configuration package with no new foundational types
 ```text
 packages/settings/
   meridian/v0/   setting  resources  markets  transformations  circulation
-                        entities  representations  game-rules  policies  instantiation
-  presets.json          the seat presets, shared by every setting (docs/06 §4.2)
+                        entities  representations  game-rules  policies  instantiation  presets (docs/06 §4.2)
   fixtures/             the golden fixtures of Part IV (generated, not committed)
 ```
 

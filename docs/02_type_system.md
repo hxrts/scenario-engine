@@ -56,7 +56,7 @@ data Controller
 
 Identifiers, Holdings, Capacities, and units are domain types defined in code. The snippets in this document are interfaces, not complete modules.
 
-Actors and Aggregates own accounts, hold capabilities, and act in the same Markets and Transformations. They differ only in how their decisions are produced: an Actor is driven by a seat or NPC Policy, an Aggregate by its baseline Policy and any collective procedures. A government, a corporation, or a small-business owner may be an Actor. Households, an industry, or a supranational bloc may be Aggregates. A government Actor holds government-controlled resources only ([§7.1](#71-aggregate-semantics)).
+Actors and Aggregates own accounts, hold capabilities, and act in the same Markets and Transformations. They differ only in how their decisions are produced: an Actor is driven by a seat or NPC Policy, an Aggregate by its baseline Policy and any collective procedures. Which participants a setting makes Actors and which Aggregates is its own choice ([05 §9](05_test_instance.md#9-actor-catalog) and [§10](05_test_instance.md#10-aggregate-catalog) give the reference instance).
 
 ### 2.2 Three projections of an Entity
 
@@ -83,11 +83,11 @@ A collective procedure is a weighted-signature rule on the Aggregate's own Propo
 
 Publishing implies the author's signature, so the residual weight always counts. The Proposal executes in that round if support exceeds `threshold`. Otherwise it lapses. The engine records the signers, support, threshold, and outcome.
 
-A member that is not explicit has its weight folded into `residualWeight`. Instantiation moves weight between the two, as part of resolution consistency ([INV-14](#inv-14)).
+Instantiation decides how a member that is not explicit counts in a procedure ([04 §4.1](04_instantiated_game.md#41-resolving-the-three-projections)).
 
-A member with no weight in a procedure acts for the Aggregate in that procedure without signing: its Intents may appear in the procedure Proposal and are executed from its own accounts. The EU's solidarity pool is such a member ([docs/05 §12.1](05_test_instance.md#121-germany--eu-collective-procedure)).
+A member with no weight in a procedure acts for the Aggregate in that procedure without signing: its Intents may appear in the procedure Proposal and are executed from its own accounts.
 
-Germany is in the EU's `members` whether or not it signs in a given round. The EU Aggregate owns the residual European accounts. Germany influences EU procedures through its declared weight without owning EU accounts or exercising EU capabilities. A manufacturer may belong to the small-business population, the manufacturing sector, and a regional economy at once, but those memberships never let three Aggregates own its assets. Accounting is partitioned. Classification is not.
+An Entity influences a procedure only through its declared weight, without owning the Aggregate's accounts or exercising its capabilities. It may belong to several Aggregates at once, but those memberships never let several Aggregates own its assets. Accounting is partitioned. Classification is not.
 
 ### 2.3 Resource
 
@@ -101,13 +101,13 @@ type ResourceDefinition =
   }
 ```
 
-`Restricted` means authority-gated transfer: its Transfers need `MayTransfer`. A `Free` Resource moves on its holder's signature alone. A Resource the setting marks `reservable` can be reserved, for example by a military deployment, without being consumed. A Transformation declares the quantity it reserves per unit ordered (`reserves`, empty by default). The Gameboard rejects a reservation of a Resource that is not `reservable`. A Resource that no Transformation produces or consumes is conserved. This follows from the declared Transformations, not from a separate declaration.
+`Restricted` means authority-gated transfer: its Transfers need `MayTransfer`. A `Free` Resource moves on its holder's signature alone. A Transformation may reserve a quantity of a Resource per unit ordered (`escrowPerUnit`, empty by default) without consuming it; which Resources may be reserved is a setting's declaration ([03 §5.1](03_gameboard.md#51-resources)). A Resource that no Transformation produces or consumes is conserved. This follows from the declared Transformations, not from a separate declaration.
 
 A reservation lasts within one round, and its mechanics are given in [§8.2](#82-single-round-update-and-snapshot-discipline): the reserved quantity limits competing actions but is neither consumed nor transferred, and nothing stays reserved across a round boundary.
 
-Not everything economically meaningful is a Resource. Production capacity, transport capacity, market access, political authority, and supply-chain efficiency are economic state or rules attached to Entities, Markets, and Transformations. A semiconductor producer can hold valuable productive capacity without the setting introducing a semiconductor Resource.
+Not everything economically meaningful is a Resource. Capacities, Market access, and institutional authority are economic state or Rules attached to Entities, Markets, and Transformations.
 
-Holdings are distinct from capabilities. A government may hold authority to modify taxation without owning the resources of the affected private sector, and an Actor cannot spend, transfer, or create resources merely because it has political influence over their owners.
+Holdings are distinct from capabilities. An Entity may hold authority over a Rule without owning what the Rule affects, and it cannot spend, transfer, or create Resources merely because it has influence over their owners.
 
 ### 2.4 Capability
 
@@ -124,7 +124,7 @@ data Capability
 authorized :: Facts -> Array Capability -> EntityId -> Intent -> Boolean   -- INV-02
 ```
 
-`authorized` is the one matching function: screening, the invariants, and the Strategy interpreter all ask it. Its `Facts` are each Resource's transferability and each Rule in force, read from the World State by the engine and from the View by a Strategy. A Repeal needs enactment authority over the kind of the Rule it repeals. Enacting or repealing a Rule also requires that the acting Entity governs it: its jurisdiction, or the owner of the capacity a Withholding withholds ([§3](#3-intents-and-economic-actions)). For example, a government may enact a tariff within its jurisdiction, while a small business may invest its own capital.
+`authorized` is the one matching function: screening, the invariants, and the Strategy interpreter all ask it. Its `Facts` are each Resource's transferability and each Rule in force, read from the World State by the engine and from the View by a Strategy. A Repeal needs enactment authority over the kind of the Rule it repeals. Enacting or repealing a Rule also requires that the acting Entity governs it: the governor a flows Rule names, or the owner of the capacity a capacity Rule reduces ([§3](#3-intents-and-economic-actions)).
 
 Institutional capabilities stay with the institutional Entity or rule mechanism that holds them. If an institution is not explicitly played, its capabilities remain with its Aggregate's collective procedures or with a declared rule, and never transfer automatically to a population Aggregate. Membership, Representation, and signing a procedure Proposal never transfer capabilities to the member or representative Actor.
 
@@ -149,7 +149,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **View** | What a Policy sees of the Snapshot: its own Entity, prices, Rules in force, permitted events, stored adjustment factors, the Proposals awaiting its signature, the Markets it has access to, and the known Entities and Transformations with their order bounds. |
 | **Decision-language interpreter** | The shared interpreter that runs every declarative Policy ([§4.4](#44-shared-decision-language-interpreter)). |
 | **Round runner** | The effectful code that runs Propose and Sign for every Policy, then calls `resolveRound` ([§8.3](#83-functional-interface)). |
-| **World State** | The economic state at a round boundary: Entities with accounts and capacities, Markets, Transformations, Representations, Rules in force and scheduled, Deliveries, stored adjustment factors, the numeraire, transport and jurisdiction links, the event history, the game seed, and the round number. |
+| **World State** | The economic state at a round boundary: Entities with accounts and capacities, Markets, Transformations, Representations, the declared Rule kinds, Rules in force and scheduled, flow gates, groups, the recurring flows, Deliveries, stored adjustment factors, the numeraire and focus Resource (only the views read those two), the event history, the game seed, and the round number. |
 | **Snapshot** | The World State a round ends with. The next round's decisions are all made on it, once Prepare has applied what is due. |
 | **Account** | A quantity of a Resource, or a capacity, owned by exactly one Entity or Market. |
 | **Money** | The numeraire Resource (setting field `numeraire`): the unit of account the views use for net worth and units. The engine does not read it: a Transformation's payment and a levy name their own Resource. |
@@ -166,13 +166,13 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Signer** | An Entity whose signature a Proposal asks for. The author's signature is implicit in publishing. |
 | **Lapse** | The outcome of a Proposal whose signature rule is not met by the end of the Sign step. It is a decline, not an error. |
 | **Transformation** | A declared recipe that changes quantities, optionally priced by a CostFunction and limited by capacity. |
-| **Facility** | The player-facing name for a costed Transformation, such as defense procurement. Its accounting is that of a Transformation, not a Market. |
-| **Payee** | The Entity that receives Money paid into a facility. |
+| **Facility** | The player-facing name for a costed Transformation. Its accounting is that of a Transformation, not a Market. |
+| **Payee** | The Entity a Transformation's payment goes to (`payment.to`), in the Resource the payment names. |
 | **CostFunction** | A linear cumulative cost curve that prices quantity ([§5.1](#51-costfunction)). |
 | **Uniform batch price** | The single price at which a Market clears its round batch ([§5.5](#55-simultaneous-clearing)). |
 | **Best execution** | The Entity-facing form of an order that names a base and quote pair, not a Market. The engine routes it across the Markets for that pair the Entity can trade on ([§5.2](#52-exchange-markets)). |
 | **Escrow** | The hold placed at screening on a Proposal's maximum cost, in any Resource, released at commit if unused ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
-| **Reservation** | A reserved quantity of a reservable Resource, such as deployed Military: unavailable within the round, not consumed. |
+| **Reservation** | A quantity of a Resource a Transformation holds for one round (`escrowPerUnit`): unavailable within the round, not consumed. |
 | **Shortfall** | `moved < owed` on a leg: an amount owed but not delivered, because the source's holdings were insufficient. Never drives a holding negative ([§8.2](#82-single-round-update-and-snapshot-discipline)). |
 | **Flow** | One leg of a settlement: a quantity of a Resource `owed` from one endpoint (an Entity, a Market, a source, or a sink) to another, and how much `moved`. |
 | **Coupled flow** | The one settlement event: `Coupled { legs, rate, cause }`. Its legs settle together, at its exact stored rate when it has one. A trade is two legs at a rate; a Transform is its input, output, and payment legs; a single move is one leg ([§5.5](#55-simultaneous-clearing)). |
@@ -190,7 +190,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Round record** | The append-only record of one round's inputs, proposed and executed actions, and events. |
 | **Effect** | A declared impure operation: seat input, interpretation, narration, recording, Run Store reads and writes, or an API call ([§8.4](#84-effects-and-handlers)). Randomness is not an effect. |
 | **Game seed** | The single seed per game instance, fixed at initialization, from which every in-world random value is derived. |
-| **Player seed** | A second seed, separate from the Game seed, from which all seat-Policy randomness is derived. Simulated and live runs both have one. |
+| **Player seed** | A second seed, separate from the Game seed, from which all seat-Policy randomness is derived. Simulated and live runs both have one ([04 §7.3](04_instantiated_game.md#73-seeds-and-randomness)). |
 | **Draw key** | The semantic name of one random draw: round, source, Entity, category, index ([§9.1](#91-numerics-and-randomness)). |
 | **Display kind** | One of Quantity, Price, or Ratio. Each has one display function ([§9.1](#91-numerics-and-randomness)). |
 | **Setting** | The whole thing a game is launched from, such as Meridian: the authored configuration a game is assembled from: the Gameboard, its instantiation configuration, the seat strategies, and the uncertainties it contains. Every scenario of a set shares it. A literal setting (`LiteralSetting`) writes its World State out in full, as a fixture does ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)). |
@@ -206,7 +206,7 @@ The seven concepts in §2 and this table are the only term definitions. The othe
 | **Joint Proposal** | A Proposal that needs a signature from someone other than its author. It bundles only Transfers and Transforms and settles as a unit ([§3.3](#33-proposals-and-signatures)). |
 | **Offer** | A joint Proposal as its author publishes it, before the other signers answer. |
 | **Unilateral action** | A Proposal that needs no signature but its author's. |
-| **Joint pass** | The interpretation step that reads all of a round's transcripts together into Proposals: one model call and at most two corrections ([§8.1](#81-canonical-resolution-sequence)). |
+| **Joint pass** | The interpretation step that reads all of a round's transcripts together into Proposals: one model call and at most two corrections ([04 §11.2](04_instantiated_game.md#112-live-session)). |
 | **Run Store** | The persistent store of runs: manifests, specs, round records, snapshots, assertions, and metrics ([06 §8](06_simulator.md#8-persistence)). |
 | **Spec** | A run's stored specification: the string fields it was launched or derived with, beside its manifest. |
 | **Venue** | A Market as a Policy sees it in its View: its id, base, and quote ([§4](#4-policies)). |
@@ -233,27 +233,15 @@ The Intent algebra has four categories:
 - **ChangeRule:** Enact or repeal a Rule under the Entity's authority. A repeal names an existing Rule, and only the authority that governs it may repeal it ([§2.4](#24-capability)). Enactment takes effect at the next round boundary.
 
 ```purescript
-type Order =
-  { market :: MarketId
-  , quantity :: Quantity          -- + buys, − sells the Market's base Resource
-  , limitPrice :: Maybe Price
-  }
+data IntentF m v                  -- m: the Market position; v: quantities and limits
+  = Trade { market :: m, quantity :: v, limitPrice :: Maybe v } -- + buys, − sells the base Resource
+  | Route { pair :: Pair, quantity :: v, limitPrice :: Maybe v } -- a Trade with its Market omitted (§5.2); the limit is required
+  | Transfer { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: v }
+  | Transform { by :: EntityId, transformation :: TransformationId, quantity :: v }
+  | ChangeRule (RuleChangeF v)
 
-type RouteOrder =                 -- a Trade with its Market omitted (§5.2)
-  { pair :: { base :: ResourceId, quote :: ResourceId }
-  , quantity :: Quantity
-  , limitPrice :: Maybe Price     -- required
-  }
-
-type TransferSpec =
-  { from :: EntityId, to :: EntityId, resource :: ResourceId, quantity :: Quantity }
-
-data Intent
-  = Trade Order
-  | Route RouteOrder
-  | Transfer TransferSpec
-  | Transform { by :: EntityId, transformation :: TransformationId, quantity :: Quantity }
-  | ChangeRule RuleChange
+type Pair = { base :: ResourceId, quote :: ResourceId }
+type Intent = IntentF MarketId Q  -- what the engine settles; a Strategy's template is IntentF MarketRef Expr (§4.4)
 
 data Rule
   = FlowRule { kind :: RuleKindId, scope :: FlowScope, effect :: FlowEffect }
@@ -304,8 +292,6 @@ Infeasible actions are rejected or partially executed by deterministic rules. Th
 - Orders whose limit price is violated at the batch price are removed at clearing ([§5.5](#55-simultaneous-clearing)).
 - A multi-signer Proposal settles atomically, or is rejected and recorded as a unit.
 
-Settings may declare alternative allocation rules, provided they are deterministic and order-independent.
-
 ### 3.3 Proposals and signatures
 
 Every Intent reaches the engine inside a Proposal. Each round the round runner (`Effects.Round`) runs two steps against the same Snapshot ([§8.1](#81-canonical-resolution-sequence)):
@@ -313,7 +299,7 @@ Every Intent reaches the engine inside a Proposal. Each round the round runner (
 - **Propose.** Every Policy publishes Proposals. The Proposal set is frozen at the end of this step.
 - **Sign.** Every signer sees the Snapshot and the Proposals that name it as a signer, and signs those it endorses. Publishing implies the author's signature.
 
-A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule) has its author as the only required signer. An **offer** also requires its counterparties: SA's Proposal [Transfer 20 E to JP, Transfer 48 M to SA] with signers [SA, JP] is an offer, and JP's signature is the acceptance. An N-party joint Proposal requires N signers.
+A **unilateral action** (a Market Trade, a gift Transfer, a Transform, a ChangeRule) has its author as the only required signer. An **offer** also requires its counterparties: a Proposal whose Transfers go both ways, with both parties as signers, is an offer, and the counterparty's signature is the acceptance. An N-party joint Proposal requires N signers.
 
 Multi-signer Proposals ("joint Proposals") may bundle only Transfers and Transforms. A joint Proposal containing a Trade, Route, or ChangeRule is rejected. Trades travel in single-author Proposals and follow the partial-fill rules ([§3.2](#32-infeasible-actions)). A joint Proposal is all-or-nothing: if its signed facility orders exceed a facility's capacity, every joint Proposal using that facility in that round is rejected as a unit and recorded. Single-author facility orders keep pro-rata fills. Each `ProposalId` is derived from (round, author, index in the author's submission), so recorded signatures replay deterministically.
 
@@ -323,7 +309,7 @@ A Proposal whose signature rule is not met **lapses**: it is recorded as a decli
 
 A fully signed Proposal is escrowed at screening like any action ([§8.2](#82-single-round-update-and-snapshot-discipline)). Each signer funds its own giving side from opening holdings. Its Intents settle atomically, or the whole Proposal is rejected and recorded, for example when escrow, transferability, or delivery fails.
 
-Negotiation happens out of band for humans. The interpreter turns "we accept SA's joint Proposal" into a signature on that Proposal. Strategies propose and sign by rule (for example, "sign what is addressed to me while Energy is at most 2.6 M/E"). AI agents read the Proposals that name them and choose.
+Negotiation happens out of band for humans. The interpreter turns "we accept SA's joint Proposal" into a signature on that Proposal. Strategies propose and sign by rule, optionally guarded by a condition. AI agents read the Proposals that name them and choose.
 
 ## 4. Policies
 
@@ -342,6 +328,10 @@ type View =                              -- what a Policy sees (INV-16)
   , factors :: Map BehaviorDomain Ratio  -- adjustment factors stored last round, for an Aggregate's Policy
   , toSign :: Array Proposal             -- Proposals requiring its signature (empty in Propose)
   , markets :: Array Venue               -- the Markets it has access to (id, base, quote), in id order
+  , entities :: Array EntityId           -- the known Entities, in id order
+  , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
+  , ownedCapacities :: Array CapacityRef -- the capacities it owns
+  , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
   }
 ```
 
@@ -351,7 +341,7 @@ The engine (World State + Intents → World State) is separate from the Policies
 |---|---|---|
 | **Declarative strategy** | NPC rules, Aggregate baselines, seat-policy presets, run on the shared interpreter ([§4.4](#44-shared-decision-language-interpreter)) | The game seed |
 | **AI agent** | A language model given the role's briefing, objectives, and authorized view | Recorded Intents |
-| **Human** | A person whose audio submission, transcribed, is interpreted into Intents | Recorded transcripts and Intents |
+| **Human** | A person, whose submission is interpreted into Intents ([04 §11](04_instantiated_game.md#11-round-execution)) | Recorded transcripts and Intents |
 
 Accepted Intents are always recorded, and replay starts from them. Deterministic strategies can also be regenerated from the seed.
 
@@ -361,7 +351,7 @@ A seat's Policy is supplied from outside and bound at run time. Swapping it (hum
 
 ### 4.1 NPC policies
 
-An NPC is an explicit Actor whose Policy is part of the setting. Its decisions have no special authority and undergo ordinary validation. For example, an NPC government may respond to tariffs with retaliatory restrictions, or propose and sign offers with other Actors.
+An NPC is an explicit Actor whose Policy is part of the setting. Its decisions have no special authority and undergo ordinary validation.
 
 ### 4.2 Aggregate policies
 
@@ -380,11 +370,11 @@ An initialized Policy must:
 - Operate only on an authorized view of the world.
 - Produce typed Intents.
 - Respect deterministic execution, using seeded randomness only where its definition explicitly calls for it.
-- Remain distinct from institutional rules that players may be authorized to change. A seat enacting a tariff changes a Rule through `ChangeRule`. It does not rewrite any Entity's Policy.
+- Remain distinct from institutional rules that players may be authorized to change. A Policy that enacts a Rule changes the Rule through `ChangeRule`. It does not rewrite any Entity's Policy.
 
 ### 4.4 Shared decision-language interpreter
 
-All declarative strategies (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A strategy is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, joint Proposals bundling transfers and transforms, procedure Proposals, tariffs, access bans, withholdings, repeals of Rules the Entity governs, reciprocal restrictions, and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
+All declarative strategies (NPC Policies, Aggregate Policies, and seat-policy presets) run on one shared **decision-language interpreter**. A strategy is a list of rules. Each rule has conditions (comparisons over prices, own holdings, stored factors, the round, and parameters, events of the previous round, Rules in force) and the templates it proposes: market and facility orders, joint Proposals bundling transfers and transforms, procedure Proposals, the enactment of a declared Rule kind (`enact`), repeals of Rules the Entity governs, `Mirror` (each Rule a condition found, turned back on its governor), and a seeded choice among options. Sign rules cover procedures, facilities, or everything addressed to the Entity, each optionally guarded by conditions.
 
 A Strategy names a Market by reference (`MarketRef`): by id (`Named`), or by a selector over the Markets the Entity has access to whose base is a Resource: `Each` (every one), `Cheapest` or `Costliest` (the one with the lowest or highest beginning-of-round price; ties keep the first by id, and a Market with no price is not a candidate). A clause that uses selectors is instantiated once per Market they pick, in Market-id order; distinct selectors in one clause range over the product of their picks, so one clause can buy at the cheapest and sell at the costliest. A selector that picks nothing instantiates nothing, so an Entity with no accessible Market for the Resource proposes nothing from that clause and the setting is not an error. A sign rule's conditions are instantiated the same way and hold when any instantiation holds. Selectors read `View.markets`; the Policy never sees World State. There is no notion of a home Market.
 
@@ -398,7 +388,7 @@ Let C(q) be a cumulative cost function, where q is a cumulative quantity positio
 
 ```purescript
 type CostFunction =
-  { base :: Price, slope :: Price   -- p(q) = base + slope·q
+  { intercept :: Price, slope :: Price   -- p(q) = intercept + slope·q
   , domain :: Interval              -- supported position range
   }
 ```
@@ -421,9 +411,9 @@ type Market =
   }
 ```
 
-The base Resource is the good being exchanged. The quote Resource is the denomination. The same cost function prices purchases and sales (positive and negative quantities), subject to domain and reserve constraints. Markets cannot supply resources they do not hold. A regional Market is expressed through `access`.
+The base Resource is the good being exchanged. The quote Resource is the denomination. The same cost function prices purchases and sales (positive and negative quantities), subject to domain and reserve constraints. Markets cannot supply resources they do not hold.
 
-**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair. The regional Markets remain the physical structure. In setting JSON a routed trade is a `route` (`base`, `quote`, `quantity`, `limit`), so it has no `market` field. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
+**Best execution (routing).** An Entity may place a routed order by naming a base and quote pair instead of a Market. From the Entity's point of view there is one market for the pair; the individual Markets remain the structure. In setting JSON a routed trade is a `route` (`base`, `quote`, `quantity`, `limit`), so it has no `market` field. The Route is a separate Intent constructor, so explicit Trades keep their encoding.
 
 - **Candidates.** The Markets whose base and quote match, to which the Entity has access and for which it holds the trade capability. A routed order with no candidate is rejected at screening. An explicit order on an inaccessible Market is also rejected.
 - **Limit.** A routed order must carry a limit price, for both sides. Screening rejects one without it. Its escrow ceiling is therefore its limit (for a buy, limit × quantity, for a sell, its quantity).
@@ -457,24 +447,22 @@ type CapacityEffect =   -- per unit ordered, applied after the delay; holder def
   { capacity :: CapacityRef, holder :: Maybe EntityId, perUnit :: Quantity, rounds :: Maybe Int }
 ```
 
-Investment and disruption are facilities with capacity effects: an investment raises a capacity after its delay, and a strike lowers another Entity's capacity for a limited number of rounds. Facilities that share a capacity draw on it by their `capacityUse` and share its limit. Those that also share a cost function share one uniform price, a single function of the pool's filled quantity. Escrow applies that function to the pool's ceiling: for a capped facility, the capacity ÷ the smallest `capacityUse` among the facilities drawing on it, rounded down, since any total of fills draws on the capacity at least that fast. For an uncapped facility (no capacity, or `capacityUse` zero), the top of its CostFunction's domain. Every member escrows at this one ceiling, and fills never exceed it, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a transport owner chooses which shipments to carry.
+Facilities can change capacities: a capacity effect raises or lowers a capacity after its delay, for a limited number of rounds if `rounds` is given. Facilities that share a capacity draw on it by their `capacityUse` and share its limit. Those that also share a cost function share one uniform price, a single function of the pool's filled quantity. Escrow applies that function to the pool's ceiling: for a capped facility, the capacity ÷ the smallest `capacityUse` among the facilities drawing on it, rounded down, since any total of fills draws on the capacity at least that fast. For an uncapped facility (no capacity, or `capacityUse` zero), the top of its CostFunction's domain. Every member escrows at this one ceiling, and fills never exceed it, so the escrowed price bounds the settled price. When `ownerSigns` is set, the capacity's owner signs each order, which is how a capacity's owner chooses which orders to carry.
 
-Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available. Money paid to a facility goes to a declared payee Entity, so expenditure re-enters circulation. Facilities hold no reserves.
+Production, consumption, procurement, issuance, destruction, and investment are Transformations. They modify holdings only when the required inputs, capacities, and authority are available. A facility's payment goes to its payee, so expenditure re-enters circulation. Facilities hold no reserves.
 
 A facility may be presented as a "market" in the player interface, but its accounting is that of a Transformation: outputs are created only by the recipe, within capacity ([INV-07](#inv-07)).
 
-### 5.4 Market scope and geography
+### 5.4 Flow gates and flows Rules
 
-Each commodity keeps a single Resource type. Geography is expressed through:
+- A **flow gate** puts a condition on a Transfer of a Resource: unless `exemptSharedMarket` exempts them, the parties' Transfer must be bundled with a matching order on the gate's Transformation, executed by the sender and signed by the owner of that facility's capacity. A setting with none has no such check.
+- A **flows Rule** applies to a Transfer between the groups it names ([§3](#3-intents-and-economic-actions)), when the Rule covers the Resource and, if the gate exempts shared-Market parties, they share no Market. A `Block` refuses the Transfer. A `Levy` charges the Transfer by its `basis` (per unit, or ad valorem on a Market's price), paid by the sender in the Resource `in`, to the recipient `to` (the destination's group, the Rule's governor, or a sink).
 
-- Scoped or regional Market nodes, and market access rules that determine which Entities may trade.
-- Flows Rules (`Levy`, `Block`) between particular groups ([§3](#3-intents-and-economic-actions)).
-- Flow gates ([§8.1](#81-canonical-resolution-sequence)): a Transfer of a Resource with a condition, between parties who share no Market for it, must be bundled with a matching order on the condition's Transformation, executed by the sender and signed by the owner of that facility's capacity. A `Block` flows Rule between their groups refuses it. A `Levy` flows Rule adds its rate to the Transfer, paid by the sender to the destination's group.
-- Facilities that share a capacity share its limit and its uniform price.
+How a setting uses these to express regions, shipping, and restrictions is in [03 §5.5](03_gameboard.md#55-geography-access-and-rules).
 
 ### 5.5 Simultaneous clearing
 
-All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Levies do not enter clearing: they apply to conditioned Transfers ([§5.4](#54-market-scope-and-geography)).
+All orders in the round update are resolved as one batch, and each Market clears at a single uniform price. The steps below compute that price. They do not order individual orders. Levies do not enter clearing: they apply to Transfers ([§5.4](#54-flow-gates-and-flows-rules)).
 
 For a given Market:
 
@@ -489,16 +477,11 @@ The clearing result must not depend on the order in which submissions were recei
 
 ### 5.6 Market-rule changes
 
-A `Levy` adds its rate to conditioned Transfers the Rule covers, paid to the destination's group. A `Block` refuses them. A `Reduce` removes units of a capacity. Each kind's name, form, and who governs it is the setting's declaration (docs/03). Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
+A `Levy` charges a Transfer the Rule covers, paid to its recipient ([§5.4](#54-flow-gates-and-flows-rules)). A `Block` refuses it. A `Reduce` removes units of a capacity. Each kind's name, form, and who governs it is the setting's declaration ([03 §5.5](03_gameboard.md#55-geography-access-and-rules)). Rule changes take effect at the next round boundary ([§8.1](#81-canonical-resolution-sequence)).
 
 ## 6. Economic Circulation
 
-Each round's single update includes a recurring stock-flow cycle with four components, computed together from the Snapshot ([§8.2](#82-single-round-update-and-snapshot-discipline)):
-
-- **Production.** Authorized Transformations create outputs, such as Energy, from capacity and inputs.
-- **Exchange.** Markets clear, and Money moves to suppliers and producers.
-- **Income and expenditure.** Explicit rules distribute earnings, wages, taxes, public spending, and transfers among Entities.
-- **Capacity renewal.** Investments, depreciation, and degradation adjust future capacities.
+Each round's single update includes a recurring stock-flow cycle, computed from the Snapshot with the round's batch ([§8.2](#82-single-round-update-and-snapshot-discipline)). What a setting's cycle comprises is authored in [03 §5.4](03_gameboard.md#54-recurring-cycle).
 
 The cycle is data in World State, one rule per flow, and one function applies it in list order, with the rules from every holder last (Entity order, then Resource):
 
@@ -528,7 +511,7 @@ Explicit Actors influence an implicit Aggregate in two distinct ways. **Represen
 
 An Aggregate maintains a `members` list, residual economic accounts and capacities, a baseline behavioral Policy, any collective procedures and institutional capabilities, and relationships to any representative Actors.
 
-**An Aggregate's economic accounts are the residual after explicitly modeled accounts have been assigned to other Entities.** An explicit small-business Actor owns its own resources. The small-business Aggregate holds the resources attributed to the remaining, implicitly represented businesses. Making a government's head explicit extracts only the accounts and responsibilities assigned to that government Actor. The households and firms of that country remain in whichever Aggregate owns them.
+An Aggregate's economic accounts are its residual ([§2.5](#25-glossary)); how instantiation partitions them is in [04 §4.2](04_instantiated_game.md#42-partitioning).
 
 ### 7.2 Representation and estimators
 
@@ -553,7 +536,7 @@ type Estimator =
   }
 ```
 
-The domain constrains which part of the Actor's behavior may influence the Aggregate: a small-business owner's purchasing may inform small-business demand, but not the Aggregate's political behavior. Representation never transfers holdings or capabilities.
+The domain constrains which part of the Actor's behavior may influence the Aggregate. Representation never transfers holdings or capabilities.
 
 ### 7.3 Representation pipeline
 
@@ -584,7 +567,7 @@ The sum runs over the Representations targeting that Aggregate and domain. The e
 
 where the baseline is that of round r + 1, replaced exactly once.
 
-Representatives are strategic players, not random samples, and have an incentive to act for influence. The type system does not eliminate this, because disproportionate influence for small players is a design goal. It makes influence explicit and bounded. Estimator parameters are declared balancing assumptions, not claims of unbiased inference. When no observation was made in the previous round, no factor is stored and the Aggregate follows its baseline.
+When no observation was made in the previous round, no factor is stored and the Aggregate follows its baseline.
 
 ### 7.5 Multiple representatives
 
@@ -592,7 +575,7 @@ Multiple Actors may represent the same Aggregate. Their deviations are combined 
 
 ### 7.6 Avoiding double-counting
 
-**Economic accounting:** An explicit Actor's accounts are excluded from the target Aggregate's accounts, and its direct transactions execute once.
+**Economic accounting:** An explicit Actor's direct transactions execute once, from its own accounts ([04 §4.2](04_instantiated_game.md#42-partitioning)).
 
 **Behavioral accounting:** In the following round, the Aggregate's adjusted behavior replaces the corresponding baseline behavior. It is never added to an already complete baseline action ([INV-09](#inv-09)).
 
@@ -614,9 +597,7 @@ Produce the beginning-of-round Snapshot and each Entity's View of it ([§4](#4-p
 
 **3. Generate Proposals** *(round runner)*
 
-Every seat without an in-world Policy speaks first. Their transcripts are read in one joint pass (`INTERPRET`), and the Proposals it reconciles join the set frozen in 3a. No joint call is made when nobody speaks.
-
-- **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them (human via the AI interpreter, AI agent, or strategy), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
+- **3a Propose.** Every Policy publishes Proposals against the Snapshot at the same time: seats through whatever Policy drives them ([04 §11](04_instantiated_game.md#11-round-execution)), NPC Policies, and Aggregate Policies, including any procedure Proposals. The set is frozen at the end of 3a.
 - **3b Sign.** Every signer signs the Proposals naming it that it endorses ([§3.3](#33-proposals-and-signatures)).
 
 **4. Screen and interpret** *(engine)*
@@ -635,7 +616,7 @@ Atomically commit the new World State, and record the round's inputs and events.
 
 All Actor and Aggregate actions for a round are bundled into one round update and resolved together. Clearing is uniform, so no action settles "before" another and submission order is irrelevant ([INV-11](#inv-11)). The steps in [§8.1](#81-canonical-resolution-sequence) are functional dependencies, such as screening before estimation. They never order individual actions. Two rules make this hold:
 
-- **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit). For a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `reserves` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Every joint Proposal of a party whose total joint Proposal demand exceeds its holdings is rejected, even if one of those joint Proposals alone could be funded. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
+- **Funding from the Snapshot.** Each Entity's bundle is funded from its available holdings at the beginning of the round. At screening, each signed Proposal escrows its maximum cost: for a buy, limit price × quantity (or the Market's domain upper-bound price when there is no limit). For a sell, its quantity. A routed order always has a limit ([§5.2](#52-exchange-markets)), so its escrow is limit × quantity for a buy and its quantity for a sell, whichever Markets it fills in. A facility order escrows at its pool ceiling ([§5.3](#53-facilities-costed-transformations)). A reservation escrows its `escrowPerUnit` times its quantity as one more claim. Joint feasibility and pro-rata scaling ([§3.2](#32-infeasible-actions)) are checked against these escrows. Every joint Proposal of a party whose total joint Proposal demand exceeds its holdings is rejected, even if one of those joint Proposals alone could be funded. Unused escrow is released at commit, and a reservation consumes and transfers nothing.
 - **Credit at commit.** Proceeds, production, income, and receipts from signed Proposals are credited when the round commits and become usable next round. An Entity cannot sell Energy and spend the proceeds in the same round. Selling and buying both draw on opening holdings.
 
 **Shortage laws.** These hold for every setting; a setting cannot change them.
@@ -674,7 +655,7 @@ runRound :: InWorld -> WorldState
 
 The engine has no effects: `resolveRound` is a pure function of World State and signed Proposals. In-world randomness uses the pure keyed `draw` function ([§9.1](#91-numerics-and-randomness)) with the game seed held in World State, so it needs no effect.
 
-Everything else impure is an algebraic effect. Signatures are declared in `Effects.Signatures` (and the API row in `Effects.Api`) with no implementation (the joint pass's `Transcript` and `JointProposal` are domain values in `Core.Proposal`), and the round runner `Effects.Round` is written against them:
+Everything else impure is an algebraic effect. Signatures are declared in `Effects.Signatures` (and the API row in `Effects.Api`) with no implementation (the joint pass's `Transcript` and `JointProposal` are domain values in `Schema.Joint`), and the round runner `Effects.Round` is written against them:
 
 | Effect row | Operation | Meaning |
 |---|---|---|
@@ -686,7 +667,7 @@ Everything else impure is an algebraic effect. Signatures are declared in `Effec
 | `STORE` | `CreateRun`, `SetStatus`, `FailRunning`, `SetSpec`, `SetArchived`, `DeleteRun` | Run Store lifecycle writes only ([`Effects.Store`](07_architecture.md#4-key-interfaces)). Round writes stay `RECORD` |
 | `API` | `Call` (an `ApiRequest`, answered by a `Reply`) | Every route of the dashboard's HTTP API. Its paths and codecs are in `Handlers.Api.Route`, and the server supplies what each operation does ([07 §4](07_architecture.md#4-key-interfaces)) |
 
-Operation payloads are plain records in `effects` today. Where a payload's type is an engine or setting-format type, its description is a `Shape` in `core` or `schema`, which gives its codec and JSON Schema from one declaration.
+Operation payloads are plain records in `effects`. Where a payload's type is an engine or setting-format type, its description is a `Shape` in `core` or `schema`, which gives its codec for each JSON format and its prose from one declaration.
 
 Handlers interpret these operations over typed backends; the adapters supply the raw I/O primitives ([07 §4](07_architecture.md#4-key-interfaces)).
 
@@ -739,15 +720,13 @@ IDs 18, 20, and 32–35 are retired.
 
 Mechanics are deterministic by default. Randomness is introduced only where a Gameboard rule or estimator explicitly calls for it, such as estimator sampling noise.
 
-**Seeds.** Each game instance has exactly one **game seed**, fixed in its configuration at initialization and recorded in the manifest. Every in-world draw (estimator sampling noise, declared Policy randomness) uses it. The simulator adds a **player seed** for all seat-Policy randomness. It exists only under the simulation handler, and live play has none. A seed is either injected or drawn once at initialization by the adapter layer, the only place OS entropy enters. The drawn value is recorded. During a run there is no entropy, so the same seed gives the same run. The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
-
 **Draws.** Every draw is one pure function, so randomness needs no effect:
 
 ```purescript
 draw :: Seed -> DrawKey -> Q        -- pure, in core; a value in [0, 1) at 4-decimal precision
 ```
 
-A `DrawKey` names the draw's semantic purpose: round, source (Representation or Policy), input Entity, category, and index. For example `round-3 / sme-energy-sample / SME / sampling / 0`. Because draws are keyed rather than consumed from a sequence, adding an Entity or changing evaluation order never changes unrelated draws. The PRNG algorithm and the key serialization are versioned in the manifest.
+A `DrawKey` names the draw's semantic purpose: round, source (Representation or Policy), input Entity, category, and index. Because draws are keyed rather than consumed from a sequence, adding an Entity or changing evaluation order never changes unrelated draws. The PRNG algorithm and the key serialization are versioned in the manifest.
 
 **Fixed point.** All quantities, prices, and settlement amounts use fixed-point arithmetic with **4 decimal places**, rounded **half-to-even** at each settlement step. Uniform batch prices are rounded before they multiply quantities. No floating-point arithmetic enters economic state. Other specifications reference this rule and do not restate it.
 
@@ -764,7 +743,7 @@ The rules are implemented once, in `Core.Num` (`Q`). Every boundary imports that
 - **Display.** `Q.display` dispatches on a `Q.Kind` (Quantity, Price, Ratio), and Quantity and Price share `Q.displayQuantity`, and Ratio is `Q.displayRatio`. Quantity and Price currently display alike. Every view, table, chart, and CLI line that shows a number names its kind and calls one of these. All three round the exact value half-to-even at the display precision:
   - **Quantity** (Money and Resource counts): a whole number shows no decimals. Otherwise at most two decimals, trailing zeros trimmed (`12`, `12.5`, `12.25`). A value that is not zero but would round to zero shows as `<0.01` (or `-<0.01`).
   - **Price** (quote per base unit): two decimals, trailing zeros trimmed, under the same rule as Quantity.
-  - **Ratio** (Gini, influence, shrinkage, factors, support and threshold, tariff rates): always two decimals.
+  - **Ratio** (Gini, influence, shrinkage, factors, support and threshold, levy rates): always two decimals.
   - **Chart axes:** `Q.displayTick` rounds an axis tick to the 0.0001 grid and displays it under the chart's kind. A tick label is never parsed back into a quantity.
 - **Which kind.** The dashboard, the CLI, and the Compare views use these kinds as [06 §9](06_simulator.md#9-pages) states.
 - **Floating point.** No `Number` enters economic state. `Q.toDisplayNumber` is the single conversion of a quantity to a float, for display only (chart plotting). Its result is never parsed back into a quantity. Integers that are not economic values (rounds, seeds, ports, counts) remain `Int`.

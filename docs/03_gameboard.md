@@ -37,7 +37,7 @@ A setting is a directory of JSON section files. The loader merges every file exc
 | `policies.json` | Policy catalog (§8) | `policies` |
 | `instantiation.json` | Instantiation Configuration ([04 §2](04_instantiated_game.md#2-instantiation-configuration)) | `seed`, `rounds`, `seats`, `npcs`, `fallbacks`, `representations` |
 
-Outside the Gameboard: `packages/settings/presets.json` holds the seat-policy presets shared by all settings ([06 §4.2](06_simulator.md#42-presets)). `packages/settings/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
+Outside the Gameboard: `presets.json` beside the section files holds the Setting's seat-policy presets, a shared set each Setting binds to its own names ([06 §4.2](06_simulator.md#42-presets)). `packages/settings/fixtures/*.json` are test fixtures ([05 Part IV](05_test_instance.md#part-iv-playtest-fixtures)); their `rounds` list fixture rounds, not the round count.
 
 A `representations` key in a Gameboard section is decoded but ignored: instantiation sets the Representations from `instantiation.json` ([04 §5](04_instantiated_game.md#5-representation-assignment)). The schema has no fields for verticals, relationships, provenance, or visibility (§4, §7, §13).
 
@@ -46,7 +46,7 @@ A `representations` key in a Gameboard section is decoded but ignored: instantia
 `setting.json` defines:
 
 - `id`, `version`: the stable identifier and version ([§13](#13-provenance-and-versioning)).
-- `numeraire`: the unit of account, read by the views for net worth and units. The engine does not read it; the DSL fills it into payments and levies.
+- `numeraire`: the setting's [Money](02_type_system.md#25-glossary); the DSL fills it into payments and levies.
 - `horizon`: simulated years.
 - `roundRange`: `[min, max]`, the supported round counts. Decoding requires `1 <= min <= max`.
 - `label` (optional): the test-instance label. A run's game id is `<id>/<label>`.
@@ -72,7 +72,7 @@ A report compiles into explicit configuration in [§5](#5-economic-structure)–
 `resources.json` maps each Resource id to:
 
 - `transferability`: `Free`, `Restricted`, or `NonTransferable` (required).
-- `reservable` (default `false`): whether a Facility may reserve it.
+- `reservable` (default `false`): whether a Facility may reserve it (`escrowPerUnit`), so that it is held for the round without being consumed. The setting document rejects a reservation of a Resource that is not `reservable`.
 - `decay` (optional): the per-round decay rate, a plain quantity.
 
 The engine attaches no behavior to a Resource's name. Its effects come from the Facilities, Markets, and cycle entries that reference it.
@@ -84,7 +84,7 @@ The engine attaches no behavior to a Resource's name. Its effects come from the 
 - `base`, `quote`: the traded Resources.
 - `cost`: a linear CostFunction `{ intercept, slope, lo, hi }` over the domain `lo` to `hi` (Type System [§5.1](02_type_system.md#51-costfunction)).
 - `reserves`: the initial reserves by Resource. Reserves are the only liquidity. There is no separate liquidity parameter.
-- `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. EU_POOL is the only one in the reference setting, and its authority comes from the EU's procedure ([05 §10](05_test_instance.md#10-aggregate-catalog)).
+- `access`: the Entity ids allowed to trade. An Entity with access and no `trade` capability is an account rather than an Actor. The reference setting's one case is in [05 §10](05_test_instance.md#10-aggregate-catalog).
 - `position` (default `0`): the initial position on the cost curve.
 
 Limit-price orders and clearing are Intents and clearing rules (Type System [§3](02_type_system.md#3-intents-and-economic-actions), [§5.2](02_type_system.md#52-exchange-markets)), not Market fields. Tariffs and access bans are Rules ([§5.5](#55-geography-access-and-rules)).
@@ -94,7 +94,7 @@ Limit-price orders and clearing are Intents and clearing rules (Type System [§3
 `transformations.json` maps each Facility (Transformation) id to:
 
 - `inputs`, `outputs`: Resource to quantity per unit.
-- `escrowPerUnit`: reservable Resources the Facility locks per unit. A non-reservable Resource fails when the setting document is read (the flag stays in the document).
+- `escrowPerUnit`: reservable Resources the Facility holds per unit for the round. A non-reservable Resource fails when the setting document is read (the flag stays in the document).
 - `payment` (optional): `{ curve, resource, to }`, a CostFunction giving the price per unit, the Resource paid in, and the Entity paid.
 - `capacity` (optional): the named capacity that limits throughput. `capacityUse` (default `1`) is the capacity drawn per unit ordered.
 - `delay` (default `0`): rounds before output is delivered. With `0`, output lands in the round the order settles. Capacity `effects` always land at least one round after the order.
@@ -106,7 +106,7 @@ Defense procurement, public campaigns, energy shipping, and military deployment 
 
 ### 5.4 Recurring cycle
 
-`circulation.json` holds the cycle that the engine evaluates each round on the batch result (Type System [§6](02_type_system.md#6-economic-circulation)):
+A setting's cycle has four parts: production (Transformations and capacities create outputs), exchange (Markets clear and pay suppliers), income and expenditure (explicit rules distribute earnings, wages, taxes, public spending, and transfers), and capacity renewal (investments and degradation adjust future capacities). `circulation.json` holds the recurring forms that the engine evaluates each round on the batch result (Type System [§6](02_type_system.md#6-economic-circulation)):
 
 - `production`: `[{ entity, resource, capacity }]`. Output from the capacity is delivered in the next round.
 - `flows`: `[{ from, to, resource, amount }]`. Fixed payments per round.
@@ -119,7 +119,7 @@ Decay follows each Resource's `decay`. Capacity changes come from Facility `effe
 
 ### 5.5 Geography, access, and Rules
 
-- **Regions** are separate Markets. There is no node hierarchy.
+- **Regions** are separate Markets, and each commodity keeps one Resource: a regional node is a Market with its `access`. There is no node hierarchy. Flow gates and flows Rules (Type System [§5.4](02_type_system.md#54-flow-gates-and-flows-rules)) express movement between them; Facilities that share a capacity share its limit and uniform price.
 - **`flowGates`** are `[{ resource, exemptSharedMarket, bundled? }]`: `exemptSharedMarket` frees parties who share a Market for the Resource from the gate and from flows Rules, and `bundled` names the Transformation a sender's orders of which must carry the Transfer. How that movement is signed is in Type System [§3.3](02_type_system.md#33-proposals-and-signatures).
 - **`groups`** maps an Entity to the Entity it counts as for flows Rules, when different from itself.
 - **`ruleKinds`** declares each kind of Rule: `{ form, text }`, the form being `levy:<who>`, `block:<who>` (who governs: `destination`, `origin`, or `either`, which fixes the Rule's direction) or `reduce` (governed by the capacity's owner), the text being how a Rule of the kind is displayed. A setting that declares none has no Rules.
@@ -171,7 +171,7 @@ An Aggregate is an Entity with an `aggregate` block:
 
 The Aggregate's accounts are its **residual**: the holdings that remain when its coverage Actors are explicit. An unselected coverage Actor's holdings are added to them at instantiation ([04 §4.2](04_instantiated_game.md#42-partitioning)).
 
-A collective procedure is a weighted-signature rule on the Aggregate's own Proposals (Type System [§3.3](02_type_system.md#33-proposals-and-signatures)). A procedure is not a Representation ([§9](#9-representation-schemes)).
+A [collective procedure](02_type_system.md#22-three-projections-of-an-entity) is not a Representation ([§9](#9-representation-schemes)).
 
 ### 6.4 Overlap
 
@@ -183,9 +183,9 @@ A fallback is a tag, in an Actor's `fallback` or in the configuration's `fallbac
 
 | Tag | Effect when the Actor is unselected |
 |---|---|
-| `coverage:<aggregate>` | Holdings, capacities, procedure weight, Market access, flows, groups, facility payees and effect holders, Rules in force and scheduled, and Aggregate member lists and other Aggregates' procedure weights that name the Actor move to the named Aggregate. The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
+| `coverage:<aggregate>` | The Actor is merged into the named Aggregate ([04 §4.2](04_instantiated_game.md#42-partitioning)). The target must be an Aggregate ([§12.2](#122-checks-implemented)). |
 | `policy:<policy>` | The Entity stays and is driven by that in-world Policy as an NPC. Its capabilities stay with it. |
-| `omission` | No change. Its holdings and capabilities remain in World State with no controller, so it submits nothing. |
+| `omission` | The Actor stays with no controller ([04 §3.2](04_instantiated_game.md#32-fallback-resolution)). |
 
 The three are not interchangeable: a government's regulatory authority never moves to a household or business Aggregate ([INV-03](02_type_system.md#inv-03)).
 
@@ -212,6 +212,8 @@ A Policy reads last round's record through `Recorded` conditions (`transformedLa
 - `observes` (default: the Resource named like the domain, which must exist): the Resource whose purchases are observed.
 - `estimator`: `reference` and `shrinkage` are required. `bound` (optional) clamps each deviation to `±bound`. `noiseSpread` (default `0`) sets the amplitude of sampling noise.
 
+Representatives are strategic players, not random samples, and have an incentive to act for influence. The system does not eliminate this, because disproportionate influence for small players is a design goal: it makes influence explicit and bounded. Estimator parameters are declared balancing assumptions, not claims of unbiased inference.
+
 A scheme is a template. Which representatives are active, and their weights, are set at instantiation ([04 §5](04_instantiated_game.md#5-representation-assignment)). Schemes declare no permitted ranges for those values. Range checks are planned. The estimator formula and adjustment pipeline are in Type System [§7.2](02_type_system.md#72-representation-and-estimators)–[§7.4](02_type_system.md#74-estimation-semantics).
 
 ## 10. Game Rules
@@ -224,7 +226,7 @@ Aggregates do not sign Proposals in the round runner. Procedure Proposals are si
 
 ### 10.2 Temporal structure
 
-The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). Rule changes take effect at the next round boundary. A procedure Proposal is published, signed, and executed within one round. Rates are per round.
+The Gameboard fixes `horizon`, `roundRange`, and each Facility's `delay` ([§5.3](#53-facilities)). When Rule changes and procedure Proposals take effect is in Type System [§3](02_type_system.md#3-intents-and-economic-actions) and [§3.3](02_type_system.md#33-proposals-and-signatures). Rates are per round.
 
 The Gameboard has no round-to-time mapping, no scheduled-shock declaration, and no per-round duration. Scaling annual rates to round length is planned ([INV-28](02_type_system.md#inv-28)). Shocks are named parameters that Policies read ([05 §13.6](05_test_instance.md#136-energy-disruption)).
 

@@ -86,12 +86,14 @@ Each Aggregate's baseline Policy is its `aggregate.policy`. Representations are 
 
 ### 4.2 Partitioning
 
+An Aggregate's economic accounts are the residual after explicitly modeled accounts are assigned to other Entities: an explicit Actor owns only the accounts assigned to it, and the rest stay in whichever Aggregate owns them.
+
 Each unselected coverage Actor is merged into its Aggregate, one at a time:
 
 - its accounts and capacities are summed into the Aggregate, and the Actor is removed from World State.
 - its procedure weight folds into `residualWeight` (§4.1).
 - Market access lists, group entries, flows, shares, production entries, and requirements that name it are retargeted to the Aggregate. Self-flows and self-shares are dropped. Requirements for the same Entity and Resource are summed, except that an explicit amount and one equal to purchases stay separate.
-- Facility `payee`s and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A Withholding names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
+- Facility payment recipients (`payment.to`) and effect `holder`s, Rules in force and scheduled (a flows Rule's governor and counterparty), and Aggregate member lists and other Aggregates' procedure weights that name it are retargeted the same way. A capacity Rule names a capacity, so it is unchanged. A Representation scheme's `target` must be an Aggregate, so validation rejects an Actor there (`SchemeTargetNotAggregate`) and nothing is retargeted. The scheme's `eligibleActors` are not in World State; a merged Actor cannot be selected as its representative (`IneligibleRepresentative`).
 
 An explicit Actor keeps its own accounts. The Gameboard's Aggregate holdings do not include them, so each account has exactly one owner ([INV-08](02_type_system.md#inv-08)). Memberships do not move holdings. Capacity ownership is checked separately ([03 §12.2](03_gameboard.md#122-checks-implemented)).
 
@@ -133,9 +135,9 @@ The cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World
 
 ### 7.3 Seeds and randomness
 
-- **[Game seed](02_type_system.md#25-glossary).** Read from the configuration's `seed` and stored as the World State's `seed`. It keys every in-world draw: Representation sampling noise and `Choose` in NPC and Aggregate Policies ([Type System §9.1](02_type_system.md#91-numerics-and-randomness)).
-- **[Player seed](02_type_system.md#25-glossary).** Keys the draws of seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs)) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
-- **Keyed draws.** A draw's value depends only on its key (round, source, Entity, category, index), so replays and resumed runs match ([06 §5](06_simulator.md#5-deterministic-randomness)).
+- **[Game seed](02_type_system.md#25-glossary).** Each game instance has exactly one, read from the configuration's `seed`, recorded in the manifest, and stored as the World State's `seed`. It keys every in-world draw: Representation sampling noise and `Choose` in NPC and Aggregate Policies ([Type System §9.1](02_type_system.md#91-numerics-and-randomness)).
+- **[Player seed](02_type_system.md#25-glossary).** Keys the draws of seat Policies, such as `Choose` in a preset. It is not part of the configuration. The CLI takes it as `--seed`, and the server as `playerSeed`. Simulated and live runs both have one. When absent, it is drawn once ([`Adapters.Random`](../packages/adapters/src/Adapters/Random.purs), the only place OS entropy enters) and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
+- **Keyed draws.** A draw's value depends only on its key (round, source, Entity, category, index), so replays and resumed runs match ([06 §5](06_simulator.md#5-deterministic-randomness)). The two seeds never share draws, so varying the player seed never changes an in-world draw, and vice versa.
 
 ## 8. Time and Session
 
@@ -194,7 +196,7 @@ Each round follows the canonical sequence ([Type System §8.1](02_type_system.md
 
 1. **Prepare (phase 1).** Deliveries due by this round are applied, clamped at zero. Rule changes scheduled at the last boundary take effect, and scheduled repeals are removed. Each change is recorded as an event.
 2. **Observe (phase 2).** Each Entity's View is built from the prepared state.
-3. **Speak and joint pass (phase 3a).** Each seat without a Policy speaks: a human's typed transcript, or an AI agent's model call. If any transcript exists, one joint pass reads all of them together into Proposals ([§11.2](#112-live-session)).
+3. **Speak and joint pass (phase 3a).** Each seat without an in-world Policy speaks: a human's typed transcript, or an AI agent's model call. If any transcript exists, one joint pass reads all of them together into Proposals ([§11.2](#112-live-session)).
 4. **Propose (phase 3a).** Each Entity, in Entity-id order, drafts Proposals against the same beginning-of-round View: a Policy from its View, or a seat through its binding. The joint-pass Proposals join them.
 5. **Sign (phase 3b).** Each non-Aggregate Entity named as a signer of a Proposal it did not author is asked to sign it. Human and Agent seats give no separate signature: the joint pass records who agreed.
 6. **Screen (phase 4).** Inputs are ordered by author, then submission index, never by arrival time ([INV-11](02_type_system.md#inv-11)). Duplicate Proposal ids are rejected. Authority is checked, and each signature rule is applied: every signer for a joint Proposal, or support above the threshold for a procedure. Failures are recorded as `Rejected` or `Lapsed`.
@@ -217,7 +219,7 @@ Events record executed quantities, so a partial fill appears as smaller legs, an
 ### 11.2 Live session
 
 - **Human players.** Each human types one transcript per round at the propose prompt, within the propose window, and nothing further is asked. There is no clarification and no confirmation step. Inadmissible Intents are rejected by the engine like any other, with their reason ([§11.1](#111-round-record)).
-- **Joint pass.** The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm](../packages/handlers/src/Handlers/Llm.purs)). The engine keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Core.Proposal](../packages/core/src/Core/Proposal.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
+- **Joint pass.** The joint pass makes one call. While its reply does not decode, it makes up to two corrections: each resends the same system prompt, the original request, the previous reply, and the decode error. A pass makes at most three calls ([Handlers.Llm.Joint](../packages/handlers/src/Handlers/Llm/Joint.purs)). The engine keeps a joint Proposal only if its author spoke and it has Intents, and it keeps only signers that are known Entities ([Schema.Joint](../packages/schema/src/Schema/Joint.purs)). If the last reply still does not decode, the pass yields no Proposals, each human speaker is told that nothing was submitted, and the round proceeds ([Handlers.Live](../packages/handlers/src/Handlers/Live.purs)).
 - **AI agent seats** speak in the same round pass: their transcripts are read with the human transcripts, and they give no signatures.
 - **Strategy seats** play their bound strategy.
 

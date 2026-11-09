@@ -59,7 +59,7 @@ A simulation is one complete automated playthrough, and it is a pure call over a
 simulate :: Seed -> Game -> Either GameError SimRun
 ```
 
-The `Game` holds the manifest, the initial World State, the in-world Strategies, the rounds to play, the parameters, and one `SeatBinding` per seat. A seat's preset, agent, script, or human is chosen when the game is assembled, not inside the simulator. The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
+A [`Game`](02_type_system.md#25-glossary) also holds the manifest. A seat's preset, agent, script, or human is chosen when the game is assembled, not inside the simulator. The player seed is the argument, and it drives all seat-Policy randomness. The game seed is part of the World State. The program boundary resolves the player seed to a concrete value before `simulate` is called (the seed rule in §5), and the run's stored spec records that value.
 
 The stored spec (`Game.Recipe`) records how the run was made: the preset every seat plays, the resolved player seed, the overrides, and the round count when one was given (the key is absent otherwise). With the same engine version, the spec and the seeds reproduce the complete economic history.
 
@@ -77,7 +77,7 @@ Each resolved specification is saved in full, so later changes to a baseline nev
 
 ## 4. Seat Policies
 
-The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). A **seat** is an Actor whose Policy is supplied from outside the setting. An NPC's Policy is part of the setting. In simulation each seat is bound to a **seat Policy** (its `SeatBinding`) when the game is assembled. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
+The engine accepts only Intents (Type System [§4](02_type_system.md#4-policies)). In simulation each seat is bound to a **seat Policy** (its `SeatBinding`) when the game is assembled. Swapping a seat's Policy never changes the Actor's definition and never turns a seat into an NPC ([INV-30](02_type_system.md#inv-30)).
 
 Seat Policies come in the three kinds of Type System [§4](02_type_system.md#4-policies) (preset strategy, AI agent, human). In simulation the human kind is replay of recorded canonical Proposals and signatures from a live session. Preset strategies run on the shared decision-language interpreter used by NPC and Aggregate Policies ([INV-29](02_type_system.md#inv-29)). AI agents and presets may be given their Actor's objective ([§9.3](05_test_instance.md#93-objectives)).
 
@@ -114,7 +114,7 @@ Preset strategies are named parameter sets of the shared interpreter, not separa
 | `Investor` | Runs `energy-capacity-investment` for 1 unit while its Money holding is above 100, as a joint Proposal that CHIP co-signs. |
 | `CrisisResponse` | Buys 3 Energy at the cheapest Market at a limit of 4 while that price is above 3.5 and its Energy holding is below 20. |
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 Energy at the cheapest Market at a limit of 3, or sell 5 at the costliest at a limit of 2. |
-| `Deployer` | While the Atlantic price is above 3, reserves 60 Mil for `military-deployment` and sells 40 Mil on the `defence-goods` Market at a limit of 2.4 M/Mil in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
+| `Deployer` | While the Atlantic price is above 3, orders the deployment and the `defence-goods` sale of Fixture R in the same round. The reservation and the sale compete for the seat's Mil, so both are scaled ([05 §13.3](05_test_instance.md#133-military-deployment)). |
 
 The Dashboard's launch form offers the same names: `GET /api/setting` sends them (`Settings.Presets.presetNames`, in the order written). The strategies are one shared set in `Settings.Kit.Presets`, which each setting binds to its own names and thresholds; a setting's presets compile into its own directory as `presets.json`.
 
@@ -124,7 +124,7 @@ Every seat has exactly one bound seat Policy. A binding for an NPC, an Aggregate
 
 ## 5. Deterministic Randomness
 
-Mechanics are deterministic by default. Randomness enters only as a keyed `draw` on a seed, where a Gameboard, an estimator, or a preset strategy declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
+Randomness enters only as a keyed `draw` on a seed ([02 §9.1](02_type_system.md#91-numerics-and-randomness)), where a Gameboard, an estimator, or a preset strategy declares a stochastic choice ([INV-13](02_type_system.md#inv-13), [INV-36](02_type_system.md#inv-36)).
 
 **The seed rule.** A run has one player seed, and it is resolved once, before initialization, at the program boundary. An explicitly injected seed is used as given. An absent seed is drawn from the operating system exactly once, and the concrete value is the one the run uses. The CLI (`--seed`, else drawn and printed), the server (`POST /api/runs`: `playerSeed` null or absent means drawn, and the reply names the seed used), and the dashboard (a blank player seed means drawn) all resolve it the same way, through `Adapters.Random.resolveSeed`. The stored spec records the resolved seed, never an absent value. The simulator functions take a concrete seed and read no entropy, so **the same seed gives the same run**, and a recorded seed replays it. Drawing a seed `s` and injecting `s` produce identical records and an identical stored spec.
 
@@ -237,7 +237,7 @@ This test is the direct check of [INV-14](02_type_system.md#inv-14).
 Instantiate the reference board twice:
 
 - **A:** German government activity stays implicit in the EU.
-- **B:** The German Chancellor is explicit. Only government accounts are extracted. German households and firms stay in the EU residual.
+- **B:** The German Chancellor is explicit ([05 §10.1](05_test_instance.md#101-germany-and-the-eu)).
 
 Before any decisions differ, the test checks that stocks reconcile, that every liability and capability has exactly one holder, and that behavioral responsibilities are covered exactly once.
 
@@ -523,7 +523,7 @@ Tests that exercise a reference fixture name it and do not re-describe it. Each 
 | 8b | Major shock | Every seat plays each preset, calm and with the [§13.6](05_test_instance.md#136-energy-disruption) major shock as overrides, same seats and player seed. A preset flips when its seats propose different kinds of action in some round. | At least four presets flip. The shock is deterministic under the fixed player seed ([INV-13](02_type_system.md#inv-13)). |
 | 9 | Conflicting actions | Runs [Fixture F](05_test_instance.md#26-fixture-f-simultaneous-conflicting-orders). | Fixture fills. [INV-11](02_type_system.md#inv-11). |
 | 10 | Signed Proposals | Runs [Fixture G1](05_test_instance.md#27-fixture-g-proposals-and-signatures), G2, G3, and G5. | Fully signed Proposals settle atomically with fixture values. Unsigned ones lapse while the round resolves. A shipped joint Proposal pays SHIP and is rejected as a unit under an `AccessBan` ([INV-10](02_type_system.md#inv-10)). |
-| 11 | Trade restriction | The US enacts an `AccessBan` on China, effective next round ([Fixture E2](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction)). | Shipping orders on the route become infeasible. The EU publishes and passes its tariff Proposal in the round the ban is in force, and the tariff applies from the next round. |
+| 11 | Trade restriction | The US enacts an `AccessBan` on China, effective next round ([Fixture E2](05_test_instance.md#25-fixture-e-scarcity-and-trade-restriction)). | The fixture's expected values hold. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test). | [INV-14](02_type_system.md#inv-14). |
 | 13 | Persistence | Save, reload, and inspect all snapshots. | Identical run ([INV-31](02_type_system.md#inv-31)). |
 | 14 | Agency | [§10.5](#105-agency-analysis) across all fifteen roles. | Every role has measurable effect and its objective criteria are reported. Failures are reported as balancing findings. |
