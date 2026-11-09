@@ -64,6 +64,7 @@ import Schema.Setting.Gameboard (gameboardShape)
 import Settings.Meridian.Policies (policies)
 import Test.Settings.Compose (spec) as Compose
 import Test.Settings.Dials as Dials
+import Test.Settings.Agreements as Agreements
 import Test.Settings.Lease as Lease
 import Test.Settings.Flows as Flows
 import Test.Settings.Golden (failWith, fixture, golden)
@@ -192,6 +193,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   Flows.spec
   Dials.spec
   Lease.spec
+  Agreements.spec
   Compose.spec
 
   describe "Setting DSL builders" do

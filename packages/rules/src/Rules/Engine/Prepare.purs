@@ -9,16 +9,18 @@ module Rules.Engine.Prepare
 
 import Prelude
 
-import Rules.Engine.Compile (changeOf, deliveredOf, runCoupling)
+import Rules.Engine.Compile (deliveredOf, runCoupling)
+import Core.Kernel.Consume (partiesOf, spawned)
+import Core.Kernel.Types (LawChange(..))
 import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
 import Core.Map (entries, sumMaps)
 
-import Core.Kernel.Consume (partiesOf)
 import Core.Num as Q
 import Rules.Query (holderOf, marketsOf, priceOf)
-import Rules.Types (Entity)
+import Rules.Types (Entity, Id(..), Rule, RuleId)
 import Rules.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
-import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition)
+import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition, sortWith)
+import Data.Either (either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
@@ -30,36 +32,48 @@ import Data.Tuple (Tuple(..))
 prepareRound :: WorldState -> WorldState
 prepareRound w =
   let
-    { yes: now, no: later } = partition (\p -> (unwrap p).due <= w.round) w.pending
-    posted = foldl (applyDelivery w) { ledger: Map.empty, events: [] } (filter delivers now)
+    { yes: due, no: later } = partition (\p -> (unwrap p).due <= w.round) w.pending
+    -- phase, then tier: seniority among what falls due is the author's choice
+    now = sortWith (\p -> Tuple (unwrap p).coupling.phase (unwrap p).coupling.ration.tier) due
+    posted = foldl (consume w) { ledger: Map.empty, events: [], changes: [], spawned: [] } now
     -- a later change to the same Rule replaces an earlier one
-    changes = Map.fromFoldable (mapMaybe changeOf now)
+    changes = Map.fromFoldable posted.changes
     rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries changes)
     ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (entries changes)
     updated = map (\e -> e { accounts = sumMaps e.accounts (fromMaybe Map.empty (Map.lookup (Ent e.id) (ledgerByAccount posted.ledger))) }) w.entities
   in
     addEvents (posted.events <> ruleEvents) w
       { entities = updated
-      , pending = later
+      , pending = later <> posted.spawned
       , rules = rules
       }
-  where
-  -- a delivery to an Entity the World does not have, or of nothing, is no delivery
-  delivers p = maybe false (\d -> d.quantity /= Q.zero && Map.member d.entity w.entities) (deliveredOf p)
 
-type Applied = { ledger :: Ledger, events :: Array Event }
+type Applied = { ledger :: Ledger, events :: Array Event, changes :: Array (Tuple RuleId (Maybe Rule)), spawned :: Array PendingCoupling }
 
--- | Apply one due delivery, clamped so that no holding goes negative. Its event records the change
--- | actually applied, so reversing a delivery later restores exactly what was removed.
-applyDelivery :: WorldState -> Applied -> PendingCoupling -> Applied
-applyDelivery w acc (PendingCoupling p) =
-  let
-    posted = runCoupling w acc.ledger p.coupling
-  in
-    case p.coupling.cause of
-      Just cause | not (null posted.flows) ->
-        { ledger: posted.ledger, events: acc.events <> [ Coupled { round: w.round, legs: posted.flows, rate: Nothing, cause, delivered: true } ] }
-      _ -> acc
+-- | Consume one due coupling: post what stands, record what moved, and spawn its successors. Each
+-- | event records the change actually applied, so a delivery that changes nothing records nothing.
+-- | A delivery to an Entity the World does not have, or of nothing, is no delivery.
+consume :: WorldState -> Applied -> PendingCoupling -> Applied
+consume w acc pending@(PendingCoupling p)
+  | maybe false (\d -> d.quantity == Q.zero || not (Map.member d.entity w.entities)) (deliveredOf pending) = acc
+  | otherwise =
+      let
+        posted = runCoupling w acc.ledger p.coupling
+        moved = filter (\f -> f.moved /= Q.zero) posted.flows
+        record = case p.coupling.cause of
+          Just cause | not (null moved) -> [ Coupled { round: w.round, legs: posted.flows, rate: Nothing, cause, delivered: true } ]
+          _ -> []
+        changes = mapMaybe (\c -> ofChange =<< c.change) posted.consumed
+      in
+        { ledger: posted.ledger
+        , events: acc.events <> record
+        , changes: acc.changes <> changes
+        , spawned: acc.spawned <> either (const []) (map PendingCoupling) (spawned w.round (map unwrap w.templates) [ p.coupling ] posted.consumed)
+        }
+      where
+      ofChange = case _ of
+        SetLaw x -> Just (Tuple (Id x.id) (Just x.law))
+        RemoveLaw id -> Just (Tuple (Id id) Nothing)
 
 -- | The beginning-of-round View of one Entity. `toSign` is filled by the round runner.
 observe :: WorldState -> Entity -> View
