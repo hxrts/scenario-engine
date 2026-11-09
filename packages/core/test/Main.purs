@@ -10,7 +10,7 @@ import Core.Engine.Commit (EngineError, resolveRound)
 import Core.Authority (authorized, viewFacts, worldFacts)
 import Core.Engine.Prepare (observe, prepareRound)
 import Data.Foldable (for_)
-import Core.Invariants (check)
+import Core.Invariants (check, orderIndependent, orderIndependentBy)
 import Core.Market (averagePrice, clear)
 import Core.Num (Q, qShape)
 import Core.Num as Q
@@ -821,6 +821,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "INV-01: a trade with no Intent behind it" do
       let w = (baseWorld [ actor "US" [] ]) { markets = Map.singleton (Id "EM") (market [ "US" ]) }
       invariantsOf w (withEvent (tradeE (Id "EM") (Id "US") Q.zero Q.zero) (empty w)) `shouldContain` "INV-01"
+    it "INV-11: a resolver that depends on the order of its inputs fails, and the engine does not" do
+      let
+        w = baseWorld [ actor "A" [], actor "B" [] ]
+        r = empty w
+        two = r { record = r.record { inputs = [ submit "A" 0 [], submit "B" 0 [] ] } }
+        favoured = onEntity (Id "A") (\e -> e { accounts = Map.singleton (Id "M") (Q.fromInt 1) }) r.world
+        dependent inputs = Right (if inputs == two.record.inputs then r.world else favoured) :: Either String _
+      map _.invariant (orderIndependentBy dependent two) `shouldContain` "INV-11"
+      orderIndependent w (empty w) `shouldEqual` []
     it "INV-04: holdings that move between Entities with no event, though the totals balance" do
       let
         w = baseWorld [ actor "A" [], actor "B" [] ]

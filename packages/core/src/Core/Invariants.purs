@@ -8,6 +8,8 @@ module Core.Invariants
   , failureShape
   , check
   , checkAfter
+  , orderIndependent
+  , orderIndependentBy
   , Invariant(..)
   ) where
 
@@ -22,13 +24,15 @@ import Type.Proxy (Proxy(..))
 import Core.Map (entries, sumInto)
 
 import Core.Authority (authorized, executor, worldFacts)
+import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Core.Query (accountsOf, capabilitiesOf, drawable, droppedProposals, entitiesOf, lookupQ, marketsOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
 import Core.Types (IntentF(..), SignedProposal, holderDraw, poolDraw)
 import Core.Slice (conversions, event, foldEvents, ignore, select)
 import Core.World (Cause(..), Endpoint(..), Mechanism(..), RoundResult, WorldState)
-import Data.Array (all, any, concatMap, elem, filter, find, fromFoldable, index, length, nub)
+import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, reverse, take)
+import Data.Either (Either(..))
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -65,6 +69,25 @@ check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) c
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
 checkAfter = check <<< prepareRound
+
+-- | INV-11 Order independence over a resolver: resolving the round's inputs in other orders gives the same
+-- | World State. Not part of `check`, which reads a finished round: this one plays the round again.
+orderIndependentBy :: forall e. (Array SignedProposal -> Either e WorldState) -> RoundResult -> Array Failure
+orderIndependentBy resolve r = concatMap one (reorderings r.record.inputs)
+  where
+  one inputs = case resolve inputs of
+    Right w | w == r.world -> []
+    _ -> [ { invariant: "INV-11", detail: "round " <> show r.record.round <> ": a reordering of its " <> show (length inputs) <> " inputs settled differently" } ]
+
+-- | INV-11 for a round against the world it was played from, not yet prepared.
+orderIndependent :: WorldState -> RoundResult -> Array Failure
+orderIndependent before = orderIndependentBy (map _.world <<< resolveRound (prepareRound before))
+
+-- | Other orders of a list: reversed, and rotated by one and by half.
+reorderings :: forall a. Array a -> Array (Array a)
+reorderings xs = [ reverse xs, drop 1 xs <> take 1 xs, drop half xs <> take half xs ]
+  where
+  half = length xs / 2
 
 failure :: Invariant -> String -> Failure
 failure inv detail = { invariant: show inv, detail }

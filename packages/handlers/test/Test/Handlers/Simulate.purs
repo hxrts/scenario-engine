@@ -18,13 +18,14 @@ import Board.Gameboard.Reconcile (reconcile)
 import Core.Draw (Seed(..))
 import Core.Engine.Commit (resolveRound)
 import Core.Engine.Prepare (prepareRound)
+import Core.Invariants (orderIndependent)
 import Core.Num as Q
 import Core.Query (holding)
 import Core.Types (Capability(..), Controller(..), EntityKind(..), Id(..), IntentF(..), FlowEffect(..), RuleF(..), proposalId)
 import Core.Slice (conversions, event, exchanges, matches, pickOf, shortfalls, sunk)
 import Schema.Recurring (kinds)
 import Core.World (RejectReason(..), renderReason)
-import Data.Array (any, concatMap, drop, findMap, index, last, length, reverse, take, zip)
+import Data.Array (any, concatMap, drop, findMap, index, last, length, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -62,12 +63,6 @@ someSeats p preset ids = do
 -- | The game with the named seat replaced by a Strategy.
 withStrategy :: Game -> String -> Strategy -> Game
 withStrategy g e s = g { seats = Map.union (strategyBindings [ Tuple (Id e) s ]) g.seats }
-
--- | Three orderings of a round's inputs, none the written one unless the round has too few.
-permuted :: forall a. Array a -> Array (Array a)
-permuted xs = [ reverse xs, drop 1 xs <> take 1 xs, drop 2 ys <> take 2 ys ]
-  where
-  ys = reverse xs
 
 spec :: Spec Unit
 spec = do
@@ -113,9 +108,7 @@ spec = do
         a <- run (Seed 1) g
         let befores = [ initialOf a ] <> map _.world a.records
         for_ (zip befores a.records) \(Tuple before r) -> do
-          let w = prepareRound before
-          for_ (permuted r.record.inputs) \inputs ->
-            map _.world (resolveRound w inputs) `shouldEqual` Right r.world
+          orderIndependent before r `shouldEqual` []
 
     it "4 Market exchange: Fixture A and A2" do
       fixture "A"
