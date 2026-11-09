@@ -51,7 +51,7 @@ This table is the one place the type-system terms are defined. Scenario terms ar
 | **Adjustment factor** | The stored multiplier that scales an Aggregate's baseline in the following round ([§7.4](#74-estimation-semantics)). |
 | **Aggregate** | An Entity holding the residual accounts and baseline behavior of an implicit population or institution ([§7](#7-aggregates-and-representation)). |
 | **Behavior domain** | The part of an Aggregate's baseline that a Representation may adjust ([§7.2](#72-representation-and-estimators)). |
-| **Bond** | How a `Performed` condition binds one obligation to another: **Whole** (all or nothing) or **Proportional** at a rate ([§3.3](#33-couplings-and-conditions)). An obligation with no such condition stands alone. |
+| **Bond** | How one obligation binds to another. There are three cases: **Whole** (all or nothing), **Proportional** at a rate ([§3.3](#33-couplings-and-conditions)), and none, where an obligation stands alone. |
 | **Capability** | A condition on a party, stating what an Entity may do ([§2.4](#24-capability)). |
 | **Cause** | What produced a settlement. The kernel carries it as data and does not read it. The authored vocabulary says what it names. |
 | **Condition** | What an obligation depends on: another obligation's performance, a stock level, consent, a price, a quantity, or a capability ([§3.3](#33-couplings-and-conditions)). |
@@ -167,7 +167,7 @@ An obligation lives for one round. Consuming it can spawn new obligations, so de
 - **Amounts freeze at consumption.** Arguments are computed from the consumed obligation (`Moved`, `Remainder`) and stored as plain values.
 - **Consent is given once.** A successor carries its parent's consent. A template may name only parties bound from its parent ([INV-03](#inv-03)). A renegotiable step adds a fresh `Consent` condition, which holds only when the party's consent was carried from the parent ([03 §15.2](03_gameboard.md#152-multi-round-agreements)).
 
-World State holds one list of **pending** couplings and a table of **templates**. A pending coupling due at or before the round being prepared is consumed at that boundary, in phase then tier order ([§8.1](#81-canonical-resolution-sequence)). Due couplings therefore settle ahead of that round's orders: a successor is senior to new orders by construction, rather than rationed against them by tier.
+World State holds one list of **pending** couplings and a table of **templates**. A pending coupling due in phase 0 is consumed at the round boundary, in tier order. One in a later phase claims holdings beside that round's orders and is rationed against them by its tier ([§5.4](#54-rationing)): tier 0 fills with joint orders, ahead of single orders in tier 1, and a higher tier takes what they leave. A junior tier's shortage never scales a senior one.
 
 ### 3.5 Resolution
 

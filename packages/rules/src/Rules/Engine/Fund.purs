@@ -10,15 +10,17 @@ module Rules.Engine.Fund
 
 import Prelude
 
-import Core.Kernel.Ration (ration)
+import Core.Kernel.Ration (Claim, ration)
+import Core.Map (entries)
 import Rules.Engine.Screen (Item)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
 import Rules.Query (conversionPrice, holding, poolCeiling)
-import Rules.Types (EntityId, IntentF(..), ResourceId, Transformation, executorDraws)
+import Rules.Types (EntityId, IntentF(..), ProposalId, ResourceId, Transformation, executorDraws)
 import Rules.World (Event, RejectReason(..), WorldState, rejection)
-import Data.Array (concatMap, elem, partition)
+import Data.Array (concatMap, elem, partition, mapMaybe)
+import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -32,27 +34,30 @@ type Scaled = { item :: Item, scales :: Map EntityId Q }
 scaleOf :: Scaled -> EntityId -> Q
 scaleOf s e = fromMaybe Q.one (Map.lookup e s.scales)
 
-type Claim = { entity :: EntityId, resource :: ResourceId, amount :: Q }
+type Escrow = { entity :: EntityId, resource :: ResourceId, amount :: Q }
 
 -- | Reject joint Proposals a party cannot fund: every joint Proposal of a party whose total joint demand exceeds its
 -- | holdings goes, even if one alone could be funded (docs/02 §8.2). Scale other Items pro rata to
 -- | what the Entities they draw on can fund. Joint Proposals are never scaled.
-fund :: WorldState -> Array Item -> { items :: Array Scaled, events :: Array Event }
-fund w items =
+fund :: forall due. Ord due => WorldState -> Array (Claim (Either due ProposalId)) -> Array Item -> { items :: Array Scaled, events :: Array Event, droppedDue :: Array due, dueScales :: Map (Tuple Int EntityId) Q }
+fund w dueClaims items =
   let
     { yes: joints, no: singles } = partition _.joint items
     -- joint Proposals are the first tier and whole; every other order is the next tier and scales
-    claimsOf item = map (\c -> { key: item.proposal.id, tier: if item.joint then 0 else 1, whole: item.joint, party: c.entity, resource: c.resource, amount: c.amount }) (claims w item)
-    rationed = ration (holding w) (concatMap claimsOf (joints <> singles))
-    { yes: dropped, no: kept } = partition (\j -> j.proposal.id `elem` rationed.dropped) joints
+    claimsOf item = map (\c -> { key: Right item.proposal.id, tier: if item.joint then 0 else 1, whole: item.joint, party: c.entity, resource: c.resource, amount: c.amount }) (claims w item)
+    rationed = ration (holding w) (dueClaims <> concatMap claimsOf (joints <> singles))
+    orderScales = Map.fromFoldable (mapMaybe (\(Tuple (Tuple t e) x) -> if t == 1 then Just (Tuple e x) else Nothing) (entries rationed.scales))
+    { yes: dropped, no: kept } = partition (\j -> Right j.proposal.id `elem` rationed.dropped) joints
   in
     -- keyed by the Entity whose claim it is, which for a procedure Proposal may not be its author
-    { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: rationed.scales }) singles
+    { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: orderScales }) singles
     , events: map (\d -> rejection w.round d.proposal.id PartyCannotFund) dropped
+    , droppedDue: mapMaybe (either Just (const Nothing)) rationed.dropped
+    , dueScales: rationed.scales
     }
 
 -- | What an Item escrows from opening holdings at its full requested size.
-claims :: WorldState -> Item -> Array Claim
+claims :: WorldState -> Item -> Array Escrow
 claims w item = concatMap claim item.proposal.intents <> map (\t -> { entity: t.from, resource: t.in, amount: t.amount }) item.levies
   where
   p = item.proposal

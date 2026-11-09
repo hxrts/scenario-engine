@@ -43,6 +43,7 @@ module Core.Kernel.Types
   , endpointShape
   , flowShape
   , KernelShapes
+  , lawShape
   , amountShape
   , couplingShape
   , pendingShape
@@ -405,3 +406,40 @@ templateShape k = recordShape "Template" { params: arrayOf stringShape, parties:
 
 pendingShape :: forall cap law query reason cause. KernelShapes cap law query reason cause -> Shape (Pending cap law query reason cause)
 pendingShape k = recordShape "Pending" { due: intShape, coupling: couplingShape k }
+
+derive instance Eq Subject
+derive instance Generic Subject _
+instance Show Subject where
+  show a = genericShow a
+
+derive instance Eq Trigger
+derive instance Generic Trigger _
+instance Show Trigger where
+  show a = genericShow a
+
+derive instance Eq query => Eq (Operation query)
+derive instance Generic (Operation query) _
+instance Show query => Show (Operation query) where
+  show a = genericShow a
+
+subjectShape :: Shape Subject
+subjectShape = genericSum "Subject"
+  { "OfStock": atTagged "a stock" (recordShape "StockScope" { holders: optionalOf (arrayOf idShape), resource: idShape })
+  , "OfFlow": atTagged "a flow" (recordShape "FlowScope" { from: arrayOf idShape, to: arrayOf idShape, resources: arrayOf idShape })
+  }
+
+triggerShape :: Shape Trigger
+triggerShape = genericSum "Trigger"
+  { "EachRound": atTagged "every round" unitShape
+  , "OnAction": atTagged "when an action settles" (recordShape "ActionScope" { obligor: optionalOf idShape, cause: optionalOf stringShape })
+  }
+
+operationShape :: forall query. Shape query -> Shape (Operation query)
+operationShape query = genericSum "Operation"
+  { "Emit": atTagged "emit a leg" (legShape query)
+  , "Refuse": atTagged "refuse" unitShape
+  , "Withhold": atTagged "hold back from being drawn" (amountShape query)
+  }
+
+lawShape :: forall cap law query reason cause. KernelShapes cap law query reason cause -> Shape (Law cap query reason cause)
+lawShape k = recordShape "Law" { subject: subjectShape, trigger: triggerShape, operation: operationShape k.query, guard: arrayOf (guardedShape k), phase: intShape, cause: k.cause }

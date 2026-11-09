@@ -9,17 +9,17 @@ module Rules.Engine.Circulate
 
 import Prelude
 
-import Rules.Engine.Compile (delivery, fractionLaw, payCoupling, runCoupling)
-import Rules.Engine.Settle (Settlement, net, transfer)
+import Rules.Engine.Compile (WorldLaw, delivery, fractionLaw, runCoupling, timeLaw)
+import Rules.Engine.Settle (Settlement, net)
 import Core.Kernel.Law (forHolder)
-import Core.Kernel.Post (Account(..))
+import Core.Kernel.Post (Account(..), Ledger)
+import Rules.World (Flow, addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
 import Rules.Query (entitiesOf, holding, lookupQ)
 import Rules.Slice (runLegQuery)
 import Rules.Types (EntityId)
-import Rules.World (addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, coupled)
 import Data.Array (filter, findIndex, foldl, fromFoldable, index, length, any, head)
 import Data.Map (Map)
 import Data.Map as Map
@@ -42,15 +42,23 @@ step :: WorldState -> Penalised -> RecurringFlow -> Penalised
 step w acc r =
   case r.source, r.destination of
     Created, ToEntity to -> acc { st = acc.st { spawned = acc.st.spawned <> [ delivery { round: max (w.round + 1) (w.round + r.delay), entity: to, resource: r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
-    FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
+    FromEntity from, ToEntity to -> paying from to (paidAmount to)
     FromEntity from, ToSink -> consume from
     _, _ -> acc
   where
   paidAmount to = if r.offsetable then offsetShare w acc to r (amountOf w acc.st r) else amountOf w acc.st r
+  phase = 10 + fromMaybe 0 (findIndex (\x -> x.id == r.id) w.recurring)
+  paying from to owed
+    | owed == Q.zero = acc
+    | otherwise =
+        let
+          posted = runLaw w acc.st.ledger (timeLaw from (Just to) r.resource owed phase (causeOf r)) from
+        in
+          acc { st = addEvents [ coupled w.round posted.flows Nothing (causeOf r) ] acc.st { ledger = posted.ledger } }
   consume from =
     let
       needed = amountOf w acc.st r
-      posted = runCoupling w acc.st.ledger (payCoupling from Nothing r.resource needed (causeOf r))
+      posted = runLaw w acc.st.ledger (timeLaw from Nothing r.resource needed phase (causeOf r)) from
       moved = fromMaybe Q.zero (_.moved <$> head posted.flows)
       short = Q.sub needed moved
       events = if needed > Q.zero then [ coupled w.round posted.flows Nothing (causeOf r) ] else []
@@ -60,6 +68,13 @@ step w acc r =
           OffsetIncoming perUnit | short > Q.zero -> sumInto from (Q.mul perUnit short) acc.offsets
           _ -> acc.offsets
       }
+
+-- | One holder's share of a time law, on the round so far.
+runLaw :: WorldState -> Ledger -> WorldLaw -> EntityId -> { ledger :: Ledger, flows :: Array Flow }
+runLaw w ledger law holder = case forHolder holder law of
+  Just c -> case runCoupling w ledger c of
+    posted -> { ledger: posted.ledger, flows: posted.flows }
+  Nothing -> { ledger, flows: [] }
 
 causeOf :: RecurringFlow -> Cause
 causeOf r = OfRecurring { rule: r.id, kind: r.kind }

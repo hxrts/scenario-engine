@@ -25,8 +25,9 @@ import Data.Tuple (Tuple(..), fst)
 -- | One thing a coupling asks to set aside. `key` names the coupling.
 type Claim key = { key :: key, tier :: Int, whole :: Boolean, party :: EntityId, resource :: ResourceId, amount :: Q }
 
--- | The couplings dropped whole, and the factor each scale group's claims execute at.
-type Rationed key = { dropped :: Array key, scales :: Map EntityId Q }
+-- | The couplings dropped whole, and the factor each party's claims execute at in each tier. A junior
+-- | tier's shortage never scales a senior one.
+type Rationed key = { dropped :: Array key, scales :: Map (Tuple Int EntityId) Q }
 
 type Stage key = { room :: Map (Tuple EntityId ResourceId) Q, result :: Rationed key }
 
@@ -50,7 +51,7 @@ ration held claims = (foldl tier { room: Map.empty, result: { dropped: [], scale
       ratio k amt =
         if amt > available after k then fromMaybe Q.zero (Q.divFloor (max Q.zero (available after k)) amt)
         else Q.one
-      scales = Map.fromFoldableWith min (map (\(Tuple k amt) -> Tuple (fst k) (ratio k amt)) (entries (total scaled)))
+      scales = Map.fromFoldableWith min (map (\(Tuple k amt) -> Tuple (Tuple t (fst k)) (ratio k amt)) (entries (total scaled)))
     in
       { room: foldl (\m (Tuple k x) -> sumInto k x m) spent (entries (total scaled))
       , result: { dropped: st.result.dropped <> droppedKeys, scales: Map.unionWith min st.result.scales scales }

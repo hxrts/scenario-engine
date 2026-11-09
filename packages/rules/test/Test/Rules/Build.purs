@@ -55,6 +55,7 @@ baseWorld es =
   , ruleKinds: testKinds
   , rules: Map.empty
   , pending: []
+  , laws: []
   , templates: Map.empty
   , factors: Map.empty
   , recurring: []

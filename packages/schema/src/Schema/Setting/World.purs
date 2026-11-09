@@ -313,7 +313,7 @@ worldFields = mk
       resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability, category: e.category } :: ResourceDefinition)) entries
     in
       { authored: { circulation, reservable, decays }
-      , world: { round, numeraire, focus, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, pending: [], templates: Map.empty, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
+      , world: { round, numeraire, focus, resources, markets, transformations, flowGates, groups, ruleKinds, rules, representations, entities, pending: [], laws: [], templates: Map.empty, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
       }
 
 -- | The whole World, with its Entities by key: a fixture's.

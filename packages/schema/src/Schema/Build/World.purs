@@ -116,6 +116,7 @@ emptyWorld =
   , ruleKinds: Map.empty
   , rules: Map.empty
   , pending: []
+  , laws: []
   , templates: Map.empty
   , factors: Map.empty
   , recurring: []

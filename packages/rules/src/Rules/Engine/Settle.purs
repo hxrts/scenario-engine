@@ -9,14 +9,13 @@ module Rules.Engine.Settle
   ( Settlement
   , settle
   , net
-  , transfer
   ) where
 
 import Prelude
 
 import Rules.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Rules.Engine.Compile (delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
+import Rules.Engine.Compile (actionCouplings, delivery, fillCoupling, jointInputs, payCoupling, ruleChange, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -25,7 +24,7 @@ import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
 import Rules.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
-import Rules.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf)
+import Rules.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf, idText)
 import Rules.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
 import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
@@ -44,15 +43,15 @@ type Settlement =
   , events :: Array Event
   }
 
-settle :: WorldState -> Array Scaled -> Settlement
-settle w scaled0 =
+settle :: WorldState -> { ledger :: Ledger, events :: Array Event, spawned :: Array PendingCoupling } -> Array Scaled -> Settlement
+settle w due scaled0 =
   let
     allocation = allocate w scaled0
     afterPools = filter (\s -> s.item.proposal.id `notElem` allocation.rejected) scaled0
     -- a joint Proposal settles as a unit (docs/02 §3.3), so its inputs are checked before any leg moves
     { yes: short, no: scaled } = partition (jointShort w allocation) afterPools
     shortEvents = concatMap (\s -> map (rejection w.round s.item.proposal.id <<< InputsNotHeld) (shortInputs w allocation s)) short
-    start = { ledger: Map.empty, positions: Map.empty, spawned: [], events: allocation.events <> shortEvents }
+    start = { ledger: due.ledger, positions: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
       [ markets w scaled
@@ -178,7 +177,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
           paid = Q.mul r.price f.quantity
         in
           case runCoupling w a.ledger (fillCoupling id m { entity: f.order.entity, pid: f.order.pid, intent: f.order.position, quantity: f.quantity, paid }) of
-            posted -> addEvents [ coupled w.round posted.flows (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.position, mechanism: Curve id }) ] a { ledger = posted.ledger }
+            posted -> applyActionLaws w f.order.entity (idText id) (Q.abs f.quantity) (addEvents [ coupled w.round posted.flows (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.position, mechanism: Curve id }) ] a { ledger = posted.ledger })
     in
       if null os then acc
       else
@@ -231,7 +230,7 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
           legs = drop paidFirst posted.flows <> paymentLeg
         in
           if any (\c -> c.fate == Expired) posted.consumed then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
-          else addEvents [ coupled w.round legs Nothing cause ] a
+          else applyActionLaws w t.by (idText t.transformation) q $ addEvents [ coupled w.round legs Nothing cause ] a
             { ledger = posted.ledger
             , spawned = a.spawned <> map delivery (later <> effects cause t tr q)
             }
@@ -260,6 +259,14 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
     _ -> a
   ruleId = ruleIdOf p.id
   changeCause i = OfIntent { proposal: p.id, intent: i, mechanism: Direct }
+
+-- | Charge what the authored action laws say an action costs, each its own event.
+applyActionLaws :: WorldState -> EntityId -> String -> Q -> Settlement -> Settlement
+applyActionLaws w actor action quantity st = foldl charge st (actionCouplings w actor action quantity)
+  where
+  charge acc c = case runCoupling w acc.ledger c, c.cause of
+    posted, Just cause -> addEvents [ coupled w.round posted.flows Nothing cause ] acc { ledger = posted.ledger }
+    _, Nothing -> acc
 
 -- | A transfer between Entities, one leg with what was owed and what moved.
 transfer :: WorldState -> Cause -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement

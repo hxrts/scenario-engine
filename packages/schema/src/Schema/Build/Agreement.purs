@@ -12,12 +12,15 @@ module Schema.Build.Agreement
   , repeal
   , spawn
   , step
+  , onAction
   , held
   ) where
 
-import Core.Kernel.Types (Account(..), Amount, Condition, Coupling, Effect(..), LawChange(..), Next, Obligation, Party, Short(..), Spawn, Template, noNext)
+import Core.Kernel.Types (Account(..), Amount(..), Condition, Coupling, Effect(..), LawChange(..), Next, Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), Spawn, Template, noNext)
 import Rules.Types (Capability, EntityId, ResourceId, Rule, RuleKindId, RuleId, idText)
-import Rules.World (Cause(..), LegQuery, PendingCoupling(..), RejectReason, WorldTemplate(..))
+import Core.Kernel.Law (holderParam, quantityParam)
+import Core.Num (Q)
+import Rules.World (AuthoredLaw(..), Cause(..), LegQuery, PendingCoupling(..), RejectReason, WorldTemplate(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
@@ -66,3 +69,15 @@ spawn template offset args parties = { template, due: offset, args: Map.fromFold
 -- | A template, named for the World's table.
 step :: String -> Array String -> Array String -> Agreement -> Tuple String WorldTemplate
 step name params parties coupling = Tuple name (WorldTemplate ({ params, parties, coupling: coupling { cause = Nothing } } :: Template Capability Rule LegQuery RejectReason Cause))
+
+-- | A law charged when the named action settles (a Market or a Facility, by its id), on the action's
+-- | quantity, from whoever acts.
+onAction :: RuleKindId -> String -> Account -> ResourceId -> Q -> AuthoredLaw
+onAction kind action to resource rate = AuthoredLaw
+  { subject: OfStock { holders: Nothing, resource }
+  , trigger: OnAction { obligor: Nothing, cause: Just action }
+  , operation: Emit { from: HeldBy (Bound holderParam), to, resource, owed: Times { ratio: rate, amount: Arg quantityParam } }
+  , guard: []
+  , phase: 1
+  , cause: OfRule { kind }
+  }

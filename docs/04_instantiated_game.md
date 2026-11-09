@@ -131,11 +131,11 @@ This section carries the Gameboard's economic values into World State. The value
 
 Holdings, reserves, cost curves, Market access, and Rules come from the Gameboard. Instantiation changes them only through coverage merges ([§4.2](#42-partitioning)). Nothing is allocated or equalized.
 
-Each Market starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Gameboard's initial Rules. World State holds them as authored Rules, and each compiles to a kernel law when it applies ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Starting feasibility is a Planned check ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
+Each Market starts at its configured position, and its price is read from the cost curve there. The Rules in force at the start are the Gameboard's initial Rules. World State holds them as authored Rules, which initialize as laws: each is read as a kernel law when it applies ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Starting feasibility is a Planned check ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)). A negative holding or reserve fails the round that produces it ([§11](#11-round-execution)).
 
 ### 7.2 Recurring flows
 
-The recurring cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed, as authored recurring rules. It is evaluated each round, when each rule compiles to a coupling or a stock law ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Coverage merges retarget its entries ([§4.2](#42-partitioning)). Reconciliation of the cycle is Planned ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)).
+The recurring cycle ([03 §5.4](03_gameboard.md#54-recurring-cycle)) is carried into World State at initialization, not computed, as authored recurring rules, which initialize as time laws. Each round every rule runs as a stock law, and a created flow spawns a delivery ([03 §14](03_gameboard.md#14-compilation-to-the-kernel)). Coverage merges retarget its entries ([§4.2](#42-partitioning)). Reconciliation of the cycle is Planned ([03 §12.3](03_gameboard.md#123-not-yet-checked-planned)).
 
 ### 7.3 Seeds and randomness
 

@@ -12,6 +12,8 @@ module Rules.Engine.Compile
   , ruleChange
   , jointInputs
   , flowLaws
+  , actionCouplings
+  , timeLaw
   , WorldLaw
   , changeOf
   , runCoupling
@@ -21,13 +23,13 @@ import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Law (holderParam, quantityParam, recipientParam)
+import Core.Kernel.Law (forHolder, holderParam, quantityParam, recipientParam)
 import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
 import Rules.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
 import Rules.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Rules.World (Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
+import Rules.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
 import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
 import Data.Map as Map
@@ -264,3 +266,32 @@ flowLaws w = mapMaybe ofRule (rulesOf w)
     , phase: 3
     , cause: OfRule { kind: r.kind }
     }
+
+-- | What the authored action laws charge when `actor` settles `quantity` of the action named `action`,
+-- | as one coupling per law. A law charges on the action's quantity, through its quantity parameter.
+actionCouplings :: WorldState -> EntityId -> String -> Q -> Array Couple
+actionCouplings w actor action quantity = mapMaybe one w.laws
+  where
+  one (AuthoredLaw law) = case law.trigger of
+    K.OnAction scope | maybe true (_ == actor) scope.obligor && maybe true (_ == action) scope.cause -> forHolder actor (priced law)
+    _ -> Nothing
+  priced law = law
+    { operation = case law.operation of
+        K.Emit l -> K.Emit l { owed = amount l.owed }
+        other -> other
+    }
+  amount = case _ of
+    K.Arg p | p == quantityParam -> K.Exactly quantity
+    K.Times t -> K.Times t { amount = amount t.amount }
+    other -> other
+
+-- | A time law moving `owed` from one holder, to a holder or out of the economy.
+timeLaw :: EntityId -> Maybe EntityId -> ResourceId -> Q -> Int -> Cause -> WorldLaw
+timeLaw from to resource owed phase cause =
+  { subject: K.OfStock { holders: Just [ from ], resource }
+  , trigger: K.EachRound
+  , operation: K.Emit { from: K.HeldBy (K.Bound holderParam), to: maybe K.Destroyed named to, resource, owed: K.Exactly owed }
+  , guard: []
+  , phase
+  , cause
+  }

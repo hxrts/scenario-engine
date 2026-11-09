@@ -313,6 +313,8 @@ Validation is always against one configuration. The Gameboard has no separate va
 
 ### 12.2 Checks implemented
 
+These checks are the compile step of a setting: loading compiles the authored Gameboard to a World, and a setting that fails them never reaches play. Per-round refusals are the round's own compile step ([§12.5](#125-static-refusals)).
+
 Validation checks each of the following:
 
 - Every name a Market, Facility, effect, cycle entry, flow gate, Entity group, Rule, scheme, Aggregate member, procedure weight, Policy reference, capability, procedure authorization, objective measure, fallback, focus, or the numeraire refers to exists. A held capacity that no draw, effect, or production entry uses is reported too.
@@ -410,8 +412,8 @@ The kernel's expressive power is available without changing core. New designs ar
 ### 15.1 Laws and bilateral agreements
 
 - **Depreciation** is a recurring flow from every holder at a fraction held, to a sink. It compiles to a time law on a stock. At 10%, 20 becomes 18 and then 16.2.
-- **Wear from use** is written as a Facility effect with a negative per-unit quantity, which takes the worn units one round later. It is not a kernel `OnAction` stock law.
-- **A tariff** is a levy on a Transfer of a traded good, paid to the governor. Levies apply to Transfers and not to Market fills, so a tariff does not reach a Market order.
+- **Wear from use** is an action law on a stock, written with `onAction` and carried in World State's `laws`. It charges whoever runs the named Facility, on the quantity run, in the same round.
+- **A tariff** on a traded good is an action law on its Market, charged on each fill and paid to the governor. A Rule's levy, by contrast, applies to Transfers.
 - **A bilateral agreement** binds one party's payment to the other's delivery and to a stock level, through `Performed … Whole` and `StockAtLeast` conditions. The delivery stands alone if the stock condition fails and the payment lapses. If the delivery cannot be made, nothing moves.
 - **A treaty** binds the removal of a levy to a payment: a clause that changes a law, and a payment, each conditional on the other. Either both happen or neither does.
 
@@ -426,5 +428,5 @@ Multi-round agreements are templates ([02 §3.4](02_type_system.md#34-successors
 ### 15.3 Limits
 
 - An agreement is authored today as World State (`pending` and `templates`), built directly by the test settings. The setting files have no section for agreements, and no Intent creates one during play. **Planned**: a setting format and an Intent for agreements.
-- Due couplings settle at the round boundary, ahead of that round's orders ([02 §3.4](02_type_system.md#34-successors)).
+- A due coupling in phase 0 settles at the round boundary. One in a later phase is rationed against that round's orders by its tier ([02 §3.4](02_type_system.md#34-successors)).
 - Kernel values the shipped sequence does not read are described in [02 §3.3](02_type_system.md#33-couplings-and-conditions).

@@ -16,10 +16,10 @@ import Rules.Invariants (checkAfter)
 import Rules.Query (holding)
 import Rules.Types (Capability(..), Direction(..), EntityId, FlowEffect(..), FlowGovernance(..), RuleForm(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceTag, Rule, RuleF(..), RuleKindId, SignedProposal, proposalId)
 import Rules.World (LegQuery, RecurringAmount(..), RecurringDestination(..), RecurringSource(FromEachHolder), ShortfallEffect(..), WorldState, seeded)
-import Schema.Build.Agreement (Clause, Guard, agreement, clause, due, guard, held, repeal, spawn, step)
+import Schema.Build.Agreement (Clause, Guard, agreement, onAction, clause, due, guard, held, repeal, spawn, step)
 import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
-import Schema.Build.World (byKey, emptyWorld, entitiesOf, noEntity, noFacility, noResource, resourcesOf)
+import Schema.Build.World (byKey, emptyWorld, entitiesOf, noEntity, noFacility, noMarket, noResource, resourcesOf)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -92,13 +92,43 @@ spec = describe "New designs, written with no core change" do
     holding (after 1 w) a plant `shouldEqual` q 18
     holding (after 2 w) a plant `shouldEqual` q "16.2"
 
-  it "wear from use is an action law: 3 units run takes 3 of plant, a round later" do
+  it "wear from use is an action law on a stock: 3 units run takes 3 of plant" do
     let
-      w = world { transformations = byKey [ Tuple "run" noFacility { outputs = keyed [ goods := 1 ], effects = [ { resource: plant, holder: Nothing, perUnit: q (-1), rounds: Nothing } ] } ] }
+      w = world { transformations = byKey [ Tuple "run" noFacility { outputs = keyed [ goods := 1 ] } ], laws = [ onAction kind "run" Destroyed plant (q 1) ] }
       ran = play w [ submit "A" 1 [ Transform { by: a, transformation: Id "run", quantity: q 3 } ] ]
-    holding ran a plant `shouldEqual` q 20
+    holding ran a plant `shouldEqual` q 17
     holding ran a goods `shouldEqual` q 13
-    holding (play ran []) a plant `shouldEqual` q 17
+
+  it "a tariff on a traded good is an action law on its Market: 4 bought at 1 pays 2 to the governor" do
+    let
+      venue = noMarket { base = goods, quote = money, cost = { intercept: q 1, slope: q 0, domain: { lo: q 0, hi: q 100 } }, reserves = keyed [ goods := 50, money := 50 ], access = [ a ] }
+      w = world
+        { markets = byKey [ Tuple "goods" venue ]
+        , laws = [ onAction kind "goods" (held (named b)) money (q "0.5") ]
+        , entities = Map.update (Just <<< \e -> e { capabilities = [ MayTrade (Id "goods") ] }) a world.entities
+        }
+      done = play w [ submit "A" 1 [ Trade { market: Id "goods", quantity: q 4, limitPrice: Just (q 1) } ] ]
+    holding done a goods `shouldEqual` q 14
+    holding done a money `shouldEqual` q 94
+    holding done b money `shouldEqual` q 102
+
+  describe "a due obligation in a settlement phase is rationed against the round's orders by its tier" do
+    let
+      debt tier whole' = (agreement kind [ b ] [ move "owe" b a money "80" Cap [] (noNext { lapsed = [ spawn "note" 1 [] [ Tuple "who" (named b) ] ] }) ])
+        { phase = 1, ration = { tier, whole: whole', scaleGroup: Nothing } }
+      note = step "note" [] [ "who" ] (agreement kind [] [ clause "note" (Bound "who") { from: Created, to: held (Bound "who"), resource: goods, owed: Exactly (q 1) } Cap [] noNext ])
+      order = [ submit "B" 1 [ Transfer { from: b, to: a, resource: money, quantity: q 40 } ] ]
+      run tier whole' = play (world { pending = [ due 1 (debt tier whole') ], templates = Map.fromFoldable [ note ] }) order
+    it "a senior debt fills first and scales the order: 80 paid, then 20 of the 40" do
+      holding (run 0 true) a money `shouldEqual` q 200
+      holding (run 0 true) b money `shouldEqual` q 0
+    it "a junior debt is scaled to what the order leaves: 40 paid, then 60 of the 80" do
+      holding (run 2 false) a money `shouldEqual` q 200
+      (run 2 false).pending `shouldEqual` []
+    it "a junior whole debt that overflows lapses, and spawns its lapsed branch" do
+      let lapsed = run 2 true
+      holding lapsed a money `shouldEqual` q 140
+      holding (play lapsed []) b goods `shouldEqual` q 1
 
   it "a tariff is a levy on the flow of a traded good, paid to the governor" do
     let done = play (world { rules = Map.singleton (Id "l") levyRule }) [ submit "A" 1 [ Transfer { from: a, to: b, resource: goods, quantity: q 4 } ] ]

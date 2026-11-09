@@ -42,7 +42,7 @@ prepareChecked w = case prepared w of
 prepared :: WorldState -> { world :: WorldState, errors :: Array ConsumeError }
 prepared w =
   let
-    { yes: due, no: later } = partition (\p -> (unwrap p).due <= w.round) w.pending
+    { yes: due, no: later } = partition (\p -> (unwrap p).due <= w.round && (unwrap p).coupling.phase == 0) w.pending
     -- phase, then tier: seniority among what falls due is the author's choice
     now = sortWith (\p -> Tuple (unwrap p).coupling.phase (unwrap p).coupling.ration.tier) due
     posted = foldl (consume w) { ledger: Map.empty, events: [], changes: [], spawned: [], errors: [] } now

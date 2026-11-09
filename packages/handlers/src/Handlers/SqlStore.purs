@@ -65,7 +65,7 @@ setsTable :: String
 setsTable = "create table if not exists scenario_sets (name text primary key, baseline text not null, runs text not null)"
 
 schemaVersionCurrent :: Int
-schemaVersionCurrent = 2
+schemaVersionCurrent = 3
 
 -- | The store's schema version.
 schemaVersion :: SqlDevice -> Effect Int

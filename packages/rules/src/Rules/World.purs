@@ -5,7 +5,7 @@ module Rules.World (module Rules.World, module Core.Kernel.Types) where
 import Prelude
 
 import Core.Draw (Seed(..), drawVersion)
-import Core.Kernel.Types (Endpoint(..), Flow, KernelShapes, Pending, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
+import Core.Kernel.Types (Endpoint(..), Flow, KernelShapes, Law, Pending, lawShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
@@ -25,6 +25,21 @@ import Data.Show.Generic (genericShow)
 
 -- | A spawned coupling and a template, over what this World carries.
 newtype PendingCoupling = PendingCoupling (Pending Capability Rule LegQuery RejectReason Cause)
+
+newtype AuthoredLaw = AuthoredLaw (Law Capability LegQuery RejectReason Cause)
+
+derive instance Newtype AuthoredLaw _
+derive instance Eq AuthoredLaw
+derive newtype instance Show AuthoredLaw
+
+instance EncodeJson AuthoredLaw where
+  encodeJson = encodeWith Snapshot authoredLawShape
+
+instance DecodeJson AuthoredLaw where
+  decodeJson = decodeJsonWith Snapshot authoredLawShape
+
+authoredLawShape :: Shape AuthoredLaw
+authoredLawShape = iso AuthoredLaw unwrap (lawShape worldKernelShapes)
 
 newtype WorldTemplate = WorldTemplate (Template Capability Rule LegQuery RejectReason Cause)
 
@@ -79,6 +94,7 @@ type WorldFields r =
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the setting declares
   , rules :: Map RuleId Rule -- Rules in force
   , pending :: Array PendingCoupling -- spawned couplings, each due in a later round
+  , laws :: Array AuthoredLaw -- laws the setting writes directly, run when their action settles
   , templates :: Map TemplateId WorldTemplate -- what a spawn may instantiate
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
   , recurring :: Array RecurringFlow -- the recurring cycle, in the order the engine evaluates it
@@ -660,7 +676,7 @@ flowGateShape :: Shape FlowGate
 flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingCouplingShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingCouplingShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

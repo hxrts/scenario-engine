@@ -17,14 +17,20 @@ import Rules.Engine.Fund (fund)
 import Rules.Engine.Prepare (prepareChecked)
 import Rules.Engine.Screen (duplicatedIds, screen, withinMaximums)
 import Rules.Engine.Settle (Settlement, settle)
-import Core.Kernel.Post (Account(..), ledgerByAccount)
+import Core.Kernel.Consume (ConsumeError, spawned)
+import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
+import Core.Kernel.Ration (Claim)
+import Core.Kernel.Resolve (Fate(..))
+import Core.Kernel.Types (Account(..), Amount(..), Effect(..), Party(..)) as K
+import Data.Newtype (unwrap)
+import Rules.Engine.Compile (runCoupling)
 import Core.Num (Q)
 import Core.Num as Q
 import Rules.Proposal (submissionOrder)
 import Rules.Represent as Represent
-import Rules.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, Proposal, SignedProposal, IntentF(..))
-import Rules.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState)
-import Data.Array (concatMap, elem, filter, find, findMap, sortWith)
+import Rules.Types (BehaviorDomain, Entity, EntityId, Market, MarketId, Ratio, ResourceId, RoundIndex, Proposal, SignedProposal, IntentF(..), ProposalId)
+import Rules.World (addEvents, rejection, Event(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RoundResult, WorldState, PendingCoupling(..))
+import Data.Array (concatMap, elem, filter, find, findMap, sortWith, any, foldl, mapWithIndex, null)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -81,12 +87,17 @@ resolvePrepared w inputs0 =
     overMaximum = map _.proposal bounded.rejected
     screenEvents = concatMap (either identity (\i -> if i.proposal.id `elem` overMaximum then [] else i.outcome)) screened
       <> map (\r -> rejection w.round r.proposal r.reason) bounded.rejected
-    funded = fund w items
+    -- obligations due in a settlement phase claim holdings beside the round's orders, by their tier
+    dueNow = mapWithIndex Tuple (filter isDue w.pending)
+    isDue p = (unwrap p).due <= w.round
+    funded = fund w (concatMap dueClaims dueNow) items
+    consumedDue = settleDue w funded.droppedDue funded.dueScales dueNow
     -- estimates read the validated proposed quantities, before funding scales them (§7.4)
     estimates = Represent.estimate w (concatMap (observationsOf w <<< _.proposal) items)
-    settled = circulate w (settle w funded.items)
+    settled = circulate w (settle w { ledger: consumedDue.ledger, events: consumedDue.events, spawned: consumedDue.spawned } funded.items)
   in
-    commit w inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
+    if not (null consumedDue.errors) then Left (InvalidSuccessor (show consumedDue.errors))
+    else commit (w { pending = filter (not <<< isDue) w.pending }) inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled
 
 -- | What a screened Proposal says its author set out to buy: the quantities of its Trades and routed Trades.
 observationsOf :: WorldState -> Proposal -> Array Represent.Observation
@@ -96,6 +107,41 @@ observationsOf w p = concatMap trade p.intents
     Trade o | Just m <- Map.lookup o.market w.markets -> [ { actor: p.author, resource: m.base, quantity: o.quantity } ]
     Route r -> [ { actor: p.author, resource: r.pair.base, quantity: r.quantity } ]
     _ -> []
+
+-- | What a due coupling asks to set aside: each whole-quantity leg out of a named holder's account.
+dueClaims :: Tuple Int PendingCoupling -> Array (Claim (Either Int ProposalId))
+dueClaims (Tuple i (PendingCoupling p)) = concatMap claim p.coupling.obligations
+  where
+  claim o = case o.effect of
+    K.Move { from: K.HeldBy (K.Named e), resource, owed: K.Exactly amount } ->
+      [ { key: Left i, tier: p.coupling.ration.tier, whole: p.coupling.ration.whole, party: e, resource, amount } ]
+    _ -> []
+
+-- | Settle what fell due in a settlement phase, before the round's orders. A coupling rationing dropped
+-- | is consumed as lapsed; one rationing scaled posts at its scale.
+settleDue :: WorldState -> Array Int -> Map (Tuple Int EntityId) Q -> Array (Tuple Int PendingCoupling) -> { ledger :: Ledger, events :: Array Event, spawned :: Array PendingCoupling, errors :: Array ConsumeError }
+settleDue w dropped scales = foldl one { ledger: Map.empty, events: [], spawned: [], errors: [] } <<< sortWith (\(Tuple _ (PendingCoupling p)) -> Tuple p.coupling.phase p.coupling.ration.tier)
+  where
+  templates = map unwrap w.templates
+  one acc (Tuple i (PendingCoupling p))
+    | i `elem` dropped = record acc acc.ledger [] (mapWithIndex (\n _ -> { coupling: 0, obligation: n, fate: Expired, flow: Nothing, change: Nothing, reason: Nothing }) p.coupling.obligations) p.coupling
+    | otherwise =
+        let
+          scaled = p.coupling { obligations = map (scaleBy p.coupling.ration.tier) p.coupling.obligations }
+          posted = runCoupling w acc.ledger scaled
+        in
+          record acc posted.ledger posted.flows posted.consumed scaled
+  scaleBy tier o = case o.effect of
+    K.Move l@{ from: K.HeldBy (K.Named e), owed: K.Exactly amount } | Just x <- Map.lookup (Tuple tier e) scales -> o { effect = K.Move l { owed = K.Exactly (Q.mul x amount) } }
+    _ -> o
+  record acc ledger flows consumed c =
+    let
+      next = spawned w.round templates [ c ] consumed
+      events = case c.cause of
+        Just cause | any (\f -> f.moved /= Q.zero) flows -> [ Coupled { round: w.round, legs: flows, rate: Nothing, cause, delivered: false } ]
+        _ -> []
+    in
+      { ledger, events: acc.events <> events, spawned: acc.spawned <> either (const []) (map PendingCoupling) next, errors: acc.errors <> either pure (const []) next }
 
 commit :: WorldState -> Array SignedProposal -> Array Event -> Map EntityId (Map BehaviorDomain Ratio) -> Settlement -> Either EngineError RoundResult
 commit w inputs screenEvents factors st = do
