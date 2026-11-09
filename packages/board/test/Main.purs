@@ -36,7 +36,7 @@ import Testkit.Gameboard (minimalGameboard)
 
 -- | A Gameboard in which the Actor US is covered by the Aggregate EU (ImplicitCoverage). US holds
 -- | the capacity `cap` and is the payee and effect holder of a facility, the origin and target of
--- | Rules (in force and scheduled), and an eligible Actor of a Representation scheme.
+-- | Rules in force, and an eligible Actor of a Representation scheme.
 coverageGameboard :: Gameboard
 coverageGameboard =
   { id: "coverage-merge"
@@ -92,7 +92,6 @@ coverageGameboard =
         [ Tuple (Id "tariff") (tariffR { jurisdiction: eu, origin: us, rate: Q.fromInt 1 })
         , Tuple (Id "ban") (banR { jurisdiction: eu, target: us })
         ]
-    , scheduled = Map.singleton (Id "later") (Just (banR { jurisdiction: eu, target: us }))
     }
 
 -- | An Aggregate's member list; an Actor has none.
@@ -102,12 +101,12 @@ membersOf x = case x.kind of
   _ -> []
 
 -- | The Entity ids a World State names outside its Entity map: the facility payees and effect
--- | holders, and the Entities of every Rule in force or scheduled.
-worldEntityRefs :: forall r. { transformations :: Map.Map TransformationId Transformation, rules :: Map.Map RuleId Rule, scheduled :: Map.Map RuleId (Maybe Rule) | r } -> Array EntityId
+-- | holders, and the Entities of every Rule in force.
+worldEntityRefs :: forall r. { transformations :: Map.Map TransformationId Transformation, rules :: Map.Map RuleId Rule | r } -> Array EntityId
 worldEntityRefs w =
   map _.to (mapMaybe _.payment transforms)
     <> concatMap (\t -> mapMaybe _.holder t.effects) transforms
-    <> concatMap ruleEntities (map Just (values w.rules) <> values w.scheduled)
+    <> concatMap ruleEntities (map Just (values w.rules))
   where
   transforms = values w.transformations
 

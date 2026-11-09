@@ -115,8 +115,6 @@ emptyWorld =
   , groups: Map.empty
   , ruleKinds: Map.empty
   , rules: Map.empty
-  , scheduled: Map.empty
-  , deliveries: []
   , pending: []
   , templates: Map.empty
   , factors: Map.empty

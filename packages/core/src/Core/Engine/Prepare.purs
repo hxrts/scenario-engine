@@ -9,15 +9,16 @@ module Core.Engine.Prepare
 
 import Prelude
 
-import Core.Map (entries)
+import Core.Engine.Compile (changeOf, deliveredOf, runCoupling)
+import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
+import Core.Map (entries, sumMaps)
 
 import Core.Kernel.Consume (partiesOf)
 import Core.Num as Q
-import Core.Query (holderOf, lookupQ, marketsOf, priceOf)
-import Core.Types (Entity, EntityId, RoundIndex)
-import Core.World (venueOf, boundsOf, addEvents, Delivery, Endpoint(..), Event(..), View, WorldState)
-import Data.Array (elem, filter, foldl, fromFoldable, partition)
-import Data.Map (Map)
+import Core.Query (holderOf, marketsOf, priceOf)
+import Core.Types (Entity)
+import Core.World (venueOf, boundsOf, addEvents, Event(..), PendingCoupling(..), View, WorldState)
+import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
@@ -29,44 +30,36 @@ import Data.Tuple (Tuple(..))
 prepareRound :: WorldState -> WorldState
 prepareRound w =
   let
-    { yes: due, no: later } = partition (\d -> d.round <= w.round) w.deliveries
-    applied = foldl (applyDelivery w.round) { entities: w.entities, events: [] } due
-    rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries w.scheduled)
-    ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (Map.toUnfoldable w.scheduled)
+    { yes: now, no: later } = partition (\p -> (unwrap p).due <= w.round) w.pending
+    posted = foldl (applyDelivery w) { ledger: Map.empty, events: [] } (filter delivers now)
+    -- a later change to the same Rule replaces an earlier one
+    changes = Map.fromFoldable (mapMaybe changeOf now)
+    rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries changes)
+    ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (entries changes)
+    updated = map (\e -> e { accounts = sumMaps e.accounts (fromMaybe Map.empty (Map.lookup (Ent e.id) (ledgerByAccount posted.ledger))) }) w.entities
   in
-    addEvents (applied.events <> ruleEvents) w
-      { entities = applied.entities
-      , deliveries = later
+    addEvents (posted.events <> ruleEvents) w
+      { entities = updated
+      , pending = later
       , rules = rules
-      , scheduled = Map.empty
       }
-
-type Applied = { entities :: Map EntityId Entity, events :: Array Event }
-
--- | Apply one due delivery, clamped so that no holding goes negative. A delivery of a negative quantity is sunk. Its
--- | event records the change actually applied, so reversing a delivery later restores exactly
--- | what was removed. A delivery to an Entity that does not exist applies nothing and records
--- | nothing.
-applyDelivery :: RoundIndex -> Applied -> Delivery -> Applied
-applyDelivery round acc d = case Map.lookup d.entity acc.entities of
-  Nothing -> acc
-  Just e ->
-    let
-      before = lookupQ d.resource e.accounts
-      after = max Q.zero (Q.add before d.quantity)
-      change = Q.sub after before
-      updated = e { accounts = Map.insert d.resource after e.accounts }
-    in
-      if change == Q.zero then acc
-      else
-        { entities: Map.insert d.entity updated acc.entities
-        , events: acc.events <> [ deliveredEvent change ]
-        }
   where
-  deliveredEvent change = Coupled { round, legs: [ deliveredLeg change ], rate: Nothing, cause: d.cause, delivered: true }
-  deliveredLeg change
-    | change < Q.zero = { from: Held d.entity, to: Sink, resource: d.resource, owed: Q.neg d.quantity, moved: Q.neg change }
-    | otherwise = { from: Source, to: Held d.entity, resource: d.resource, owed: d.quantity, moved: change }
+  -- a delivery to an Entity the World does not have, or of nothing, is no delivery
+  delivers p = maybe false (\d -> d.quantity /= Q.zero && Map.member d.entity w.entities) (deliveredOf p)
+
+type Applied = { ledger :: Ledger, events :: Array Event }
+
+-- | Apply one due delivery, clamped so that no holding goes negative. Its event records the change
+-- | actually applied, so reversing a delivery later restores exactly what was removed.
+applyDelivery :: WorldState -> Applied -> PendingCoupling -> Applied
+applyDelivery w acc (PendingCoupling p) =
+  let
+    posted = runCoupling w acc.ledger p.coupling
+  in
+    case p.coupling.cause of
+      Just cause | not (null posted.flows) ->
+        { ledger: posted.ledger, events: acc.events <> [ Coupled { round: w.round, legs: posted.flows, rate: Nothing, cause, delivered: true } ] }
+      _ -> acc
 
 -- | The beginning-of-round View of one Entity. `toSign` is filled by the round runner.
 observe :: WorldState -> Entity -> View

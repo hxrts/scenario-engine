@@ -78,8 +78,6 @@ type WorldFields r =
   , groups :: Map EntityId EntityId -- the group an Entity counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the setting declares
   , rules :: Map RuleId Rule -- Rules in force
-  , scheduled :: Map RuleId (Maybe Rule) -- take effect at the next round boundary; Nothing repeals
-  , deliveries :: Array Delivery -- due at Prepare
   , pending :: Array PendingCoupling -- spawned couplings, each due in a later round
   , templates :: Map TemplateId WorldTemplate -- what a spawn may instantiate
   , factors :: Map EntityId (Map BehaviorDomain Ratio) -- stored Representation adjustment factors
@@ -152,11 +150,6 @@ type LegQuery =
 data ShortfallEffect
   = NoEffect
   | OffsetIncoming Quantity -- accrue this much per unit short against the offsetable flows the Entity receives
-
--- | A scheduled change to a holding, applied at Prepare. `cause` is what the settlement
--- | that scheduled it was caused by.
-type Delivery =
-  { round :: RoundIndex, entity :: EntityId, resource :: ResourceId, quantity :: Quantity, cause :: Cause }
 
 -- | Where a leg of a settlement starts or ends: an Entity, a Market, nowhere, or nothing.
 data Endpoint = Held EntityId | InMarket MarketId | Source | Sink
@@ -631,9 +624,6 @@ estimatorShape = recordShape "Estimator" { reference: qShape, shrinkage: qShape,
 representationShape :: Shape Representation
 representationShape = recordShape "Representation" { id: idShape, actor: idShape, aggregate: idShape, domain: idShape, observes: idShape, weight: qShape, estimator: estimatorShape }
 
-deliveryShape :: Shape Delivery
-deliveryShape = recordShape "Delivery" { round: intShape, entity: idShape, resource: idShape, quantity: qShape, cause: causeShape }
-
 recurringFlowShape :: Shape RecurringFlow
 recurringFlowShape = recordShape "RecurringFlow"
   { id: idShape
@@ -697,7 +687,7 @@ flowGateShape :: Shape FlowGate
 flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedMarket: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), scheduled: (mapOf idShape (optionalOf ruleShape)), deliveries: (arrayOf deliveryShape), pending: (arrayOf pendingCouplingShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), entities: (mapOf idShape entityShape), resources: (mapOf idShape resourceDefinitionShape), markets: (mapOf idShape marketShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingCouplingShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { gameboard: stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }
@@ -733,12 +723,12 @@ foldWorld :: forall m r. Monoid m => WorldPositions (Const m) -> Record (WorldFi
 foldWorld p = un Const <<< traverseWorld p
 
 -- | Rebuild the references of a setting's World State, position by position. The walk covers what a setting
--- | authors. What only a run produces (deliveries, factors, events, the Representations instantiation adds) is
+-- | authors. What only a run produces (pending couplings, factors, events, the Representations instantiation adds) is
 -- | not walked.
 traverseWorld :: forall f r. Applicative f => WorldPositions f -> Record (WorldFields r) -> f (Record (WorldFields r))
 traverseWorld t w =
-  ( \markets entities transformations recurring groups rules scheduled numeraire focus flowGates ->
-      w { markets = markets, entities = entities, transformations = transformations, recurring = recurring, groups = groups, rules = rules, scheduled = scheduled, numeraire = numeraire, focus = focus, flowGates = flowGates }
+  ( \markets entities transformations recurring groups rules numeraire focus flowGates ->
+      w { markets = markets, entities = entities, transformations = transformations, recurring = recurring, groups = groups, rules = rules, numeraire = numeraire, focus = focus, flowGates = flowGates }
   )
     <$> traverse marketAt w.markets
     <*> traverse entityAt w.entities
@@ -746,7 +736,6 @@ traverseWorld t w =
     <*> traverse recurringAt w.recurring
     <*> keyedBy t.groupKey t.entity w.groups
     <*> traverse ruleAt w.rules
-    <*> traverse (traverse ruleAt) w.scheduled
     <*> t.resource w.numeraire
     <*> traverse (\f -> f { resource = _ } <$> t.resource f.resource) w.focus
     <*> traverse flowGateAt w.flowGates

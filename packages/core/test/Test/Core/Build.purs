@@ -54,8 +54,6 @@ baseWorld es =
   , groups: Map.empty
   , ruleKinds: testKinds
   , rules: Map.empty
-  , scheduled: Map.empty
-  , deliveries: []
   , pending: []
   , templates: Map.empty
   , factors: Map.empty

@@ -16,7 +16,7 @@ import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Compile (fillCoupling, payCoupling, runCoupling, transformCoupling)
+import Core.Engine.Compile (delivery, fillCoupling, payCoupling, ruleChange, runCoupling, transformCoupling)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (clearSolvent)
 import Core.Kernel.Post (Account(..), Ledger)
@@ -25,8 +25,8 @@ import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
-import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, Rule, RuleChangeF(..), RuleId, TransformationId, poolDraw, ruleIdOf)
-import Core.World (Cause(..), Delivery, Event, Mechanism(..), RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
+import Core.Types (EntityId, IntentF(..), MarketId, ProposalId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf)
+import Core.World (Cause(..), Event, Mechanism(..), PendingCoupling, RejectReason(..), WorldState, addEvents, coupled, orderRemoved, rejection)
 import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -40,8 +40,7 @@ import Data.Tuple (Tuple(..), fst)
 type Settlement =
   { ledger :: Ledger
   , positions :: Map MarketId Q
-  , deliveries :: Array Delivery
-  , scheduled :: Map RuleId (Maybe Rule)
+  , spawned :: Array PendingCoupling
   , events :: Array Event
   }
 
@@ -53,7 +52,7 @@ settle w scaled0 =
     -- a joint Proposal settles as a unit (docs/02 §3.3), so its inputs are checked before any leg moves
     { yes: short, no: scaled } = partition (jointShort w allocation) afterPools
     shortEvents = concatMap (\s -> map (rejection w.round s.item.proposal.id <<< InputsNotHeld) (shortInputs w allocation s)) short
-    start = { ledger: Map.empty, positions: Map.empty, deliveries: [], scheduled: Map.empty, events: allocation.events <> shortEvents }
+    start = { ledger: Map.empty, positions: Map.empty, spawned: [], events: allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
       [ markets w scaled
@@ -231,7 +230,7 @@ settleConversions w allocation acc s = foldl one acc (mapWithIndex Tuple s.item.
           if any (\c -> c.fate == Expired) posted.consumed then addEvents [ orderRemoved w.round pid (InputsNotHeld t.transformation) ] a
           else addEvents [ coupled w.round legs Nothing cause ] a
             { ledger = posted.ledger
-            , deliveries = a.deliveries <> later <> effects cause t tr q
+            , spawned = a.spawned <> map delivery (later <> effects cause t tr q)
             }
       _ -> a
     _ -> a
@@ -253,10 +252,11 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
           | otherwise -> a' { ledger = posted.ledger }
   one a (Tuple i intent) = case intent of
     Transfer t -> transfer w (OfIntent { proposal: p.id, intent: i, mechanism: Direct }) t.from t.to t.resource (Q.mul (scaleOf s t.from) t.quantity) a
-    ChangeRule (Enact r) -> a { scheduled = Map.insert (ruleId i) (Just r) a.scheduled }
-    ChangeRule (Repeal id) -> a { scheduled = Map.insert id Nothing a.scheduled }
+    ChangeRule (Enact r) -> a { spawned = a.spawned <> [ ruleChange w.round p.author (changeCause i) (ruleId i) (Just r) ] }
+    ChangeRule (Repeal id) -> a { spawned = a.spawned <> [ ruleChange w.round p.author (changeCause i) id Nothing ] }
     _ -> a
   ruleId = ruleIdOf p.id
+  changeCause i = OfIntent { proposal: p.id, intent: i, mechanism: Direct }
 
 -- | A transfer between Entities, one leg with what was owed and what moved.
 transfer :: WorldState -> Cause -> EntityId -> EntityId -> ResourceId -> Q -> Settlement -> Settlement

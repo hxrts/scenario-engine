@@ -13,6 +13,7 @@ module Checks.Round
 
 import Prelude
 
+import Core.Engine.Compile (changeOf, deliveredOf)
 import Core.Map (entries)
 
 import Core.Num (Q)
@@ -20,7 +21,7 @@ import Core.Query (holding, reserveOf)
 import Core.Types (BehaviorDomain, EntityId, MarketId, ResourceId)
 import Core.Slice (event, orKind, read, select)
 import Core.World (RoundResult)
-import Data.Array (concat, concatMap, sort, sortWith)
+import Data.Array (concat, concatMap, mapMaybe, sort, sortWith)
 import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -80,11 +81,11 @@ observe r =
   { accounts: Map.mapMaybeWithKey (\e _ -> Just (filled (holding w e))) w.entities
   , reserves: Map.mapMaybeWithKey (\m _ -> Just (filled (reserveOf w m))) w.markets
   , factors: map (map Identity) w.factors
-  , deliveries: Identity (concatMap deliveryOf w.deliveries)
+  , deliveries: Identity (mapMaybe deliveredOf w.pending)
   , rejected: Identity (sort (select (read @"proposal" (orKind (event @"Rejected") (event @"OrderRemoved"))) events))
   , lapsed: Identity (sort (select (read @"proposal" (event @"Lapsed")) events))
   , procedures: Identity (map (\x -> { proposal: x.proposal, support: x.support, executed: x.executed }) (select (event @"ProcedureOutcome") events))
-  , scheduled: Identity (Map.size w.scheduled)
+  , scheduled: Identity (Map.size (Map.fromFoldable (mapMaybe changeOf w.pending)))
   }
   where
   w = r.world
@@ -92,7 +93,6 @@ observe r =
 
   filled :: (ResourceId -> Q) -> Map.Map ResourceId (Identity Q)
   filled f = Map.mapMaybeWithKey (\res _ -> Just (Identity (f res))) w.resources
-  deliveryOf d = if d.round > r.record.round then [ { entity: d.entity, resource: d.resource, quantity: d.quantity } ] else []
 
 -- | Every check the Expect makes of the Observed, for round `round`. Deliveries are compared as sets
 -- | (sorted), rejections and lapses by sorted Proposal id, and procedure outcomes in the order written.

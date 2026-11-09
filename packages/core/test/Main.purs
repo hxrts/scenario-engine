@@ -7,6 +7,7 @@ import JS.BigInt (BigInt)
 import JS.BigInt as BI
 import Core.Draw (Seed(..), draw)
 import Core.Engine.Commit (EngineError, resolveRound)
+import Core.Engine.Compile (delivery)
 import Core.Authority (authorized, viewFacts, worldFacts)
 import Core.Engine.Prepare (observe, prepareRound)
 import Data.Foldable (for_)
@@ -470,15 +471,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "clamps a delivery at zero and records only the change applied" do
       let
         us = withAccount (Id "plant") (Q.fromInt 5) (actor "US" [])
-        w = (baseWorld [ us ]) { deliveries = [ { round: 1, entity: Id "US", resource: Id "plant", quantity: Q.fromInt (-10), cause: testCause } ] }
+        w = (baseWorld [ us ]) { pending = [ delivery { round: 1, entity: Id "US", resource: Id "plant", quantity: Q.fromInt (-10), cause: testCause } ] }
         prepared = prepareRound w
       holding prepared (Id "US") (Id "plant") `shouldEqual` Q.zero
       prepared.events `shouldEqual` [ Coupled { round: 1, legs: [ { from: Held (Id "US"), to: Sink, resource: Id "plant", owed: Q.fromInt 10, moved: Q.fromInt 5 } ], rate: Nothing, cause: testCause, delivered: true } ]
     it "a delivery to an unknown Entity applies nothing and records nothing" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "GHOST", resource: Id "M", quantity: Q.fromInt 5, cause: testCause } ] }
+      let w = (baseWorld [ actor "US" [] ]) { pending = [ delivery { round: 1, entity: Id "GHOST", resource: Id "M", quantity: Q.fromInt 5, cause: testCause } ] }
       (prepareRound w).events `shouldEqual` []
     it "prepareRound is idempotent, and resolveRound applies due deliveries itself" do
-      let w = (baseWorld [ actor "US" [] ]) { deliveries = [ { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 7, cause: testCause } ] }
+      let w = (baseWorld [ actor "US" [] ]) { pending = [ delivery { round: 1, entity: Id "US", resource: Id "M", quantity: Q.fromInt 7, cause: testCause } ] }
       (prepareRound (prepareRound w)).events `shouldEqual` (prepareRound w).events
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound w []) `shouldEqual` Right (Q.fromInt 107)
       map (\r -> holding r.world (Id "US") (Id "M")) (resolveRound (prepareRound w) []) `shouldEqual` Right (Q.fromInt 107)

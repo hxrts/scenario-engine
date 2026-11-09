@@ -94,8 +94,7 @@ commit w inputs screenEvents factors st = do
       { round = w.round + 1
       , entities = entities
       , markets = Map.fromFoldable marketList
-      , deliveries = w.deliveries <> st.deliveries
-      , scheduled = Map.union st.scheduled w.scheduled
+      , pending = w.pending <> st.spawned
       , factors = factors
       }
   pure { world, record: { round: w.round, inputs, events: filter (prepared w.round) w.events <> events } }

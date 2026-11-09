@@ -9,7 +9,7 @@ module Core.Engine.Circulate
 
 import Prelude
 
-import Core.Engine.Compile (fractionLaw, payCoupling, runCoupling)
+import Core.Engine.Compile (delivery, fractionLaw, payCoupling, runCoupling)
 import Core.Engine.Settle (Settlement, net, transfer)
 import Core.Kernel.Law (forHolder)
 import Core.Kernel.Post (Account(..))
@@ -41,7 +41,7 @@ isEachHolder r = r.source == FromEachHolder
 step :: WorldState -> Penalised -> RecurringFlow -> Penalised
 step w acc r =
   case r.source, r.destination of
-    Created, ToEntity to -> acc { st = acc.st { deliveries = acc.st.deliveries <> [ { round: w.round + r.delay, entity: to, resource: r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
+    Created, ToEntity to -> acc { st = acc.st { spawned = acc.st.spawned <> [ delivery { round: max (w.round + 1) (w.round + r.delay), entity: to, resource: r.resource, quantity: amountOf w acc.st r, cause: causeOf r } ] } }
     FromEntity from, ToEntity to -> acc { st = transfer w (causeOf r) from to r.resource (paidAmount to) acc.st }
     FromEntity from, ToSink -> consume from
     _, _ -> acc
