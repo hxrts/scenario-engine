@@ -38,6 +38,7 @@ type Kernel cap query =
   , holds :: EntityId -> cap -> Boolean
   , read :: Ledger -> query -> Q
   , price :: Maybe Q
+  , start :: Ledger -- the settlement so far
   }
 
 -- | How an obligation was consumed: each of the three has its own successors.
@@ -159,7 +160,7 @@ canonical c = map _.id c.obligations
 
 -- | Resolve every coupling, phase by phase.
 resolve :: forall cap law query reason cause. Kernel cap query -> Array (Coupling cap law query reason cause) -> Either ResolveError (Resolved law reason)
-resolve k couplings = foldl step (Right { ledger: Map.empty, consumed: [] }) phases
+resolve k couplings = foldl step (Right { ledger: k.start, consumed: [] }) phases
   where
   ordered = mapWithIndex Tuple couplings
   phases = sort (nub (map _.phase couplings))

@@ -6,22 +6,20 @@
 -- | `Settlement`, `Account`, and `Ledger` are defined here because this is the first phase that
 -- | produces them; Circulate and Commit import them.
 module Core.Engine.Settle
-  ( Account(..)
-  , Settlement
+  ( Settlement
   , settle
-  , adjust
   , net
-  , ledgerByAccount
   , transfer
   , minOwedHeld
-  , Ledger
   ) where
 
 import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
+import Core.Engine.Compile (fillCoupling, runCoupling)
 import Core.Kernel.Clear (clearSolvent)
+import Core.Kernel.Post (Account(..), Ledger, adjust)
 import Core.Kernel.Ration (fillPool)
 import Core.Kernel.Route as Route
 import Core.Num (Q)
@@ -37,18 +35,6 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
 
-data Account = Ent EntityId | Mkt MarketId
-
-derive instance Eq Account
-derive instance Ord Account
-
--- | Net changes to every account for the round, applied together at commit.
-type Ledger = Map (Tuple Account ResourceId) Q
-
--- | The ledger grouped by Account, in one pass: each Account's changes, keyed by Resource.
-ledgerByAccount :: Ledger -> Map Account (Map ResourceId Q)
-ledgerByAccount ledger = Map.fromFoldableWith Map.union (map (\(Tuple (Tuple a r) q) -> Tuple a (Map.singleton r q)) (entries ledger))
-
 -- | A leg moving `moved` of what is owed.
 leg :: Endpoint -> Endpoint -> ResourceId -> Q -> Q -> Flow
 leg from to resource owed moved = { from, to, resource, owed, moved }
@@ -59,9 +45,6 @@ whole from to resource quantity = leg from to resource quantity quantity
 
 move :: Account -> Account -> ResourceId -> Q -> Ledger -> Ledger
 move from to r q = adjust to r q <<< adjust from r (Q.neg q)
-
-adjust :: Account -> ResourceId -> Q -> Ledger -> Ledger
-adjust a r = sumInto (Tuple a r)
 
 -- | The round's batch result: the ledger and Market positions, plus the deliveries, Rule changes,
 -- | and events it produces.
@@ -203,19 +186,8 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
         let
           paid = Q.mul r.price f.quantity
         in
-          addEvents [ coupled w.round (legsOf f paid) (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.intent, mechanism: Curve id }) ] a
-            { ledger = move (Mkt id) (Ent f.order.entity) m.base f.quantity (move (Ent f.order.entity) (Mkt id) m.quote paid a.ledger)
-            }
-      -- the base leg first, then the quote leg; a negative quantity is a sale, so each leg's direction flips
-      legsOf f paid
-        | f.quantity >= Q.zero =
-            [ whole (InMarket id) (Held f.order.entity) m.base f.quantity
-            , whole (Held f.order.entity) (InMarket id) m.quote paid
-            ]
-        | otherwise =
-            [ whole (Held f.order.entity) (InMarket id) m.base (Q.neg f.quantity)
-            , whole (InMarket id) (Held f.order.entity) m.quote (Q.neg paid)
-            ]
+          case runCoupling w a.ledger (fillCoupling id m { entity: f.order.entity, pid: f.order.pid, intent: f.order.intent, quantity: f.quantity, paid }) of
+            posted -> addEvents [ coupled w.round posted.flows (Just r.price) (OfIntent { proposal: f.order.pid, intent: f.order.intent, mechanism: Curve id }) ] a { ledger = posted.ledger }
     in
       if null os then acc
       else

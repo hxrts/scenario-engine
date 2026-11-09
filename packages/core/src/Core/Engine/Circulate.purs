@@ -9,7 +9,8 @@ module Core.Engine.Circulate
 
 import Prelude
 
-import Core.Engine.Settle (Account(..), Settlement, adjust, minOwedHeld, net, transfer)
+import Core.Engine.Settle (Settlement, minOwedHeld, net, transfer)
+import Core.Kernel.Post (Account(..), adjust)
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q

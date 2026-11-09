@@ -62,8 +62,8 @@ kernel = describe "Core.Kernel" do
         sunk = post opening Cap { from: a, to: Sink, resource: m, owed: q "1" } Map.empty
       made.flow.moved `shouldEqual` q "99"
       Map.size sunk.ledger `shouldEqual` 1
-    it "a market reserve caps like any account" do
-      (post opening Cap { from: InMarket (Id "X"), to: a, resource: m, owed: q "9" } Map.empty).flow.moved `shouldEqual` q "4"
+    it "a market reserve pays whole, since clearing bounds its batch" do
+      (post opening Cap { from: InMarket (Id "X"), to: a, resource: m, owed: q "9" } Map.empty).flow.moved `shouldEqual` q "9"
 
   describe "Resolve" do
     let
@@ -178,7 +178,7 @@ type C = Coupling Unit Unit Unit String Unit
 type O = Obligation Unit Unit Unit String
 
 env :: Kernel Unit Unit
-env = { opening, holds: \_ _ -> true, read: \_ _ -> Q.zero, price: Nothing }
+env = { opening, holds: \_ _ -> true, read: \_ _ -> Q.zero, price: Nothing, start: Map.empty }
 
 cp :: Int -> String -> Array O -> C
 cp phase _ obligations = { obligations, holds: [], solver: Nothing, ration: { tier: 0, whole: false, scaleGroup: Nothing }, phase, cause: Nothing, consented: [] }
