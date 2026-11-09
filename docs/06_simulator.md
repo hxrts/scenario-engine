@@ -201,7 +201,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 **Rejection reasons.** A `RejectReason` is stored as a structured value, so a stored event reads back equal to the event that was recorded. Its display text is derived from the value when shown and is not stored.
 
-**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 7 (`schemaVersionCurrent`), and there are no migrations: a change to the schema starts a new store. Version 2 removed `deliveries` and `scheduled` from round-end Worlds, which `pending` replaces, version 3 added `laws`, version 4 renamed the stored kernel Law changes, and version 5 renamed stored keys to the current terms. The one exception is additive: `run_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
+**Schema.** The store is SQLite. Its schema version is the database's user version. There is one schema, version 8 (`schemaVersionCurrent`), and there are no migrations: a change to the schema starts a new store. Version 2 removed `deliveries` and `scheduled` from round-end Worlds, which `pending` replaces, version 3 added `laws`, version 4 renamed the stored kernel Law changes, and version 5 renamed stored keys to the current terms. The one exception is additive: `run_sets` (`name`, `baseline`, `runs` as a JSON array of run IDs) is created wherever it is absent, and the store keeps its version.
 
 | Table | Columns | Key |
 |---|---|---|

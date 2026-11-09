@@ -25,8 +25,6 @@ module Core.Kernel.Types
   , Next
   , noNext
   , Obligation
-  , Hold
-  , Solver(..)
   , Ration
   , Transaction
   , Template
@@ -181,23 +179,12 @@ type Obligation cap law query reason =
   , next :: Next query
   }
 
--- | A quantity set aside for the round and released at commit. It moves nothing.
-type Hold query = { party :: Party, resource :: ResourceId, amount :: Amount query }
-
--- | How one limit is divided among many: the closed set of solvers.
-data Solver
-  = Clearing { exchange :: ExchangeId }
-  | Routing { base :: ResourceId, quote :: ResourceId, limit :: Q, candidates :: Array ExchangeId }
-  | Pool { resource :: Maybe ResourceId, perUnit :: Q }
-
 -- | Who shares a shortage: the tier that fills first, whether a transaction is whole or scaled, and the
 -- | group whose claims scale together.
 type Ration = { tier :: Tier, whole :: Boolean, scaleGroup :: Maybe ActorId }
 
 type Transaction cap law query reason cause =
   { obligations :: Array (Obligation cap law query reason)
-  , holds :: Array (Hold query)
-  , solver :: Maybe Solver
   , ration :: Ration
   , phase :: Phase
   , cause :: Maybe cause -- Nothing inherits the parent's
@@ -277,11 +264,6 @@ instance Show law => Show (LawChange law) where
 derive instance (Eq law, Eq query) => Eq (Effect law query)
 derive instance Generic (Effect law query) _
 instance (Show law, Show query) => Show (Effect law query) where
-  show a = genericShow a
-
-derive instance Eq Solver
-derive instance Generic Solver _
-instance Show Solver where
   show a = genericShow a
 
 -- | The codecs of what the kernel only carries.
@@ -377,24 +359,12 @@ nextShape query = recordShape "Next" { performed: arrayOf (spawnShape query), sh
 obligationShape :: forall cap law query reason cause. KernelShapes cap law query reason cause -> Shape (Obligation cap law query reason)
 obligationShape k = recordShape "Obligation" { id: stringShape, obligor: partyShape, effect: effectShape k, when: arrayOf (guardedShape k), onShort: shortShape, next: nextShape k.query }
 
-holdShape :: forall query. Shape query -> Shape (Hold query)
-holdShape query = recordShape "Hold" { party: partyShape, resource: idShape, amount: amountShape query }
-
-solverShape :: Shape Solver
-solverShape = genericSum "Solver"
-  { "Clearing": atTagged "clear on an Exchange's curve" (recordShape "Clearing" { exchange: idShape })
-  , "Routing": atTagged "split across Exchanges" (recordShape "Routing" { base: idShape, quote: idShape, limit: qShape, candidates: arrayOf idShape })
-  , "Pool": atTagged "share what can be drawn" (recordShape "Pool" { resource: optionalOf idShape, perUnit: qShape })
-  }
-
 rationShape :: Shape Ration
 rationShape = recordShape "Ration" { tier: intShape, whole: boolShape, scaleGroup: optionalOf idShape }
 
 transactionShape :: forall cap law query reason cause. KernelShapes cap law query reason cause -> Shape (Transaction cap law query reason cause)
 transactionShape k = recordShape "Transaction"
   { obligations: arrayOf (obligationShape k)
-  , holds: arrayOf (holdShape k.query)
-  , solver: optionalOf solverShape
   , ration: rationShape
   , phase: intShape
   , cause: optionalOf k.cause

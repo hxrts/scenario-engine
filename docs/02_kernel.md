@@ -80,7 +80,7 @@ A Law also has a guard of conditions, a phase and a cause. A cause says what pro
 
 ### 3.3 Transactions and conditions
 
-A Transaction holds its Obligations, its holds, a rationing configuration ([§5.4](#54-rationing)), a phase, a cause, and the parties who have consented. A hold is a quantity set aside for one Round and released at commit. It moves nothing, so a draw, which is a condition on a Stock plus a hold, is not a Flow. An Obligation's effect is a settled Flow or a change to a Law (put a Law in force, or remove one). A change to a Law can be bound like any other effect, so a treaty can bind "I remove this levy" to "you pay this amount".
+A Transaction holds its Obligations, a rationing configuration ([§5.4](#54-rationing)), a phase, a cause, and the parties who have consented. An Obligation's effect is a settled Flow or a change to a Law (put a Law in force, or remove one). A change to a Law can be bound like any other effect, so a treaty can bind "I remove this levy" to "you pay this amount".
 
 Each obligation carries conditions, each with what its failure reports:
 
@@ -96,7 +96,7 @@ Each obligation carries conditions, each with what its failure reports:
 
 A `Performed` condition says whether one obligation applies with another. An obligation with no such condition stands alone, and one with it is bound Whole (all or nothing) or Proportional at a rate. Mutual `Performed … Whole` conditions make a transaction atomic with no special case: if one party cannot perform, the others' conditions fail on the next pass ([§3.5](#35-resolution)). `onShort` is a separate question: Reject or Cap says what a shortfall does ([§3.1](#31-stocks-flows-and-settled-flows)).
 
-What the shipped sequence uses differs from what the kernel can express. `resolve` reads a `Performed` condition only as the other obligation still standing, so `Proportional` carries its rate as data and a proportional fill is decided by the clearing solver. The sequence decides a limit price and an order minimum itself and passes no price to the kernel, so `PriceWithin` and `QuantityAtLeast` hold unconditionally in its calls, and the kernel's own tests exercise them. A transaction's `holds` and `solver` fields are carried, but `resolve` does not act on them: the sequence escrows draws as claims and calls the solvers directly ([§5](#5-cost-functions-exchanges-and-solvers), [§8.2](#82-funding-and-settlement)).
+What the shipped sequence uses differs from what the kernel can express. `resolve` reads a `Performed` condition only as the other obligation still standing, so `Proportional` carries its rate as data and a proportional fill is decided by the clearing solver. The sequence decides a limit price and an order minimum itself and passes no price to the kernel, so `PriceWithin` and `QuantityAtLeast` hold unconditionally in its calls, and the kernel's own tests exercise them.
 
 ### 3.4 Successors
 

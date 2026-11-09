@@ -179,7 +179,7 @@ env :: Kernel Unit Unit
 env = { opening, holds: \_ _ -> true, read: \_ _ -> Q.zero, price: Nothing, start: Map.empty }
 
 cp :: Int -> String -> Array O -> C
-cp phase _ obligations = { obligations, holds: [], solver: Nothing, ration: { tier: 0, whole: false, scaleGroup: Nothing }, phase, cause: Nothing, consented: [] }
+cp phase _ obligations = { obligations, ration: { tier: 0, whole: false, scaleGroup: Nothing }, phase, cause: Nothing, consented: [] }
 
 pay :: String -> String -> String -> Short -> Array (Guarded Unit Unit String) -> O
 pay id who x onShort when = { id, obligor: Named (Id who), effect: Move { from: K.HeldBy (Named (Id who)), to: K.Destroyed, resource: m, owed: Exactly (q x) }, when, onShort, next: noNext }

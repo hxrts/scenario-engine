@@ -50,8 +50,6 @@ repeal id obligor rule when = { id, obligor, effect: Change (RemoveLaw (idText r
 agreement :: RuleKindId -> Array ActorId -> Array Clause -> Agreement
 agreement kind signers obligations =
   { obligations
-  , holds: []
-  , solver: Nothing
   , ration: { tier: 0, whole: true, scaleGroup: Nothing }
   , phase: 0
   , cause: Just (OfRule { kind })

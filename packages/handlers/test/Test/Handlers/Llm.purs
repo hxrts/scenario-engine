@@ -7,12 +7,10 @@ module Test.Handlers.Llm (spec) where
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
-import Core.Draw (Seed(..))
 import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointReplyShape, proposedJointShape)
 import Laws.Engine.Prepare (observe)
 import Core.Num as Q
 import Laws.Types (Id(..), Intent, IntentF(..), intentShape)
-import Laws.World (RoundResult)
 import Data.Argonaut.Core (stringify, toObject, toString)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array (length, mapMaybe)
@@ -38,7 +36,6 @@ import Handlers.Llm.Wire (decodeJoint, decodeText)
 import Handlers.Llm.Call (interpretCall, speakCall)
 import Handlers.Llm.Prompt (interpretPrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
-import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
 import Assembly.Types (PreparedRun)
 import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
@@ -73,14 +70,6 @@ stringField key text = do
   json <- hush (jsonParser text)
   o <- toObject json
   Object.lookup key o >>= toString
-
--- | One round with no seat strategies: its record.
-oneRound :: PreparedRun -> Aff RoundResult
-oneRound g = do
-  let out = playPure (seatEnv (Seed 1) g) (g).seats g.inWorld 1 g.world
-  case out.records of
-    [ r ] -> pure r
-    _ -> fail "one round should be recorded" *> throwError (error "round")
 
 -- | The Intent the joint prompt renders as its example.
 example :: Intent

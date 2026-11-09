@@ -29,8 +29,6 @@ forHolder :: forall cap law query reason cause. ActorId -> Law cap query reason 
 forHolder holder law = case law.operation of
   Emit l -> Just
     { obligations: [ { id: "law", obligor: Named holder, effect: Move (leg l), when: law.guard, onShort: Cap, next: noNext } ]
-    , holds: []
-    , solver: Nothing
     , ration: { tier: 1, whole: false, scaleGroup: Nothing }
     , phase: law.phase
     , cause: Just law.cause

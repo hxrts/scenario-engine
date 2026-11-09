@@ -71,8 +71,6 @@ fillTransaction id m f =
   { obligations:
       if f.quantity >= Q.zero then [ leg "base" (K.Reserve id) (named f.actor) m.base f.quantity, leg "quote" (named f.actor) (K.Reserve id) m.quote f.paid ]
       else [ leg "base" (named f.actor) (K.Reserve id) m.base (Q.neg f.quantity), leg "quote" (K.Reserve id) (named f.actor) m.quote (Q.neg f.paid) ]
-  , holds: []
-  , solver: Nothing
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 1
   , cause: Just (OfIntent { candidateTransaction: f.pid, intent: f.intent, mechanism: Curve id })
@@ -96,8 +94,6 @@ transformTransaction
   -> Transaction
 transformTransaction t =
   { obligations: payment <> map input t.inputs <> map output t.outputs
-  , holds: []
-  , solver: Nothing
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 2
   , cause: Just t.cause
@@ -118,8 +114,6 @@ transformTransaction t =
 payTransaction :: ActorId -> Maybe ActorId -> ResourceId -> Q -> Cause -> Transaction
 payTransaction from to resource owed cause =
   { obligations: [ { id: "pay", obligor: K.Named from, effect: K.Move { from: named from, to: maybe K.Destroyed named to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext } ]
-  , holds: []
-  , solver: Nothing
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 3
   , cause: Just cause
@@ -153,7 +147,7 @@ boundary = 0
 
 standing :: Cause -> Array Oblige -> Transaction
 standing cause obligations =
-  { obligations, holds: [], solver: Nothing, ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: boundary, cause: Just cause, consented: [] }
+  { obligations, ration: { tier: 0, whole: true, scaleGroup: Nothing }, phase: boundary, cause: Just cause, consented: [] }
 
 -- | A delivery as a spawned transaction. One that would take from a holder with nothing lapses silently, so
 -- | a delivery that changes nothing records nothing.
@@ -213,8 +207,6 @@ changeOf (PendingTransaction p) = head p.transaction.obligations >>= \o -> case 
 jointInputs :: Array { by :: ActorId, resource :: ResourceId, amount :: Q, index :: Int } -> Transaction
 jointInputs inputs =
   { obligations: mapWithIndex obligation inputs
-  , holds: []
-  , solver: Nothing
   , ration: { tier: 0, whole: true, scaleGroup: Nothing }
   , phase: 2
   , cause: Nothing

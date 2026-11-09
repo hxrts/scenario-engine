@@ -150,7 +150,6 @@ substitute
   -> Transaction cap law query reason cause
 substitute args parties parent template = c
   { obligations = map obligation c.obligations
-  , holds = map (\h -> h { party = party h.party, amount = amount h.amount }) c.holds
   , cause = case c.cause of
       Nothing -> parent.cause
       own -> own
