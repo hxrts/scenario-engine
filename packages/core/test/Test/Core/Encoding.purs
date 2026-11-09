@@ -181,7 +181,8 @@ reasonFate = case _ of
   BelowMinimum _ -> OnCondition
   AboveMaximum _ -> AtCompile
   OwnerMustSign _ -> OnCondition
-  MissingBundledOrder -> OnCondition
+  -- a gate's bundling compares the Proposal's own quantities, before anything has been filled
+  MissingBundledOrder -> AtCompile
   Blocked _ -> OnCondition
 
 encoding :: Spec Unit

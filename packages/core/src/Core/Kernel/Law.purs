@@ -3,12 +3,21 @@
 module Core.Kernel.Law
   ( holderParam
   , forHolder
+  , quantityParam
+  , recipientParam
+  , appliesTo
+  , refuses
+  , emitted
+  , withheld
   ) where
 
 import Prelude
 
-import Core.Kernel.Types (Account(..), Amount(..), Coupling, Effect(..), Law, Leg, Operation(..), Party(..), Short(..), noNext)
-import Core.Types (EntityId)
+import Core.Kernel.Types (Account(..), Amount(..), Coupling, Effect(..), Law, Leg, Operation(..), Party(..), Short(..), Subject(..), noNext)
+import Core.Num (Q)
+import Core.Num as Q
+import Core.Types (EntityId, ResourceId)
+import Data.Array (elem, filter, mapMaybe)
 import Data.Maybe (Maybe(..))
 
 -- | The name a stock law's leg gives the holder it applies to.
@@ -48,3 +57,54 @@ forHolder holder law = case law.operation of
     Least p -> Least { left: amount p.left, right: amount p.right }
     ShareOf s -> ShareOf s { limit = amount s.limit, among = map amount s.among }
     other -> other
+
+-- | The names a flow law's leg gives what it is charged on, and who receives it.
+quantityParam :: String
+quantityParam = "quantity"
+
+recipientParam :: String
+recipientParam = "recipient"
+
+-- | Whether a flow law covers a movement.
+appliesTo :: forall cap query reason cause. { from :: EntityId, to :: EntityId, resource :: ResourceId } -> Law cap query reason cause -> Boolean
+appliesTo flow law = case law.subject of
+  OfFlow s -> flow.from `elem` s.from && flow.to `elem` s.to && flow.resource `elem` s.resources
+  OfStock _ -> false
+
+refuses :: forall cap query reason cause. Law cap query reason cause -> Boolean
+refuses law = case law.operation of
+  Refuse -> true
+  _ -> false
+
+-- | The leg a flow law charges on a quantity, with its recipient bound.
+emitted :: forall cap query reason cause. Q -> EntityId -> Law cap query reason cause -> Maybe { to :: Maybe EntityId, resource :: ResourceId, amount :: Q }
+emitted quantity recipient law = case law.operation of
+  Emit l -> Just { to: receiver l.to, resource: l.resource, amount: value l.owed }
+  _ -> Nothing
+  where
+  receiver = case _ of
+    HeldBy (Named e) -> Just e
+    HeldBy (Bound p) | p == recipientParam -> Just recipient
+    _ -> Nothing
+
+  value :: Amount query -> Q
+  value = case _ of
+    Exactly q -> q
+    Arg p | p == quantityParam -> quantity
+    Times t -> Q.mul t.ratio (value t.amount)
+    Plus p -> Q.add (value p.left) (value p.right)
+    Minus p -> Q.sub (value p.left) (value p.right)
+    Least p -> min (value p.left) (value p.right)
+    _ -> Q.zero
+
+-- | What the laws in force hold back from being drawn of a Resource.
+withheld :: forall cap query reason cause. ResourceId -> Array (Law cap query reason cause) -> Q
+withheld resource laws = Q.sumQ (mapMaybe one (filter onResource laws))
+  where
+  onResource law = case law.subject of
+    OfStock s -> s.resource == resource
+    OfFlow _ -> false
+  one law = case law.operation of
+    Withhold (Exactly q) -> Just q
+    _ -> Nothing
+

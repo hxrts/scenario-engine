@@ -36,12 +36,14 @@ import Core.Sum (ctor)
 import Control.Alt ((<|>))
 import Core.Map (values)
 
+import Core.Kernel.Law (withheld)
+import Core.Kernel.Types (Amount(..), Operation(..), Subject(..), Trigger(..))
 import Core.Market (averagePrice, marketPrice)
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Types (poolDraw, holderDraw, CollectiveProcedure, CollectiveProcedureId, Aggregate, Capability, Entity, EntityId, EntityKind(..), IntentF, Market, MarketId, Price, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), Transformation, TransformationId)
 import Core.Slice (event, orKind, read, select)
-import Core.World (Event, RecurringAmount(..), WorldState)
+import Core.World (Cause(..), Event, RecurringAmount(..), WorldState)
 import Data.Array (any, concatMap, filter, find, mapMaybe)
 import Data.Either (Either(..))
 import Data.Map (Map)
@@ -127,16 +129,20 @@ drawable :: WorldState -> ResourceId -> Q
 drawable w r =
   let
     held = maybe Q.zero (\o -> holding w o r) (holderOf w r)
-    reduced = Q.sumQ
-      ( map
-          ( case _ of
-              HoldingRule x | x.resource == r -> x.reduce
-              _ -> Q.zero
-          )
-          (rulesOf w)
-      )
+    reduced = withheld r (mapMaybe holdingLaw (rulesOf w))
   in
     max Q.zero (Q.sub held reduced)
+  where
+  holdingLaw = case _ of
+    HoldingRule x -> Just
+      { subject: OfStock { holders: Nothing, resource: x.resource }
+      , trigger: EachRound
+      , operation: Withhold (Exactly x.reduce)
+      , guard: []
+      , phase: 0
+      , cause: OfRule { kind: x.kind }
+      }
+    FlowRule _ -> Nothing
 
 -- | A Transformation's uniform price at a total of `q` units: its cost function's average price, or
 -- | zero for a Transformation with no payment.

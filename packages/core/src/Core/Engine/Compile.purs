@@ -11,6 +11,8 @@ module Core.Engine.Compile
   , deliveredOf
   , ruleChange
   , jointInputs
+  , flowLaws
+  , WorldLaw
   , changeOf
   , runCoupling
   ) where
@@ -19,16 +21,17 @@ import Prelude
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
-import Core.Kernel.Law (holderParam)
+import Core.Kernel.Law (holderParam, quantityParam, recipientParam)
 import Core.Kernel.Types (Account(..), Amount(..), Bond(..), Condition(..), Coupling, Effect(..), Law, LawChange(..), Obligation, Operation(..), Party(..), Short(..), Subject(..), Trigger(..), noNext) as K
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (capabilitiesOf, holding, reserveOf)
-import Core.Types (Capability, EntityId, Id(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleId, TransformationId, idText)
+import Core.Query (capabilitiesOf, holding, priceOf, reserveOf, rulesOf)
+import Core.Types (Capability, Direction(..), EntityId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Market, MarketId, Payment, ProposalId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
 import Core.World (Cause(..), Flow, LegQuery, Mechanism(..), PendingCoupling(..), RejectReason(..), WorldState)
-import Data.Array (elem, filter, head, length, mapMaybe, mapWithIndex, range)
+import Data.Array (elem, filter, fromFoldable, head, length, mapMaybe, mapWithIndex, range)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), maybe)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 
 type WorldKernel = Kernel Capability LegQuery
@@ -224,4 +227,40 @@ jointInputs inputs =
     , when: map (\j -> { condition: K.Performed { index: j, bond: K.Whole }, reason: Nothing }) (others i)
     , onShort: K.Reject
     , next: K.noNext
+    }
+
+type WorldLaw = K.Law Capability LegQuery RejectReason Cause
+
+-- | Each flows Rule in force as the laws of its directions, one list per Rule. A levy is charged on the
+-- | moved quantity, priced first when it is ad valorem.
+flowLaws :: WorldState -> Array (Array WorldLaw)
+flowLaws w = mapMaybe ofRule (rulesOf w)
+  where
+  membersOf group = filter (\e -> fromMaybe e (Map.lookup e w.groups) == group) (fromFoldable (Map.keys w.entities))
+  ofRule = case _ of
+    FlowRule r -> Just (map (lawOf r) (directions r.scope))
+    HoldingRule _ -> Nothing
+  directions scope = case scope.direction of
+    Inbound -> [ Tuple scope.counterparty scope.governor ]
+    Outbound -> [ Tuple scope.governor scope.counterparty ]
+    EitherWay -> [ Tuple scope.counterparty scope.governor, Tuple scope.governor scope.counterparty ]
+  lawOf r (Tuple from to) =
+    { subject: K.OfFlow { from: membersOf from, to: membersOf to, resources: r.scope.over }
+    , trigger: K.OnAction { obligor: Nothing, cause: Nothing }
+    , operation: case r.effect of
+        Block -> K.Refuse
+        Levy l -> K.Emit
+          { from: K.HeldBy (K.Bound quantityParam)
+          , to: case l.to of
+              LevyToDestination -> K.HeldBy (K.Bound recipientParam)
+              LevyToGovernor -> named r.scope.governor
+              LevyToSink -> K.Destroyed
+          , resource: l.in
+          , owed: case l.basis of
+              PerUnit -> K.Times { ratio: l.rate, amount: K.Arg quantityParam }
+              AdValorem m -> K.Times { ratio: l.rate, amount: K.Times { ratio: fromMaybe Q.zero (priceOf w m), amount: K.Arg quantityParam } }
+          }
+    , guard: []
+    , phase: 3
+    , cause: OfRule { kind: r.kind }
     }

@@ -14,14 +14,16 @@ module Core.Engine.Screen
 import Prelude
 
 import Core.Authority (executor, routeMarkets, validIntent, worldFacts)
+import Core.Engine.Compile (flowLaws)
+import Core.Kernel.Law (appliesTo, emitted, refuses)
 import Core.Kernel.Resolve (consents)
 import Core.Kernel.Types (Condition(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (procedureSupport, capabilitiesOf, aggregateOf, holderOf, lookupQ, priceOf, transfersOf, transformsOf, marketsOf, rulesOf)
-import Core.Types (Capability, CollectiveProcedureId, EntityId, Intent, IntentF(..), MarketId, Proposal, ProposalId, RuleF(..), RuleKindId, Direction(..), FlowEffect(..), LevyBasis(..), LevyRecipient(..), ResourceId, SignedProposal, holderDraw, jointIntent)
-import Core.World (Event(..), RejectReason(..), WorldState, lapse, rejection)
+import Core.Query (aggregateOf, capabilitiesOf, holderOf, lookupQ, marketsOf, procedureSupport, transfersOf, transformsOf)
+import Core.Types (Capability, CollectiveProcedureId, EntityId, Id(..), Intent, IntentF(..), MarketId, Proposal, ProposalId, ResourceId, RuleKindId, SignedProposal, holderDraw, jointIntent)
+import Core.World (Cause(..), Event(..), RejectReason(..), WorldState, lapse, rejection)
 import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
 import Data.Either (Either(..))
@@ -173,42 +175,25 @@ conditioned w p = concat <$> traverse check gated
         moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) gated))
       when (carried /= moved) (Left MissingBundledOrder)
     let
-      a = groupOf w t.from
-      b = groupOf w t.to
-      applicable = filter (\r -> t.resource `elem` r.scope.over && covers a b r) flowRules
-    for_ (find isBlock applicable) \r -> Left (Blocked r.kind)
-    pure (map (levyOf t applicable b) (nubEq (mapMaybe levyKey applicable)))
-  flowRules = mapMaybe flowOf (rulesOf w)
-  flowOf = case _ of
-    FlowRule r -> Just r
-    HoldingRule _ -> Nothing
-  isBlock r = r.effect == Block
+      flow = { from: t.from, to: t.to, resource: t.resource }
+      -- a Rule applies through whichever of its directions covers the flow, once
+      applicable = mapMaybe (find (appliesTo flow)) laws
+      charged = mapMaybe (\law -> (\leg -> { kind: kindOf law, leg }) <$> emitted t.quantity (groupOf w t.to) law) applicable
+    for_ (find refuses applicable) \law -> Left (Blocked (kindOf law))
+    pure (map (levyOf t charged) (nubEq (map keyOf charged)))
+  laws = flowLaws w
+  kindOf law = case law.cause of
+    OfRule r -> r.kind
+    _ -> Id ""
   -- rules of one kind that are paid the same way are one levy
-  levyKey r = case r.effect of
-    Levy l -> Just { kind: r.kind, in: l.in, to: l.to, governor: r.scope.governor }
-    Block -> Nothing
-  covers from to r = case r.scope.direction of
-    Inbound -> intoGovernor from to r
-    Outbound -> intoGovernor to from r
-    EitherWay -> intoGovernor from to r || intoGovernor to from r
-  intoGovernor from to r = r.scope.governor == to && r.scope.counterparty == from
-  levyOf t rules dest key =
+  keyOf c = { kind: c.kind, in: c.leg.resource, to: c.leg.to }
+  levyOf t charged key =
     { kind: key.kind
     , from: t.from
-    , to: case key.to of
-        LevyToDestination -> Just dest
-        LevyToGovernor -> Just key.governor
-        LevyToSink -> Nothing
+    , to: key.to
     , in: key.in
-    , amount: Q.sumQ (map (charge t.quantity) (filter (\r -> levyKey r == Just key) rules))
+    , amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged))
     }
-  charge q r = case r.effect of
-    Levy l -> Q.mul l.rate
-      ( case l.basis of
-          PerUnit -> q
-          AdValorem m -> Q.mul (fromMaybe Q.zero (priceOf w m)) q
-      )
-    Block -> Q.zero
 
 -- | The group an Entity counts as: itself, unless the setting says otherwise.
 groupOf :: WorldState -> EntityId -> EntityId
