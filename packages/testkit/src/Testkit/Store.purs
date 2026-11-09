@@ -6,7 +6,7 @@ import Adapters.SQLite as SQLite
 import Core.Draw (Seed)
 import Effect (Effect)
 import Effects.Signatures (NewRun, PlayF(..), PlayOutcome, PlayRequest(..))
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Handlers.Play (interpretPlay)
 import Views.Metrics (roundMetrics)
 import Prelude (identity)
@@ -21,5 +21,5 @@ storeOver :: SqlDevice -> StoreBackend
 storeOver d = sqlStore d processAlive
 
 -- | A simulated game stored through `PLAY`.
-playStored :: StoreBackend -> Seed -> Game -> NewRun -> Effect PlayOutcome
+playStored :: StoreBackend -> Seed -> PreparedRun -> NewRun -> Effect PlayOutcome
 playStored store seed game run = interpretPlay store roundMetrics (Play (Simulated { seed, game, run }) identity)

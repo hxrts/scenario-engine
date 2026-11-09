@@ -27,9 +27,9 @@ import Premises.Meridian.Actors.Seats (playableActors)
 import Premises.Meridian.Rules (accessBan, withholding)
 import Assembly.Assemble (assemble, withRounds)
 import Assembly.Bindings (strategyRulesBindings)
-import Assembly.Error (GameError)
+import Assembly.Error (AssemblyError)
 import Assembly.Premise (PossibleWorldParts, Premise(..))
-import Assembly.Types (Bindings, Game)
+import Assembly.Types (Bindings, PreparedRun)
 
 import Data.Map as Map
 
@@ -231,14 +231,14 @@ counterfactualObjectives :: Array ObjectiveExpect
 counterfactualObjectives = map (\e -> objective e (if e == n.us then Met else NotMet)) allExplicitActors
 
 -- | The capstone's game: the shipped Meridian at its default configuration, with the capstone's seats.
-game :: PossibleWorldParts -> Either GameError Game
+game :: PossibleWorldParts -> Either AssemblyError PreparedRun
 game p = assembled p seatBindings
 
 -- | The counterfactual's game: the same, with the US's StrategyRules replaced.
-counterfactualGame :: PossibleWorldParts -> Either GameError Game
+counterfactualGame :: PossibleWorldParts -> Either AssemblyError PreparedRun
 counterfactualGame p = assembled p counterfactualBindings
 
-assembled :: PossibleWorldParts -> Bindings -> Either GameError Game
+assembled :: PossibleWorldParts -> Bindings -> Either AssemblyError PreparedRun
 assembled p bindings = map (withRounds (Just rounds)) (assemble (PossibleWorldPremise p) bindings [])
 
 -- | The seats of the capstone: each named seat bound to its StrategyRules.

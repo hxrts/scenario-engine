@@ -25,7 +25,7 @@ import Effects.System (closeInput, files, now, ownerOf, resolveSeed, writeLine)
 import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
 import Assembly.Recipe (encodeSpec)
 import Assembly.Premise (PossibleWorldParts, Premise(..))
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Run (Run)
 import Schema.PossibleWorld (gameIdOf, possibleWorldRef)
 import Premises.Load (loadFrom)
@@ -34,7 +34,7 @@ import Views.Common (quantity)
 
 type Options = { premise :: String, model :: String, humans :: String, rounds :: Maybe Int, window :: Int, id :: String, db :: String, seed :: Maybe Seed }
 
-type Prepared = { parts :: PossibleWorldParts, game :: Game }
+type Prepared = { parts :: PossibleWorldParts, game :: PreparedRun }
 
 type SESSION r = OBSERVE + STORE + LIVE + CLOCK + ENTROPY + PROCESS + CONSOLE + r
 

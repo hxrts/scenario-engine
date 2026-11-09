@@ -33,7 +33,7 @@ import Handlers.Llm.Prompt (interpretPrompt, narratePrompt)
 import Schema.Joint (ProposedJoint)
 import Handlers.Live (runLive)
 import Handlers.Seats (seatEnv)
-import Assembly.Types (Game, SeatBinding(..))
+import Assembly.Types (PreparedRun, SeatBinding(..))
 import Handlers.Replay (runReplay)
 import Partial.Unsafe (unsafeCrashWith)
 import Test.Handlers.Stub (answering, jointOf, replyJoint, replyText, tradeTenEnergy)
@@ -70,7 +70,7 @@ scripted prompt
   | otherwise = pure "nothing"
 
 -- | A live session of `n` rounds with the given seats and human answers.
-liveWith :: Game -> Int -> (ActorId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
+liveWith :: PreparedRun -> Int -> (ActorId -> SeatBinding) -> (String -> Aff String) -> Backend -> Aff Session
 liveWith g0 n seat input backend = do
   recs <- liftEffect (Ref.new [])
   texts <- liftEffect (Ref.new [])
@@ -94,12 +94,12 @@ liveWith g0 n seat input backend = do
   { records: _, narration: _, notices: _ } <$> liftEffect (Ref.read recs) <*> liftEffect (Ref.read texts) <*> liftEffect (Ref.read notes)
 
 -- | Replay the recorded rounds: the same worlds, with no model call.
-replayedRecords :: Game -> Int -> Array RoundResult -> Array RoundRecord
+replayedRecords :: PreparedRun -> Int -> Array RoundResult -> Array RoundRecord
 replayedRecords g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
   Left e -> unsafeCrashWith e
   Right r -> map _.record r.records
 
-replayed :: Game -> Int -> Array RoundResult -> Array WorldState
+replayed :: PreparedRun -> Int -> Array RoundResult -> Array WorldState
 replayed g n records = case runReplay (seatEnv (Seed 1) g) n (map _.record records) g of
   Left e -> unsafeCrashWith e
   Right r -> map _.world r.records

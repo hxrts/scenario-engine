@@ -13,7 +13,7 @@ hand-instance packages/schema/src/Schema/Run.purs instance-Show-DeriveKind the t
 hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text is the prose name a prompt shows
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
 hand-instance packages/laws/src/Laws/Types.purs instance-Show-RefKind the text is the lower-case name error messages use
-hand-instance packages/assembly/src/Assembly/Error.purs instance-Show-GameError the text is the user-facing message (renderGameError)
+hand-instance packages/assembly/src/Assembly/Error.purs instance-Show-AssemblyError the text is the user-facing message (renderAssemblyError)
 hand-instance packages/schema/src/Schema/PossibleWorld.purs instance-Show-Outcome the text is the outcome as a view shows it (not met)
 # JSON handled as JSON, not a payload with a type behind it.
 hand-json apps/cli/src/Render.purs sortKeys canonicalises any compiled JSON; no type is being encoded

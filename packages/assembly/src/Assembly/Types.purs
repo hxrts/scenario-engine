@@ -1,8 +1,8 @@
--- | One run's assembled state (docs/04 §9): the Game a runner plays. A Game is data:
+-- | One run's assembled state (docs/04 §9): the PreparedRun a runner plays. A PreparedRun is data:
 -- | the initial World State, the in-world Strategies, the rounds still to play, and one SeatBinding per
--- | seat. Every runner (the simulator, live play) reads the same Game.
+-- | seat. Every runner (the simulator, live play) reads the same PreparedRun.
 module Assembly.Types
-  ( Game
+  ( PreparedRun
   , SeatBinding(..)
   , ScriptRound
   , Bindings
@@ -32,7 +32,7 @@ type Bindings = Map ActorId SeatBinding
 
 -- | A game ready to run: the manifest, the initial world, the in-world Strategies, the rounds to play,
 -- | and the seats.
-type Game =
+type PreparedRun =
   { manifest :: Manifest
   , world :: WorldState
   , inWorld :: InWorld

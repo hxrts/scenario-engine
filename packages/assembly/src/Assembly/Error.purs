@@ -1,6 +1,6 @@
 -- | Why a premise cannot be assembled into a game, or a game cannot be simulated. Each constructor names
--- | one check; `renderGameError` is the only place the words are written.
-module Assembly.Error (GameError(..), renderGameError) where
+-- | one check; `renderAssemblyError` is the only place the words are written.
+module Assembly.Error (AssemblyError(..), renderAssemblyError) where
 
 import Prelude
 
@@ -8,7 +8,7 @@ import World.Error (ValidationError)
 import Laws.Types (ActorId, RefKind)
 import Data.Array (intercalate)
 
-data GameError
+data AssemblyError
   = UnknownPreset String
   | Invalid (Array ValidationError) -- the possible World or its configuration fails its checks
   | Unresolved String RefKind String -- a Strategy or preset names something the possible World lacks
@@ -18,13 +18,13 @@ data GameError
   | NotASeat ActorId -- a binding names something that is not a configured seat
   | RoundsOutside { rounds :: Int, min :: Int, max :: Int } -- a round count the possible World does not support
 
-derive instance Eq GameError
+derive instance Eq AssemblyError
 
-instance Show GameError where
-  show = renderGameError
+instance Show AssemblyError where
+  show = renderAssemblyError
 
-renderGameError :: GameError -> String
-renderGameError = case _ of
+renderAssemblyError :: AssemblyError -> String
+renderAssemblyError = case _ of
   UnknownPreset name -> "unknown preset " <> name
   Invalid es -> "invalid premise: " <> intercalate "; " (map show es)
   Unresolved what kind ref -> what <> ": unknown " <> show kind <> " " <> ref

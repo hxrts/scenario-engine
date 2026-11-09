@@ -117,7 +117,7 @@ import Record.Builder (Builder)
 import Record.Builder as Builder
 import Type.Proxy (Proxy(..))
 
--- | The two JSON formats a description is interpreted into. round-end World is the generic encoding the
+-- | The two JSON formats a description is interpreted into. Snapshot is the generic encoding the
 -- | stored runs and the model replies use (`{"tag":..,"values":[..]}`); Premise is the authored
 -- | fixture and possible World format (one-key unions, `kind:argument` strings, omitted empty keys).
 data Format = Authored | Snapshot
@@ -132,7 +132,7 @@ derive instance Eq TagForm
 
 type Codec a = { enc :: a -> Json, dec :: Json -> Either String a }
 
--- | The untyped description tree: what the JSON Schema and prose interpreters read.
+-- | The untyped description tree: what the prose interpreter reads.
 data Desc
   = DPrim String
   | DArray Desc

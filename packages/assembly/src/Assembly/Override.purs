@@ -23,7 +23,7 @@ import Data.Maybe (maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import Assembly.Patch (setAccount)
 import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
 
@@ -50,7 +50,7 @@ overrideRefs = case _ of
 
 -- | Apply overrides to the baseline possible World and configuration. An override naming something the
 -- | baseline does not have is an error, not a silent no-op.
-resolve :: { possibleWorld :: PossibleWorld, config :: InstantiationConfig } -> Array Override -> Either GameError { possibleWorld :: PossibleWorld, config :: InstantiationConfig }
+resolve :: { possibleWorld :: PossibleWorld, config :: InstantiationConfig } -> Array Override -> Either AssemblyError { possibleWorld :: PossibleWorld, config :: InstantiationConfig }
 resolve base overrides = checked *> schemes *> foldM apply base overrides
   where
   -- a Shrinkage names a scheme, which `unknownNames` does not cover: schemes are the possible World's strings

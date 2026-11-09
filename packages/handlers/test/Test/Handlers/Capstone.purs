@@ -12,7 +12,7 @@ import Premises.Layout (capstoneTranscriptFile)
 import Adapters.Filesystem (fileOps)
 import Premises.Tree (readRootFile)
 import Testkit.Meridian (orThrow, unseated)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Control.Monad.Error.Class (throwError)
 import Schema.Joint (JointCandidateTransaction)
 import Laws.Types (Id(..))
@@ -37,7 +37,7 @@ recording :: Aff Recording
 recording = liftEffect (readRootFile fileOps capstoneTranscriptFile) >>= orThrow >>= orThrow <<< decodeRecording
 
 -- | One joint pass over a single transcript from the US seat.
-jointAs :: Game -> String -> Backend -> Aff (Either String (Array JointCandidateTransaction))
+jointAs :: PreparedRun -> String -> Backend -> Aff (Either String (Array JointCandidateTransaction))
 jointAs g text backend =
   interpreter backend g.world 1 [ { seat: Id "US", text } ]
 

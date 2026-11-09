@@ -27,7 +27,7 @@ import Foreign.Object as Object
 import Data.Tuple (Tuple(..))
 import Assembly.Bindings (scriptBindings)
 import Assembly.Assemble (assemble, assemblePreset, presetBindings, unknownSeats)
-import Assembly.Error (GameError(..), renderGameError)
+import Assembly.Error (AssemblyError(..), renderAssemblyError)
 import Assembly.Override (Override(..), decodeOverrides, encodeOverrides)
 import Assembly.Premise (Premise(..))
 import Schema.Run (specShape)
@@ -69,7 +69,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       unknownSeats [ Id "US", Id "USA" ] config `shouldEqual` [ Id "USA" ]
     it "a preset that does not exist is an error, and no seat is bound silently" do
       case presetBindings Object.empty (const "Missing") [ Id "US" ] of
-        Left e -> renderGameError e `shouldEqual` "unknown preset Missing"
+        Left e -> renderAssemblyError e `shouldEqual` "unknown preset Missing"
         Right _ -> fail "expected an unknown-preset error"
       bs <- orThrow (presetBindings (Object.singleton "Passive" passive) (const "Passive") [ Id "US", Id "DE" ])
       Map.size bs `shouldEqual` 2

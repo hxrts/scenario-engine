@@ -20,7 +20,7 @@ import Data.Traversable (traverse)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Observe (readRounds)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (seatEnv)
 import Handlers.Store (runObserve)
@@ -31,7 +31,7 @@ import Testkit.Meridian (orThrow)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
-capstone :: Aff Game
+capstone :: Aff PreparedRun
 capstone = map _.game load
 
 spec :: Spec Unit

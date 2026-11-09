@@ -1,4 +1,4 @@
--- | Assembly: a premise, the seat bindings, and the overrides become one `Game`. This is
+-- | Assembly: a premise, the seat bindings, and the overrides become one `PreparedRun`. This is
 -- | the only place a possible World is instantiated and its seats are bound; every runner (simulator, live
 -- | play, the server's derive and launch) assembles through `assemble`.
 module Assembly.Assemble
@@ -34,10 +34,10 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import Assembly.Override (Override(..), resolve)
 import Assembly.Premise (PossibleWorldParts, Premise(..), checkRefs)
-import Assembly.Types (Bindings, Game, SeatBinding(..))
+import Assembly.Types (Bindings, PreparedRun, SeatBinding(..))
 import Strategy.InWorld (inWorldOf)
 import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
 
@@ -45,7 +45,7 @@ import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
 -- | names something the baseline lacks, when the world does not instantiate, when the bindings are not
 -- | exactly the configured seats (`checkSeats`), or when a bound StrategyRules names something the premise
 -- | lacks (checked before any round).
-assemble :: Premise -> Bindings -> Array Override -> Either GameError Game
+assemble :: Premise -> Bindings -> Array Override -> Either AssemblyError PreparedRun
 assemble premise bindings overrides = case premise of
   PossibleWorldPremise p -> do
     resolved <- resolve { possibleWorld: p.possibleWorld, config: p.config } overrides
@@ -74,14 +74,14 @@ assemble premise bindings overrides = case premise of
 
 -- | Every configured seat has exactly one binding and nothing else is bound (docs/06 §4.3): a binding
 -- | for a non-playable Actor, an Aggregate, or an unknown id is an error, and so is a seat left unbound.
-checkSeats :: Array ActorId -> Bindings -> Either GameError Unit
+checkSeats :: Array ActorId -> Bindings -> Either AssemblyError Unit
 checkSeats seats bindings = do
   traverse_ (\e -> if elem e seats then Right unit else Left (NotASeat e)) (Map.keys bindings)
   traverse_ (\e -> if Map.member e bindings then Right unit else Left (UnboundSeat e)) seats
 
 -- | Every StrategyRules bound to a seat names only what the premise has. A catalog Strategy or preset was
 -- | checked at load; a StrategyRules bound directly (the capstone's, an `assemble` caller's) is checked here.
-checkStrategyRulesRules :: forall m r t k. Names m r t k -> Bindings -> Either GameError Unit
+checkStrategyRulesRules :: forall m r t k. Names m r t k -> Bindings -> Either AssemblyError Unit
 checkStrategyRulesRules names bindings = traverse_ check (entries bindings)
   where
   check (Tuple e binding) = case binding of
@@ -94,7 +94,7 @@ configuredSeats config = fromFoldable (Map.keys config.seats)
 
 -- | Every listed seat bound to the preset its name picks. A preset that does not exist is an error, not
 -- | a seat that silently submits nothing.
-presetBindings :: Object StrategyRules -> (ActorId -> String) -> Array ActorId -> Either GameError Bindings
+presetBindings :: Object StrategyRules -> (ActorId -> String) -> Array ActorId -> Either AssemblyError Bindings
 presetBindings presets preset ids = strategyRulesBindings <$> traverse bind ids
   where
   bind e = Tuple e <$> lookup (preset e)
@@ -102,7 +102,7 @@ presetBindings presets preset ids = strategyRulesBindings <$> traverse bind ids
 
 -- | The game a possible World premise plays with every configured seat bound to one preset, under overrides,
 -- | with the round count given (or the configuration's when Nothing). An unknown preset is an error.
-assemblePreset :: PossibleWorldParts -> String -> Array Override -> Maybe Int -> Either GameError Game
+assemblePreset :: PossibleWorldParts -> String -> Array Override -> Maybe Int -> Either AssemblyError PreparedRun
 assemblePreset p preset overrides rounds = do
   -- an `Implicit` override removes a seat, so the seats to bind are those left after the overrides
   resolved <- resolve { possibleWorld: p.possibleWorld, config: p.config } overrides
@@ -116,13 +116,13 @@ assemblePreset p preset overrides rounds = do
     _ -> Nothing
 
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
-withRounds :: Maybe Int -> Game -> Game
+withRounds :: Maybe Int -> PreparedRun -> PreparedRun
 withRounds = maybe identity (\n g -> g { rounds = n })
 
 -- | A requested round count against the possible World's supported counts (docs/03 §4). The one rule a launch
 -- | boundary applies: the CLI's `--rounds`, a launch's and a variant's `rounds`. A replay of recorded
 -- | inputs and a resume are not requests for a new game length, so `withRounds` itself does not check.
-checkRounds :: PossibleWorld -> Int -> Either GameError Unit
+checkRounds :: PossibleWorld -> Int -> Either AssemblyError Unit
 checkRounds gb n
   | n < gb.rounds.min || n > gb.rounds.max = Left (RoundsOutside { rounds: n, min: gb.rounds.min, max: gb.rounds.max })
   | otherwise = Right unit

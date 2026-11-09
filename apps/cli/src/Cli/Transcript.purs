@@ -2,7 +2,7 @@
 -- | premise root. Each turn the DSL defines (`Premises.Meridian.Capstone.jointLines`) runs through `INTERPRET`.
 -- | Each Intent set is checked against the DSL's expectation before anything is written; a mismatch writes
 -- | nothing. No model is called: the file is generated, never hand-maintained.
-module Cli.Transcript (capstoneGame, checkTurns, writeRecording) where
+module Cli.Transcript (capstonePreparedRun, checkTurns, writeRecording) where
 
 import Prelude
 
@@ -11,7 +11,7 @@ import Data.Array (foldM)
 import Data.Either (Either(..))
 import Effects.Signatures (CONSOLE, FILES, INTERPRET, InterpretF(..), _interpret)
 import Effects.System (files, writeFile, writeLine)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Run (Run, lift)
 import Premises.Layout (capstoneTranscriptFile)
 import Premises.Load (loadFrom)
@@ -20,8 +20,8 @@ import Premises.Meridian.Names (meridianDir)
 import Premises.Tree (premiseRoot)
 import Type.Row (type (+))
 
-capstoneGame :: forall r. Run (FILES + r) (Either String Game)
-capstoneGame = loadFrom files meridianDir <#> \loaded -> case loaded of
+capstonePreparedRun :: forall r. Run (FILES + r) (Either String PreparedRun)
+capstonePreparedRun = loadFrom files meridianDir <#> \loaded -> case loaded of
   Left e -> Left e
   Right parts -> case game parts of
     Left e -> Left (show e)

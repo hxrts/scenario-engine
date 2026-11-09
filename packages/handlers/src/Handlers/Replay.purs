@@ -10,7 +10,7 @@ import Data.Array (any, filter, range)
 import Data.Either (Either(..))
 import Data.Foldable (intercalate)
 import Laws.Engine.Commit (EngineError)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Assembly.Bindings (scriptBindings)
 import Handlers.Seats (SeatEnv, playPure)
 
@@ -20,7 +20,7 @@ missingRounds n records = filter (\r -> not (any (\x -> x.round == r) records)) 
 
 -- | Replay `n` rounds from their records. Every round 1..n must have a record: a truncated
 -- | record set would otherwise replay as a different history, so it is an error.
-runReplay :: SeatEnv -> Int -> Array RoundRecord -> Game -> Either String { records :: Array RoundResult, value :: Either EngineError WorldState }
+runReplay :: SeatEnv -> Int -> Array RoundRecord -> PreparedRun -> Either String { records :: Array RoundResult, value :: Either EngineError WorldState }
 runReplay env n records g = case missingRounds n records of
   [] -> Right (playPure env (scriptBindings records) g.inWorld n g.world)
   gaps -> Left ("replay: no record for round(s) " <> intercalate ", " (map show gaps) <> " of " <> show n)

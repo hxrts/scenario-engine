@@ -7,7 +7,7 @@ import Prelude
 
 import Core.Draw (Seed(..))
 import Effect.Aff (Aff)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Premises.Meridian.Capstone as C
 import Premises.Meridian.Capstone (ObjectiveExpect, RoundExpect)
 import Testkit.Meridian (orThrow, premise)
@@ -15,8 +15,8 @@ import Testkit.Meridian (orThrow, premise)
 type Capstone =
   { rounds :: Int
   , playerSeed :: Seed
-  , game :: Game
-  , counterfactual :: Game
+  , game :: PreparedRun
+  , counterfactual :: PreparedRun
   , expectations :: Array RoundExpect
   , objectives :: Array ObjectiveExpect
   , counterfactualObjectives :: Array ObjectiveExpect

@@ -1,4 +1,4 @@
--- | The SEAT_INPUT interpreter: one generic handler over a Game's seat bindings. A
+-- | The SEAT_INPUT interpreter: one generic handler over a PreparedRun's seat bindings. A
 -- | StrategyRules binding calls the pure `strategy` interpreter; a Script answers from its rounds, with no
 -- | eligibility filter. Agent and Human bindings are answered by live play (`Handlers.Live`, a layer
 -- | over this handler), never here: this handler gives them no answer, and the simulator rejects them
@@ -26,7 +26,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
 import Foreign.Object (Object)
-import Assembly.Types (Bindings, Game, ScriptRound, SeatBinding(..))
+import Assembly.Types (Bindings, PreparedRun, ScriptRound, SeatBinding(..))
 import Strategy.Interpret (Env, envFor)
 import Strategy.Interpret as Strategy
 import Laws.Engine.Commit (EngineError)
@@ -41,7 +41,7 @@ import Type.Row (type (+))
 type SeatEnv = { seed :: Seed, params :: Object Q }
 
 -- | The seat environment of a game under a player seed.
-seatEnv :: Seed -> Game -> SeatEnv
+seatEnv :: Seed -> PreparedRun -> SeatEnv
 seatEnv seed g = { seed, params: g.inWorld.params }
 
 -- | The strategy environment of a seat's StrategyRules, drawing from the seat stream.

@@ -16,7 +16,7 @@ A failed invariant is reported on the run and never compensated for ([§7](#7-ru
 
 The simulator is a development component, not a layer of economic semantics.
 
-**Premise → `assemble` → `Game` + player seed → Simulation Run → Run Store → Dashboard**
+**Premise → `assemble` → `PreparedRun` + player seed → Simulation Run → Run Store → Dashboard**
 
 | Component | Responsibility |
 |---|---|
@@ -35,7 +35,7 @@ The engine owns all economic behaviour ([02 §8.1](02_kernel.md#81-canonical-res
 
 ## 3. Simulation Specification
 
-A simulation is one complete automated Run: a call over an assembled `Game` ([07 §4](07_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`GameError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
+A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([07 §4](07_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
 
 The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, and, for a derived run, its `source` and `kind`. A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
 

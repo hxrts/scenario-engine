@@ -7,7 +7,7 @@ import Prelude
 import Adapters.Digest (sha256)
 import Adapters.Exit (fail)
 import Cli.Stack (runInterpret, runSystem)
-import Cli.Transcript (capstoneGame, checkTurns, writeRecording)
+import Cli.Transcript (capstonePreparedRun, checkTurns, writeRecording)
 import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (stringify)
 import Data.Array (length)
@@ -30,7 +30,7 @@ answer _ input = case jointLineFor input of
 
 main :: Effect Unit
 main = runAff_ (either (\e -> fail ("transcript: " <> message e)) (const (pure unit))) do
-  g <- runSystem capstoneGame >>= orThrow
+  g <- runSystem capstonePreparedRun >>= orThrow
   ref <- liftEffect (Ref.new [])
   let llm = (backend { model: "capstone-stub", call: answer, digest: sha256 }) { turn = \x -> Ref.modify_ (_ <> [ x ]) ref }
   runInterpret llm g.world checkTurns >>= orThrow

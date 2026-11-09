@@ -41,7 +41,7 @@ import Handlers.Llm.Prompt (interpretPrompt, narratePrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
 import Handlers.Seats (playPure, seatEnv)
 import Testkit.Meridian (unseated)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -58,7 +58,7 @@ answerWith text = do
   pure (answering counter (\_ _ -> text))
 
 -- | One joint pass over the transcripts.
-jointWith :: Game -> Backend -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
+jointWith :: PreparedRun -> Backend -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
 jointWith g backend ts = interpreter backend g.world 1 ts
 
 -- | The one candidate Transaction a joint pass must return.
@@ -76,7 +76,7 @@ stringField key text = do
   Object.lookup key o >>= toString
 
 -- | One round with no seat strategies: its record is what the front page is written from.
-oneRound :: Game -> Aff RoundResult
+oneRound :: PreparedRun -> Aff RoundResult
 oneRound g = do
   let out = playPure (seatEnv (Seed 1) g) (g).seats g.inWorld 1 g.world
   case out.records of

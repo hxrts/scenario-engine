@@ -20,7 +20,7 @@ import Data.Maybe (maybe)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import Strategy.StrategyRules (strategyRulesRefs)
 import Schema.PossibleWorld (PossibleWorld, InstantiationConfig)
 
@@ -33,7 +33,7 @@ data Premise
 
 -- | Validate a decoded possible World premise: the possible World against its configuration, every Strategy's names
 -- | against the possible World, and every preset's names against the possible World.
-checkPremise :: PossibleWorldParts -> Either GameError PossibleWorldParts
+checkPremise :: PossibleWorldParts -> Either AssemblyError PossibleWorldParts
 checkPremise p = do
   possibleWorld <- lmapInvalid (validatePossibleWorld p.possibleWorld p.config)
   traverse_ (\(Tuple (Id name) s) -> checkRefs ("strategy " <> name) (possibleWorldNames possibleWorld) s) (entries possibleWorld.strategies)
@@ -48,7 +48,7 @@ checkPremise p = do
 -- | Resource, which is checked as one; the Exchanges it picks are resolved by the interpreter. Every
 -- | StrategyRules a game can run passes through here: catalog Strategies and presets at load, bound
 -- | Strategies at assembly.
-checkRefs :: forall m r t k. String -> Names m r t k -> StrategyRules -> Either GameError Unit
+checkRefs :: forall m r t k. String -> Names m r t k -> StrategyRules -> Either AssemblyError Unit
 checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknownNames names ordered))
   where
   refs = strategyRulesRefs s

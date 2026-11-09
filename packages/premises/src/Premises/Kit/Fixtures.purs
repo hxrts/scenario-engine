@@ -20,7 +20,7 @@ import Data.Either (Either(..), either)
 import Data.Maybe (Maybe, fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafeCrashWith)
-import Assembly.Error (GameError, renderGameError)
+import Assembly.Error (AssemblyError, renderAssemblyError)
 import Assembly.Patch (engineOnly, setCapabilities, withCirculation)
 import Assembly.Premise (PossibleWorldParts)
 import Assembly.Restrict (restrict)
@@ -50,12 +50,12 @@ type Cut =
   , exchanges :: Array ExchangeId
   , transformations :: Array TransformationId
   , circulation :: Circulation
-  , patches :: Array (PossibleWorld -> Either GameError PossibleWorld)
+  , patches :: Array (PossibleWorld -> Either AssemblyError PossibleWorld)
   }
 
 -- | Filter the base by the Cut, under its patches. A fixture's decisions are its candidate Transactions.
 cutOf :: PossibleWorldParts -> Cut -> PossibleWorldParts
-cutOf base c = either (unsafeCrashWith <<< renderGameError) identity do
+cutOf base c = either (unsafeCrashWith <<< renderAssemblyError) identity do
   possibleWorld <- foldM (#) (withCirculation c.circulation base.possibleWorld) (map capabilitiesOf c.actors <> c.patches)
   restrict selection (engineOnly base { possibleWorld = possibleWorld })
   where

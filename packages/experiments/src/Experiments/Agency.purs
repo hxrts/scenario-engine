@@ -27,8 +27,8 @@ import Foreign.Object (Object)
 import Foreign.Object as Object
 import Laws.StrategyRules (StrategyRules)
 import Schema.PossibleWorld (PossibleWorld)
-import Assembly.Error (GameError(..))
-import Assembly.Types (Game)
+import Assembly.Error (AssemblyError(..))
+import Assembly.Types (PreparedRun)
 import Handlers.Simulate (SimRun, simulate)
 import Views.Agency (AgencyProfile)
 import Views.Common (players)
@@ -44,24 +44,24 @@ difference base other = case finalWorld base, finalWorld other of
   _, _ -> { holdings: [], prices: [] }
 
 -- | Change exactly one thing and replay with both seeds fixed (§10.4).
-counterfactual :: Seed -> Game -> (Game -> Game) -> Either GameError { base :: SimRun, variant :: SimRun, difference :: Difference }
+counterfactual :: Seed -> PreparedRun -> (PreparedRun -> PreparedRun) -> Either AssemblyError { base :: SimRun, variant :: SimRun, difference :: Difference }
 counterfactual seed game change = do
   base <- simulate seed game
   counterfactualFrom seed base game change
 
 -- | The same, over a base run already played: only the variant is run.
-counterfactualFrom :: Seed -> SimRun -> Game -> (Game -> Game) -> Either GameError { base :: SimRun, variant :: SimRun, difference :: Difference }
+counterfactualFrom :: Seed -> SimRun -> PreparedRun -> (PreparedRun -> PreparedRun) -> Either AssemblyError { base :: SimRun, variant :: SimRun, difference :: Difference }
 counterfactualFrom seed base game change = do
   variant <- simulate seed (change game)
   pure { base, variant, difference: difference base variant }
 
 -- | Player-seed distribution: the game seed fixed, the player seed varied (§11).
-playerSeedRuns :: Game -> Array Int -> Either GameError (Array SimRun)
+playerSeedRuns :: PreparedRun -> Array Int -> Either AssemblyError (Array SimRun)
 playerSeedRuns game seeds = traverse (\s -> simulate (Seed s) game) seeds
 
 -- | For each seat, replay with the alternative preset while everything else is fixed. The
 -- | alternative must be a known preset: `simulate` names an unknown one, so it is an error, not a silent baseline.
-agency :: PossibleWorld -> Object StrategyRules -> Seed -> Game -> String -> Array ActorId -> Either GameError (Array AgencyProfile)
+agency :: PossibleWorld -> Object StrategyRules -> Seed -> PreparedRun -> String -> Array ActorId -> Either AssemblyError (Array AgencyProfile)
 agency possibleWorld presets seed game alternative explicitActors = do
   base <- simulate seed game
   replacement <- maybe (Left (UnknownPreset alternative)) Right (Object.lookup alternative presets)

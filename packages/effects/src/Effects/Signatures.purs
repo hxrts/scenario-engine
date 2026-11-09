@@ -72,7 +72,7 @@ import Laws.Engine.Commit (EngineError)
 import Laws.Types (ActorId, CandidateTransactionId, RoundIndex)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Laws.World (Manifest, RoundRecord, RoundResult, View, WorldState)
 import Type.Proxy (Proxy(..))
 
@@ -294,9 +294,9 @@ _cache = Proxy
 -- | One whole stored play: a simulated game from its start, a game whose results are already known (a
 -- | replay), or a stored run continued from its last snapshot.
 data PlayRequest
-  = Simulated { seed :: Seed, game :: Game, run :: NewRun }
-  | Replayed { game :: Game, run :: NewRun, records :: Array RoundResult, value :: Either EngineError WorldState }
-  | Continued { id :: String, seed :: Seed, game :: Game, world :: WorldState, done :: Int, spec :: Spec }
+  = Simulated { seed :: Seed, game :: PreparedRun, run :: NewRun }
+  | Replayed { game :: PreparedRun, run :: NewRun, records :: Array RoundResult, value :: Either EngineError WorldState }
+  | Continued { id :: String, seed :: Seed, game :: PreparedRun, world :: WorldState, done :: Int, spec :: Spec }
 
 -- | A game that did not start, with nothing stored; or the played result, the engine's error rendered.
 type PlayOutcome = Either String (Either String Unit)
@@ -316,7 +316,7 @@ _play = Proxy
 -- | long a propose window lasts in seconds (0 for none), and the lines shown after each front page.
 type LiveRequest =
   { seed :: Seed
-  , game :: Game
+  , game :: PreparedRun
   , id :: String
   , window :: Int
   , briefing :: ActorId -> String

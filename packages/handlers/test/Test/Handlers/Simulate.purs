@@ -45,7 +45,7 @@ import Premises.Tree (readRootFile)
 import Premises.Load (loadLiteral)
 import Assembly.Assemble (presetBindings, withRounds)
 import Assembly.Premise (PossibleWorldParts)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Testkit.Capstone (load)
 import Testkit.Meridian (orThrow, premise, presetGame, price, everySeat, initialOf, run, valid)
 import Testkit.Fixture (fixture)
@@ -55,14 +55,14 @@ import Test.Handlers.SimCapstone as CapstoneTests
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
 -- | Only the named seats play `preset`; every other seat submits nothing.
-someSeats :: PossibleWorldParts -> String -> Array String -> Aff Game
+someSeats :: PossibleWorldParts -> String -> Array String -> Aff PreparedRun
 someSeats p preset ids = do
   g <- presetGame p preset [] Nothing
   bindings <- orThrow (presetBindings p.presets (const preset) (map Id ids))
   pure g { seats = bindings }
 
 -- | The game with the named seat replaced by a StrategyRules.
-withStrategyRules :: Game -> String -> StrategyRules -> Game
+withStrategyRules :: PreparedRun -> String -> StrategyRules -> PreparedRun
 withStrategyRules g e s = g { seats = Map.union (strategyRulesBindings [ Tuple (Id e) s ]) g.seats }
 
 spec :: Spec Unit

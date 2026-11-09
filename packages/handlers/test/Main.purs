@@ -32,7 +32,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Test.Handlers.Live as Live
 import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
@@ -51,7 +51,7 @@ import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 -- | Play `n` rounds with the given seat strategies; every round's invariants must hold.
-play :: Game -> Int -> Map.Map ActorId StrategyRules -> Aff (Array RoundResult)
+play :: PreparedRun -> Int -> Map.Map ActorId StrategyRules -> Aff (Array RoundResult)
 play g n strategyRules = do
   let
     out = playPure (seatEnv (Seed 1) g) (strategyRulesBindings (Map.toUnfoldable strategyRules)) g.inWorld n g.world

@@ -27,7 +27,7 @@ import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effects.Signatures (INTERPRET, InterpretF(..), NARRATE, NarrateF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _narrate, _record, _seatInput)
-import Assembly.Types (Game, SeatBinding(..))
+import Assembly.Types (PreparedRun, SeatBinding(..))
 import Handlers.Seats (RecordSink, handleSeats, seatEnv)
 import Effects.Round (runGame)
 import Run (AFF, Run, case_, interpret, lift, liftAff, on, runBaseAff)
@@ -68,7 +68,7 @@ type Beneath = SEAT_INPUT + INTERPRET + NARRATE + AFF + ()
 -- | says is answered here; everything else falls through to `handleSeats`. Every human is prompted in
 -- | turn under one propose window, opened at the round's first prompt. A human who has not answered
 -- | when it closes says nothing that round.
-runLive :: Live -> Game -> Aff (Either EngineError WorldState)
+runLive :: Live -> PreparedRun -> Aff (Either EngineError WorldState)
 runLive live game = do
   -- set by the round's joint pass when its reply does not decode; read and cleared when the round is narrated
   failed <- liftEffect (Ref.new false)

@@ -90,7 +90,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
       `shouldEqual`
         [ "AID:not met", "BR:not met", "CHIP:not met", "CN:not met", "DE:not met", "DEF:not met", "ENCO:not met", "IN:not met", "JP:met", "LABOR:not met", "NG:not met", "SA:not met", "SHIP:not met", "SME:met", "UK:not met", "US:met" ]
 
-  it "player seeds vary seat behaviour while every Game-stream draw stays identical" do
+  it "player seeds vary seat behaviour while every PreparedRun-stream draw stays identical" do
     ctx <- context
     g <- everySeat ctx "RandomValid"
     runs <- orThrow (playerSeedRuns g (range 1 10))

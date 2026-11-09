@@ -14,8 +14,8 @@ import Effect (Effect)
 import Effect.Exception (error, throwException, try)
 import Effects.Signatures (NewRun, PlayF(..), PlayOutcome, PlayRequest(..))
 import Effects.Store (setSpec, setStatus)
-import Assembly.Error (GameError)
-import Assembly.Types (Game)
+import Assembly.Error (AssemblyError)
+import Assembly.Types (PreparedRun)
 import Core.Draw (Seed)
 import Handlers.Seats (RecordSink, playWith, seatEnv)
 import Handlers.Simulate (fromCheckpoint, machineOnly)
@@ -35,7 +35,7 @@ interpretPlay store metricsOf (Play request k) = k <$> case request of
     recorder store metricsOf r.id r.world
   where
   -- the sink opens only once the game is machine-playable, so a rejected game leaves the store untouched
-  persisting :: Seed -> Game -> Effect RecordSink -> Effect (Either GameError (Either EngineError WorldState))
+  persisting :: Seed -> PreparedRun -> Effect RecordSink -> Effect (Either AssemblyError (Either EngineError WorldState))
   persisting seed g sink = case machineOnly g of
     Left e -> pure (Left e)
     Right _ -> do

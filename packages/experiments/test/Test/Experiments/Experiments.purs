@@ -36,7 +36,7 @@ import Handlers.Simulate (SimRun)
 import Assembly.Assemble (assemble, presetBindings)
 import Assembly.Override (Override(..))
 import Assembly.Premise (PossibleWorldParts, Premise(..))
-import Assembly.Types (Game)
+import Assembly.Types (PreparedRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
@@ -47,7 +47,7 @@ spec' :: (String -> String) -> Array Override -> Int -> Variant
 spec' preset overrides seed = { preset, overrides, seed }
 
 -- | The game a variant plays: every seat bound to its preset, under the variant's overrides.
-gameOf :: PossibleWorldParts -> Variant -> Aff Game
+gameOf :: PossibleWorldParts -> Variant -> Aff PreparedRun
 gameOf p v = do
   bindings <- orThrow (presetBindings p.presets (\e -> v.preset (show e)) playableActors)
   orThrow (assemble (PossibleWorldPremise p) bindings v.overrides)

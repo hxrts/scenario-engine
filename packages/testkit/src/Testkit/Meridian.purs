@@ -25,7 +25,7 @@ import Laws.Types (Id(..))
 import Assembly.Assemble (assemble, assemblePreset, configuredSeats, presetBindings, withRounds)
 import Assembly.Override (Override)
 import Assembly.Premise (PossibleWorldParts, Premise(..))
-import Assembly.Types (Bindings, Game, SeatBinding(..))
+import Assembly.Types (Bindings, PreparedRun, SeatBinding(..))
 import Premises.Load (loadFrom)
 import Premises.Meridian.Names (meridianDir)
 
@@ -40,7 +40,7 @@ premise = do
   orThrow loaded
 
 -- | The Meridian game with every seat bound to an empty script (silent).
-unseated :: Aff Game
+unseated :: Aff PreparedRun
 unseated = do
   p <- premise
   orThrow (assemble (PossibleWorldPremise p) (silent p) [])
@@ -51,12 +51,12 @@ anyRounds :: PossibleWorldParts -> PossibleWorldParts
 anyRounds p = p { possibleWorld = p.possibleWorld { rounds = { min: 1, max: 8 } } }
 
 -- | The Meridian premise assembled with every configured seat bound to one preset (see `assemblePreset`).
-presetGame :: PossibleWorldParts -> String -> Array Override -> Maybe Int -> Aff Game
+presetGame :: PossibleWorldParts -> String -> Array Override -> Maybe Int -> Aff PreparedRun
 presetGame p preset overrides rounds = orThrow (assemblePreset p preset overrides rounds)
 
 -- | The Meridian game with the named seats playing one preset, and the round count (or the configuration's).
 -- | Unlike `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
-presetSeats :: Array String -> String -> Maybe Int -> Aff Game
+presetSeats :: Array String -> String -> Maybe Int -> Aff PreparedRun
 presetSeats ids preset rounds = do
   p <- premise
   listed <- orThrow (presetBindings p.presets (const preset) (map Id ids))
@@ -74,11 +74,11 @@ price :: RoundResult -> String -> Q.Q
 price r m = fromMaybe Q.zero (priceOf r.world (Id m))
 
 -- | Every configured seat plays one preset, for the configuration's rounds.
-everySeat :: PossibleWorldParts -> String -> Aff Game
+everySeat :: PossibleWorldParts -> String -> Aff PreparedRun
 everySeat p preset = presetGame p preset [] Nothing
 
 -- | Play a game to its end under a player seed; a failure is an error.
-run :: Seed -> Game -> Aff SimRun
+run :: Seed -> PreparedRun -> Aff SimRun
 run seed g = do
   r <- orThrow (simulate seed g)
   case r.final of

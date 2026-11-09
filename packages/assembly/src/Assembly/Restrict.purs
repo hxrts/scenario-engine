@@ -23,7 +23,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import Assembly.Premise (PossibleWorldParts, checkPremise, checkRefs)
 import Schema.PossibleWorld (PossibleWorld)
 
@@ -49,7 +49,7 @@ everything gb =
 
 -- | The premise cut down to the Selection, checked. A name the premise does not have is an error, and so
 -- | is a kept thing that refers to a dropped one.
-restrict :: Selection -> PossibleWorldParts -> Either GameError PossibleWorldParts
+restrict :: Selection -> PossibleWorldParts -> Either AssemblyError PossibleWorldParts
 restrict s p = case unknownNames (possibleWorldNames p.possibleWorld) named of
   [] -> checkPremise (filtered s p)
   es -> Left (Invalid es)

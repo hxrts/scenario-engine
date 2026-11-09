@@ -15,7 +15,7 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import Assembly.Patch (engineOnly)
 import Assembly.Restrict (everything, restrict)
 import Premises.Load (fromFiles)

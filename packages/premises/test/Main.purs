@@ -16,7 +16,7 @@ import World.PossibleWorld.Instantiate (instantiate)
 import World.PossibleWorld.Reconcile (reconcile)
 import Schema.PossibleWorld (Fallback(..), PossibleWorld, InstantiationConfig)
 import World.Error (Inconsistency(..), ValidationError(..))
-import Assembly.Error (GameError(..))
+import Assembly.Error (AssemblyError(..))
 import World.PossibleWorld.Validate (validatePossibleWorld)
 import Core.Num (Q)
 import Core.Num as Q
