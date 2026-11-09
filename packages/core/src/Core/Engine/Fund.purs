@@ -10,20 +10,19 @@ module Core.Engine.Fund
 
 import Prelude
 
-import Core.Map (entries, sumInto)
-
+import Core.Kernel.Ration (ration)
 import Core.Engine.Screen (Item)
 import Core.Market as Market
 import Core.Num (Q)
 import Core.Num as Q
-import Core.Query (conversionPrice, holding, lookupQ, poolCeiling)
+import Core.Query (conversionPrice, holding, poolCeiling)
 import Core.Types (EntityId, IntentF(..), ResourceId, Transformation, executorDraws)
 import Core.World (Event, RejectReason(..), WorldState, rejection)
-import Data.Array (any, foldl, concatMap, elem, fromFoldable, partition)
+import Data.Array (concatMap, elem, partition)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..))
 
 -- | An Item with the factor each Entity's funding scales what it executes by. A joint Proposal, which is
 -- | never scaled, and an Entity with room to spare have no entry.
@@ -42,21 +41,13 @@ fund :: WorldState -> Array Item -> { items :: Array Scaled, events :: Array Eve
 fund w items =
   let
     { yes: joints, no: singles } = partition _.joint items
-    total xs = foldl (\m c -> sumInto (Tuple c.entity c.resource) c.amount m) Map.empty (concatMap (claims w) xs)
-    jointDemand = total joints
-    short (Tuple e r) amt = amt > holding w e r
-    shortKeys = Map.keys (Map.filterWithKey short jointDemand)
-    unfunded d = any (\c -> Tuple c.entity c.resource `elem` fromFoldable shortKeys) (claims w d)
-    { yes: dropped, no: kept } = partition unfunded joints
-    keptDemand = total kept
-    singleDemand = total singles
-    room key@(Tuple e r) = Q.sub (holding w e r) (lookupQ key keptDemand)
-    -- rounded down, so scale × amt never exceeds the room (a half-even round-up could overdraw it)
-    ratio key amt = if amt > room key then fromMaybe Q.zero (Q.divFloor (max Q.zero (room key)) amt) else Q.one
-    entityScale = Map.fromFoldableWith min (map (\(Tuple key amt) -> Tuple (fst key) (ratio key amt)) (entries singleDemand))
+    -- joint Proposals are the first tier and whole; every other order is the next tier and scales
+    claimsOf item = map (\c -> { key: item.proposal.id, tier: if item.joint then 0 else 1, whole: item.joint, party: c.entity, resource: c.resource, amount: c.amount }) (claims w item)
+    rationed = ration (holding w) (concatMap claimsOf (joints <> singles))
+    { yes: dropped, no: kept } = partition (\j -> j.proposal.id `elem` rationed.dropped) joints
   in
     -- keyed by the Entity whose claim it is, which for a procedure Proposal may not be its author
-    { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: entityScale }) singles
+    { items: map (\item -> { item, scales: Map.empty }) kept <> map (\item -> { item, scales: rationed.scales }) singles
     , events: map (\d -> rejection w.round d.proposal.id PartyCannotFund) dropped
     }
 

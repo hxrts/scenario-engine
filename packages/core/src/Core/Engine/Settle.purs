@@ -21,8 +21,9 @@ import Prelude
 
 import Core.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
-import Core.Engine.Route as Route
-import Core.Market as Market
+import Core.Kernel.Clear (clearSolvent)
+import Core.Kernel.Ration (fillPool)
+import Core.Kernel.Route as Route
 import Core.Num (Q)
 import Core.Num as Q
 import Core.Query (conversionPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
@@ -143,8 +144,8 @@ conversionOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.propo
 -- | with no holder draw has its ceiling as its cap, so its fills never exceed the quantity escrow priced.
 allocateGroup :: WorldState -> Allocation -> Tuple (Either TransformationId ResourceId) (Array ConversionOrder) -> Allocation
 allocateGroup w acc (Tuple group os) =
-  { fills: Map.union acc.fills (Map.fromFoldable fills)
-  , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if overflow then singles else joints <> singles) fills)
+  { fills: Map.union acc.fills (Map.fromFoldable filled.fills)
+  , totals: foldl (\m (Tuple tid q) -> sumInto tid q m) acc.totals (zipWith (\o (Tuple _ q) -> Tuple o.tid q) (if filled.overflow then singles else joints <> singles) filled.fills)
   , rejected: acc.rejected <> rejectedJoints
   , events: acc.events <> map (\pid -> rejection w.round pid PoolExceeded) rejectedJoints
   }
@@ -153,15 +154,8 @@ allocateGroup w acc (Tuple group os) =
     Right r -> drawable w r
     Left tid -> fromMaybe (Q.sumQ (map _.quantity os)) (Map.lookup tid w.transformations >>= poolCeiling w)
   { yes: joints, no: singles } = partition _.joint os
-  used o = Q.mul o.use o.quantity
-  jointTotal = Q.sumQ (map used joints)
-  overflow = jointTotal > cap
-  rejectedJoints = if overflow then nub (map (fst <<< _.key) joints) else []
-  room = if overflow then cap else Q.sub cap jointTotal
-  singleFills
-    | Q.sumQ (map used singles) > room = zipWith (\o u -> fromMaybe Q.zero (Q.divFloor u o.use)) singles (Q.proRataWhole room (map used singles))
-    | otherwise = map _.quantity singles
-  fills = (if overflow then [] else map (\o -> Tuple o.key o.quantity) joints) <> zipWith (\o q -> Tuple o.key q) singles singleFills
+  filled = fillPool cap (map (\o -> { key: o.key, whole: o.joint, quantity: o.quantity, use: o.use }) (joints <> singles))
+  rejectedJoints = if filled.overflow then nub (map (fst <<< _.key) joints) else []
 
 type Allocation =
   { fills :: Map (Tuple ProposalId Int) Q
@@ -204,14 +198,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.entity o.pid) (filter (\o -> o.market == id) orders)
-      bounds = Route.bounds m
-      cleared = Market.clear m.cost m.position bounds os
-      -- A Market pays its sellers in quote from its reserves. If the batch would overdraw them,
-      -- the sell side is rejected and the batch clears on buys alone, which pay out nothing.
-      quoteIn c = Q.sumQ (map (\f -> Q.mul c.price f.quantity) c.fills)
-      solvent c = Q.add (lookupQ m.quote m.reserves) (quoteIn c) >= Q.zero
-      r = if solvent cleared then cleared else Market.clear m.cost m.position bounds (filter (\o -> o.quantity > Q.zero) os)
-      unpaid = if solvent cleared then [] else filter (\o -> o.quantity < Q.zero) os
+      r = clearSolvent m os
       fill a f =
         let
           paid = Q.mul r.price f.quantity
@@ -235,7 +222,7 @@ markets w scaled acc0 = foldl clearOne acc0 (entries w.markets)
         let
           filled = foldl fill acc r.fills
         in
-          addEvents (map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) unpaid)
+          addEvents (map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
             filled { positions = Map.insert id (Q.add m.position r.net) filled.positions }
 
 -- | Settle one Proposal's filled Transforms: pay what the Transformation charges, consume inputs, produce

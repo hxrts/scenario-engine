@@ -3,7 +3,7 @@
 -- | batch as usual (§5.5), so this module decides only how much of each routed order each Market
 -- | receives. The rule is documented in §5.2 ("Routing") and is deterministic: routed orders are
 -- | planned in canonical order and candidates in merit order, ties broken by MarketId.
-module Core.Engine.Route
+module Core.Kernel.Route
   ( Slice
   , Routed
   , bounds
