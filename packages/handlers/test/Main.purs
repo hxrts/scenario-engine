@@ -38,6 +38,7 @@ import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Test.Handlers.Route as RouteTests
 import Test.Handlers.Simulate as SimulateTests
+import Test.Handlers.Pacific as PacificTests
 import Effect.Ref as Ref
 import Handlers.Replay (runReplay)
 import Handlers.Store (AppendRound, StoreBackend, recorder)
@@ -87,6 +88,7 @@ memoryStore saved =
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   SimulateTests.spec
+  PacificTests.spec
   LlmTests.spec
   RouteTests.spec
   Live.spec

@@ -4,6 +4,7 @@
 module Assembly.Types
   ( PreparedRun
   , SeatBinding(..)
+  , playerOf
   , ScriptRound
   , Bindings
   ) where
@@ -21,6 +22,13 @@ data SeatBinding
   | Script (Array ScriptRound) -- literal candidate Transactions and signatures per round
   | Agent -- a model call per round (live play only)
   | Human -- a person's transcript per round (live play only)
+  | Composed { routine :: StrategyRules, player :: SeatBinding } -- the player first, then the Actor's routine, which reads what the player put forward
+
+-- | Who plays a seat, past any routine composed with it.
+playerOf :: SeatBinding -> SeatBinding
+playerOf = case _ of
+  Composed c -> playerOf c.player
+  b -> b
 
 -- | A seat's literal answer for one round: the candidate Transaction bodies it submits and the candidate Transactions it signs.
 -- | The runner assigns the author (`proposalAt`), so a script cannot submit as another seat.

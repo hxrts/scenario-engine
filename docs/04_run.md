@@ -24,7 +24,7 @@ The configuration is the choice of each Run that the PremiseComposition leaves o
 | `fallbacks` | Actor to fallback | no | Overrides the declared fallback of an unselected Actor ([§3.2](#32-fallback-resolution)). |
 | `representations` | list of scheme, Actor, weight | no | Active representatives. Weight defaults to 1 ([§5](#5-representation-assignment)). |
 
-Meridian's values are in [05 §14](05_meridian.md#14-run-configuration).
+Meridian's values are in [06 §14](06_meridian.md#14-run-configuration).
 
 The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The PremiseComposition fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)).
 
@@ -41,7 +41,7 @@ This section covers Actors with a definition, not Aggregates: who controls each 
 Selection decides which Actors a Run plays. Control decides who answers for each one.
 
 - An Actor is selected when it appears in `seats` or `nonPlayableActors`. Each selected Actor has exactly one controller, a seat or an in-world Strategy ([INV-23](02_kernel.md#inv-23)).
-- **Seat.** Allowed only if the Actor's definition permits seats, which is the default ([03 §6.2](03_premise.md#62-actor-definitions)). The seat's Strategy is bound outside the PremiseComposition, to a human's transcript, an AI agent, or a preset strategy ([06 §4](06_simulator.md#4-seat-strategies)). Swapping it never changes the Actor's definition. The run's spec records the binding ([06 §3](06_simulator.md#3-simulation-specification)).
+- **Seat.** Allowed only if the Actor's definition permits seats, which is the default ([03 §6.2](03_premise.md#62-actor-definitions)). The seat's Strategy is bound outside the PremiseComposition, to a human's transcript, an AI agent, or a preset strategy ([07 §4](07_simulator.md#4-seat-strategies)). Swapping it never changes the Actor's definition. The run's spec records the binding ([07 §3](07_simulator.md#3-simulation-specification)).
 - **Non-playable Actor.** Allowed only if the Strategy is in the Actor's list of non-playable Actor Strategies. The Strategy is in-world ([03 §8](03_premise.md#8-strategy-catalog)).
 - **Required.** A required Actor must be selected.
 - **Unselected.** Unless its fallback applies, an unselected Actor keeps the PremiseComposition's default controller, the seat of its own id. A seat with no binding submits nothing. Assembly neither asks for nor accepts a binding for an unselected Actor.
@@ -63,7 +63,7 @@ The effect of each fallback is in [03 §6.5](03_premise.md#65-fallbacks). Covera
 
 The three are not interchangeable. Coverage never hands a government's capabilities to a household or business Aggregate ([INV-03](02_kernel.md#inv-03)).
 
-An override can make an Actor implicit ([06 §3.1](06_simulator.md#31-configuration-inheritance)). That removes the Actor's controller and representations, and the fallback then applies.
+An override can make an Actor implicit ([07 §3.1](07_simulator.md#31-configuration-inheritance)). That removes the Actor's controller and representations, and the fallback then applies.
 
 ## 4. Aggregate Initialization
 
@@ -92,7 +92,7 @@ An explicit Actor keeps its own accounts, and the PremiseComposition's Aggregate
 
 ### 4.3 Resolution consistency
 
-Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_kernel.md#inv-14)). Validation checks this for each coverage Actor and reports a failure ([03 §12.3](03_premise.md#123-resolution-consistency)). Instantiation does not run this check, so a simulation override that changes explicitness is instantiated without it ([06 §3.1](06_simulator.md#31-configuration-inheritance)).
+Two resolutions that differ only in explicitness must describe the same initial economy ([INV-14](02_kernel.md#inv-14)). Validation checks this for each coverage Actor and reports a failure ([03 §12.3](03_premise.md#123-resolution-consistency)). Instantiation does not run this check, so a simulation override that changes explicitness is instantiated without it ([07 §3.1](07_simulator.md#31-configuration-inheritance)).
 
 ## 5. Representation Assignment
 
@@ -106,7 +106,9 @@ This section says how each Strategy instance is bound to its Actor. A Strategy i
 
 - a non-playable Actor's controller names its Strategy, from the configuration's `nonPlayableActors` or from an institutional fallback;
 - an Aggregate's Strategy is its baseline;
-- a seat's Strategy is bound by the simulator or session, not by instantiation ([06 §4](06_simulator.md#4-seat-strategies)).
+- a seat's Strategy is bound by the simulator or session, not by instantiation ([07 §4](07_simulator.md#4-seat-strategies)).
+
+A seat whose Actor definition names a routine ([03 §6.2](03_premise.md#62-actor-definitions)) plays it after its player, whatever the player is: a preset, an agent or a human. Assembly composes every such seat (`Composed { routine, player }`); a Script is a seat's literal whole input and is never composed. In a round the player answers first. Its proposals, and for an agent or a human the Intents its interpreted speech put forward, are what the routine's `planned` reads ([03 §8](03_premise.md#8-strategy-catalog)), so a routine can sell what the player did not commit. Both halves propose as the one Actor, under its own Capabilities, and their candidate Transactions are ordinary, recorded inputs, so a replay answers the whole seat from the record and runs neither half again. The engine never adds or rewrites an Intent for a routine.
 
 A Strategy instance is the catalog `StrategyRules` together with the Actor it governs. Its parameters are the PremiseComposition's named values ([03 §11](03_premise.md#11-initialization-constraints)). Strategies are fixed for the Run. A rule change alters the World's Rules, never a Strategy. The stored factors start empty.
 
@@ -129,8 +131,8 @@ The recurring cycle ([03 §5.4](03_premise.md#54-recurring-cycle)) is carried in
 Seeds make every random draw reproducible.
 
 - **Game seed.** Each Run has exactly one. It is read from the configuration, recorded in the manifest, and stored as the World's seed. It keys every in-world draw: Representation sampling, and the choices made by non-playable Actor and Aggregate Strategies ([02 §9.1](02_kernel.md#91-numerics-and-randomness)).
-- **Player seed.** Keys the draws of seat Strategies, such as a preset's choices. It is not part of the configuration. The caller supplies it. If none is given, it is drawn once and recorded in the run's spec ([06 §3](06_simulator.md#3-simulation-specification)).
-- **Keyed draws.** Draws are keyed, and the two seeds never share a stream ([06 §5](06_simulator.md#5-deterministic-randomness)).
+- **Player seed.** Keys the draws of seat Strategies, such as a preset's choices. It is not part of the configuration. The caller supplies it. If none is given, it is drawn once and recorded in the run's spec ([07 §3](07_simulator.md#3-simulation-specification)).
+- **Keyed draws.** Draws are keyed, and the two seeds never share a stream ([07 §5](07_simulator.md#5-deterministic-randomness)).
 
 ## 8. Time and Session
 
@@ -156,9 +158,9 @@ The Run manifest is the immutable record of the resolved configuration and initi
 - the engine and draw-scheme versions;
 - the initial World, with every controller, procedure, Representation, Exchange, Rule, and the game seed.
 
-It does not hold the Strategies, the round count, or the player seed. The run's spec holds those ([06 §3](06_simulator.md#3-simulation-specification)). Premises change during play only through supported mechanisms, never by editing the manifest.
+It does not hold the Strategies, the round count, or the player seed. The run's spec holds those ([07 §3](07_simulator.md#3-simulation-specification)). Premises change during play only through supported mechanisms, never by editing the manifest.
 
-A run starts only after instantiation succeeds. A failed instantiation leaves no state ([§10](#10-initialization-pipeline)). Run states and archiving are in [06 §6](06_simulator.md#6-lifecycle-and-execution).
+A run starts only after instantiation succeeds. A failed instantiation leaves no state ([§10](#10-initialization-pipeline)). Run states and archiving are in [07 §6](07_simulator.md#6-lifecycle-and-execution).
 
 ## 10. Initialization Pipeline
 
@@ -198,7 +200,7 @@ The runner performs the steps in this order. Steps 3 to 6 and 11 are the runner'
 8. **Estimate (phase 5, engine).** Each Representation's factor is computed from the validated candidate Transactions and stored for the next round.
 9. **Fund, settle, and circulate (phase 6, engine).** Accepted actions settle as one batch. The recurring cycle is then evaluated on the batch result, in the order of [03 §5.4](03_premise.md#54-recurring-cycle).
 10. **Commit (phase 7, engine).** The net change is applied to every Actor and Exchange, and the round index advances. A negative holding or reserve fails the round.
-11. **Record.** The runner appends the round record ([§11.1](#111-round-record)) with the transcripts its joint pass read. The Run Store saves them ([06 §8](06_simulator.md#8-persistence)).
+11. **Record.** The runner appends the round record ([§11.1](#111-round-record)) with the transcripts its joint pass read. The Run Store saves them ([07 §8](07_simulator.md#8-persistence)).
 
 ### 11.1 Round record
 
@@ -207,11 +209,11 @@ A round record holds the round number, its inputs, and its events.
 - **Inputs**: every submitted signed candidate Transaction, with its signatures, including those that later lapsed or were rejected, in the authored vocabulary. The transactions compiled from them are not stored: replay recompiles them from the inputs, and the events say what was dropped.
 - **Events**: the outcomes of the round, whose kinds are the `Event` constructors in `Laws.World`. Events record executed quantities. A partial fill appears as a smaller settled Flow, and a shortfall as moved less than owed on a settled Flow.
 
-Replay answers seats from the recorded candidate Transactions and signatures, so it makes no model call ([06 §4](06_simulator.md#4-seat-strategies)).
+Replay answers seats from the recorded candidate Transactions and signatures, so it makes no model call ([07 §4](07_simulator.md#4-seat-strategies)).
 
 ### 11.2 Live session
 
-Live play turns transcripts into candidate Transactions and signatures. Players give no input after their transcript. A session is run from the console (`just session`) or hosted by the server, through the session routes: `POST /api/sessions` starts one, `GET /api/sessions/:id` reports its round and who has spoken, and `POST /api/sessions/:id/transcripts` takes a seat's text. Their contract is in [06 §8.2](06_simulator.md#82-external-services). Both use the same round rules and one path into a round.
+Live play turns transcripts into candidate Transactions and signatures. Players give no input after their transcript. A session is run from the console (`just session`) or hosted by the server, through the session routes: `POST /api/sessions` starts one, `GET /api/sessions/:id` reports its round and who has spoken, and `POST /api/sessions/:id/transcripts` takes a seat's text. Their contract is in [07 §8.2](07_simulator.md#82-external-services). Both use the same round rules and one path into a round.
 
 - **Human players.** Each human gives one transcript per round, within the propose window: typed at the console, or posted once per seat per round to the session route, usually by the external speech component. Nothing further is asked: no clarification and no confirmation. Inadmissible Intents are rejected by the engine with their reason ([§11.1](#111-round-record)).
 - **Joint pass.** One model call reads all the transcripts together into candidate Transactions. If the reply does not decode, the pass makes up to two corrections, so at most three calls. If the last reply still does not decode, the pass yields no candidate Transactions, each human is told that nothing was submitted, and the round proceeds.
@@ -223,6 +225,6 @@ Admissibility is enforced by the engine at screening, whichever source produced 
 
 ## 12. Validation
 
-Validation runs instantiation as a feasibility check, and adds the PremiseComposition's checks. The checks are in [03 §12](03_premise.md#12-validation-and-compilation). The simulator instantiates a spec's overrides with the same function, without re-running validation ([06 §3.1](06_simulator.md#31-configuration-inheritance)). The invariants a valid Run must satisfy are in [02 §9](02_kernel.md#9-architectural-invariants-and-numerics).
+Validation runs instantiation as a feasibility check, and adds the PremiseComposition's checks. The checks are in [03 §12](03_premise.md#12-validation-and-compilation). The simulator instantiates a spec's overrides with the same function, without re-running validation ([07 §3.1](07_simulator.md#31-configuration-inheritance)). The invariants a valid Run must satisfy are in [02 §9](02_kernel.md#9-architectural-invariants-and-numerics).
 
 Initialization fails if any checked condition fails. A configuration is never repaired silently. No Actor changes meaning, no unrelated Strategy is assigned, and no resources are invented.

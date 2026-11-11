@@ -27,7 +27,7 @@ import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effects.Signatures (INTERPRET, InterpretF(..), RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
-import Assembly.Types (PreparedRun, SeatBinding(..))
+import Assembly.Types (PreparedRun, SeatBinding(..), playerOf)
 import Handlers.Seats (RecordSink, handleSeats, seatEnv)
 import Effects.Round (runGame)
 import Run (AFF, Run, case_, interpret, lift, liftAff, on, runBaseAff)
@@ -82,7 +82,7 @@ runLive live game = do
         )
     )
   where
-  binding e = Map.lookup e game.seats
+  binding e = playerOf <$> Map.lookup e game.seats
 
   -- humans give no input after their transcript, and agents' agreement is read in the joint pass,
   -- so Propose and Sign fall through: `handleSeats` answers them with nothing for these seats

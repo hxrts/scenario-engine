@@ -7,7 +7,7 @@ import Prelude
 import Core.Kernel.Types as K
 import Core.Map (values)
 import Data.Array as Array
-import Laws.Types (RefKind(..), idText, capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Actor, ActorId, ActorKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Exchange, ExchangeId, Payment, Price, CandidateTransaction, CandidateTransactionId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedCandidateTransaction, Transferability, Transformation, TransformationId, drawSourceShape, actorShape, idShape, candidateTransactionShape, ruleKind, ruleKindDeclShape, ruleShape, signedCandidateTransactionShape, transferabilityShape)
+import Laws.Types (RefKind(..), idText, capabilityShape, BehaviorDomain, Capability(..), CostFunction, DelayedFlow, Draw, Actor, ActorId, ActorKind(..), Estimator, FlowEffect(..), Holdings, Id, Interval, LevyBasis(..), Exchange, ExchangeId, Payment, Price, CandidateTransaction, CandidateTransactionId, Quantity, Ratio, RecurringFlowId, RecurringKindId, Representation, ResourceDefinition, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, RuleKindDecl, RuleKindId, SignedCandidateTransaction, Transferability, Transformation, TransformationId, drawSourceShape, actorShape, idShape, candidateTransactionShape, intentShape, Intent, ruleKind, ruleKindDeclShape, ruleShape, signedCandidateTransactionShape, transferabilityShape)
 import Data.Maybe (Maybe(..))
 
 import Core.Draw (Seed(..), drawVersion)
@@ -174,10 +174,10 @@ data ShortfallEffect
 -- | Where a settled Flow of a settlement starts or ends: an Actor, an Exchange, nowhere, or nothing.
 -- | One settled Flow: a quantity of a Resource owed from one endpoint to another, and how much of it moved.
 -- | A shortfall is `moved < owed`.
--- | How an Intent's quantities were settled: along an Exchange's curve, as a transformation, or moved directly.
+-- | How an Intent's quantities were settled, when one Intent alone settles them: as a transformation, or moved
+-- | directly. An Exchange trade settles as a pair of two sides (`OfMatch`).
 data Mechanism
-  = Curve ExchangeId
-  | Transformation { by :: ActorId, transformation :: TransformationId, units :: Quantity }
+  = Transformation { by :: ActorId, transformation :: TransformationId, units :: Quantity }
   | Direct
 
 derive instance Eq Mechanism
@@ -192,6 +192,10 @@ data Cause
   | OfRule { kind :: RuleKindId }
   | OfRecurring { rule :: RecurringFlowId, kind :: RecurringKindId }
   | OfAgreement { template :: TemplateId }
+  | OfMatch { exchange :: ExchangeId, buyer :: Maybe OrderRef, seller :: Maybe OrderRef } -- a cleared pair; Nothing is the Exchange's reserve
+
+-- | The order behind one side of a cleared pair: an Intent of a candidate Transaction.
+type OrderRef = { candidateTransaction :: CandidateTransactionId, intent :: Int }
 
 derive instance Eq Cause
 derive instance Generic Cause _
@@ -315,7 +319,10 @@ type View =
   , pending :: Array PendingTransaction -- the spawned transactions this Actor owes or is owed
   , exchanges :: Array Venue -- the Exchanges the Actor has access to, in id order
   , actors :: Array ActorId -- the known Actors, in id order
-  , transformations :: Map TransformationId Bounds -- the known Transformations and their order bounds
+  , transformations :: Map TransformationId Bounds -- the known Transformations, their order bounds and inputs
+  , incoming :: Map ResourceId Quantity -- what scheduled Flows still pending will deliver to the Actor
+  , proposed :: Array Intent -- what the Actor has already put forward this round (a seat's interpreted speech)
+  , due :: Map ResourceId Quantity -- what the Actor's fixed recurring flows take from it each round
   , soleHoldings :: Array ResourceId -- the Resources whose holder the Actor is (`holderOf`)
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule declared
   , templates :: Map TemplateId TemplateTerms -- the agreements that can be entered
@@ -325,7 +332,7 @@ type View =
 type TemplateTerms = { params :: Array String, parties :: Array String }
 
 -- | A Transformation's order bounds, as a View shows them.
-type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity }
+type Bounds = { minimum :: Quantity, maximum :: Maybe Quantity, inputs :: Map ResourceId Quantity }
 
 -- | An Exchange as a Strategy sees it: where a Resource (the base) is traded for the quote.
 type Venue = { id :: ExchangeId, base :: ResourceId, quote :: ResourceId }
@@ -336,7 +343,7 @@ venueOf m = { id: m.id, base: m.base, quote: m.quote }
 
 -- | What a View shows of a Transformation.
 boundsOf :: Transformation -> Bounds
-boundsOf t = { minimum: t.minimum, maximum: t.maximum }
+boundsOf t = { minimum: t.minimum, maximum: t.maximum, inputs: t.inputs }
 
 -- | Why the engine rejected a candidate Transaction. Each constructor names one check, so a test or a view
 -- | matches on the specific failure. The record stores the value through `rejectReasonShape`;
@@ -523,8 +530,7 @@ rejectReasonShape = genericSum "RejectReason"
 
 mechanismShape :: Shape Mechanism
 mechanismShape = genericSum "Mechanism"
-  { "Curve": atTagged "along an Exchange's curve" idShape
-  , "Transformation": atTagged "a run of a Transformation" (recordShape "Transformation" { by: idShape, transformation: idShape, units: qShape })
+  { "Transformation": atTagged "a run of a Transformation" (recordShape "Transformation" { by: idShape, transformation: idShape, units: qShape })
   , "Direct": atTagged "moved directly" unitShape
   }
 
@@ -534,7 +540,11 @@ causeShape = genericSum "Cause"
   , "OfRule": atTagged "a declared Rule kind" (recordShape "OfRule" { kind: idShape })
   , "OfRecurring": atTagged "a recurring-flow rule" (recordShape "OfRecurring" { rule: idShape, kind: idShape })
   , "OfAgreement": atTagged "an agreement entered during play" (recordShape "OfAgreement" { template: stringShape })
+  , "OfMatch": atTagged "a pair an Exchange's clearing settled; a side with no order is the reserve" (recordShape "OfMatch" { exchange: idShape, buyer: optionalOf orderRefShape, seller: optionalOf orderRefShape })
   }
+
+orderRefShape :: Shape OrderRef
+orderRefShape = recordShape "OrderRef" { candidateTransaction: idShape, intent: intShape }
 
 -- | Everything the engine records, as the snapshot writes it: a tag and the record of its payload.
 eventShape :: Shape Event
@@ -564,6 +574,9 @@ viewShape = recordOf "View"
       &. field @"exchanges" "the Exchanges the Actor has access to" (arrayOf venueShape)
       &. field @"actors" "the known Actors" (arrayOf idShape)
       &. field @"transformations" "the known Transformations and their order bounds" (mapOf idShape boundsShape)
+      &. field @"incoming" "what scheduled Flows still pending will deliver to the Actor" holdingsShape
+      &. field @"proposed" "what the Actor has already put forward this round" (arrayOf intentShape)
+      &. field @"due" "what the Actor's fixed recurring flows take from it each round" holdingsShape
       &. field @"soleHoldings" "the Resources whose holder the Actor is" (arrayOf idShape)
       &. field @"ruleKinds" "the kinds of Rule declared" (mapOf idShape ruleKindDeclShape)
       &. field @"templates" "the agreements that can be entered, and what each needs" (mapOf stringShape (recordShape "TemplateTerms" { params: arrayOf stringShape, parties: arrayOf stringShape }))
@@ -573,6 +586,7 @@ boundsShape :: Shape Bounds
 boundsShape = recordOf "Bounds"
   ( field @"minimum" "the smallest order accepted" qShape
       &. field @"maximum" "the largest order accepted, if any" (optionalOf qShape)
+      &. field @"inputs" "what one unit consumes, by Resource" holdingsShape
   )
 
 venueShape :: Shape Venue

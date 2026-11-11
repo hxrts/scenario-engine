@@ -1,4 +1,4 @@
--- | A capacity a premise makes tradeable by declaration alone (docs/05 §9): a `Free` capacity Resource,
+-- | A capacity a premise makes tradeable by declaration alone (docs/06 §9): a `Free` capacity Resource,
 -- | traded on an Exchange and drawn by a transformation, in the DSL only. Expected values are hand-computed in the comments.
 module Test.Premises.Lease (spec) where
 

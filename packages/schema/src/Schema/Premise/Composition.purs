@@ -1,5 +1,5 @@
 -- | The premise format of a composition and its Instantiation Configuration (docs/03_premise.md,
--- | docs/05_meridian.md). A composition is its sections merged into one object: the header, the
+-- | docs/06_meridian.md). A composition is its sections merged into one object: the header, the
 -- | World (`Schema.Premise.World`), the schemes, the parameters and the Strategy catalog; an Actor's
 -- | Actor definition is written in its entry. The Instantiation Configuration is a separate file.
 -- | Both decode to the core values (`Schema.Composition`), which `board` realizes.

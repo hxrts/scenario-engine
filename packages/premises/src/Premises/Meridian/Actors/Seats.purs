@@ -1,4 +1,4 @@
--- | Meridian's seat Actors (docs/05_meridian.md §9 Actor Catalog): each seat's
+-- | Meridian's seat Actors (docs/06_meridian.md §9 Actor Catalog): each seat's
 -- | accounts, capabilities, objective and fallback. `Actors` lists them.
 -- | A seat is built by `seat`, from a `SeatSpec`; the seat's default Strategy is named once,
 -- | and both its non-playable Actor Strategy and its fallback derive from that name.

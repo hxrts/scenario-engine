@@ -1,4 +1,4 @@
--- | The dashboard (docs/06_simulator.md §9–§10). Three pages in the top bar, one hash route each:
+-- | The dashboard (docs/07_simulator.md §9–§10). Three pages in the top bar, one hash route each:
 -- | Runs (`#/runs`, or `#/runs/:id` with that run selected: the run list beside the selected run's
 -- | results and actions), Prepare (launch a run of the composition), and Compare (runs side by
 -- | side). Every view model comes from the read API, through `Dashboard.Client`. The app loads the
@@ -11,7 +11,7 @@ import Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets)
 import Web.HTML.Location (pathname)
 import Web.HTML.Window (location, document)
 import Data.String (Pattern(..), split)
-import Data.Array (filter, elem, find, findIndex, index, length, null)
+import Data.Array (filter, elem, find, findIndex, head, index, length, null)
 
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
@@ -129,7 +129,7 @@ launchAction v = D.div
       [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.composition.rounds v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose (if length v.compositions > 1 then "Required: Preset and Premise. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
+      , Layout.purpose (if length v.compositions > 1 then "Required: Preset and Composition. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
       ]
   }
 
@@ -160,7 +160,11 @@ launchFields v = D.div
   }
   where
   -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x }) ] else []
+  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x, preset = presetIn x f.preset }) ] else []
+  -- a composition's presets are its own: the chosen preset stays when the new composition offers it, else its first
+  presetIn name current = case find (\c -> c.name == name) v.compositions of
+    Just c | not (elem current c.presets) -> fromMaybe current (head c.presets)
+    _ -> current
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value
@@ -391,7 +395,7 @@ plots grid fetch ids shown picked setPicked = D.div
       ]
   }
   where
-  -- the requested runs that could not be read, each with its reason (docs/06_simulator.md §10.1)
+  -- the requested runs that could not be read, each with its reason (docs/07_simulator.md §10.1)
   skippedRuns = case shown of
     Just (Right c) | not (null c.skipped) ->
       [ Layout.section

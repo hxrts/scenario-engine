@@ -4,6 +4,7 @@ module Premises.Catalog (compositions) where
 
 import Premises.Compose (CompositionSource)
 import Premises.Meridian (defaultDials, meridian)
+import Premises.Pacific as Pacific
 
 compositions :: Array CompositionSource
-compositions = [ meridian defaultDials ]
+compositions = [ meridian defaultDials, Pacific.pacific Pacific.defaultDials ]

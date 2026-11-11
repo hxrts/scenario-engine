@@ -1,4 +1,4 @@
--- | Pins: the status codes, reply bodies and JSON of docs/06 §8 and §8.1. Expected values are read from a played run, or are the worked examples they name.
+-- | Pins: the status codes, reply bodies and JSON of docs/07 §8 and §8.1. Expected values are read from a played run, or are the worked examples they name.
 module Test.Server.Main where
 
 import Prelude
@@ -80,7 +80,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           variant <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"rounds\":3}"
           variant.status `shouldEqual` 400
           variant.body `shouldSatisfy` contains (Pattern "from 4 to 8")
-          -- a resume past the composition's maximum is allowed (docs/06 §8.1), and a duplicate of it replays its inputs
+          -- a resume past the composition's maximum is allowed (docs/07 §8.1), and a duplicate of it replays its inputs
           resumed <- api "POST" "/api/runs/run-1/resume" "{\"rounds\":9}"
           resumed.status `shouldEqual` 200
           duplicate <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"duplicate\"}"

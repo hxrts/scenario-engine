@@ -1,4 +1,4 @@
--- | The simulator (docs/06_simulator.md §3–§6): the one fold over a `PreparedRun`. `simulate` plays a game with
+-- | The simulator (docs/07_simulator.md §3–§6): the one fold over a `PreparedRun`. `simulate` plays a game with
 -- | machine seats (StrategyRules, Script) and is pure; `fromCheckpoint` continues a snapshot;
 -- | persisting each round is `PLAY`'s (`Handlers.Play`). The simulator imports no
 -- | premise, board, or strategy module: a PreparedRun is all it sees.
@@ -22,7 +22,7 @@ import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Tuple (Tuple(..))
 import Assembly.Error (AssemblyError(..))
-import Assembly.Types (PreparedRun, SeatBinding(..))
+import Assembly.Types (PreparedRun, SeatBinding(..), playerOf)
 import Handlers.Replay (runReplay)
 import Handlers.Seats (playPure, seatEnv)
 
@@ -30,14 +30,14 @@ import Handlers.Seats (playPure, seatEnv)
 -- | final World State (or the engine error that stopped it).
 type SimRun = { manifest :: Manifest, playerSeed :: Seed, records :: Array RoundResult, final :: Either EngineError WorldState }
 
--- | A saved World State after `done` completed rounds (docs/06 §8).
+-- | A saved World State after `done` completed rounds (docs/07 §8).
 type Checkpoint = { world :: WorldState, done :: Int }
 
 -- | A game with a human or agent seat cannot be simulated: its answers come from live play.
 machineOnly :: PreparedRun -> Either AssemblyError Unit
 machineOnly g = traverse_ check (entries g.seats)
   where
-  check (Tuple e b) = case b of
+  check (Tuple e b) = case playerOf b of
     Human -> Left (NotSimulable e)
     Agent -> Left (NotSimulable e)
     _ -> Right unit

@@ -1,4 +1,4 @@
--- | Golden fixtures for simultaneous conflicting orders (docs/05_meridian.md §26, Fixture F):
+-- | Golden fixtures for simultaneous conflicting orders (docs/06_meridian.md §26, Fixture F):
 -- | three governments order defence procurement in the same round, and the procurement transformation
 -- | and the semiconductor capacity allocate what they can. Fixture F.
 module Premises.Meridian.Fixtures.ConflictingActions (fixtureF) where

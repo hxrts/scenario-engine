@@ -1,4 +1,4 @@
--- | The Actor balance sheet section (docs/06_simulator.md §9.2): a selector of the run's Actors and
+-- | The Actor balance sheet section (docs/07_simulator.md §9.2): a selector of the run's Actors and
 -- | the chosen Actor's holdings and net worth, round by round, as plots. The Actors, the seat flags and
 -- | the default Actor come from the analysis (`GET /api/runs/:id/Actors`); the history comes from
 -- | `GET /api/runs/:id/Actor/:Actor`. This module only chooses which Actor to show and where.

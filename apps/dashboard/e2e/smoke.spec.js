@@ -253,8 +253,8 @@ test("the launch form on Prepare offers the known presets and the composition's 
   await expect(page.getByLabel("Preset").locator("option")).toHaveText(presets);
   await expect(page.getByLabel("Rounds")).toHaveValue("5");
   await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
-  // one composition is present, so there is no choice to offer
-  await expect(page.getByLabel("Composition")).toHaveCount(0);
+  // two compositions are present, Meridian first, so the form offers the choice
+  await expect(page.getByLabel("Composition").locator("option")).toHaveText(["meridian", "pacific"]);
   await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByLabel("Player seed").fill("x");
   await page.getByRole("button", { name: "Run", exact: true }).click();
@@ -324,7 +324,7 @@ test("the launch form marks its required fields, and states the default of each 
   await expect(page.locator("label", { hasText: "Player seed" })).toContainText("optional");
   await expect(page.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
   await expect(page.locator("label", { hasText: "Game seed" })).toHaveCount(0);
-  await expect(page.getByText("Required: Preset.")).toBeVisible();
+  await expect(page.getByText("Required: Preset and Composition.", { exact: false })).toBeVisible();
 });
 
 test("a launch opens the new run's page", async ({ page }) => {

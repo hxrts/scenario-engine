@@ -1,4 +1,4 @@
--- | The exchange and economy views (docs/06_simulator.md §9.2): Exchange prices, reserves and traded
+-- | The exchange and economy views (docs/07_simulator.md §9.2): Exchange prices, reserves and traded
 -- | volume, transformation orders, the world economy's totals and numeraire circulation, the per-round
 -- | pressure indicators, and an Exchange's price trajectory across runs. Pure.
 module Views.Exchanges

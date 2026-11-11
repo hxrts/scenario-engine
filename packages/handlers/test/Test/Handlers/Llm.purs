@@ -1,7 +1,7 @@
--- | The model handler (docs/06_simulator.md §14): the prompts each request sends, how a reply decodes,
+-- | The model handler (docs/07_simulator.md §14): the prompts each request sends, how a reply decodes,
 -- | the joint pass's reconciliation and fallbacks, the evidence each call leaves, and the recording of
 -- | turns that replays. The model is a stub backend (`Test.Handlers.Stub`); no `pi` process runs.
--- | Pins: the model wire and reply JSON of docs/06 §14 (the prompt text is read through the prompt names).
+-- | Pins: the model wire and reply JSON of docs/07 §14 (the prompt text is read through the prompt names).
 module Test.Handlers.Llm (spec) where
 
 import Prelude

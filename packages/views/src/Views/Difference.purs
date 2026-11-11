@@ -1,4 +1,4 @@
--- | The difference of two World States: per-Actor holdings and per-Exchange prices (docs/06 §10.4).
+-- | The difference of two World States: per-Actor holdings and per-Exchange prices (docs/07 §10.4).
 -- | Pure: the views render it, and `experiments` computes it for two runs.
 module Views.Difference
   ( Difference

@@ -1,4 +1,4 @@
--- | The seat-strategy presets (docs/06_simulator.md §4.2): one shared set of strategies that each
+-- | The seat-strategy presets (docs/07_simulator.md §4.2): one shared set of strategies that each
 -- | premise binds to its own names and thresholds, so results stay comparable across premises.
 -- | A part of a binding a premise does not have leaves that preset with nothing to do there.
 module Premises.Kit.Presets

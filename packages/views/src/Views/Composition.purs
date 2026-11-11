@@ -1,4 +1,4 @@
--- | The composition a launch form runs (`GET /api/premise`, docs/06_simulator.md §9.1): the shape the server
+-- | The composition a launch form runs (`GET /api/premise`, docs/07_simulator.md §9.1): the shape the server
 -- | replies with and the dashboard reads. Pure.
 module Views.Composition
   ( RoundRange

@@ -1,4 +1,4 @@
--- | The views of a stored run (`GET /api/runs/:id/:view`, docs/06_simulator.md §8): one closed list. The
+-- | The views of a stored run (`GET /api/runs/:id/:view`, docs/07_simulator.md §8): one closed list. The
 -- | path segment of a view is its constructor's name in lower case, and the list of views is the type's
 -- | constructors, so neither is written a second time.
 module Schema.View
@@ -35,6 +35,7 @@ data View
   | Drivers
   | Balance
   | Events
+  | Dependence
 
 derive instance Eq View
 derive instance Generic View _

@@ -1,4 +1,4 @@
--- | One Actor's balance sheet over the run, round by round (docs/06_simulator.md §8, §9.2). The table
+-- | One Actor's balance sheet over the run, round by round (docs/07_simulator.md §8, §9.2). The table
 -- | has a row per Resource the Actor holds or an Exchange quotes at any round, and a net-worth row, with
 -- | a column per round 0..final. The holdings chart has one line per Resource the Actor holds at some
 -- | round, in that Resource's own unit. The net-worth chart is a separate chart, because net worth is in

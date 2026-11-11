@@ -1,4 +1,4 @@
-// Run actions on a run's page (docs/06_simulator.md §9.2): resume, archive, and delete, under the selected
+// Run actions on a run's page (docs/07_simulator.md §9.2): resume, archive, and delete, under the selected
 // run on the Runs page. Derive is exercised against the real server. Every request these tests
 // depend on is answered by page.route (e2e/mocks.js), so they do not depend on the e2e server's seeded data
 // or on the write endpoints being present: each mock answers the contract (apps/server), and the test asserts

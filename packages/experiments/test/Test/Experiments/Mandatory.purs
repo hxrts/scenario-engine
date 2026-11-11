@@ -1,4 +1,4 @@
--- | The mandatory tests of docs/06_simulator.md §14 that analyse runs through Experiments.Agency and Checks.Objectives:
+-- | The mandatory tests of docs/07_simulator.md §14 that analyse runs through Experiments.Agency and Checks.Objectives:
 -- | test 7 (a counterfactual pair), test 14 (agency), and the player-seed variation runs. They sit
 -- | here, not in the simulator suite, because the simulator must not depend on experiments.
 module Test.Experiments.Mandatory (spec) where
@@ -42,7 +42,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Aff CompositionParts -> Spec Unit
-spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
+spec context = describe "Mandatory tests (docs/07_simulator.md §14)" do
   it "7 NonPlayableActor response: Fixture D as a pair, with and without the deployment" do
     ctx <- context
     base <- everySeat ctx "Passive"
@@ -66,7 +66,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     random <- everySeat ctx "RandomValid"
     ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) random "Aggressive" playableActors)
     length ps `shouldEqual` 15
-    -- hard condition (docs/06 §14): a role with no measurable effect is a broken premise
+    -- hard condition (docs/07 §14): a role with no measurable effect is a broken premise
     map _.explicitActor (filter (not <<< _.measurable) ps) `shouldEqual` []
     -- each criterion is reported under the baseline and the alternative, and the count of changes agrees
     for_ ps \p -> length (filter (\c -> c.baseline /= c.alternative) p.criteria) `shouldEqual` p.objectives
@@ -81,7 +81,7 @@ spec context = describe "Mandatory tests (docs/06_simulator.md §14)" do
     g <- everySeat ctx "Conservative"
     profiles <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Aggressive" playableActors)
     -- Finding: under the Conservative baseline, DE, ENCO, CHIP, SHIP and DEF switching to Aggressive
-    -- changes nothing measurable (a balancing finding for docs/05 §28), so the hard condition above
+    -- changes nothing measurable (a balancing finding for docs/06 §28), so the hard condition above
     -- is asserted on the RandomValid baseline. Pinned here so a premise change is noticed.
     map _.explicitActor (filter (not <<< _.measurable) profiles) `shouldEqual` map Id [ "DE", "ENCO", "CHIP", "SHIP", "DEF" ]
     base <- run (Seed 1) g

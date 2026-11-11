@@ -1,4 +1,4 @@
--- | The read handlers (docs/06_simulator.md §8–§10): the run list summaries, a stored run decoded
+-- | The read handlers (docs/07_simulator.md §8–§10): the run list summaries, a stored run decoded
 -- | whole, the per-run views, the comparison, and the agency analysis. Every view is computed in
 -- | `Views`; this module decodes the stored text, picks the view, and replies.
 module Server.Read
@@ -56,6 +56,7 @@ import Views.Exchanges as Exchanges
 import Views.Overview as Overview
 import Views.Representation as Representation
 import Views.Standings as Standings
+import Views.Dependence as Dependence
 import Views.WholeEconomy as WholeEconomy
 import Server.Errors (Answer, badRequest, conflict, describe, notFound, ok, replyOr, viewOr)
 import Data.Argonaut.Core (Json)
@@ -164,6 +165,7 @@ getView compositions { id, view, round } = withRun id \r -> answerView
   , "Drivers": ok <<< Drivers.drivers
   , "Balance": \s -> onBoard s \gb -> ok (Balance.balanceView gb s)
   , "Events": \s -> viewOr (Balances.events s (fromMaybe 1 round))
+  , "Dependence": ok <<< Dependence.dependence
   }
   r
   view

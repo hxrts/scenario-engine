@@ -1,4 +1,4 @@
--- | The adapter primitives that need no model and no store (docs/06_simulator.md §5): an injected seed
+-- | The adapter primitives that need no model and no store (docs/07_simulator.md §5): an injected seed
 -- | is used as given, an absent one is drawn from the OS, the clock reads ISO 8601 in UTC, and the
 -- | premise reads return the files they name, or a failure that names the path.
 module Test.Adapters.Primitives (spec) where

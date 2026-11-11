@@ -1,4 +1,4 @@
--- | Pins: who may reach each endpoint (docs/06_simulator.md §8), walking the whole route table.
+-- | Pins: who may reach each endpoint (docs/07_simulator.md §8), walking the whole route table.
 module Test.Server.Gate (spec) where
 
 import Prelude

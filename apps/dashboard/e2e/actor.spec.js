@@ -1,4 +1,4 @@
-// The Actor balance sheet section on the Runs page (docs/06_simulator.md §9.2): a selector of the
+// The Actor balance sheet section on the Runs page (docs/07_simulator.md §9.2): a selector of the
 // run's Actors, and the chosen Actor's holdings and net worth plotted round by round. Runs against
 // the e2e server's seeded run-1, so the Actors are the ones the run has.
 

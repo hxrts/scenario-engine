@@ -1,4 +1,4 @@
-// The Compare page (docs/06_simulator.md §9.4): the choice list, the plots that overlay the ticked runs, and the
+// The Compare page (docs/07_simulator.md §9.4): the choice list, the plots that overlay the ticked runs, and the
 // key-values table with one column per run. The run list and the comparison are answered by page.route (see
 // mocks.js for the contract), so these tests create no runs: the other specs depend on the ids of the seeded
 // store, and a run created here would shift them. The comparison answer is built here from the ids it is asked

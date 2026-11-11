@@ -1,5 +1,5 @@
 -- | Pins: the JSON Schema interpreter of `Shape`, and the OpenAPI documents of the two external services
--- | (docs/06_simulator.md §8). Literal schemas are written by hand; live replies are checked against the
+-- | (docs/07_simulator.md §8). Literal schemas are written by hand; live replies are checked against the
 -- | published documents by a small validator of the keywords the interpreter emits.
 module Test.Server.OpenApi (spec) where
 

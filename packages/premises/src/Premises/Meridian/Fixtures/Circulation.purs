@@ -1,4 +1,4 @@
--- | The circulation golden fixture (docs/05_meridian.md §8, Economic Circulation): every
+-- | The circulation golden fixture (docs/06_meridian.md §8, Economic Circulation): every
 -- | Actor of the reference instance, with its production (§8.1) and flows (§8.4), over five
 -- | rounds of nothing but circulation. Fixture `circulation`.
 module Premises.Meridian.Fixtures.Circulation (fixtureCirculation) where

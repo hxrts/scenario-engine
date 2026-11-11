@@ -7,6 +7,7 @@ module Handlers.Seats
   ( SeatEnv
   , seatEnv
   , handleSeats
+  , proposeAnswer
   , RecordSink
   , playPure
   , playWith
@@ -18,19 +19,20 @@ import Core.Draw (Seed)
 import Core.Num (Q)
 
 import Schema.Joint (Transcript)
-import Laws.Types (ActorId)
+import Laws.CandidateTransaction (CandidateTransactionBody)
+import Laws.Types (ActorId, CandidateTransactionId)
 import Laws.World (RoundResult, View, WorldState)
-import Data.Array (find)
+import Data.Array (concatMap, find, nub)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
 import Foreign.Object (Object)
-import Assembly.Types (Bindings, PreparedRun, ScriptRound, SeatBinding(..))
+import Assembly.Types (Bindings, PreparedRun, SeatBinding(..))
 import Strategy.Interpret (Env, envFor)
 import Strategy.Interpret as Strategy
 import Laws.Engine.Commit (EngineError)
-import Laws.StrategyRules (InWorld, StrategyRules)
+import Laws.StrategyRules (InWorld)
 import Effect (Effect)
 import Effects.Round (runGame)
 import Run (Run, case_, interpret, on, peel, run, send)
@@ -49,14 +51,28 @@ seatEnvFor :: SeatEnv -> ActorId -> View -> Env
 seatEnvFor env = envFor { params: env.params, seed: env.seed, source: "seat" }
 
 -- | What a seat answers in a round, read from its binding: a StrategyRules through the strategy interpreter, a Script
--- | from the round's entry. Agent and Human seats answer nothing here.
-answer :: forall a. (StrategyRules -> Env -> Array a) -> (ScriptRound -> Array a) -> SeatEnv -> Bindings -> ActorId -> View -> Array a
-answer strategy scripted env bs e v = case Map.lookup e bs of
-  Just (StrategyRules p) -> strategy p (seatEnvFor env e v)
-  Just (Script rounds) -> maybe [] scripted (find (\r -> r.round == v.round) rounds)
-  Just Agent -> []
-  Just Human -> []
-  Nothing -> []
+-- | from the round's entry. Agent and Human seats answer nothing here. A composed seat answers its player's
+-- | proposals and then its routine's, the routine reading what the player put forward (`Planned`).
+proposeAnswer :: SeatEnv -> ActorId -> View -> SeatBinding -> Array CandidateTransactionBody
+proposeAnswer env e v = case _ of
+  StrategyRules p -> Strategy.propose p (seatEnvFor env e v)
+  Script rounds -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
+  Agent -> []
+  Human -> []
+  Composed c ->
+    let
+      player = proposeAnswer env e v c.player
+    in
+      player <> Strategy.propose c.routine (seatEnvFor env e (v { proposed = v.proposed <> concatMap _.intents player }))
+
+-- | What a seat signs: its player's choices and its routine's.
+signAnswer :: SeatEnv -> ActorId -> View -> SeatBinding -> Array CandidateTransactionId
+signAnswer env e v = case _ of
+  StrategyRules p -> Strategy.sign p (seatEnvFor env e v)
+  Script rounds -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
+  Agent -> []
+  Human -> []
+  Composed c -> nub (signAnswer env e v c.player <> Strategy.sign c.routine (seatEnvFor env e v))
 
 -- | Interpret SEAT_INPUT over a game's bindings, leaving the other effects. A machine seat has no
 -- | transcript, so Speak answers Nothing and the joint pass is never called: a simulated run makes no
@@ -66,8 +82,8 @@ handleSeats env bs = interpret (on _seatInput handle (on _interpret silent send)
   where
   handle :: SeatInputF ~> Run r
   handle = case _ of
-    Propose e v k -> pure (k (answer Strategy.propose _.propose env bs e v))
-    Sign e v k -> pure (k (answer Strategy.sign _.sign env bs e v))
+    Propose e v k -> pure (k (maybe [] (proposeAnswer env e v) (Map.lookup e bs)))
+    Sign e v k -> pure (k (maybe [] (signAnswer env e v) (Map.lookup e bs)))
     Speak _ _ k -> pure (k Nothing)
 
   silent :: InterpretF ~> Run r

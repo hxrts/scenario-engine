@@ -56,6 +56,7 @@ definitionShape = recordOf "Definition"
   ( field @"required" "must be seated (default false)" (defaultsTo false boolShape)
       &. field @"seat" "may be seated (default true)" (defaultsTo true boolShape)
       &. field @"nonPlayableActor" "the NonPlayableActor Strategies it may take" (arrayOf idShape)
+      &. field @"routine" "a Strategy that runs beside whoever plays the seat" (optionalOf idShape)
       &. field @"fallback" "what covers it when it has no player" (optionalOf fallbackShape)
       &. field @"objective" "its measurable objective" (optionalOf objectiveShape)
       &. field @"description" "what the PlayableActor does (prose)" (defaultsTo "" stringShape)

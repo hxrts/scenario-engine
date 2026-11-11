@@ -15,13 +15,13 @@ Two roles sit around the engine:
 - **AI interprets.** It turns what players say into structured proposed actions.
 - **The engine determines outcomes.** Every result comes from the resolved economy, never from the interpreter.
 
-Speech transcription and the newspaper are separate components, built outside this repository, that use its API ([06 §8.2](06_simulator.md#82-external-services)). One submits what a player said as text. The other reads what a round produced and writes the front page.
+Speech transcription and the newspaper are separate components, built outside this repository, that use its API ([07 §8.2](07_simulator.md#82-external-services)). One submits what a player said as text. The other reads what a round produced and writes the front page.
 
-**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes part of an economy, and a PremiseComposition, an ordered list of Premises, describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference PremiseComposition ([05](05_meridian.md)). Comparing several Runs of one PremiseComposition, which differ in a shock, an override or a seed, is the scenario planning the game is for.
+**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes part of an economy, and a PremiseComposition, an ordered list of Premises, describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference PremiseComposition ([06](06_meridian.md)). Comparing several Runs of one PremiseComposition, which differ in a shock, an override or a seed, is the scenario planning the game is for.
 
 ## Terms
 
-These 17 anchors are the project's vocabulary, and this is the one place they are defined. Every other term in the docs is an anchor with a qualifier (a candidate Transaction, a settled Flow, a round-end World) or is explained in the section that uses it. Terms for people working on the code are in [07](07_architecture.md#implementation-terms). An anchor means the same thing whether it is capitalized or, as with a round or a stock in running prose, in lower case.
+These 17 anchors are the project's vocabulary, and this is the one place they are defined. Every other term in the docs is an anchor with a qualifier (a candidate Transaction, a settled Flow, a round-end World) or is explained in the section that uses it. Terms for people working on the code are in [08](08_architecture.md#implementation-terms). An anchor means the same thing whether it is capitalized or, as with a round or a stock in running prose, in lower case.
 
 Launching and playing:
 
@@ -111,7 +111,7 @@ This section explains how small participants can shape a larger economy. Both me
 
 This section says how a PremiseComposition judges whether play went well. There is no single winner.
 
-Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. A PremiseComposition defines no system-level measure: the whole-economy views show how the economy as a whole went ([06 §11](06_simulator.md#11-experiments)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
+Each actor has a role-specific objective with measurable criteria, such as holding at least a rival's military capacity or never running short of energy. A PremiseComposition defines no system-level measure: the whole-economy views show how the economy as a whole went ([07 §11](07_simulator.md#11-experiments)). Objectives are scored from the recorded Run and never change the economy. Outcomes are not reduced to money. Military capacity, influence, and resource security count through these objectives.
 
 A PremiseComposition is judged against these questions:
 
@@ -123,7 +123,7 @@ A PremiseComposition is judged against these questions:
 - Do early decisions matter later?
 - Does the economy respond without excessive volatility?
 
-The simulator's indicators support this judgment but do not replace playtesting ([06 §12](06_simulator.md#12-correctness-versus-gameplay-quality)).
+The simulator's indicators support this judgment but do not replace playtesting ([07 §12](07_simulator.md#12-correctness-versus-gameplay-quality)).
 
 ## 7. Design Principles
 
@@ -142,6 +142,7 @@ This section lists the rules that every PremiseComposition and every rule should
 - [02 Kernel](02_kernel.md): what any World can be made of, and the invariants of the economy.
 - [03 Premise](03_premise.md): how Premises are authored and composed, and the vocabulary that compiles to the kernel.
 - [04 Run](04_run.md): how a PremiseComposition is assembled and realized, Round by Round.
-- [05 Meridian](05_meridian.md): *Meridian*, the reference PremiseComposition.
-- [06 Simulator](06_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
-- [07 Architecture](07_architecture.md): guidelines and the structure of the implementation.
+- [05 Pacific](05_pacific.md): *Pacific*, a two-country PremiseComposition of trade, export bans and substitution.
+- [06 Meridian](06_meridian.md): *Meridian*, the reference PremiseComposition.
+- [07 Simulator](07_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
+- [08 Architecture](08_architecture.md): guidelines and the structure of the implementation.

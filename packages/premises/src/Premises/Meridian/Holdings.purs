@@ -1,4 +1,4 @@
--- | Meridian's Actor holdings (docs/05_meridian.md §9 and §10): each Actor's accounts, written once. The seat and aggregate Actors (`Actors.Seats`,
+-- | Meridian's Actor holdings (docs/06_meridian.md §9 and §10): each Actor's accounts, written once. The seat and aggregate Actors (`Actors.Seats`,
 -- | `Actors.Aggregates`) take their accounts from here, and the fixtures take
 -- | the accounts they need from here, so no Actor's holdings are copied. Expected values in the
 -- | fixtures stay literal; only the inputs are shared.

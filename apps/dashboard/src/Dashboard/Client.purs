@@ -1,4 +1,4 @@
--- | The dashboard's operations (docs/06_simulator.md §8): one function per request the dashboard makes.
+-- | The dashboard's operations (docs/07_simulator.md §8): one function per request the dashboard makes.
 -- | Each sends an `API` operation through `Handlers.Api.Client` over the dashboard's fetch device and
 -- | decodes the reply as the operation's entry of the contract states (`Handlers.Api.Contract`). The paths are `Handlers.Api.Route`'s.
 module Dashboard.Client

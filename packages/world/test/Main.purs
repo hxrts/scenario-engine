@@ -60,7 +60,7 @@ coverageComposition =
   estimator = { reference: Q.zero, shrinkage: Q.fromInt 1, deviationBound: Nothing, noiseSpread: Q.zero }
 
   explicitActor :: ActorDefinition
-  explicitActor = { required: false, seat: true, nonPlayableActor: [], fallback: Just (ImplicitCoverage eu), objective: Nothing, description: "", dependency: "" }
+  explicitActor = { required: false, seat: true, nonPlayableActor: [], routine: Nothing, fallback: Just (ImplicitCoverage eu), objective: Nothing, description: "", dependency: "" }
 
   actor :: ActorId -> Actor
   actor i = { id: i, accounts: Map.empty, capabilities: [], kind: NonPlayableActor (Id "p") }

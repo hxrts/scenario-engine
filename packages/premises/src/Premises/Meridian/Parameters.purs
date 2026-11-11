@@ -1,4 +1,4 @@
--- | Meridian's premise parameters (docs/05_meridian.md §11): the named values the Strategies
+-- | Meridian's premise parameters (docs/06_meridian.md §11): the named values the Strategies
 -- | read and the premise's overrides set. A regional supplier's parameters are built by one
 -- | function from its Exchange's suffix, which returns both the names and the entries, so a name is
 -- | spelled once. `Premises.Meridian` lists them in `game-rules.json`.
@@ -52,7 +52,7 @@ euMatchingTariff = "eu-matching-tariff"
 supplierHighPrice :: String
 supplierHighPrice = "supplier-high-price"
 
--- | The round of the logistics disruption (docs/05 §13.6).
+-- | The round of the logistics disruption (docs/06 §13.6).
 disruptionRound :: String
 disruptionRound = "disruption-round"
 
@@ -68,7 +68,7 @@ parameters = Object.fromFoldable
       <> supplierAsia.entries
   )
 
--- | The SME Representation (docs/05 §12): Global SMEs' Energy demand, estimated from SME's
+-- | The SME Representation (docs/06 §12): Global SMEs' Energy demand, estimated from SME's
 -- | sample. Its scheme and the fixtures' Representations share these values.
 smeSample
   :: { id :: String
@@ -90,7 +90,7 @@ schemes =
   [ { id: smeSample.id, eligibleActors: [ smeSample.explicitActor ], target: smeSample.aggregate, domain: Id (idText smeSample.domain), observes: smeSample.domain, estimator: smeSample.estimator (q "0.1") }
   ]
 
--- | The major shock (docs/05 §13.6): a designed test case, not the reference game. Round 1's
+-- | The major shock (docs/06 §13.6): a designed test case, not the reference game. Round 1's
 -- | Prepare phase removes both regions' supplier offers entirely (a cut at or above the offer
 -- | removes it, and never turns it into a purchase). It is the shock that flips the most preset
 -- | behaviours without any round of the reference disruption: Accumulator, Trader, Opportunistic and

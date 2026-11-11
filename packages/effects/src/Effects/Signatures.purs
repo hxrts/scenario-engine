@@ -154,7 +154,7 @@ type StoredRound =
 -- | A named set of runs to compare: their ids and which is the baseline. It never holds run data.
 type RunSet = { name :: String, baseline :: String, runs :: Array String }
 
--- | The Run Store's writes (docs/06_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
+-- | The Run Store's writes (docs/07_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
 -- | make. Each round's own write is `RECORD`. Each write is one dbDbTransaction.
 data StoreF a
   = CreateRun NewRun (Unit -> a)

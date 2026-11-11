@@ -10,18 +10,18 @@ module Laws.Engine.Prepare
 
 import Prelude
 
-import Laws.World (templateTerms, venueOf, boundsOf, addEvents, Event(..), PendingTransaction(..), View, WorldState)
+import Laws.World (RecurringAmount(..), RecurringSource(..), templateTerms, venueOf, boundsOf, addEvents, Event(..), PendingTransaction(..), View, WorldState)
 
 import Laws.Engine.Compile (deliveredOf, runTransaction)
 import Core.Kernel.Consume (ConsumeError, validateTemplates, partiesOf, spawned)
 import Core.Kernel.Types (LawChange(..))
 import Core.Kernel.Post (Account(..), Ledger, ledgerByAccount)
-import Core.Map (entries, sumMaps)
+import Core.Map (entries, sumInto, sumMaps)
 
 import Core.Num as Q
 import Laws.Query (holderOf, exchangesOf, priceOf)
 import Laws.Types (Actor, Id(..), Rule, RuleId)
-import Data.Array (elem, filter, foldl, fromFoldable, mapMaybe, null, partition, sortWith, head)
+import Data.Array (any, elem, filter, foldl, fromFoldable, mapMaybe, null, partition, sortWith, head)
 import Data.Either (Either(..), either)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -49,8 +49,16 @@ prepared w =
     posted = foldl (consume w) { ledger: Map.empty, events: [], changes: [], spawned: [], errors: [] } now
     -- a later change to the same Rule replaces an earlier one
     changes = Map.fromFoldable posted.changes
-    rules = foldl (\rs (Tuple id r) -> maybe (Map.delete id rs) (\x -> Map.insert id x rs) r) w.rules (entries changes)
-    ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) (entries changes)
+    -- enacting a Rule already in force under another id changes nothing, so repeated enactments never
+    -- accumulate (docs/03 §6)
+    applied = foldl apply { rules: w.rules, done: [] } (entries changes)
+    apply acc (Tuple id r) = case r of
+      Nothing -> { rules: Map.delete id acc.rules, done: acc.done <> [ Tuple id r ] }
+      Just x
+        | any (\(Tuple other y) -> other /= id && y == x) (entries acc.rules) -> acc
+        | otherwise -> { rules: Map.insert id x acc.rules, done: acc.done <> [ Tuple id r ] }
+    rules = applied.rules
+    ruleEvents = map (\(Tuple id r) -> maybe (Repealed { round: w.round, id }) (\x -> Enacted { round: w.round, id, rule: x }) r) applied.done
     updated = map (\e -> e { accounts = sumMaps e.accounts (fromMaybe Map.empty (Map.lookup (Ent e.id) (ledgerByAccount posted.ledger))) }) w.actors
   in
     { errors: posted.errors
@@ -105,6 +113,15 @@ observe w self =
   , exchanges: map venueOf (filter (\m -> self.id `elem` m.access) (exchangesOf w))
   , actors: fromFoldable (Map.keys w.actors)
   , transformations: map boundsOf w.transformations
+  , incoming: foldl (\m d -> if d.actor == self.id then sumInto d.resource d.quantity m else m) Map.empty (mapMaybe deliveredOf w.pending)
+  , proposed: []
+  , due: foldl
+      ( \m r -> case r.source, r.amount of
+          FromActor a, FixedAmount q | a == self.id -> sumInto r.resource q m
+          _, _ -> m
+      )
+      Map.empty
+      w.recurring
   , soleHoldings: filter (\r -> holderOf w r == Just self.id) (fromFoldable (Map.keys self.accounts))
   , ruleKinds: w.ruleKinds
   , templates: map templateTerms w.templates

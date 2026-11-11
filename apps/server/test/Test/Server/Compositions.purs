@@ -1,6 +1,6 @@
 -- | A second PremiseComposition, built only from the Kit: compiled, loaded, played, viewed, and compared with Meridian
 -- | as a batch.
--- | Pins: the numbers of this suite's own small Kit-built Composition (docs/03 §12); no docs/05 values.
+-- | Pins: the numbers of this suite's own small Kit-built Composition (docs/03 §12); no docs/06 values.
 module Test.Server.Compositions (spec) where
 
 import Prelude
@@ -28,7 +28,7 @@ import Premises.Compose (CompositionSource, premiseOf)
 import Premises.Kit.Seats (Cover(..), seat)
 import Premises.Kit.Holdings (HoldingTable)
 import Premises.Kit.Exchanges (exchange)
-import Premises.Kit.Presets (standardThresholds)
+import Premises.Kit.Presets (PresetBinding, presetsOf, standardThresholds)
 import Premises.Load (composedOf, parts)
 import Schema.Build.Decision (lit)
 import Schema.Composition (ActorDefinition, PremiseComposition)
@@ -41,6 +41,7 @@ import Data.Argonaut.Core (stringify)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Meridian (meridianParts)
+import Premises.Pacific as Pacific
 
 focus :: Focus
 focus = { resource: Id "C", label: "Corn" }
@@ -92,7 +93,17 @@ harbor =
   , version: "v0"
   , premises: [ premiseOf { id: "harbor", version: "v0" } harborWorld ]
   , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
-  , presets: { staple: Id "C", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
+  , presets: presetsOf harborBinding
+  }
+
+harborBinding :: PresetBinding
+harborBinding =
+  { staple: Id "C"
+  , money: Id "G"
+  , build: Nothing
+  , invest: Nothing
+  , deploy: Nothing
+  , thresholds: standardThresholds
   }
 
 spec :: Spec Unit
@@ -113,8 +124,24 @@ spec = describe "A second Premise" do
         doc "harbor" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"E\",\"M\",\"Mil\",\"S\",\"attention\",\"energy-production\",\"semiconductors\",\"transport\"]"))
         doc "meridian" `shouldSatisfy` contains (Pattern "\"enum\":[\"E\",\"M\",\"Mil\",\"S\",\"attention\",\"energy-production\",\"semiconductors\",\"transport\"]")
         doc "meridian" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"C\",\"G\"]"))
+  it "Pacific is listed with its own presets, launched, and its Dependence view served" do
+    meridian <- meridianParts
+    case parts (Pacific.pacific Pacific.defaultDials) of
+      Left e -> fail e
+      Right pc -> do
+        db <- liftEffect (open ":memory:")
+        cache <- liftEffect newServerCache
+        let api method path query body = liftEffect (route (implement [ meridian, pc ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
+        list <- api "GET" "/api/premise" [] ""
+        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"FreeTrade\",\"Restrict\",\"RestrictAndSubstitute\",\"Substitute\"]")
+        launched <- api "POST" "/api/runs" [] "{\"composition\":\"pacific\",\"name\":\"p\",\"preset\":\"Restrict\",\"playerSeed\":1,\"rounds\":6}"
+        launched.status `shouldEqual` 200
+        dependence <- api "GET" "/api/runs/run-1/dependence" [] ""
+        dependence.status `shouldEqual` 200
+        dependence.body `shouldSatisfy` contains (Pattern "Coverage")
+
   it "a preset naming what the Composition lacks is refused" do
-    isLeft (parts harbor { presets { build = Just { transformation: Id "no-such", quantity: lit 1 } } }) `shouldEqual` true
+    isLeft (parts harbor { presets = presetsOf harborBinding { build = Just { transformation: Id "no-such", quantity: lit 1 } } }) `shouldEqual` true
   it "a joint pass over it offers this Composition's own names, for every kind a reply can hold" do
     case parts harbor of
       Left e -> fail e

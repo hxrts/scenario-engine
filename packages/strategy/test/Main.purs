@@ -128,7 +128,7 @@ twoExchanges = seat
 
 -- | Every draw is zero.
 env :: Env
-env = { view: seat, params: Object.empty, random: const Q.zero, exchange: nameOnly }
+env = { view: seat, params: Object.empty, random: const Q.zero, exchange: nameOnly, planned: [] }
 
 -- | Every draw except index 0 is 0.9.
 highDraws :: Int -> Q.Q

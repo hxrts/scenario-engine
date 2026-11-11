@@ -9,6 +9,8 @@ module Laws.Engine.Screen
   , screen
   , duplicatedIds
   , withinMaximums
+  , blockOf
+  , leviesOn
   ) where
 
 import Prelude
@@ -176,26 +178,31 @@ conditioned w p = concat <$> traverse check gated
         -- everything this sender moves on this Transformation, so one order cannot carry two Transfers
         moved = Q.sumQ (map _.quantity (filter (\x -> x.from == t.from && bundledFor x.resource == Just tid) gated))
       when (carried /= moved) (Left MissingBundledOrder)
-    let
-      flow = { from: t.from, to: t.to, resource: t.resource }
-      -- a Rule applies through whichever of its directions covers the flow, once
-      applicable = mapMaybe (find (appliesTo flow)) laws
-      charged = mapMaybe (\law -> (\leg -> { kind: kindOf law, leg }) <$> emitted t.quantity (groupOf w t.to) law) applicable
-    for_ (find refuses applicable) \law -> Left (Blocked (kindOf law))
-    pure (map (levyOf t charged) (nubEq (map keyOf charged)))
-  laws = flowLaws w
-  kindOf law = case law.cause of
-    OfRule r -> r.kind
-    _ -> Id ""
-  -- rules of one kind that are paid the same way are one levy
+    for_ (blockOf w { from: t.from, to: t.to, resource: t.resource }) \k -> Left (Blocked k)
+    pure (leviesOn w { from: t.from, to: t.to, resource: t.resource } t.quantity)
+
+-- | The levies the flows Rules in force charge one movement of a Resource, by the units moved: a Transfer at
+-- | screening, and a matched Exchange pair at clearing, share this one computation. The sender pays. A Rule
+-- | applies through whichever of its directions covers the flow, once, and rules of one kind paid the same way
+-- | are one levy, so one shipment is charged once.
+leviesOn :: WorldState -> { from :: ActorId, to :: ActorId, resource :: ResourceId } -> Q -> Array Levy
+leviesOn w flow quantity = map levyOf (nubEq (map keyOf charged))
+  where
+  applicable = mapMaybe (find (appliesTo flow)) (flowLaws w)
+  charged = mapMaybe (\law -> (\leg -> { kind: kindOf law, leg }) <$> emitted quantity (groupOf w flow.to) law) applicable
   keyOf c = { kind: c.kind, in: c.leg.resource, to: c.leg.to }
-  levyOf t charged key =
-    { kind: key.kind
-    , from: t.from
-    , to: key.to
-    , in: key.in
-    , amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged))
-    }
+  levyOf key = { kind: key.kind, from: flow.from, to: key.to, in: key.in, amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged)) }
+
+-- | The kind of the first flows Rule in force that blocks a movement of a Resource from one Actor to another,
+-- | if one does: a Transfer at screening, and a matched Exchange fill at clearing, share this one check.
+blockOf :: WorldState -> { from :: ActorId, to :: ActorId, resource :: ResourceId } -> Maybe RuleKindId
+blockOf w flow = map kindOf (find refuses (mapMaybe (find (appliesTo flow)) (flowLaws w)))
+
+-- | The kind of the Rule a law compiles from.
+kindOf :: forall r. { cause :: Cause | r } -> RuleKindId
+kindOf law = case law.cause of
+  OfRule r -> r.kind
+  _ -> Id ""
 
 -- | The group an Actor counts as: itself, unless the premise says otherwise.
 groupOf :: WorldState -> ActorId -> ActorId

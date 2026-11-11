@@ -1,4 +1,4 @@
--- | The compositions a server has loaded (docs/06_simulator.md §8.1): every composition found under the
+-- | The compositions a server has loaded (docs/07_simulator.md §8.1): every composition found under the
 -- | premise root. A launch names one, and a stored run is served from its own, through its `Spec.gameId`.
 module Server.Compositions
   ( Compositions

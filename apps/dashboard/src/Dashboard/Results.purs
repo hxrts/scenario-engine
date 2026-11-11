@@ -1,4 +1,4 @@
--- | One run's results (docs/06_simulator.md §9.2), a presentational view of the overview the run page
+-- | One run's results (docs/07_simulator.md §9.2), a presentational view of the overview the run page
 -- | fetched. A compact header names the run from the overview's facts; then the sections answer the five
 -- | questions in order: the key figures, the marginal prices, the standings, net worth over time, the
 -- | actions players take, the drivers, the balance of the game, the objectives, and the final balance
@@ -137,6 +137,11 @@ mkBody grid = fetched >>= \fetch -> mkActor >>= \actor -> mkEvents grid >>= \eve
             { title: "Objectives"
             , purpose: "Each explicit Actor's objective criteria, met, not met or not evaluated, with the measured values. Objectives are measured from the run and never change the economy."
             , children: [ view (Keys.viewKey @"Objectives") (titled grid) ]
+            }
+        , Layout.section
+            { title: "Dependence"
+            , purpose: "By round, for each Actor and each Resource it has a fixed requirement of: what its own capacity covers, what it must import, what it traded and was paid, what it went short, the bans against it, and the capacity on order."
+            , children: [ view (Keys.viewKey @"Dependence") (\t -> if null t.rows then note "No Actor in this run has a fixed requirement." else titled grid t) ]
             }
         , Layout.section
             { title: "Whole-economy measures"

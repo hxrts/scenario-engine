@@ -16,7 +16,7 @@ A PremiseComposition is compiled to one composition directory and one file per P
 |---|---|
 | `compositions/<id>/<version>/composition.json` | The composition's id and version, and its Premises in order, each with its version. |
 | `compositions/<id>/<version>/instantiation.json` | The Instantiation Configuration ([04 §2](04_run.md#2-instantiation-configuration)). |
-| `compositions/<id>/<version>/presets.json` | The seat-strategy presets ([06 §4.2](06_simulator.md#42-presets)). |
+| `compositions/<id>/<version>/presets.json` | The seat-strategy presets ([07 §4.2](07_simulator.md#42-presets)), each a name and its `StrategyRules`. A composition writes its own. |
 | `premises/<id>/<version>.json` | One Premise: its id, its version, and the sections it writes. Every section is optional. |
 
 The loader reads the composition, reads each Premise, composes them in order into the one document the Premise format decodes, and checks the result ([§12.1](#121-load-pipeline)).
@@ -33,11 +33,11 @@ A Premise's sections are the keys of the document:
 
 Nothing is overwritten: there is no last-one-wins. A Premise adds Laws by writing them in its `rules` or `laws` sections, and a Premise may name what another Premise defines: every reference is checked on the composed result, so a name no Premise in the composition defines fails at load ([§12.2](#122-checks-implemented)).
 
-Representations are never assigned in a Premise section. Assignments come from the configuration ([04 §5](04_run.md#5-representation-assignment)). The test fixtures are described in [05 Part IV](05_meridian.md#part-iv-playtest-fixtures).
+Representations are never assigned in a Premise section. Assignments come from the configuration ([04 §5](04_run.md#5-representation-assignment)). The test fixtures are described in [05 Part IV](06_meridian.md#part-iv-playtest-fixtures).
 
 ## 3. Premise
 
-The header names the scenario and its time scale, and is written by one of a composition's Premises. It says which forces are relevant, not how they resolve. Meridian's values are in [05 §6](05_meridian.md#6-premisecomposition-meridian).
+The header names the scenario and its time scale, and is written by one of a composition's Premises. It says which forces are relevant, not how they resolve. Meridian's values are in [06 §6](06_meridian.md#6-premisecomposition-meridian).
 
 - **Identity.** A stable identifier and a version ([§13](#13-provenance-and-versioning)) for the composition and for each Premise. An optional label names one configuration of the composition, and a Run records the composition id and this label as its game id.
 - **Unit of account.** The numeraire is the Resource in which shares are paid.
@@ -51,7 +51,7 @@ A strategic tension among the forces a Premise models appears in it only through
 
 ## 4. Verticals
 
-A vertical is an authoring concept. A vertical report compiles into explicit configuration in [§5](#5-economic-structure) to [§9](#9-representation-schemes). Meridian's sectors appear only as the Resources, Exchanges, Transformations, and Actors they produce ([05 §7](05_meridian.md#7-economic-verticals)).
+A vertical is an authoring concept. A vertical report compiles into explicit configuration in [§5](#5-economic-structure) to [§9](#9-representation-schemes). Meridian's sectors appear only as the Resources, Exchanges, Transformations, and Actors they produce ([06 §7](06_meridian.md#7-economic-verticals)).
 
 ## 5. Economic Structure
 
@@ -111,7 +111,7 @@ All forms compile to one recurring rule, and a Resource's decay is one of them. 
 - Flow gates mark a Resource whose movement is gated. A gate exempts parties that share an Exchange for that Resource. It can also require that a bundled order on the named Transformation carries the Transfer. Unless the gate exempts the parties, and unless such an order carries the Transfer, the Transfer is refused. The bundling is compared at screening, on the candidate Transaction's own quantities, so it is a static refusal rather than a law guard ([§12.4](#124-static-refusals)).
 - Actor groups map an Actor to the Actor it counts as for flows Rules.
 - Rule kinds are declared by the Premise. A kind is a levy or a block, governed by the destination, the origin, or either (which fixes the Rule's direction), or a reduction, governed by the Resource's holder. Each kind has display text. A Premise with no kinds has no Rules.
-- Rules are the world laws a Premise authors as institutional conditions, each of a declared kind. A flows Rule scopes a governor, a counterparty, a direction, and at least one Resource it covers. Its effect is either a levy (a rate per unit or ad valorem on an Exchange, paid in a Resource to the destination, the governor, or a sink) or a block. A holding Rule reduces what can be drawn from a holder and changes no holding or flow. Rules in force at the start are listed with the game rules. A flows Rule applies to a Transfer between the groups it names, when it covers the Resource. A Block refuses the Transfer. A Levy charges it by its basis (per unit, or ad valorem on an Exchange's price), paid by the sender in the named Resource, to the recipient, to the governor, or to a sink. Levies do not enter clearing ([02 §5.5](02_kernel.md#55-simultaneous-clearing)) and apply only to Transfers, not to Exchange fills. A holding Rule removes its reduced units from what can be drawn from a holder. A Rule enacted during play needs the matching enactment capability ([§6](#6-actor-catalog)) and takes effect at the next round boundary ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). Meridian's kinds are in [05 §13.2](05_meridian.md#132-trade-restrictions-and-the-tariff).
+- Rules are the world laws a Premise authors as institutional conditions, each of a declared kind. A flows Rule scopes a governor, a counterparty, a direction, and at least one Resource it covers. Its effect is either a levy (a rate per unit or ad valorem on an Exchange, paid in a Resource to the destination, the governor, or a sink) or a block. A holding Rule reduces what can be drawn from a holder and changes no holding or flow. Rules in force at the start are listed with the game rules. A flows Rule applies to a Transfer between the groups it names, when it covers the Resource. A Block refuses the Transfer. A Levy charges it by its basis (per unit, or ad valorem on an Exchange's price), paid by the sender in the named Resource, to the recipient, to the governor, or to a sink. A flows Rule also applies to an Exchange trade, since a trade settles as pairs ([02 §5.5](02_kernel.md#55-simultaneous-clearing)) and each pair between two orders is a movement of the base from the seller to the buyer. A Block refuses the pair: neither the good nor the quote moves, each of its two orders is recorded as removed, `Blocked`, and the price is unchanged. A Levy is a third obligation of the pair, owed by the seller on the units moved and bound to the delivery, so one trade is charged once. A routed order pairs like any other, so a Rule cannot be passed by routing. The reserve has no jurisdiction, so no Rule applies to a pair with it: the engine does not infer the origin of what a reserve holds. The same check (`Laws.Engine.Screen.blockOf` and `leviesOn`) applies to a Transfer at screening, where its parties are known from the input, and to a pair once clearing has formed it. Levies do not enter clearing or escrow, so a levy never changes a price or a fill. A holding Rule removes its reduced units from what can be drawn from a holder. A Rule enacted during play needs the matching enactment capability ([§6](#6-actor-catalog)) and takes effect at the next round boundary ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). Meridian's kinds are in [06 §13.2](06_meridian.md#132-trade-restrictions-and-the-tariff).
 
 ### 5.6 Limits
 
@@ -121,7 +121,7 @@ The schema has no separate constraints. Limits come from reserves, capacities, E
 
 The Actor catalog sets who holds what, who can act, and how each Actor is governed. Each Actor has accounts (its holdings, by Resource) and capabilities. An Actor has exactly one of a definition, which makes it an explicit Actor, or an aggregate block, which makes it an Aggregate ([§12.2](#122-checks-implemented)). Only a World that defines no Actors at all, such as a fixture's, may hold an Actor with neither, which is an account only.
 
-The kinds of Capability are the authority to trade in an Exchange (`MayTrade`), transfer a Resource (`MayTransfer`), run a Transformation (`MayTransform`), or enact a Rule kind (`MayEnact`). Each is a pattern over Intents, and compiles to a `Holds` condition on the party ([02 §2.4](02_kernel.md#24-capability)). One matching function decides authorization for screening, the invariants and Strategies alike. It reads each Resource's transferability and the Rules in force. Enacting or repealing a Rule needs authority over its kind, and the acting Actor must govern it: the governor a flows Rule names, or the holder of the Resource a holding Rule reduces. A repeal names an existing Rule.
+The kinds of Capability are the authority to trade in an Exchange (`MayTrade`), transfer a Resource (`MayTransfer`), run a Transformation (`MayTransform`), or enact a Rule kind (`MayEnact`). Each is a pattern over Intents, and compiles to a `Holds` condition on the party ([02 §2.4](02_kernel.md#24-capability)). One matching function decides authorization for screening, the invariants and Strategies alike. It reads each Resource's transferability and the Rules in force. Enacting or repealing a Rule needs authority over its kind, and the acting Actor must govern it: the governor a flows Rule names, or the holder of the Resource a holding Rule reduces. A repeal names an existing Rule. Enacting a Rule equal to one already in force adds nothing at the boundary, so repeated enactments never accumulate, and one repeal removes it.
 
 ### 6.1 Projections
 
@@ -138,6 +138,7 @@ An Actor's definition sets:
 - whether the Actor is required. A required Actor must be selected.
 - whether a seat may control it. Default: yes.
 - the non-playable Actor Strategies that may drive it. The list may be empty.
+- its routine: an optional Strategy that runs beside whoever plays the seat, after them ([04 §6](04_run.md#6-strategy-initialization)). A routine names a Strategy of the catalog.
 - its fallback, which covers it when unselected ([§6.5](#65-fallbacks)). Every Actor that is not required needs one ([§12.2](#122-checks-implemented)).
 - an objective, a description with criteria ([§10.5](#105-evaluation)). Only its presence is checked.
 - a description and a dependency, both prose. A dependency must be declared.
@@ -176,18 +177,18 @@ The order in which fallbacks resolve is in [04 §3.2](04_run.md#32-fallback-reso
 
 ## 7. Structural Relationships
 
-This section says how the schema links Actors and Resources. The schema has no relationship list. Its links are the fields above: dependency (Transformation inputs and outputs, requirements, flows, shares), competition (Exchange access), authority (Actor groups, Rules, enactment capabilities), and membership (Aggregate members and procedures). Descriptive relationships belong in the Premise report ([05](05_meridian.md)) and do not change outcomes.
+This section says how the schema links Actors and Resources. The schema has no relationship list. Its links are the fields above: dependency (Transformation inputs and outputs, requirements, flows, shares), competition (Exchange access), authority (Actor groups, Rules, enactment capabilities), and membership (Aggregate members and procedures). Descriptive relationships belong in the Premise report ([06](06_meridian.md)) and do not change outcomes.
 
 ## 8. Strategy Catalog
 
 The Strategy catalog is a reference for what a Strategy can express. It maps each Strategy id to its `StrategyRules`: a list of rules and a sign clause, written in the shared decision language ([§8.1](#81-shared-interpreter)). These Strategies are declarative and fixed for a Run. The names their `StrategyRules` use are checked against the Premise ([§12.1](#121-load-pipeline)).
 
-- Conditions read only the Strategy's View: prices, its own holdings, stored Representation factors, the round, the parameters, last round's events and records, and the Rules in force.
+- Conditions read only the Strategy's View: prices, its own holdings, stored Representation factors, the round, the parameters, last round's events and records, and the Rules in force. Three expressions read what the Actor is committed to: `due` (what its fixed recurring flows take of a Resource each round), `scheduled` (what scheduled Flows still pending will deliver of a Resource to it), and `planned` (what the Transforms it has put forward this round consume of a Resource: those its seat's speech carried, and those its earlier clauses drafted; an order counts no more than its Transformation's maximum, since no more can settle). Clauses run in the order written, so a later clause can sell what an earlier one did not commit.
 - Rules can place exchange and Transformation orders, propose joint candidate Transactions that bundle transfers and transforms, and propose collective procedures. They can enact a declared Rule kind, repeal a Rule the Actor governs, mirror each Rule a condition finds back onto its governor, enter an agreement, or make a seeded choice among options.
 - Sign clauses cover procedures, Transformations, named agreement templates, or everything addressed to the Actor. Each may be guarded by conditions.
 - Exchange references name an Exchange by id, or select among the Exchanges the Actor can access that have a Resource as base: each one, the cheapest, or the costliest at the beginning-of-round price. Ties go to the first Exchange by id, and an Exchange with no price is not a candidate. A clause with selectors is instantiated once per Exchange picked, in id order. Several selectors range over the product of their picks. A selector that picks nothing instantiates nothing, which is not an error. A sign condition holds when any instantiation holds.
 
-Strategies are referenced by an Actor's list of non-playable Actor Strategies, by an Aggregate's baseline, and by a Strategy fallback ([§6.5](#65-fallbacks)). Seat presets are bound outside the Premise ([06 §4](06_simulator.md#4-seat-strategies)).
+Strategies are referenced by an Actor's list of non-playable Actor Strategies, by an Aggregate's baseline, and by a Strategy fallback ([§6.5](#65-fallbacks)). Seat presets are bound outside the Premise ([07 §4](07_simulator.md#4-seat-strategies)).
 
 ### 8.1 Shared interpreter
 
@@ -251,7 +252,7 @@ A Rule is either a flows Rule (its effect is a Levy or a Block, over a scope of 
 
 Each explicit Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
 
-The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, and the volume of a Transformation. Each is a measure of named Actors; the economy as a whole is read through the whole-economy views ([06 §11](06_simulator.md#11-experiments)).
+The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, and the volume of a Transformation. Each is a measure of named Actors; the economy as a whole is read through the whole-economy views ([07 §11](07_simulator.md#11-experiments)).
 
 ## 11. Initialization Constraints
 
@@ -332,7 +333,7 @@ Every other rejection is decided on a condition or by a solver in the settlement
 A Premise is authored with typed builders in the Premise DSL, and the compiler writes it as a Premise file. Three operations reshape the authored source, and all three are read-only over it:
 
 - Composition combines Premises in order into a PremiseComposition ([§2](#2-premises-and-compositions)). Premises not written for each other compose as long as they do not define one thing differently and every name they use is defined by some Premise in the composition. Two Premises defining one thing differently fail at load, with an error naming both Premises and the thing.
-- Derivation changes the values of a base composition, through dials and named patches, to make a variant. It is not the derivation of a Run ([06 §8.1](06_simulator.md#81-read-api-and-run-operations)). A patch fails when its key is missing.
+- Derivation changes the values of a base composition, through dials and named patches, to make a variant. It is not the derivation of a Run ([07 §8.1](07_simulator.md#81-read-api-and-run-operations)). A patch fails when its key is missing.
 - Filtering keeps a subset of a composition. It fails if what is kept refers to what was dropped.
 
 The compiler checks each composition ([§12.1](#121-load-pipeline)) before writing it. Each composition has its own directory, and each Premise its own file; a Premise id and version compiled by two compositions must be one Premise. Compiled JSON is generated, so edit the authored source and never the output.
@@ -348,7 +349,7 @@ The authored vocabulary lives with its compile step, in `packages/laws`. Each it
 
 | Vocabulary | Kernel value | Written by |
 |---|---|---|
-| Trade, routed Trade | One transaction per fill: base and quote settled Flows at the Exchange's cleared rate. Routing and clearing are solvers. | `fillTransaction`, `Core.Kernel.Route`, `Core.Kernel.Clear` |
+| Trade, routed Trade | One transaction per cleared pair: the delivery of the base and the payment of the quote at the cleared rate, bound `Whole` to each other, with any levy bound to the delivery. Routing and clearing are solvers, and clearing forms the pairs. | `pairTransaction`, `Core.Kernel.Route`, `Core.Kernel.Clear` |
 | Transform | A transaction of payment, input and output settled Flows. Outputs need the inputs held. Payment caps at what is held, with owed and moved recorded. | `transformTransaction` |
 | Draw, reservation | A funding claim on the stock, held for the round and released at commit. It moves nothing. | `Laws.Engine.Fund` |
 | Transfer | A transaction of one settled Flow that caps at what is held. | `payTransaction` |

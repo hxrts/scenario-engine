@@ -1,4 +1,4 @@
--- | Declarative overrides of a baseline premise (docs/06_simulator.md §3.1). Values change within the
+-- | Declarative overrides of a baseline premise (docs/07_simulator.md §3.1). Values change within the
 -- | composition's structure; none touches engine code. `resolve` applies them; `encodeOverrides` and
 -- | `decodeOverrides` are their JSON form, which a stored run keeps in its spec and the read API takes in
 -- | a counterfactual's body, so both directions use this one encoding.

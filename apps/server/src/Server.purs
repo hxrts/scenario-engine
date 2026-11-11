@@ -1,4 +1,4 @@
--- | The server's composition root (docs/06_simulator.md §8–§10): parses the flags, loads the compositions, opens the
+-- | The server's composition root (docs/07_simulator.md §8–§10): parses the flags, loads the compositions, opens the
 -- | Run Store, and serves the `API` on the port through `Handlers.Api.Route`. The operations are programs in
 -- | `Server.Implementation`; `Server.Stack` closes them over the devices.
 module Server (main) where

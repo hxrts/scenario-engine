@@ -1,4 +1,4 @@
--- | The Run Store over a SQL device (docs/06_simulator.md §8): the schema, every statement, and the
+-- | The Run Store over a SQL device (docs/07_simulator.md §8): the schema, every statement, and the
 -- | encoding and decoding of the stored columns. Append-only: rows are only inserted, and a run's status,
 -- | its failure reason, its archive flag and its spec are the only values that change.
 module Handlers.SqlStore
@@ -48,7 +48,7 @@ schema =
      spec text not null, manifest text not null, created text not null,
      reason text,
      archived integer not null default 0, -- 1 hides a run from the default list
-     source text, -- the run this one was derived from (docs/06_simulator.md §10.4)
+     source text, -- the run this one was derived from (docs/07_simulator.md §10.4)
      owner text not null); -- the process that created the run (role:pid:start time)
    create table rounds (
      run text not null, round integer not null, record text not null, snapshot text not null,
@@ -65,7 +65,7 @@ setsTable :: String
 setsTable = "create table if not exists run_sets (name text primary key, baseline text not null, runs text not null)"
 
 schemaVersionCurrent :: Int
-schemaVersionCurrent = 10
+schemaVersionCurrent = 11
 
 -- | The store's schema version.
 schemaVersion :: SqlDevice -> Effect Int

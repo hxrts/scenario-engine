@@ -1,5 +1,5 @@
 -- | Meridian's in-world Strategy catalog: the China non-playable Actor, Aggregate baselines, and
--- | institutional fallbacks (docs/05_meridian.md §11). `just _premises` compiles it to
+-- | institutional fallbacks (docs/06_meridian.md §11). `just _premises` compiles it to
 -- | `packages/premises/meridian/v0/strategies.json`.
 module Premises.Meridian.Strategies (strategies) where
 

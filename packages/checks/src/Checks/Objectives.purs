@@ -1,4 +1,4 @@
--- | Objective evaluation (docs/03_premise.md §10.5; docs/06_simulator.md §10.5): every Actor's
+-- | Objective evaluation (docs/03_premise.md §10.5; docs/07_simulator.md §10.5): every Actor's
 -- | objective criteria measured over a run's round records, each met, not met, or not evaluated.
 -- | Pure, and never affects the economy.
 module Checks.Objectives

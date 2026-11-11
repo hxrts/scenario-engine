@@ -1,4 +1,4 @@
--- | The comparison views (docs/06_simulator.md §10): whether runs are comparable, their final
+-- | The comparison views (docs/07_simulator.md §10): whether runs are comparable, their final
 -- | holdings side by side, differences from a baseline, configuration differences, and the agency
 -- | analysis. The key values and the charts read typed values from the views that define them, never
 -- | a rendered cell. Pure.
@@ -35,9 +35,10 @@ import Data.Tuple (Tuple(..), fst)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
 import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
-import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, unitOf, cellOf, tableOf)
+import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, ratio, unitOf, cellOf, tableOf)
 import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
+import Views.Dependence (cumulativeReceipts, cumulativeShortfall, finalCoverage, requirementsOf)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -166,7 +167,7 @@ baselineDiff base others =
 differsFromBaseline :: forall a. Eq a => Array StoredRun -> (StoredRun -> a) -> Array Boolean
 differsFromBaseline runs value = map (\r -> Just (value r) /= (value <$> head runs)) runs
 
--- | What kind of entry a configuration row is (docs/06_simulator.md §10.2): versions, the seat
+-- | What kind of entry a configuration row is (docs/07_simulator.md §10.2): versions, the seat
 -- | Strategy, the seeds, or a deliberate change. Listed in that order.
 data Category = Version | SeatStrategy | Seeds | Other
 
@@ -249,7 +250,7 @@ keyValues :: (StoredRun -> Maybe PremiseComposition) -> Array StoredRun -> Table
 keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs
-  , rows: concat [ perPlayer, measureRows, objectiveRows, [ rejectedRow ], priceRows ]
+  , rows: concat [ perPlayer, measureRows, objectiveRows, [ rejectedRow ], priceRows, dependenceRows ]
   }
   where
   -- each run's values, read once, so a row's cells only look up
@@ -294,8 +295,17 @@ keyValues boardOf runs =
   exchangeUnitOf m = fromMaybe "" (head (mapMaybe (\r -> hush (exchangeUnit m r)) runs))
   priceIn m v = maybe "—" (price <<< _.price) (find (\p -> p.exchange == m) v.prices)
 
+  -- prosperity, autonomy and coercion (docs/07 §10.3): what each Actor was paid for its sales, how much of each
+  -- fixed requirement its own capacity covers at the end, and what it went short over the run. Between a run
+  -- and its counterfactual without a restriction, the shortfall row is the restriction's realized effect.
+  requirements = nub (concatMap (\r -> map (\q -> { actor: q.actor, resource: q.resource }) (requirementsOf (final r))) runs)
+  dependenceRows =
+    map (\p -> row [ "Receipts from sales, " <> show p, numeraireUnit runs ] (\v -> quantity (cumulativeReceipts v.run p))) (playerIds runs)
+      <> map (\q -> row [ "Final coverage, " <> show q.actor <> " " <> show q.resource, "share of the requirement" ] (\v -> maybe "—" (ratio <<< finalCoverage (final v.run)) (find (\x -> x.actor == q.actor && x.resource == q.resource) (requirementsOf (final v.run))))) requirements
+      <> map (\q -> row [ "Shortfall over the run, " <> show q.actor <> " " <> show q.resource, maybe "" (\r -> unitOf r q.resource) (head runs) ] (\v -> quantity (cumulativeShortfall v.run q.actor q.resource))) requirements
+
 -- | One chart per Player: its net worth in each run, one line per run, from round 0 to the final round.
--- | A round where a run has no such Player has no point (docs/06_simulator.md §10.2).
+-- | A round where a run has no such Player has no point (docs/07_simulator.md §10.2).
 -- | The Player is the record's key, so a view can show one Player's chart.
 netWorthCharts :: Array StoredRun -> Array { player :: String, chart :: Chart }
 netWorthCharts runs = map chartOf (playerIds runs)

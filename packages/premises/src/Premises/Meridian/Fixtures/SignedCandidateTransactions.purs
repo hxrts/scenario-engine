@@ -1,4 +1,4 @@
--- | Golden fixtures for signed proposals (docs/05_meridian.md §27, Fixture G): transfers
+-- | Golden fixtures for signed proposals (docs/06_meridian.md §27, Fixture G): transfers
 -- | between Saudi Arabia, Japan, Germany, the shipping transformation and the other Actors, settled
 -- | atomically when fully signed and lapsed otherwise; G3-ban runs under an access ban (§3.2).
 -- | Fixtures G1, G2, G3-ban, G3, G4, G5-unsigned and G5.

@@ -1,4 +1,4 @@
--- | A batch's summary (docs/06_simulator.md §11): the final measures across a set of runs, with their mean, their
+-- | A batch's summary (docs/07_simulator.md §11): the final measures across a set of runs, with their mean, their
 -- | spread, and how many runs met each explicit Actor's objective. Pure: every value is read from the runs.
 module Views.Batch (batchSummary, measureRow, objectiveRow, columns) where
 

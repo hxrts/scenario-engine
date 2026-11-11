@@ -1,4 +1,4 @@
--- | Player standings (docs/06_simulator.md §9.2): each Actor's net worth in M at each round's
+-- | Player standings (docs/07_simulator.md §9.2): each Actor's net worth in M at each round's
 -- | marketable prices, its change from the start, its rank, and the net-worth chart. This module is
 -- | the one definition of net worth; the balance measures and the seed variation read it. Pure.
 module Views.Standings

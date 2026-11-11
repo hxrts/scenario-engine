@@ -57,7 +57,7 @@ assemble premise bindings overrides = case premise of
       , world: initial.world
       , inWorld: inWorldOf resolved.composition
       , rounds: resolved.config.rounds
-      , seats: bindings
+      , seats: withRoutines resolved.composition bindings
       }
   FromLiteral p
     | not (null overrides) -> Left LiteralOverrides
@@ -72,7 +72,15 @@ assemble premise bindings overrides = case premise of
           , seats: bindings
           }
 
--- | Every configured seat has exactly one binding and nothing else is bound (docs/06 §4.3): a binding
+-- | Each seat whose Actor definition names a routine plays it after its player (docs/04 §6). A Script is a
+-- | seat's literal whole input, so it is never composed.
+withRoutines :: PremiseComposition -> Bindings -> Bindings
+withRoutines gb = Map.mapMaybeWithKey \e b -> Just case b, Map.lookup e gb.explicitActors >>= _.routine >>= \s -> Map.lookup s gb.strategies of
+  Script _, _ -> b
+  _, Just routine -> Composed { routine, player: b }
+  _, Nothing -> b
+
+-- | Every configured seat has exactly one binding and nothing else is bound (docs/07 §4.3): a binding
 -- | for a non-playable Actor, an Aggregate, or an unknown id is an error, and so is a seat left unbound.
 checkSeats :: Array ActorId -> Bindings -> Either AssemblyError Unit
 checkSeats seats bindings = do

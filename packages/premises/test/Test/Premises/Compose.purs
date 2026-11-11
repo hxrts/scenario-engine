@@ -22,7 +22,7 @@ import Assembly.Restrict (everything, restrict)
 import Premises.Load (composedOf, loadFrom, parts)
 import Premises.Compose (ComposeError(..), CompositionSource, Premise, compose, files, renderComposeError)
 import Premises.Tree as Tree
-import Premises.Kit.Presets (standardThresholds)
+import Premises.Kit.Presets (presetsOf, standardThresholds)
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Data.Argonaut.Parser (jsonParser)
@@ -31,6 +31,7 @@ import Data.Newtype (unwrap)
 import Partial.Unsafe (unsafeCrashWith)
 import Premises.Meridian (defaultDials, composition, meridian)
 import Premises.Meridian.Names (n)
+import Premises.Pacific as Pacific
 import Schema.Premise.Composition (configShape, compositionShape)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -87,7 +88,7 @@ source premises =
   , version: "v0"
   , premises
   , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
-  , presets: { staple: Id "G", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
+  , presets: presetsOf { staple: Id "G", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
   }
 
 -- File operations over compiled files in memory.
@@ -170,6 +171,29 @@ spec = do
       case unwrap (loadFrom (memoryOps (files bad)) "meridian/v0") of
         Left e -> e `shouldEqual` "composition meridian: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
         Right _ -> fail "a conflict must fail the load"
+
+  describe "Pacific (docs/05 §2)" do
+    let pacific = Pacific.pacific Pacific.defaultDials
+    it "its two Premises compose with no conflict and check" do
+      map (const unit) (parts pacific) `shouldEqual` Right unit
+    it "bilateral-economy alone is a whole economy with no bans or investments" do
+      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [] } of
+        Left e -> fail e
+        Right p -> do
+          Map.size p.composition.world.transformations `shouldEqual` 0
+          Map.size p.composition.world.ruleKinds `shouldEqual` 0
+    it "strategic-dependence alone fails only on the Actors the other Premise defines" do
+      case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
+        Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"
+        Right _ -> fail "the strategic Premise extends Actors it does not define"
+    it "strategic-dependence adds each country's ban and investment by extension" do
+      case parts pacific of
+        Left e -> fail e
+        Right p -> map _.capabilities (Map.lookup (Id "US") p.composition.world.actors) `shouldEqual` map _.capabilities (Map.lookup (Id "US") Pacific.composition.world.actors)
+    it "a dial changes only its number: China's lead time 3 is a delay of 3" do
+      let d = Pacific.compositionWith Pacific.defaultDials { cnInvestment = Pacific.defaultDials.cnInvestment { delay = 3 } }
+      map _.delay (Map.lookup (Id "cn-technology-investment") d.world.transformations) `shouldEqual` Just 3
+      map _.delay (Map.lookup (Id "us-industrial-investment") d.world.transformations) `shouldEqual` Just 1
 
   describe "restrict" do
     it "keeping everything is the identity" do

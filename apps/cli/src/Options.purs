@@ -1,4 +1,4 @@
--- | The command-line options of `run` and `session` (docs/06 §6.2), from their parsed flags. A bad value
+-- | The command-line options of `run` and `session` (docs/07 §6.2), from their parsed flags. A bad value
 -- | is a usage error; `Main` reports it and exits 1.
 module Options
   ( RunOptions

@@ -1,5 +1,5 @@
 -- | The round-scoped views: every Actor's balance sheet after a round, and one round's events
--- | (docs/06_simulator.md §9.2). A round the run does not have is an error, never the initial state.
+-- | (docs/07_simulator.md §9.2). A round the run does not have is an error, never the initial state.
 module Views.Balances
   ( balances
   , events

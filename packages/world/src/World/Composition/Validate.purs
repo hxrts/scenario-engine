@@ -152,7 +152,7 @@ compositionRefs gb config =
   concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective explicitActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
     <> map (name RefActor) (concatMap coverageOf fallbacks)
     <> concatMap (\s -> [ name RefActor s.target ] <> map (name RefActor) s.eligibleActors <> [ name RefResource s.observes ]) gb.schemes
-    <> map (name RefStrategy) (map _.strategy (mapMaybe aggregateOf (values gb.world.actors)) <> concatMap _.nonPlayableActor explicitActors <> concatMap institutional fallbacks)
+    <> map (name RefStrategy) (map _.strategy (mapMaybe aggregateOf (values gb.world.actors)) <> concatMap _.nonPlayableActor explicitActors <> mapMaybe _.routine explicitActors <> concatMap institutional fallbacks)
   where
   explicitActors = values gb.explicitActors
   -- an institutional fallback binds a catalog Strategy, declared or overridden in the configuration

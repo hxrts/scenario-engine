@@ -1,4 +1,4 @@
--- | The server's handler of the `API` row (docs/06_simulator.md §8–§10): what each operation does, as a program
+-- | The server's handler of the `API` row (docs/07_simulator.md §8–§10): what each operation does, as a program
 -- | over the Run Store and the system rows. The paths, methods, and body decoding are `Handlers.Api.Route`'s;
 -- | this module supplies only each operation's semantics, from `Server.Read`, `Server.Launch`, and
 -- | `Server.Derive`. Reads of a run go through the cache of decoded runs; every write clears it first.

@@ -1,4 +1,4 @@
--- | *Meridian* (docs/05_meridian.md), a PremiseComposition authored in the premise DSL.
+-- | *Meridian* (docs/06_meridian.md), a PremiseComposition authored in the premise DSL.
 -- | `just _premises` compiles it to `packages/premises/compositions/meridian/v0/` and one file per Premise.
 --
 -- | non-playable Actor list decision (Packet F): the instantiation `npcs` is written by hand, and it is
@@ -37,7 +37,7 @@ import Schema.Build.Quantity (q)
 import Schema.Build.World (emptyWorld)
 import Premises.Compose (CompositionSource, pick)
 
-import Premises.Kit.Presets (PresetBinding, standardThresholds)
+import Premises.Kit.Presets (PresetBinding, presetsOf, standardThresholds)
 import Schema.Build.Decision (lit)
 import Schema.Composition (PremiseComposition, InstantiationConfig)
 import Schema.Premise.Composition (compositionShape)
@@ -49,7 +49,7 @@ import Premises.Meridian.Exchanges (exchanges, flowGates, groups)
 import Premises.Meridian.Transformations (transformations)
 import Premises.Meridian.Circulation (flows, requirements, circulation)
 
--- | The game seed of the reference instance (docs/05_meridian.md §14). It is the only
+-- | The game seed of the reference instance (docs/06_meridian.md §14). It is the only
 -- | in-world seed; fixtures and golden tests use it too.
 gameSeed :: Int
 gameSeed = 26021
@@ -59,7 +59,7 @@ years :: Int
 years = 5
 
 -- | The test-instance label of the reference game: its game id is `meridian/<label>`
--- | (docs/05_meridian.md §14).
+-- | (docs/06_meridian.md §14).
 testLabel :: String
 testLabel = "meridian-test-01"
 
@@ -156,7 +156,7 @@ meridian d =
   , version: meridianVersion
   , premises: map (\c -> pick { id: c.id, version: meridianVersion } whole c.entire c.named) cuts
   , config: instantiation
-  , presets: presetBinding
+  , presets: presetsOf presetBinding
   }
   where
   whole = fromMaybe Object.empty (toObject (encodeWith Authored compositionShape (compositionWith d)))

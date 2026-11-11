@@ -1,4 +1,4 @@
--- | The manage actions on a run's page (docs/06_simulator.md §9.2): derive, resume, archive, and delete. Each
+-- | The manage actions on a run's page (docs/07_simulator.md §9.2): derive, resume, archive, and delete. Each
 -- | action sends one request through the client. A bad form is shown without a request; a rejected request
 -- | shows the server's message; a success refreshes this run, or opens the Runs page after a delete.
 -- | Nothing here decides what an action does: derive sends its kind's fields, and the server decides.

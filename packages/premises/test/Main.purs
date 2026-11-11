@@ -1,4 +1,4 @@
--- | Pins: premise section JSON (docs/03) and Meridian's catalog values (docs/05 §2 to §18).
+-- | Pins: premise section JSON (docs/03) and Meridian's catalog values (docs/06 §2 to §18).
 module Test.Premises.Main where
 
 import Testkit.Meridian (orThrow)
@@ -58,7 +58,7 @@ import Assembly.Composition (CompositionParts, checkComposition)
 import Data.Bifunctor (lmap)
 import Premises.Compose (CompositionSource, presetsJson) as Compose
 import Premises.Meridian (defaultDials, composition, meridian)
-import Premises.Meridian.Fixtures (fixtures)
+import Premises.Fixtures (fixtures)
 import Schema.Premise.Composition (compositionShape)
 import Premises.Meridian.Strategies (strategies)
 import Test.Premises.Compose (spec) as Compose
@@ -76,7 +76,7 @@ import Testkit.Json (json)
 namesOf :: RefKind -> Array (Tuple RefKind String) -> Array String
 namesOf kind = map snd <<< filter ((_ == kind) <<< fst)
 
--- | Initial holdings of the reference instance (docs/05_meridian.md §15), restated as literals
+-- | Initial holdings of the reference instance (docs/06_meridian.md §15), restated as literals
 -- | on purpose: a cross-check against `Premises.Meridian.Holdings`, not a copy of it.
 holdings :: Array { actor :: String, m :: Int, e :: Int, mil :: Int, s :: Int }
 holdings =
@@ -141,7 +141,7 @@ chinaView = observe w (fromMaybe' (\_ -> unsafeCrashWith "no CN") (Map.lookup (I
 
 -- | An environment whose every draw is `u`.
 envWith :: View -> Q -> Env
-envWith v u = { view: v, params: Object.empty, random: const u, exchange: nameOnly }
+envWith v u = { view: v, params: Object.empty, random: const u, exchange: nameOnly, planned: [] }
 
 -- | The Strategy named in the catalog, decoded.
 strategyNamed :: PremiseComposition -> String -> Aff StrategyRules

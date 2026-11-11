@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The three layers for impure work (docs/07 §1): which modules may touch a device, and what a device may know.
+// The three layers for impure work (docs/08 §1): which modules may touch a device, and what a device may know.
 //   impurity.js            check the tree; a hit outside scripts/check/impurity.allow fails
 //   impurity.js --list     print every hit, allowed or not
 //   impurity.js --samples  run each rule on its samples in scripts/check/samples/impurity

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Fails if a workspace package depends outside its allowed set (docs/07_architecture.md §3), if a pure
+// Fails if a workspace package depends outside its allowed set (docs/08_architecture.md §3), if a pure
 // package depends on an effectful library, or if a source file imports a module its layer may not
-// import (docs/07 §3 and §5; the rule set is). Declared dependencies come from spago.yaml; the
+// import (docs/08 §3 and §5; the rule set is). Declared dependencies come from spago.yaml; the
 // import rules read the `import` lines of each package's src/ tree. A declared dependency no module of
 // its section imports is an error, read through the installed sources under .spago/p (so build first).
 const fs = require("fs");
@@ -40,9 +40,9 @@ const impure = (d) => ["effect", "aff", "run"].includes(d) || d.startsWith("node
 // Import rules for source modules, checked on the `import` lines of each src/ file.
 // A pure module imports no effect, runner, node, adapter, handler or effect-declaration module.
 const IMPURE_MODULE = /^(Effect(\.|$)|Run(\.|$)|Node\.|Adapters\.|Handlers\.|Effects\.)/;
-// Adapters import only these named backend record types from handlers (docs/07 §4).
+// Adapters import only these named backend record types from handlers (docs/08 §4).
 const ADAPTER_HANDLER_IMPORTS = { "Handlers.Sql": ["SqlDevice", "SqlValue"] };
-// From effects, adapters import types only: the rows and operations are a handler's to interpret (docs/07 §4).
+// From effects, adapters import types only: the rows and operations are a handler's to interpret (docs/08 §4).
 const isTypeImport = (n) => /^[A-Z]/.test(n) && !n.includes("..");
 
 // Each rule: which src files it covers (by package, and optionally by path under src/), what it forbids.
@@ -53,7 +53,7 @@ const rules = [
     forbid: (m) => /^Data\.Argonaut(\.|$)/.test(m) },
   { name: "schema holds no realization: it imports no board or strategy module", packages: ["schema"],
     forbid: (m) => /^(World|Strategy|Premises|Assembly)(\.|$)/.test(m) },
-  { name: "the views are pure: no simulation, game, experiments, testkit, or effect module (docs/07 §3)", packages: ["views"],
+  { name: "the views are pure: no simulation, game, experiments, testkit, or effect module (docs/08 §3)", packages: ["views"],
     forbid: (m) => /^(Assembly|Experiments|Testkit|Premises|Handlers|Adapters)(\.|$)/.test(m) || IMPURE_MODULE.test(m) },
   { name: "experiments are pure: of handlers they use only the pure simulate (Handlers.Simulate), and present through views; no board, strategy, effect, or testkit module", packages: ["experiments"],
     forbid: (m) => m !== "Handlers.Simulate" && (/^(World|Strategy|Premises|Handlers|Adapters|Testkit)(\.|$)/.test(m) || IMPURE_MODULE.test(m)) },
@@ -178,7 +178,7 @@ for (const dir of dirs) {
   // board and strategy meet in game (§12.3); the declarations and interpreters that take both
   // (effects, handlers, adapters) are listed, and no domain package (premises, views, experiments, testkit) is
   if (deps.includes("sp-world") && deps.includes("sp-strategy") && !["assembly", "effects", "handlers", "adapters"].includes(name)) {
-    errors.push(`${name} depends on both board and strategy: they meet only in game, and in the interpreters docs/07 §3 lists`);
+    errors.push(`${name} depends on both board and strategy: they meet only in game, and in the interpreters docs/08 §3 lists`);
   }
 
   // import-level rules, over the src/ tree of this package

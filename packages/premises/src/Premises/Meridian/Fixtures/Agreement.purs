@@ -1,4 +1,4 @@
--- | Golden fixture for an agreement entered during play (docs/05_meridian.md §27, Fixture H): a loan that
+-- | Golden fixture for an agreement entered during play (docs/06_meridian.md §27, Fixture H): a loan that
 -- | settles over three rounds. Expected values are literals from the worked example.
 module Premises.Meridian.Fixtures.Agreement (fixtureH) where
 

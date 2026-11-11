@@ -38,7 +38,7 @@ sideShape = nameShape "Side" "incoming, outgoing or netOutgoing" name [ Incoming
 
 causeShape :: Shape CausePattern
 causeShape = genericPremiseSum "CausePattern"
-  { "CurveBase": atBare { tag: "curveBase", desc: "the base leg of a settlement along an Exchange's curve" }
+  { "CurveBase": atBare { tag: "curveBase", desc: "the base leg of a pair an Exchange cleared" }
   , "TransformationPayment": atBare { tag: "transformationPayment", desc: "a transformation's payment leg" }
   , "TransformationOf": atOneKey "transformationOf" "transformationFills of this Transformation" idShape
   }

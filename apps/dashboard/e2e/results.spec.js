@@ -1,4 +1,4 @@
-// The record sections of the run page (docs/06_simulator.md §9.2). The views are mocked with rows of the shapes the
+// The record sections of the run page (docs/07_simulator.md §9.2). The views are mocked with rows of the shapes the
 // server answers, so a row is present whichever run was seeded.
 import { test, expect } from "@playwright/test";
 import { json, mockReads, isPath } from "./mocks.js";

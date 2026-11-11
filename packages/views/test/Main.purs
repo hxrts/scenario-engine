@@ -10,6 +10,7 @@ import Testkit.Meridian (meridianParts)
 import Test.Views.Capstone as CapstoneTests
 import Test.Views.Statistics as StatTests
 import Test.Views.Views as ViewTests
+import Test.Views.Dependence as DependenceTests
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
@@ -18,3 +19,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   ViewTests.spec meridianParts
   StatTests.spec meridianParts
   CapstoneTests.spec meridianParts
+  DependenceTests.spec

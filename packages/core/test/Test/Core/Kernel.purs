@@ -3,6 +3,7 @@ module Test.Core.Kernel (kernel) where
 
 import Prelude
 
+import Core.Kernel.Clear (Side(..), clearSolvent)
 import Core.Kernel.Post (Account(..), Outcome(..), available, post)
 import Core.Kernel.Consume (ConsumeError(..), due, partiesOf, spawned, validateTemplates)
 import Core.Kernel.Resolve (Fate(..), Kernel, resolve)
@@ -34,6 +35,29 @@ b = Held (Id "B")
 
 kernel :: Spec Unit
 kernel = describe "Core.Kernel" do
+  describe "Clear: pairs" do
+    let
+      order actor quantity = { actor: Id actor :: ResourceId, quantity: q quantity, limitPrice: Nothing }
+      exchangeWith reserves lo = { id: Id "x", base: Id "G", quote: m, cost: { intercept: q "1", slope: q "0", domain: { lo: q lo, hi: q "100" } }, position: q "0", reserves, access: [] }
+      matched = exchangeWith Map.empty "0"
+      sideOf = case _ of
+        Party o -> show o.actor
+        Reserve -> "reserve"
+      shown r = map (\x -> Tuple (sideOf x.buyer <> "<-" <> sideOf x.seller) x.quantity) r.pairs
+    it "with no reserves only orders pair: each buyer takes pro rata from what each seller has left" do
+      let r = clearSolvent matched [ order "B" "6", order "C" "4", order "S" "-6", order "T" "-4" ]
+      shown r `shouldEqual` [ Tuple "B<-S" (q "3.6"), Tuple "B<-T" (q "2.4"), Tuple "C<-S" (q "2.4"), Tuple "C<-T" (q "1.6") ]
+    it "with no reserves the long side is rationed and no pair takes more than the short side gives" do
+      let r = clearSolvent matched [ order "B" "4", order "S" "-10" ]
+      shown r `shouldEqual` [ Tuple "B<-S" (q "4") ]
+    it "with no buyer nothing pairs" do
+      shown (clearSolvent matched [ order "S" "-6" ]) `shouldEqual` []
+    it "the reserve takes the net: buys beyond the sellers pair with it" do
+      let r = clearSolvent (exchangeWith (Map.fromFoldable [ Tuple (Id "G") (q "50"), Tuple m (q "50") ]) "-100") [ order "B" "6", order "S" "-2" ]
+      shown r `shouldEqual` [ Tuple "B<-S" (q "2"), Tuple "B<-reserve" (q "4") ]
+    it "every fill is the sum of its pairs, to the last grid unit" do
+      let r = clearSolvent matched [ order "B" "1", order "C" "1", order "D" "1", order "S" "-1", order "T" "-1", order "U" "-1" ]
+      Q.sumQ (map _.quantity r.pairs) `shouldEqual` q "3"
   describe "Post" do
     it "a leg within what is held moves whole, debiting and crediting" do
       let p = post opening Cap { from: a, to: b, resource: m, owed: q "6" } Map.empty

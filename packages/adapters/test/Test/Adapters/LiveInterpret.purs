@@ -1,4 +1,4 @@
--- | The one-off, billed check of the joint pass against the real `pi` backend (docs/06 §14). It
+-- | The one-off, billed check of the joint pass against the real `pi` backend (docs/07 §14). It
 -- | makes exactly one model call over a fixed set of transcripts, and checks that the reply
 -- | decodes and that the two transcripts that describe one joint candidate Transaction reconcile into one candidate Transaction with
 -- | both seats signing. It is not part of any suite (`spago test -p`, `just test`, `just check`,

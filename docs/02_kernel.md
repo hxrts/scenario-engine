@@ -4,7 +4,7 @@
 
 The kernel says what any World can be made of: Stocks, Flows, Laws over them, and Transactions of conditional Obligations ([§3](#3-the-kernel)). A PremiseComposition describes a set of possible Worlds in those terms ([03](03_premise.md)), and a Run realizes one of them ([04](04_run.md)). This document specifies the kernel and the economic types every PremiseComposition shares. The kernel decides no trade, signature, procedure or schedule: those are vocabulary a PremiseComposition authors, and they compile to kernel values ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
 
-The anchors are defined in [01 Terms](01_overview.md#terms). The reference PremiseComposition is in [05](05_meridian.md), and the simulator in [06](06_simulator.md).
+The anchors are defined in [01 Terms](01_overview.md#terms). The reference PremiseComposition is in [06](06_meridian.md), and the simulator in [07](07_simulator.md).
 
 ## 2. Core Ontology
 
@@ -14,7 +14,7 @@ The sections below specify the anchors and the types built on them: Actor and it
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [05 §9](05_meridian.md#9-actor-catalog) and [§10](05_meridian.md#10-aggregate-catalog).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [06 §9](06_meridian.md#9-actor-catalog) and [§10](06_meridian.md#10-aggregate-catalog).
 
 ### 2.2 Three projections of an Actor
 
@@ -134,11 +134,11 @@ This section says what a Strategy sees and returns. A Strategy produces the engi
 
 **Strategy + View + Turn → input**
 
-A View is what a Strategy sees at the start of a round: its own Actor, prices, the laws in force, transferability, the events so far, stored adjustment factors, the input awaiting its consent, the pending transactions it owes or is owed ([§3.4](#34-successors)), the Exchanges it can access, the templates that can be entered, and the known Actors and the authored actions and bounds that apply to them. A Strategy never sees the World.
+A View is what a Strategy sees at the start of a round: its own Actor, prices, the laws in force, transferability, the events so far, stored adjustment factors, the input awaiting its consent, the pending transactions it owes or is owed ([§3.4](#34-successors)), the Exchanges it can access, the templates that can be entered, the known Actors and the authored actions and bounds that apply to them (with each Transformation's inputs per unit), what its own fixed recurring flows take from it each round, the scheduled Flows still pending to it, and what it has already put forward this round (a seat's interpreted speech, [04 §6](04_run.md#6-strategy-initialization)). A Strategy never sees the World.
 
 ### 4.1 Strategy kinds
 
-A Strategy is declarative (`StrategyRules` run on the shared interpreter: non-playable Actor rules, Aggregate baselines and seat presets), an AI agent (a language model given the role's briefing and View), or a human (whose text is interpreted into input). Their replay is specified in [06 §4](06_simulator.md#4-seat-strategies) and [04 §7.3](04_run.md#73-seeds-and-randomness).
+A Strategy is declarative (`StrategyRules` run on the shared interpreter: non-playable Actor rules, Aggregate baselines and seat presets), an AI agent (a language model given the role's briefing and View), or a human (whose text is interpreted into input). Their replay is specified in [07 §4](07_simulator.md#4-seat-strategies) and [04 §7.3](04_run.md#73-seeds-and-randomness).
 
 ### 4.2 Strategy rules
 
@@ -164,6 +164,8 @@ A cost function is a linear cumulative cost curve. Its marginal price at cumulat
 
 An Exchange's terms are data read each Round rather than a value that is consumed, which makes it a standing Transaction. It has a base Resource (the good), a quote Resource (the denomination), a cost function, a position, reserves and an access list of Actors. It buys and sells on the same cost function, within domain and reserve limits. It cannot supply a Resource it does not hold. Each round's fills are ordinary transactions whose settled Flows post at the cleared rate.
 
+A cleared batch settles as pairs ([§5.5](#55-simultaneous-clearing)), and the reserve is one possible side of a pair. An Exchange with no reserves whose domain starts at its position has a net of zero, so its pairs are only between orders: it never buys unsold output or sells what no seller offered, and a seller is paid only for what a buyer takes. Nothing marks such an Exchange; it follows from its data.
+
 ### 5.3 Routing
 
 Routing plans how an order placed for a base and quote pair is split across the Exchanges for that pair (`Core.Kernel.Route`). Its candidates are the accessible Exchanges that match the pair and for which the party holds the required capability; with none, it is rejected at screening. It must carry a limit price, which is its escrow ceiling for a buy. Merit order takes candidates by opening marginal price (lowest first to buy, highest first to sell, ties by Exchange id). The split is planned in canonical order: each candidate in merit order takes the largest quantity whose batch price stays within its cap, the limit or the next candidate's opening price if tighter.
@@ -185,9 +187,10 @@ All orders in a round are resolved as one batch, and each Exchange clears at one
 2. Residual net demand is executed against the cost function, within domain and reserve limits.
 3. The uniform batch price is the average marginal cost over the net quantity, or the current marginal price when net demand is zero. It is rounded before it multiplies quantities ([§9.1](#91-numerics-and-randomness)).
 4. Orders whose limit is violated at that price are removed, and the price is recomputed. Removed orders stay removed, so the procedure terminates and depends only on the set of orders. Partial fills follow [§3.6](#36-infeasible-actions).
-5. Holdings and reserves change as one net update.
+5. The batch settles as pairs (`Core.Kernel.Clear`). Each pair is a quantity of the base moving from a seller to a buyer at the batch price, where a side is an order or the Exchange's reserve. The reserve takes the batch's net: it sells what the buyers take beyond the sellers and buys what the sellers give beyond the buyers. Buyers, then the reserve when it buys, take from the sellers, then the reserve when it sells, in canonical order: each pro rata from what each seller has left, in whole grid units by largest remainder, and the last takes exactly what is left. So every fill is the sum of its pairs, to the grid unit, and the pairs depend only on the set of orders.
+6. Each pair settles as one transaction: the delivery of the base and the payment of the quote, bound `Performed … Whole` to each other ([§3.3](#33-transactions-and-conditions)). A refused pair moves neither and leaves the price as it is, since a pair between two orders adds to buying and selling alike and the price reads only the net.
 
-The result does not depend on the order of submissions ([INV-11](#inv-11)). A `Settled` event records one settlement: its settled Flows settle together at one exact stored rate, when it has one.
+The result does not depend on the order of submissions ([INV-11](#inv-11)). A `Settled` event records one settlement: its settled Flows settle together at one exact stored rate, when it has one. A pair's settlement names both its sides (`OfMatch`): the order behind each, or the reserve.
 
 ## 6. Economic Circulation
 
@@ -266,15 +269,15 @@ The round record is in [04 §11.1](04_run.md#111-round-record) and the Run manif
 
 The engine has no effects. In-world randomness uses a pure keyed draw ([§9.1](#91-numerics-and-randomness)) with the game seed held in the World. The player seed never reaches the engine.
 
-Everything else impure is a named effect: an operation a program declares it needs, interpreted by a handler over device primitives. The request and reply shapes are in [07 §4](07_architecture.md#4-key-interfaces).
+Everything else impure is a named effect: an operation a program declares it needs, interpreted by a handler over device primitives. The request and reply shapes are in [08 §4](08_architecture.md#4-key-interfaces).
 
-The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the HTTP API, [06 §8.1](06_simulator.md#81-read-api-and-run-operations)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); Sessions (the live sessions a server hosts); and Platform (the clock, process identity, files, the terminal, and one operating-system number, drawn only for a player seed nobody gave).
+The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the HTTP API, [07 §8.1](07_simulator.md#81-read-api-and-run-operations)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); Sessions (the live sessions a server hosts); and Platform (the clock, process identity, files, the terminal, and one operating-system number, drawn only for a player seed nobody gave).
 
-Every program is typed by the effects it asks for, so its type states all it can touch. Handlers choose the context (live session, simulation, replay or test). The round runner is the same code under every context. The per-context behavior is in [04](04_run.md) and [06](06_simulator.md).
+Every program is typed by the effects it asks for, so its type states all it can touch. Handlers choose the context (live session, simulation, replay or test). The round runner is the same code under every context. The per-context behavior is in [04](04_run.md) and [07](07_simulator.md).
 
 ## 9. Architectural Invariants and Numerics
 
-The invariant table is the one numbered table for the whole system; other docs cite its IDs. IDs 12, 15, 16, 18, 20, 22 and 32–35 are retired. Checked means a predicate, a validation or a named test enforces the invariant today. The per-round assertion status is in [06 §7](06_simulator.md#7-run-assertions).
+The invariant table is the one numbered table for the whole system; other docs cite its IDs. IDs 12, 15, 16, 18, 20, 22 and 32–35 are retired. Checked means a predicate, a validation or a named test enforces the invariant today. The per-round assertion status is in [07 §7](07_simulator.md#7-run-assertions).
 
 | ID | Invariant | Status |
 |---|---|---|
@@ -325,12 +328,12 @@ This section sets the numeric and random rules for every economic value. Mechani
   - **Ratio** (Gini, influence, shrinkage, factors, support, levy rates): always two decimals. Chart ticks take the chart's kind and are never parsed back.
 - **Floating point.** No float enters economic state. The only conversion of a quantity to a float is for chart plotting. Integers that are not economic values, such as rounds, seeds and counts, stay integers.
 
-Which kind each page uses is set by [06 §9](06_simulator.md#9-pages).
+Which kind each page uses is set by [07 §9](07_simulator.md#9-pages).
 
 ## 10. Design Boundaries
 
 `packages/core` holds the kernel and the numerics, curve, draw and description algebra it needs. It names no agreement, institution or schedule, and `scripts/check/layout.js` keeps it so. Everything a PremiseComposition names is authored: Intents, candidate Transactions and their consent rules, Rules, recurring flows, Transformations and the capability kinds compile to the kernel at the authoring layer ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Two kinds of thing stay closed in core: the solvers ([§5](#5-cost-functions-exchanges-and-solvers)), because they divide one limit among many, and the invariant that a stock changes only by a settled Flow ([§3.1](#31-stocks-flows-and-settled-flows)).
 
-Actor, World, Representation and the settlement sequence are shared by every PremiseComposition, and this document specifies them, but their code is in `packages/laws`, beside the vocabulary they read ([07 §3](07_architecture.md#3-codebase-layout)).
+Actor, World, Representation and the settlement sequence are shared by every PremiseComposition, and this document specifies them, but their code is in `packages/laws`, beside the vocabulary they read ([08 §3](08_architecture.md#3-codebase-layout)).
 
 This document does not model resource classifications, a macroeconomic model, estimator parameters, procedure thresholds or exchange realism. These are choices each PremiseComposition makes, and the design principles behind them are in [01](01_overview.md).

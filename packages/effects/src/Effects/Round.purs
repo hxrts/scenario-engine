@@ -16,7 +16,7 @@ import Laws.CandidateTransaction (assembleSigned, candidateTransactionsOf, signa
 import Schema.Joint (jointCandidateTransactionsOf, numberJoint)
 import Laws.Types (Actor)
 import Laws.World (RoundResult, View, WorldState)
-import Data.Array (concat, filter, mapMaybe, null)
+import Data.Array (concat, concatMap, filter, mapMaybe, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
@@ -48,7 +48,10 @@ runRound inWorld w0 = do
   joint <-
     if null transcripts then pure []
     else map jointCandidateTransactionsOf (lift _interpret (Interpret w.round transcripts identity))
-  drafted <- for actors \e -> candidateTransactionsOf w.round e.id <$> proposeFor e (view e)
+  -- a seat proposes knowing what its interpreted speech already put forward, so a routine beside it can
+  -- account for that (`Planned`)
+  let spokenBy e = concatMap (\j -> if j.author == e.id then j.draft.intents else []) joint
+  drafted <- for actors \e -> candidateTransactionsOf w.round e.id <$> proposeFor e ((view e) { proposed = spokenBy e })
   let
     own = Map.fromFoldableWith (+) (map (\p -> Tuple p.author 1) (concat drafted))
     jointNumbered = numberJoint w.round own joint

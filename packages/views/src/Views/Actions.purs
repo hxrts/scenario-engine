@@ -1,4 +1,4 @@
--- | Player actions (docs/06_simulator.md §9.2): per Actor and round, the trades, transforms,
+-- | Player actions (docs/07_simulator.md §9.2): per Actor and round, the trades, transforms,
 -- | transfers paid, joint candidate Transactions signed and candidate Transactions rejected, counted from the recorded events. This is
 -- | the one definition of those counts; the run chart, the totals and the Overview's rejection count
 -- | read it. Pure.

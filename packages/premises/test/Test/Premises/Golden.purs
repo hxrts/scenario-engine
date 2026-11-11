@@ -1,7 +1,7 @@
--- | Literal premises (docs/05_meridian.md Part IV) through the shared checker. The fixtures are
+-- | Literal premises (docs/06_meridian.md Part IV) through the shared checker. The fixtures are
 -- | decoded from the DSL's own JSON, so these tests need no compiled output, and the golden names are
 -- | the fixture list itself. Every fixture plays through `simulate` (`Testkit.Fixture.checkLiteral`).
--- | Pins: expected values are those of docs/05 Part IV (Fixtures A to G, §21 to §27), held in the fixture modules.
+-- | Pins: expected values are those of docs/06 Part IV (Fixtures A to G, §21 to §27), held in the fixture modules.
 module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Schema.Build.Quantity (q)
@@ -26,7 +26,7 @@ import Control.Monad.Error.Class (throwError)
 import Effect.Aff (Aff, error)
 import Foreign.Object as Object
 import Partial.Unsafe (unsafeCrashWith)
-import Premises.Meridian.Fixtures as Fixtures
+import Premises.Fixtures as Fixtures
 import Strategy.Interpret (nameOnly, propose)
 import Premises.Meridian (gameSeed)
 import Premises.Meridian.Names (n)
@@ -78,8 +78,8 @@ golden = describe "Golden fixtures" do
         { prices = Map.singleton n.energyAtlantic (q "3.51")
         , factors = Map.singleton (Id (idText n.energy)) (q "0.95")
         }
-    -- docs/05 C4: the baseline above 3.5 M/E is 32 E, and 32 x 0.95 = 30.4
-    map _.intents (propose strategyRules { view, params: Object.empty, random: const Q.zero, exchange: nameOnly })
+    -- docs/06 C4: the baseline above 3.5 M/E is 32 E, and 32 x 0.95 = 30.4
+    map _.intents (propose strategyRules { view, params: Object.empty, random: const Q.zero, exchange: nameOnly, planned: [] })
       `shouldEqual` [ [ Trade { exchange: n.energyAtlantic, quantity: q "30.4", limitPrice: Nothing } ] ]
   it "C5: seeded noise stays in range, replays, and varies with the seed" do
     f <- fixture "C5"
@@ -87,7 +87,7 @@ golden = describe "Golden fixtures" do
       factorWith seed = do
         r <- hush (resolveRound f.world { seed = Seed seed } (firstInputs f))
         Map.lookup (Id "GLOBAL_SMES") r.world.factors >>= Map.lookup (Id "E")
-    -- docs/05 §23: the recorded draw for game seed 26021 is u = 0.2158, so ε = −0.0568 and the
+    -- docs/06 §23: the recorded draw for game seed 26021 is u = 0.2158, so ε = −0.0568 and the
     -- factor is 1 + 0.25 × (−0.20 − 0.0568)
     factorWith gameSeed `shouldEqual` Just (q "0.9358")
     map (\t -> t >= Q.fromInt 37 && t <= Q.fromInt 39) (map (Q.mul (Q.fromInt 40)) (factorWith gameSeed)) `shouldEqual` Just true

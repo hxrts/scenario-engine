@@ -1,5 +1,5 @@
 -- | The run list and the per-run overview: identity, versions, seeds, rounds, assertions, the
--- | summary metrics, and the Objectives table (docs/06_simulator.md §9.1, §9.2). Pure.
+-- | summary metrics, and the Objectives table (docs/07_simulator.md §9.1, §9.2). Pure.
 module Views.Overview
   ( ListedRun
   , Unreadable
@@ -126,7 +126,7 @@ type Fact = { label :: String, value :: String }
 
 -- | The overview of one run (`GET /api/runs/:id/:view` with `view=overview`). `id` names the run these figures are of;
 -- | `rounds` is the completed rounds, `target` the rounds the run was launched for, and `resumable`
--- | whether Resume may be offered (docs/06_simulator.md §9.1: only a completed run can be extended);
+-- | whether Resume may be offered (docs/07_simulator.md §9.1: only a completed run can be extended);
 -- | `facts` is the header's fields in order.
 type RunOverview = { id :: String, rounds :: Int, target :: Int, resumable :: Boolean, facts :: Array Fact }
 

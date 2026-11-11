@@ -45,7 +45,7 @@ atlanticExchange access = exchange atlanticTerms access
 asiaExchange :: Array ActorId -> Exchange
 asiaExchange access = exchange asiaTerms access
 
--- | The defence-goods Exchange (docs/05_meridian.md §3.5): Military for Money. Its curve is
+-- | The defence-goods Exchange (docs/06_meridian.md §3.5): Military for Money. Its curve is
 -- | p(x) = 3 + 0.01x, so the price runs from 2.2 at the lower bound to 3.2 at the upper bound,
 -- | the same order as the Energy Exchanges. Its reserves hold 60 Mil, so the upper bound sits 40
 -- | below that reserve (the Energy Exchanges sit 50 below theirs); the lower bound is the Energy
@@ -53,7 +53,7 @@ asiaExchange access = exchange asiaTerms access
 defenceTerms :: ExchangeTerms
 defenceTerms = { base: n.mil, quote: n.money, cost: { intercept: q 3, slope: q "0.01", domain: { lo: q (-80), hi: q 20 } }, reserves: keyed [ n.money := 300, n.mil := 60 ] }
 
--- | The terms of a regional Energy Exchange (docs/05_meridian.md §3.1): Energy for Money on
+-- | The terms of a regional Energy Exchange (docs/06_meridian.md §3.1): Energy for Money on
 -- | p(x) = 2 + 0.02x, with a lower bound of −80. The two Energy Exchanges differ only in their upper
 -- | bound and reserves, which the caller gives; access is set per use.
 energyTerms :: { hi :: Q, reserves :: Holdings } -> ExchangeTerms

@@ -1,4 +1,4 @@
--- | Shared shapes and helpers for the dashboard view models (docs/06_simulator.md §9–§10): the
+-- | Shared shapes and helpers for the dashboard view models (docs/07_simulator.md §9–§10): the
 -- | Table and Chart the frontend renders, the stored run the single-run views read, the metric
 -- | names, round scoping, and cell formatting. Pure.
 module Views.Common

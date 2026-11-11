@@ -1,4 +1,4 @@
--- | The server's cache of decoded runs (docs/06_simulator.md §8.1). Every view of a run reads and
+-- | The server's cache of decoded runs (docs/07_simulator.md §8.1). Every view of a run reads and
 -- | decodes the whole run; a page of the dashboard asks for ten views at once, so the decoded run is
 -- | kept after its first read. A running run is never kept (its rounds are still arriving), and
 -- | every write operation clears the kept runs, so a reply never shows a run older than the store.

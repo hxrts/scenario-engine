@@ -127,7 +127,7 @@ tradeE m e x price = settledEvent 1
   , { from: Held e, to: InExchange m, resource: Id "M", owed: Q.mul price x, moved: Q.mul price x }
   ]
   (Just price)
-  (OfIntent { candidateTransaction: Id "none", intent: 0, mechanism: Curve m })
+  (OfMatch { exchange: m, buyer: Just { candidateTransaction: Id "none", intent: 0 }, seller: Nothing })
 
 -- | A transformation's settlement of `units`, with no settled Flows.
 convE :: ActorId -> TransformationId -> Q -> Event
@@ -838,7 +838,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "INV-07: an Exchange's curve that creates a Resource" do
       let
         w = (baseWorld [ explicitActor "US" [] ]) { exchanges = Map.singleton (Id "EM") (exchange [ "US" ]) }
-        created = settledEvent 1 [ { from: Source, to: Held (Id "US"), resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfIntent { candidateTransaction: Id "none", intent: 0, mechanism: Curve (Id "EM") })
+        created = settledEvent 1 [ { from: Source, to: Held (Id "US"), resource: Id "E", owed: Q.fromInt 1, moved: Q.fromInt 1 } ] Nothing (OfMatch { exchange: Id "EM", buyer: Just { candidateTransaction: Id "none", intent: 0 }, seller: Nothing })
       invariantsOf w (withEvent created (empty w)) `shouldContain` "INV-07"
       invariantsOf w (withEvent (tradeE (Id "EM") (Id "US") Q.zero Q.zero) (empty w)) `shouldNotContain` "INV-07"
     it "INV-07: a plain transfer that crosses the boundary" do
@@ -972,7 +972,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         , { from: Held (Id party), to: InExchange (Id "M1"), resource: Id "Cash", owed: Q.fromInt 6, moved: Q.fromInt 6 }
         ]
         (Just (Q.fromInt 2))
-        (OfIntent { candidateTransaction: Id "p", intent: 0, mechanism: Curve (Id "M1") })
+        (OfMatch { exchange: Id "M1", buyer: Just { candidateTransaction: Id "p", intent: 0 }, seller: Nothing })
       query window side aggregate = { window, party: Id "A", side, resource: Just (Id "E"), cause: CurveBase, aggregate }
       evs = [ fill 1 "A", fill 2 "A", fill 2 "B" ]
     it "reads this round so far, or the round before, and only its party" do
@@ -1028,9 +1028,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- a delivery is not a shortfall even when the moved quantity is clamped
       runSlice (count shortfalls) [ Settled { round: 1, legs: [ { from: Held us, to: Sink, resource: Id "E", owed: Q.fromInt 3, moved: Q.zero } ], rate: Nothing, cause: testCause, delivered: true } ] `shouldEqual` 0
     it "describeSlice renders the slice" do
-      describeSlice (count traded) `shouldEqual` "count of Settled events where the cause is an exchange along an Exchange's curve and actor = US"
-      describeSlice (total (read @"quantity" traded)) `shouldEqual` "sum of quantity of Settled events where the cause is an exchange along an Exchange's curve and actor = US"
-      describeSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" exchangeFills))) `shouldEqual` "count of round of Lapsed and Settled events where the cause is an exchange along an Exchange's curve"
+      describeSlice (count traded) `shouldEqual` "count of Settled events where the cause is a pair an Exchange cleared and actor = US"
+      describeSlice (total (read @"quantity" traded)) `shouldEqual` "sum of quantity of Settled events where the cause is a pair an Exchange cleared and actor = US"
+      describeSlice (count (orKind (read @"round" (event @"Lapsed")) (read @"round" exchangeFills))) `shouldEqual` "count of round of Lapsed and Settled events where the cause is a pair an Exchange cleared"
   describe "Codecs" do
     it "Q" $ quickCheck (roundTrip genQ)
     it "Capability" $ quickCheck (roundTrip genCapability)

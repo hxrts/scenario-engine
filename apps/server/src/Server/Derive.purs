@@ -1,4 +1,4 @@
--- | The run operations on a stored run (docs/06_simulator.md §9.1, §9.2): derive (duplicate, rerun,
+-- | The run operations on a stored run (docs/07_simulator.md §9.1, §9.2): derive (duplicate, rerun,
 -- | variant, counterfactual), resume, archive and unarchive, and delete. Each validates its request
 -- | and persists the result; the dashboard only sends the request and shows the reply.
 module Server.Derive
@@ -105,7 +105,7 @@ deriveFromRecipe compositions sourceId body info = do
   replied id recordsMatch = ok { id, source: sourceId, kind: body.kind, recordsMatch }
 
 -- | A derive from a live session. It has no preset, so a variant or counterfactual cannot be played
--- | from it; a duplicate or rerun replays its recorded candidate Transactions and signatures (docs/06 §9.1).
+-- | from it; a duplicate or rerun replays its recorded candidate Transactions and signatures (docs/07 §9.1).
 deriveSession :: forall o r. Compositions -> String -> DeriveRequest -> { name :: String, status :: RunStatus | r } -> Spec -> Run (SERVER o) (Answer AnyRefusal Derived)
 deriveSession compositions sourceId body info spec
   | body.kind == Variant || body.kind == Counterfactual = badRequest ("a live session has no preset, so a " <> show body.kind <> " cannot be derived from " <> sourceId)

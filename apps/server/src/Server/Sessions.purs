@@ -1,4 +1,4 @@
--- | Live sessions over the API (docs/04_run.md §11, docs/06_simulator.md §8): starting one, reading its
+-- | Live sessions over the API (docs/04_run.md §11, docs/07_simulator.md §8): starting one, reading its
 -- | state, and taking a seat's text for a round.
 module Server.Sessions
   ( startSession

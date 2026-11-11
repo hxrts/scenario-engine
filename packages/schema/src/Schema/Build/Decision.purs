@@ -7,6 +7,9 @@ module Schema.Build.Decision
   , roundQ
   , holding
   , factor
+  , due
+  , scheduled
+  , planned
   , mulQ
   , subQ
   , gt
@@ -101,6 +104,18 @@ holding = Holding <<< N.named
 
 factor :: forall a. Named a ResourceTag => a -> Expr
 factor x = Factor (Id (idText (N.named x :: ResourceId)))
+
+-- | The fixed amount of a Resource the Actor's recurring flows take from it each round.
+due :: forall a. Named a ResourceTag => a -> Expr
+due = Due <<< N.named
+
+-- | What scheduled Flows still pending will deliver of a Resource to the Actor.
+scheduled :: forall a. Named a ResourceTag => a -> Expr
+scheduled = Scheduled <<< N.named
+
+-- | What the Transforms drafted earlier this round consume of a Resource.
+planned :: forall a. Named a ResourceTag => a -> Expr
+planned = Planned <<< N.named
 
 mulQ :: Expr -> Expr -> Expr
 mulQ = Mul

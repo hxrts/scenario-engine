@@ -73,7 +73,7 @@ type PremiseComposition =
   , parameters :: Object Q -- named premise parameters read by Strategies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_premise.md §4)
-  , label :: Maybe String -- the test-instance label, which names the game (docs/05_meridian.md §14)
+  , label :: Maybe String -- the test-instance label, which names the game (docs/06_meridian.md §14)
   , strategies :: Map StrategyId StrategyRules
   }
 
@@ -87,6 +87,7 @@ type ActorDefinition =
   { required :: Boolean
   , seat :: Boolean -- may be a seat
   , nonPlayableActor :: Array StrategyId -- non-playable Actor Strategies it may take
+  , routine :: Maybe StrategyId -- a Strategy that runs beside whoever plays the seat, after them (docs/04 §6)
   , fallback :: Maybe Fallback
   , objective :: Maybe Objective
   , description :: String -- what the Actor does; prose for briefings, not an authority

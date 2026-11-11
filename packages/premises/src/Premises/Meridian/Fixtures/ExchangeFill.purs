@@ -1,4 +1,4 @@
--- | Golden fixtures for direct exchange exchange (docs/05_meridian.md §21, Fixture A): two
+-- | Golden fixtures for direct exchange exchange (docs/06_meridian.md §21, Fixture A): two
 -- | Energy traders on the Atlantic Exchange, with and without a limit price. Shares the Energy
 -- | Exchanges of §3.1 with the other families through `Premises.Meridian.Fixtures.Common`.
 module Premises.Meridian.Fixtures.ExchangeFill (fixtureA, fixtureA2, fixtureFBound, fixtureFShort) where

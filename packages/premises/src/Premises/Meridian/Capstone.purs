@@ -56,7 +56,7 @@ import Schema.Build.Fixture (noExpect)
 firstRuleOf :: Int -> ActorId -> String
 firstRuleOf r e = idText (ruleIdOf (candidateTransactionId r e 0) 0)
 
--- | Eight rounds, one per year, as the reference horizon is five (docs/05 §14).
+-- | Eight rounds, one per year, as the reference horizon is five (docs/06 §14).
 rounds :: Int
 rounds = 8
 

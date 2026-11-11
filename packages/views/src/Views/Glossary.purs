@@ -1,5 +1,5 @@
 -- | The glossary the dashboard shows: a plain-language definition for every table column and header
--- | field, and what an empty value means (docs/02_kernel.md §2.5, docs/06_simulator.md §9). It is
+-- | field, and what an empty value means (docs/02_kernel.md §2.5, docs/07_simulator.md §9). It is
 -- | generated from the columns the views use; only the two texts for names that are not columns are
 -- | written here. Text only, served whole by `GET /api/glossary`; the dashboard looks names up and
 -- | fills the `{name}` and `{round}` placeholders. Pure.

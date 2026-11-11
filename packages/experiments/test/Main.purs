@@ -1,4 +1,4 @@
--- | The experiments suites: the variant experiments of docs/06_simulator.md §11 on Meridian, and the
+-- | The experiments suites: the variant experiments of docs/07_simulator.md §11 on Meridian, and the
 -- | mandatory tests that analyse runs (7, 14, player-seed runs). The simulator suite never depends on
 -- | this package; the shared capstone run and Meridian context come from `testkit`.
 module Test.Experiments.Main where

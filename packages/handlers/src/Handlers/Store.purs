@@ -1,4 +1,4 @@
--- | The Run Store handler (docs/06_simulator.md §8): interprets the `OBSERVE` reads (`Effects.Observe`),
+-- | The Run Store handler (docs/07_simulator.md §8): interprets the `OBSERVE` reads (`Effects.Observe`),
 -- | the `STORE` writes (`Effects.Store`), and the `RECORD` operation, which saves each round as it
 -- | completes with its transcripts and its metrics. `RECORD` is answered by `recorder`,
 -- | the callback form the seat runners take. The handler does the logic: the round's assertions, and the run

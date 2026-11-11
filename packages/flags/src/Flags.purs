@@ -1,4 +1,4 @@
--- | Command-line flags shared by the apps (docs/06_simulator.md §1): `--name value` pairs.
+-- | Command-line flags shared by the apps (docs/07_simulator.md §1): `--name value` pairs.
 -- | A flag that is not allowed, has no value, or is given twice is a usage error; nothing is ignored.
 module Flags
   ( Flag

@@ -1,4 +1,4 @@
--- | Each failed assertion of a run (docs/06_simulator.md §7.1): its round and invariant, the expected and observed
+-- | Each failed assertion of a run (docs/07_simulator.md §7.1): its round and invariant, the expected and observed
 -- | values when the check compares two, and the round's events that concern it. Pure.
 module Views.Assertions (assertions, columns) where
 

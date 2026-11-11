@@ -1,4 +1,4 @@
--- | Live sessions hosted by the server (docs/04_run.md §11, docs/06_simulator.md §8): the `SESSIONS` interpreter.
+-- | Live sessions hosted by the server (docs/04_run.md §11, docs/07_simulator.md §8): the `SESSIONS` interpreter.
 -- | Each session plays through the same live handler as the console. A human seat's text arrives by
 -- | `Submit`, into a mailbox the round reads from.
 module Handlers.Sessions

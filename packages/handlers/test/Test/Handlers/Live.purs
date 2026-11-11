@@ -1,4 +1,4 @@
--- | Live play (docs/06_simulator.md §7.4) against a stub model: the human seats type, the AI seats
+-- | Live play (docs/07_simulator.md §7.4) against a stub model: the human seats type, the AI seats
 -- | speak, the round's transcripts go through one joint pass. The stub
 -- | model answers each call with a typed reply encoded as its text, so the prompts, decoding, and
 -- | fallbacks of `Handlers.Llm` run as they do in production. No test calls a real model; the billed
@@ -148,7 +148,8 @@ spec = do
           events
       map _.candidateTransaction rejections' `shouldEqual` [ Id "r1/US/1" ]
       map (contains (Pattern "no-such-exchange") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]
-      length executed `shouldEqual` 1
+      -- the 10 E settles, across however many pairs it cleared as
+      Q.sumQ (map (\t -> t.quantity) (mapMaybe (pickOf exchangeFills) executed)) `shouldEqual` Q.fromInt 10
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
 
     it "a one-sided joint lapses; a joint CandidateTransaction both sides describe is signed by both" do

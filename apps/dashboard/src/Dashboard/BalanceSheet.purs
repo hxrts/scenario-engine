@@ -1,4 +1,4 @@
--- | The balanceSheet pages (docs/06_simulator.md §9): the page each Actor is given, which shows only its own
+-- | The balanceSheet pages (docs/07_simulator.md §9): the page each Actor is given, which shows only its own
 -- | data and links nowhere else, and the admin page that lists every Actor's link for a Run.
 module Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets) where
 

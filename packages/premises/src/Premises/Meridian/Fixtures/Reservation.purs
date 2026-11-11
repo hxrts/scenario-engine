@@ -1,4 +1,4 @@
--- | Golden fixtures for reservations (docs/05_meridian.md §13.3, Military deployment, and the
+-- | Golden fixtures for reservations (docs/06_meridian.md §13.3, Military deployment, and the
 -- | defence-goods Exchange of §3.5): a deployment reserves Military while the US sells on the
 -- | defence-goods Exchange in the same round, and the reserved units are released the next round.
 -- | Fixture R, with R-alone as the same sale without the deployment.
@@ -12,7 +12,7 @@ import Premises.Meridian.Names (n)
 import Premises.Kit.Fixtures (Cut)
 import Premises.Meridian.Fixtures.Common (allResources, cut, defaultFixture, fixture, holding, money)
 
--- | Fixture R (docs/05_meridian.md §13.3): the US reserves 60 Mil for a deployment and sells
+-- | Fixture R (docs/06_meridian.md §13.3): the US reserves 60 Mil for a deployment and sells
 -- | 40 Mil on the defence-goods Exchange (limit 2.4) in the same round, as the Deployer preset does.
 -- | Their claims on 95 Mil total 100, so both scale by 95/100: the deployment reserves 57 and the
 -- | sale sells 38. The Exchange is fresh, so the uniform price is (C(-38) - C(0)) / -38 = 2.81, with

@@ -37,7 +37,7 @@ import Strategy.StrategyRules (CondAlg, ExprAlg, TemplateAlg, foldCond, foldExpr
 
 -- | `random` draws seeded values in [0, 1), one per index. The interpreter passes a fresh index to
 -- | every Choose it meets.
-type Env = { view :: View, params :: Object Q, random :: Int -> Q, exchange :: ExchangeRef -> Maybe ExchangeId }
+type Env = { view :: View, params :: Object Q, random :: Int -> Q, exchange :: ExchangeRef -> Maybe ExchangeId, planned :: Array Intent }
 
 -- | What a strategy's draws and parameters come from: the composition's parameters, the seed, and the
 -- | name of the draw stream.
@@ -51,6 +51,7 @@ envFor c e v =
   , params: c.params
   , random: \i -> draw c.seed { round: v.round, source: c.source, actor: unwrap e, category: "choice", index: i }
   , exchange: nameOnly
+  , planned: v.proposed
   }
 
 -- | The Exchange a reference names with no selector picked: a `Named` Exchange is itself. A selector
@@ -66,7 +67,9 @@ nameOnly = case _ of
 propose :: StrategyRules -> Env -> Array CandidateTransactionBody
 propose strategyRules env = (foldl clause { next: 0, drafts: [] } strategyRules.rules).drafts
   where
-  clause acc r = foldl (instantiated r) acc (instancesFor env r.when r.propose)
+  -- each clause sees what the Actor already put forward and the Intents drafted before it, so `Planned`
+  -- reads what is committed
+  clause acc r = foldl (instantiated r) acc (instancesFor (env { planned = env.planned <> concatMap _.intents acc.drafts }) r.when r.propose)
   instantiated r acc inst
     | fires inst r.when = foldl (\a t -> let d = draft inst a.next t in { next: d.next, drafts: a.drafts <> d.drafts }) acc r.propose
     | otherwise = acc
@@ -179,10 +182,20 @@ evalAlg env =
   , holding: \r -> Just (lookupQ r env.view.self.accounts)
   -- the stored Representation factor, 1 when none is stored (docs/02 §7.3)
   , factor: \d -> Just (fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors))
+  , due: \r -> Just (lookupQ r env.view.due)
+  , scheduled: \r -> Just (lookupQ r env.view.incoming)
+  , planned: \r -> Just (Q.sumQ (mapMaybe (plannedUse r) env.planned))
   , mul: lift2 Q.mul
   , sub: lift2 Q.sub
   , max: lift2 max
   }
+
+  where
+  -- what one drafted Intent consumes of a Resource: a Transform's inputs per unit times its quantity
+  plannedUse r = case _ of
+    -- no more than the Transformation's maximum can settle, so no more than that is held back
+    Transform t | t.by == env.view.self.id -> (\b -> Q.mul (lookupQ r b.inputs) (maybe t.quantity (min t.quantity) b.maximum)) <$> Map.lookup t.transformation env.view.transformations
+    _ -> Nothing
 
 -- | Whether a condition holds; Nothing when a value it compares does not resolve.
 holds :: Env -> Cond -> Maybe Boolean

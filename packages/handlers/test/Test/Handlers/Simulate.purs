@@ -1,6 +1,6 @@
--- | The mandatory tests of docs/06_simulator.md §14. Fixture tests cite their fixture and
+-- | The mandatory tests of docs/07_simulator.md §14. Fixture tests cite their fixture and
 -- | use the shared checker; game tests compose `simulate`.
--- | Pins: docs/06 §14's mandatory test expectations, and the fixture values of docs/05 Part IV.
+-- | Pins: docs/07 §14's mandatory test expectations, and the fixture values of docs/06 Part IV.
 module Test.Handlers.Simulate (spec) where
 
 import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)
@@ -26,7 +26,7 @@ import Checks.Run (checkRun)
 import Laws.Slice (transformationFills, event, exchangeFills, matches, pickOf, select, shortfalls, sunk)
 import Schema.Recurring (kinds)
 import Laws.World (RejectReason(..), renderReason)
-import Data.Array (any, concatMap, drop, findMap, index, last, length, null, zip)
+import Data.Array (any, concatMap, drop, findMap, index, last, length, mapMaybe, null, zip)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -69,7 +69,7 @@ spec :: Spec Unit
 spec = do
   ShockTests.spec meridianParts
   CapstoneTests.spec
-  describe "Mandatory tests (docs/06_simulator.md §14)" do
+  describe "Mandatory tests (docs/07_simulator.md §14)" do
     it "1 Full game: Conservative, Passive, RandomValid across player seeds" do
       p <- meridianParts
       for_ [ "Conservative", "Passive" ] \preset -> do
@@ -142,7 +142,7 @@ spec = do
     it "7b Reservation: fixtures R and R-alone (DSL-authored) show a deployment reserving Mil against a Mil sale" do
       -- R: the deployment reserves 60 and the 40-unit sale scales to 38 on the 95 Mil held, which
       -- sells at 2.81 for 106.78 M; the reservation is released at commit, so round 2's 50 Mil
-      -- transfer runs in full (docs/05 §13.3)
+      -- transfer runs in full (docs/06 §13.3)
       fixture "R"
       -- R-alone: with no deployment, the same sale runs in full at 2.80
       fixture "R-alone"
@@ -194,7 +194,7 @@ spec = do
       map _.price (sold 4) `shouldEqual` Just (q "2.506")
       usMil 4 `shouldEqual` Just (q "34.2")
 
-    it "Soft Power is produced, spent, and decays (docs/05_meridian.md §32.6)" do
+    it "Soft Power is produced, spent, and decays (docs/06_meridian.md §32.6)" do
       p <- meridianParts
       g <- everySeat p "Passive"
       let
@@ -218,9 +218,10 @@ spec = do
       for_ [ passive, investor, aggressive ] \r -> valid (initialOf r) r
       let
         round3 r = fromMaybe [] (index r.records 2 <#> _.record.events)
-        boughtBy who r i = findMap
-          (pickOf (exchangeFills) >=> \t -> if t.actor == Id who then Just t.quantity else Nothing)
-          (fromMaybe [] (index r.records i <#> _.record.events))
+        -- what an Actor's orders settled across their pairs in a round; Nothing when it traded nothing
+        boughtBy who r i = case mapMaybe (pickOf (exchangeFills) >=> \t -> if t.actor == Id who then Just t.quantity else Nothing) (fromMaybe [] (index r.records i <#> _.record.events)) of
+          [] -> Nothing
+          qs -> Just (Q.sumQ qs)
         anyShortfall who res evs = any
           (matches (shortfalls) (\x -> x.actor == Id who && x.resource == Id res))
           evs
@@ -246,7 +247,7 @@ spec = do
       (boughtBy "GLOBAL_SMES" passive 2 < boughtBy "GLOBAL_SMES" passive 0) `shouldEqual` true
       -- the EU's solidarity candidate Transaction executes in Round 3 on Germany's pivotal signature: 0.40 + 0.20
       euExecuted (round3 investor) `shouldEqual` Q.parse "0.6"
-      -- the two channels docs/05 §25 records as dormant: SHIP places no Exchange order, and China's Asia
+      -- the two channels docs/06 §25 records as dormant: SHIP places no Exchange order, and China's Asia
       -- offer rule needs an Asian price above 3.2 while the Asian price peaks at 2.88
       for_ [ passive, investor, aggressive ] \r -> do
         boughtBy "SHIP" r 2 `shouldEqual` Nothing

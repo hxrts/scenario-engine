@@ -1,5 +1,5 @@
 -- | The API's remaining status rules and read paths, the startup strategy, and the run cache.
--- | Pins: the status rules and reply JSON of docs/06 §8.1.
+-- | Pins: the status rules and reply JSON of docs/07 §8.1.
 module Test.Server.Api (spec) where
 
 import Prelude

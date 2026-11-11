@@ -12,7 +12,7 @@ These terms are for people working on the code. The anchors are defined in [01 T
 
 | Term | Definition |
 |---|---|
-| **Layer** | One spec's share of the design: the kernel ([02](02_kernel.md)), the Premise ([03](03_premise.md)), the Run ([04](04_run.md)), the Simulator and Dashboard ([06](06_simulator.md)), or this doc. |
+| **Layer** | One spec's share of the design: the kernel ([02](02_kernel.md)), the Premise ([03](03_premise.md)), the Run ([04](04_run.md)), the Simulator and Dashboard ([07](07_simulator.md)), or this doc. |
 | **`PreparedRun`** | A Run ready to play, which `assemble` builds and every runner plays: the initial World, the Run manifest, the in-world Strategies, the rounds to play, and one `SeatBinding` per seat. |
 | **Round runner** | The effectful code that runs Propose and Sign for every Strategy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
 | **Kernel** | The modules under `packages/core/src/Core/Kernel`: the types of [02 §3](02_kernel.md#3-the-kernel), posting, resolution, consumption, Laws, rationing, clearing and routing. |
@@ -63,7 +63,7 @@ What runs, and what it connects to. Arrows point from the caller to what it call
      provider                       openapi/
 ```
 
-The two external services see only the open routes, whose contract is the OpenAPI documents (06 §8.2). Every other route needs the admin session. Model calls leave the system only through the `pi` process.
+The two external services see only the open routes, whose contract is the OpenAPI documents (07 §8.2). Every other route needs the admin session. Model calls leave the system only through the `pi` process.
 
 ## 1. Principles
 
@@ -99,7 +99,7 @@ The runtime is one pure engine and one round runner that calls it. A PremiseComp
    Run Store ◄── server ◄── API ◄── dashboard
 ```
 
-Each round is one `runRound` call. Seats propose and sign through the seat-input effect. The pure engine resolves the signed candidate Transactions and never authors or rewrites an Intent. Handlers choose where seat input comes from and where records go. The round rules are in [02](02_kernel.md) and [04](04_run.md). The Run Store, API and dashboard are in [06](06_simulator.md).
+Each round is one `runRound` call. Seats propose and sign through the seat-input effect. The pure engine resolves the signed candidate Transactions and never authors or rewrites an Intent. Handlers choose where seat input comes from and where records go. The round rules are in [02](02_kernel.md) and [04](04_run.md). The Run Store, API and dashboard are in [07](07_simulator.md).
 
 ## 3. Codebase Layout
 
@@ -140,7 +140,7 @@ These are the seams. Every other piece is an internal detail of a package. Signa
 assemble :: Origin -> Bindings -> Array Override -> Either AssemblyError PreparedRun
 -- Origin = FromComposition CompositionParts | FromLiteral { world, rounds }
 -- Bindings = Map ActorId SeatBinding
--- SeatBinding = StrategyRules | Script (Array ScriptRound) | Agent | Human
+-- SeatBinding = StrategyRules | Script (Array ScriptRound) | Agent | Human | Composed { routine, player }
 ```
 
 **Instantiation and validation** (`world`). Pure and atomic: it returns the initial World or every error.
@@ -187,13 +187,13 @@ The environment is the strategy's `View` ([02 §4](02_kernel.md#4-strategies)). 
 simulate :: Seed -> PreparedRun -> Either AssemblyError SimRun
 ```
 
-**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [06 §8](06_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client. `Handlers.Api.Contract` states what each operation answers: its reply Shape, format, success status and the row of refusal labels it may make, one entry per constructor. A handler returns its reply value or one of those refusals, `dispatch` encodes it, and a refusal the entry does not declare does not compile. Each row declares its `Access`, `Admin` unless the table says `Open`; `Gate.gated` in `apps/server` checks it before the operation runs, against the password in the server's `.env` ([06 §8.3](06_simulator.md#83-public-and-admin-surfaces)).
+**API** (`effects` row `API`, `handlers`, `apps/server`). Each HTTP route is one operation of the `API` row. A request is an `ApiRequest`, and a reply is a status and a body. The row and the route table are in [07 §8](07_simulator.md#8-persistence); the server's implementation of the operations is in `apps/server`, and the dashboard calls them through the browser-safe client. `Handlers.Api.Contract` states what each operation answers: its reply Shape, format, success status and the row of refusal labels it may make, one entry per constructor. A handler returns its reply value or one of those refusals, `dispatch` encodes it, and a refusal the entry does not declare does not compile. Each row declares its `Access`, `Admin` unless the table says `Open`; `Gate.gated` in `apps/server` checks it before the operation runs, against the password in the server's `.env` ([07 §8.3](07_simulator.md#83-public-and-admin-surfaces)).
 
 ```purescript
 type API r = (apiCall :: ApiF | r)   -- every route: Call ApiRequest (Reply -> a)
 ```
 
-**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`. The operations are in [02 §8.4](02_kernel.md#84-effects-and-handlers) and the store in [06 §8](06_simulator.md#8-persistence).
+**Run Store** (`effects` rows `RECORD`, `STORE`, `OBSERVE`). Round writes are `RECORD`, lifecycle writes are `STORE`, and reads are `OBSERVE`. The operations are in [02 §8.4](02_kernel.md#84-effects-and-handlers) and the store in [07 §8](07_simulator.md#8-persistence).
 
 ## 5. Enforcement
 
@@ -203,10 +203,10 @@ Checks run under `just check`, and each fails the build on a violation. Each che
 - **Concept rules.** Rules that imports cannot express: foreign code (`.js`) lives only in adapters and apps; `core` names no authored vocabulary; only `Core.Kernel.Post` writes the ledger or builds a settled Flow.
 - **Impurity.** Only composition roots import adapters, and adapters use no domain words or domain imports.
 - **Derived rule.** Flags hand-written projections, codecs, event matches and repeated names where one description should generate them. Each exception is listed with its reason.
-- **Docs tables.** The marked tables in [05](05_meridian.md) match the compiled composition.
-- **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [06 §7.1](06_simulator.md#71-required-assertions).
+- **Docs tables.** The marked tables in [06](06_meridian.md) match the compiled composition.
+- **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [07 §7.1](07_simulator.md#71-required-assertions).
 
-Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [06 §14](06_simulator.md#14-mandatory-tests).
+Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [07 §14](07_simulator.md#14-mandatory-tests).
 
 ## 6. One Description, Many Interfaces
 
@@ -325,6 +325,6 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **The views describe their own columns.** The dashboard's glossary is built from the columns the views use, and the compiler writes the same list for the dashboard tests, so neither can drift from the views.
 
-**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. `Handlers.Api.Contract` has one entry per constructor, stating its reply Shape and refusals, read by the server's `dispatch`, the client's `send`, and the OpenAPI documents for the external services ([06 §8.2](06_simulator.md#82-external-services)), which take their paths and methods from the table and their statuses by reflecting the entry's row of refusals. An entry's reply Shape is found from its reply type (`Views.Keys.ViewShape`); `Created` states a 201 in the Authored format. `Views.Keys.ViewReplies` does the same per View: one label per `View` constructor, read by the server's `answerView` and the client's `viewKey`. Only an open route can be published (`Access`).
+**Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. `Handlers.Api.Contract` has one entry per constructor, stating its reply Shape and refusals, read by the server's `dispatch`, the client's `send`, and the OpenAPI documents for the external services ([07 §8.2](07_simulator.md#82-external-services)), which take their paths and methods from the table and their statuses by reflecting the entry's row of refusals. An entry's reply Shape is found from its reply type (`Views.Keys.ViewShape`); `Created` states a 201 in the Authored format. `Views.Keys.ViewReplies` does the same per View: one label per `View` constructor, read by the server's `answerView` and the client's `viewKey`. Only an open route can be published (`Access`).
 
-**A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([06 §9.5](06_simulator.md#95-balancesheet-pages)).
+**A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([07 §9.5](07_simulator.md#95-balancesheet-pages)).

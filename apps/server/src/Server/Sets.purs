@@ -1,4 +1,4 @@
--- | Named Run sets (docs/06_simulator.md §10.5): a name, the ids of immutable runs, and the baseline. A set
+-- | Named Run sets (docs/07_simulator.md §10.5): a name, the ids of immutable runs, and the baseline. A set
 -- | never copies run data, and a run in a set cannot be deleted while the set names it.
 module Server.Sets (setSummary, setsView, saveSet, renameRunSet, deleteRunSet, setsNaming) where
 

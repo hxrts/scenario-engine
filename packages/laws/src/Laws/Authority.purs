@@ -15,7 +15,7 @@ module Laws.Authority
 
 import Prelude
 
-import Laws.World (TemplateTerms, templateTerms, Bounds, RejectReason(..), Venue, View, WorldState, venueOf)
+import Laws.World (TemplateTerms, templateTerms, Bounds, boundsOf, RejectReason(..), Venue, View, WorldState, venueOf)
 
 import Core.Kernel.Resolve (holdsAll)
 import Core.Kernel.Types (Condition(..), Party(..))
@@ -58,7 +58,7 @@ worldFacts w =
   , actor: \e -> Map.member e w.actors
   , venues: map venueOf (exchangesOf w)
   , access: \who m -> maybe false (elem who <<< _.access) (Map.lookup m w.exchanges)
-  , transformation: \t -> (\x -> { minimum: x.minimum, maximum: x.maximum }) <$> Map.lookup t w.transformations
+  , transformation: \t -> boundsOf <$> Map.lookup t w.transformations
   , holder: holderOf w
   , ruleKind: \k -> Map.lookup k w.ruleKinds
   , template: \t -> templateTerms <$> Map.lookup t w.templates

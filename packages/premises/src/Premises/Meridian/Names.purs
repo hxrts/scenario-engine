@@ -69,7 +69,7 @@ type Names =
 -- | Every name, one per line.
 n :: Names
 n =
-  -- Actors (docs/05_meridian.md §9 and §10)
+  -- Actors (docs/06_meridian.md §9 and §10)
   { us: Id "US"
   , de: Id "DE"
   , india: Id "IN"

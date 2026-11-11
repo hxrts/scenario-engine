@@ -208,7 +208,7 @@ pins = describe "Settlement pins" do
       trader name = (explicitActor name [ MayTrade (Id "EM") ])
       w = (world [ withAccount e (q "5") (trader "A"), trader "B" ]) { exchanges = Map.singleton venue.id venue }
       trade x = Trade { exchange: venue.id, quantity: q x, limitPrice: Nothing }
-      curve candidateTransaction actor = OfIntent { candidateTransaction, intent: 0, mechanism: Curve venue.id } # \c -> { c, actor }
+      curve candidateTransaction actor = OfMatch { exchange: venue.id, buyer: Just { candidateTransaction, intent: 0 }, seller: Nothing } # \c -> { c, actor }
       result = resolveRound w [ submit "A" 0 [ trade "-5" ], submit "B" 0 [ trade "2" ] ]
     events result `shouldEqual`
       [ settledEvent 1 [ flow (InExchange venue.id) (held "B") e "2" "2", flow (held "B") (InExchange venue.id) m "2" "2" ] (Just (q "1")) (curve (pid "B" 0) "B").c

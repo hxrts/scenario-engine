@@ -1,5 +1,5 @@
 -- | The Shape of a reply, found from its type, and the reply of each view of a stored run
--- | (docs/06_simulator.md §8). The server encodes a view through its entry and the dashboard decodes it through the same
+-- | (docs/07_simulator.md §8). The server encodes a view through its entry and the dashboard decodes it through the same
 -- | one. Shapes write the round-end World form: keys descending, a `Maybe` as its value or null.
 module Views.Keys
   ( ViewKey
@@ -127,6 +127,7 @@ type ViewReplies =
   , "Drivers" :: Table
   , "Balance" :: BalanceView
   , "Events" :: Table
+  , "Dependence" :: Table
   )
 
 -- | The `View` of a label, with the Shape its reply has.

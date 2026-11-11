@@ -1,4 +1,4 @@
--- | Golden fixtures for Germany and the EU (docs/05_meridian.md §22, Fixture B): Germany
+-- | Golden fixtures for Germany and the EU (docs/06_meridian.md §22, Fixture B): Germany
 -- | transfers Energy to the EU, and the EU's collective procedures (§12.1) enact or lapse. Fixtures
 -- | B1 to B4 and B4-unsigned.
 module Premises.Meridian.Fixtures.GermanyEu (fixtureB1, fixtureB2, fixtureB2Pool, fixtureB3, fixtureB4Unsigned, fixtureB4) where
@@ -15,7 +15,7 @@ import Premises.Kit.Fixtures (Cut)
 import Premises.Meridian.Fixtures.Common (allResources, cut, defaultFixture, fixture, holding, keeping, money)
 
 -- | Germany, the EU, and the EU's solidarity pool (fixtures B1 to B4). The pool is the EU's agent in
--- | `eu-solidarity` (docs/05 §12.1); it is a separate account with no strategy, and it holds the premise's
+-- | `eu-solidarity` (docs/06 §12.1); it is a separate account with no strategy, and it holds the premise's
 -- | 0 E unless a fixture patches it. The EU keeps its own capabilities, which its procedures need.
 germanyAndEu :: Cut
 germanyAndEu = cut
@@ -35,16 +35,16 @@ atPosition p c = c { patches = c.patches <> [ setPosition n.energyAtlantic p ] }
 poolHolding :: Q -> Cut -> Cut
 poolHolding e c = c { patches = c.patches <> [ setAccount n.euPool n.energy e ] }
 
--- | Fixture B1 (docs/05 §22): Germany transfers 10 E into the pool; the Atlantic price is at or below 3.0.
+-- | Fixture B1 (docs/06 §22): Germany transfers 10 E into the pool; the Atlantic price is at or below 3.0.
 fixtureB1 :: Tuple String Json
 fixtureB1 = fixture "B1" (defaultFixture { cut = germanyAndEu, candidateTransactions = Just ([ candidateTransaction { author: n.de, intents: [ transfer { from: n.de, to: n.euPool, resource: n.energy, quantity: q 10 } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.de (keyed [ n.energy := 28 ]), Tuple n.eu (keyed [ n.energy := 125 ]), Tuple n.euPool (keyed [ n.energy := 10 ]) ]) })) })
 
--- | Fixture B2 (docs/05 §22): high prices, Germany signs, and the pool is empty: the pool's transfer
+-- | Fixture B2 (docs/06 §22): high prices, Germany signs, and the pool is empty: the pool's transfer
 -- | gives nothing, and the EU sells its 8 E from its own holdings.
 fixtureB2 :: Tuple String Json
 fixtureB2 = fixture "B2" (defaultFixture { cut = atPosition (q 60) germanyAndEu, candidateTransactions = Just ([ (candidateTransaction { author: n.eu, intents: [ transfer { from: n.euPool, to: n.eu, resource: n.energy, quantity: q 8 }, trade { exchange: n.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { candidateTransaction { procedure = Just n.euSolidarity, signers = [ n.de ] }, signatures = [ n.de ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.eu (keyed [ n.money := "344.96", n.energy := 117 ]), Tuple n.de (keyed [ n.money := 125, n.energy := 38 ]), Tuple n.euPool (keyed [ n.energy := 0 ]) ]), reserves = balances [ Tuple n.energyAtlantic (keyed [ n.money := "675.04", n.energy := 358 ]) ], procedures = Just ([ procedureOutcome (ref n.eu) (q "0.6") true ]) })) })
 
--- | Fixture B2-pool (docs/05 §22): as B2, with 10 E in the pool. The pool gives 8 E first, so the
+-- | Fixture B2-pool (docs/06 §22): as B2, with 10 E in the pool. The pool gives 8 E first, so the
 -- | EU's own holdings end where they began (125), and the pool keeps 2 E.
 fixtureB2Pool :: Tuple String Json
 fixtureB2Pool = fixture "B2-pool" (defaultFixture { cut = poolHolding (q 10) (atPosition (q 60) germanyAndEu), candidateTransactions = Just ([ (candidateTransaction { author: n.eu, intents: [ transfer { from: n.euPool, to: n.eu, resource: n.energy, quantity: q 8 }, trade { exchange: n.energyAtlantic, quantity: q (-8), limit: Nothing } ] }) { candidateTransaction { procedure = Just n.euSolidarity, signers = [ n.de ] }, signatures = [ n.de ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.eu (keyed [ n.money := "344.96", n.energy := 125 ]), Tuple n.euPool (keyed [ n.energy := 2 ]), Tuple n.de (keyed [ n.money := 125, n.energy := 38 ]) ]), reserves = balances [ Tuple n.energyAtlantic (keyed [ n.money := "675.04", n.energy := 358 ]) ], procedures = Just ([ procedureOutcome (ref n.eu) (q "0.6") true ]) })) })

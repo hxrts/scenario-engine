@@ -1,4 +1,4 @@
--- | The closed vocabularies of a stored run (docs/06_simulator.md §6, §9.1): its status, and how it
+-- | The closed vocabularies of a stored run (docs/07_simulator.md §6, §9.1): its status, and how it
 -- | was derived from another. Each has one spelling, here, and its shape. The Run Store keeps the
 -- | same text it always kept; `Adapters.SQLite` converts at the boundary.
 module Schema.Run

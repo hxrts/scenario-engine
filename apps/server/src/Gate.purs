@@ -1,4 +1,4 @@
--- | Who may reach the API (docs/06_simulator.md §8): the secrets read from the server's `.env`, and the check
+-- | Who may reach the API (docs/07_simulator.md §8): the secrets read from the server's `.env`, and the check
 -- | each request passes before its operation runs. A secret that is not set locks what it guards.
 module Gate
   ( Secrets

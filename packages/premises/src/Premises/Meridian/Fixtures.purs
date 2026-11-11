@@ -1,4 +1,4 @@
--- | The engine-level golden fixtures (docs/05_meridian.md §21–§27). Every expected
+-- | The engine-level golden fixtures (docs/06_meridian.md §21–§27). Every expected
 -- | value is a literal from the worked examples: the DSL shares the world pieces, never
 -- | the answers. `just _premises` compiles them to `packages/premises/fixtures/*.json`.
 -- |

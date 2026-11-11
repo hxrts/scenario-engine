@@ -1,7 +1,7 @@
 -- | The game package's tests: seat confinement (a ProposalBody carries no author, and the runner assigns
 -- | the seat it asked), the seat presets' name check, assembly's checks over the bindings and every
 -- | bound StrategyRules, and the overrides' JSON round trip.
--- | Pins: override and specification JSON are the stored spec format of docs/06 §8, each case marked `Pins` where it pins bytes.
+-- | Pins: override and specification JSON are the stored spec format of docs/07 §8, each case marked `Pins` where it pins bytes.
 module Test.Assembly.Main where
 
 import Schema.Build.Decision (gt, lit, named, orderAt, param, passive, restrictionInForce, rule)
@@ -129,7 +129,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (Just (Q.fromInt 7))
       isLeft (setAccount (Id "NOBODY") (Id "energy-production") (Q.fromInt 7) p.composition) `shouldEqual` true
       isLeft (setCurve (Id "no-exchange") { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 1 } } p.composition) `shouldEqual` true
-  describe "Assembly (docs/06 §4.3)" do
+  describe "Assembly (docs/07 §4.3)" do
     let
       assembled p bindings = map (const unit) (assemble (FromComposition p) bindings [])
     it "a binding for something that is not a configured seat is rejected" do
@@ -167,7 +167,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       p <- meridianParts
       map (const unit) (assemblePreset p "Passive" [ Capacity (Id "US") (Id "no-such-capacity") (Q.fromInt 1) ] Nothing) `shouldEqual` Left (Unresolved "override" RefResource "no-such-capacity")
       map (const unit) (assemblePreset p "Passive" [ Implicit (Id "NOBODY") ] Nothing) `shouldEqual` Left (Unresolved "override" RefActor "NOBODY")
-    -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
+    -- Pins the overrides format stored in a run's spec (docs/07 §3.1).
     it "a recipe read back from a stored spec checks its overrides when it is played" do
       p <- meridianParts
       case decodeOverrides =<< jsonParser """[{"type":"implicit","actor":"NOBODY"}]""" of
@@ -188,7 +188,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Left e -> e `shouldEqual` NotSimulable (Id "US")
         Right _ -> fail "expected NotSimulable"
 
-  describe "Overrides (docs/06 §3.1)" do
+  describe "Overrides (docs/07 §3.1)" do
     it "encode then decode reproduces every override kind" do
       let
         overrides =
@@ -201,7 +201,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       case decodeOverrides (encodeOverrides overrides) of
         Left e -> fail e
         Right back -> stringify (encodeOverrides back) `shouldEqual` stringify (encodeOverrides overrides)
-    -- Pins the overrides format stored in a run's spec (docs/06 §3.1).
+    -- Pins the overrides format stored in a run's spec (docs/07 §3.1).
     it "the stored form is byte-identical to specs written before the shape" do
       -- the literal is the output of the hand-written encoder this shape replaced
       let

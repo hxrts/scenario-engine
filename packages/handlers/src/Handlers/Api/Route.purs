@@ -1,4 +1,4 @@
--- | The HTTP route table of the `API` row (docs/06_simulator.md §8). It is the one
+-- | The HTTP route table of the `API` row (docs/07_simulator.md §8). It is the one
 -- | place the paths and methods of the API are written: `parse` turns a request into an `ApiRequest`,
 -- | and `wire` turns an `ApiRequest` back into its method, URL, and body, for the client. The status
 -- | rules are here too: a path that is not a route, and a body that does not decode, reply with an

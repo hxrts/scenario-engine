@@ -1,4 +1,4 @@
--- | The event inspector (docs/06_simulator.md §9.2): a round selector, and that round's events in the order the
+-- | The event inspector (docs/07_simulator.md §9.2): a round selector, and that round's events in the order the
 -- | engine recorded them. The filter only hides rows of what the server sent.
 module Dashboard.Events (mkEvents) where
 

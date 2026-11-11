@@ -1,4 +1,4 @@
--- | The model wire format (docs/06_simulator.md §14). Each request's payload and each reply is a shape
+-- | The model wire format (docs/07_simulator.md §14). Each request's payload and each reply is a shape
 -- | (`Core.Shape`), so the JSON the model sees and writes is the description the premise and the game
 -- | use. The prompts are the role briefing and framing prose, with the action list and the reply's
 -- | schema rendered from those shapes (`prose`). A reply is one JSON object, the first balanced `{...}` in its

@@ -145,14 +145,18 @@ settledSelect text f = case event @"Settled" of
 legs :: Select FlowOwed
 legs = settledSelect "every leg" \c -> mapWithIndex (\i l -> { round: c.round, from: l.from, to: l.to, resource: l.resource, owed: l.owed, moved: l.moved, rate: c.rate, cause: c.cause, delivered: c.delivered, position: i, count: length c.legs }) c.legs
 
--- | Exchange fills: one settlement along an Exchange's curve, its quantity signed (+ buys, − sells).
+-- | Exchange fills: each order's side of a cleared pair, its quantity signed (+ buys, − sells). A pair between two
+-- | orders is two fills; a pair with the reserve is one.
 exchangeFills :: Select { round :: RoundIndex, exchange :: ExchangeId, actor :: ActorId, resource :: ResourceId, quantity :: Q, price :: Q, candidateTransaction :: CandidateTransactionId }
-exchangeFills = settledSelect "the cause is an exchange along an Exchange's curve" \c -> case c.cause, index c.legs 0, c.rate of
-  OfIntent { candidateTransaction, mechanism: Curve exchange }, Just base, Just price
-    | not c.delivered -> case base.from, base.to of
-        InExchange _, Held actor -> [ { round: c.round, exchange, actor, resource: base.resource, quantity: base.moved, price, candidateTransaction } ]
-        Held actor, InExchange _ -> [ { round: c.round, exchange, actor, resource: base.resource, quantity: Q.neg base.moved, price, candidateTransaction } ]
-        _, _ -> []
+exchangeFills = settledSelect "the cause is a pair an Exchange cleared" \c -> case c.cause, index c.legs 0, c.rate of
+  OfMatch x, Just base, Just price
+    | not c.delivered ->
+        let
+          side ref end sign = case ref, end of
+            Just o, Held actor -> [ { round: c.round, exchange: x.exchange, actor, resource: base.resource, quantity: sign base.moved, price, candidateTransaction: o.candidateTransaction } ]
+            _, _ -> []
+        in
+          side x.buyer base.to identity <> side x.seller base.from Q.neg
   _, _, _ -> []
 
 -- | TransformationFills: the units run, and what was paid to the payee.
@@ -191,7 +195,7 @@ runLegQuery round events q = case q.aggregate of
     LastRound -> round - 1
   read' l = l.round == target && not l.delivered && maybe true (_ == l.resource) q.resource && patternOf l
   patternOf l = case q.cause, l.cause of
-    CurveBase, OfIntent { mechanism: Curve _ } -> l.position == 0
+    CurveBase, OfMatch _ -> l.position == 0
     TransformationPayment, OfIntent { mechanism: Transformation _ } -> isPayment l
     TransformationOf t, OfIntent { mechanism: Transformation x } -> x.transformation == t
     _, _ -> false

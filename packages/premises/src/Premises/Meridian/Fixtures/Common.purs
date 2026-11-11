@@ -1,6 +1,6 @@
 -- | What every golden fixture family shares: the premise each is filtered from, and the default cut.
 -- | Every world is a `restrict` of Meridian plus named patches (`Assembly.Patch`). Every expected value stays in
--- | the family modules, as a literal from docs/05_meridian.md; nothing here computes one.
+-- | the family modules, as a literal from docs/06_meridian.md; nothing here computes one.
 module Premises.Meridian.Fixtures.Common
   ( cut
   , defaultFixture

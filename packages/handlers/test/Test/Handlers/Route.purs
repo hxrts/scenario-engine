@@ -1,6 +1,6 @@
--- | The route table's two directions (docs/06_simulator.md §8): every operation reads back from what
+-- | The route table's two directions (docs/07_simulator.md §8): every operation reads back from what
 -- | `wire` sends, and the URLs and bodies are pinned literally (S8: the literals are the API's format).
--- | Pins: every operation's method, URL and body as docs/06 §8.1 states them.
+-- | Pins: every operation's method, URL and body as docs/07 §8.1 states them.
 module Test.Handlers.Route (spec) where
 
 import Prelude
@@ -119,7 +119,7 @@ spec = describe "Handlers.Api.Route's endpoint table" do
     Array.filter (\(Tuple r _) -> parse (delivered (wire r)) /= Right r) examples # noneLeft
   it "the views and every view's URL read back" do
     let requests = map (\v -> RunView { id: "r", view: v, round: Nothing }) allViews
-    Array.length allViews `shouldEqual` 16
+    Array.length allViews `shouldEqual` 17
     Array.filter (\r -> parse (delivered (wire r)) /= Right r) requests # noneLeft
     map viewName [ Overview, NetWorth ] `shouldEqual` [ "overview", "networth" ]
   it "the examples cover every endpoint of the table" do

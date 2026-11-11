@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Named concept rules that imports cannot express (docs/07 §5). Each rule names where its concept may live.
+// Named concept rules that imports cannot express (docs/08 §5). Each rule names where its concept may live.
 const fs = require("fs");
 const path = require("path");
 const { walk } = require("./lib/walk");
@@ -121,11 +121,11 @@ const isJs = (n) => /\.(js|mjs|cjs)$/.test(n);
 const files = sourceFiles((name) => isPurs(name) || isJs(name)).map((f) => path.relative(root, f));
 
 const errors = [];
-// FFI is a device (docs/07 §1): a `.js`, `.mjs` or `.cjs` file beside a module lives only in adapters or an app. Every other
+// FFI is a device (docs/08 §1): a `.js`, `.mjs` or `.cjs` file beside a module lives only in adapters or an app. Every other
 // package is PureScript alone, so no package binds itself to Node, or to any platform, without saying so in its spago.yaml.
 const ffiHomes = (f) => f.startsWith("packages/adapters/src/") || f.startsWith("apps/");
 for (const f of files.filter((f) => isJs(f) && f.startsWith("packages/") && f.includes("/src/"))) {
-  if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/07 §1)`);
+  if (!ffiHomes(f)) errors.push(`${f}: FFI outside adapters and apps: a foreign module is a device (docs/08 §1)`);
 }
 for (const rule of rules) {
   for (const f of files.filter((f) => (isPurs(f) || (rule.js && isJs(f))) && rule.files(f))) {
@@ -141,6 +141,7 @@ for (const rule of rules) {
 const moduleDirs = {
   "packages/premises/src/Premises/Meridian": "a catalog: it builds the PremiseComposition's world and its Premises from the tables beneath it",
   "packages/premises/src/Premises/Meridian/Actors": "a catalog: it lists the Actors defined beneath it",
+  "packages/premises/src/Premises/Pacific": "a catalog: it builds the PremiseComposition's world and its two Premises from the names and Strategies beneath it",
   "packages/premises/src/Premises/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
   "apps/server/src/Server": "the app's entry point; the directory holds its parts",
 };

@@ -1,4 +1,4 @@
--- | Test 13 (docs/06_simulator.md §14): save a run, reload it byte-identically, and replay it
+-- | Test 13 (docs/07_simulator.md §14): save a run, reload it byte-identically, and replay it
 -- | from the stored records. The Run Store's schema, read-only opens, and failure recording are
 -- | covered here too.
 module Test.Adapters.Main where
@@ -103,7 +103,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = storeOver db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 10
+      version `shouldEqual` 11
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)

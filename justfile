@@ -34,17 +34,17 @@ _fmt-check:
 _deps:
     node scripts/check/deps.js
 
-# Check the named layout rules (docs/07 §3)
+# Check the named layout rules (docs/08 §3)
 _layout:
     node scripts/check/layout.js
 
-# The three layers for impure work (docs/07 §1)
+# The three layers for impure work (docs/08 §1)
 _impurity:
     node scripts/check/impurity.js --samples
     node scripts/check/impurity.js
     node scripts/check/impurity.js --compile
 
-# Manual implementations of what should be derived (docs/07 §3)
+# Manual implementations of what should be derived (docs/08 §3)
 _derived:
     node scripts/check/derived.js --samples
     node scripts/check/derived.js
@@ -64,7 +64,7 @@ openapi composition="meridian" *args:
 # fmt-check, deps, layout, derived, build, test
 check: _fmt-check build _deps _layout _impurity _derived test _docs
 
-# docs/05's marked tables against the compiled composition
+# docs/06's marked tables against the compiled composition
 _docs: _premises
     node scripts/check/docs.js --samples
     node scripts/check/docs.js
@@ -144,14 +144,14 @@ serve *args:
     spago run -p sp-server -- "$@"
 
 # A production build of one composition: only its compiled files, under build/premises/<id>, with no
-# fixtures and no capstone. Serve it with SETTINGS_DIR=build/premises/<id> (docs/06 §8.1).
+# fixtures and no capstone. Serve it with SETTINGS_DIR=build/premises/<id> (docs/07 §8.1).
 [positional-arguments]
 build-prod composition: _ui _dashboard
     rm -rf build/premises/{{composition}}
     mkdir -p build/premises/{{composition}}
     SETTINGS_DIR=build/premises/{{composition}} spago run -p sp-cli --main Compile -- --only {{composition}}
 
-# One-off, billed live check of the joint pass: one real model call (docs/06 §14). Not in any suite.
+# One-off, billed live check of the joint pass: one real model call (docs/07 §14). Not in any suite.
 live-interpret:
     #!/usr/bin/env bash
     set -euo pipefail

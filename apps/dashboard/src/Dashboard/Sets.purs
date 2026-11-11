@@ -1,4 +1,4 @@
--- | Named Run sets on the Compare page (docs/06_simulator.md §10.5): open one, save the ticked runs as one,
+-- | Named Run sets on the Compare page (docs/07_simulator.md §10.5): open one, save the ticked runs as one,
 -- | rename one, delete one. The server stores and validates them; this panel sends the request and shows the reply.
 module Dashboard.Sets (mkSets) where
 

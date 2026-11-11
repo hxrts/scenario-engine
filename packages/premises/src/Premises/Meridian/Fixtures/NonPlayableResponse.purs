@@ -1,4 +1,4 @@
--- | Golden fixtures for the non-playable Actor response (docs/05_meridian.md §24, Fixture D): the US's
+-- | Golden fixtures for the non-playable Actor response (docs/06_meridian.md §24, Fixture D): the US's
 -- | major military action, and China answering as its non-playable Actor (§11.1) with defence procurement. The
 -- | shorter D-minor carries the major action alone. Fixtures D and D-minor.
 module Premises.Meridian.Fixtures.NonPlayableResponse (fixtureD, fixtureDMinor) where

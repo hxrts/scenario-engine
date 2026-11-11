@@ -1,4 +1,4 @@
--- | The whole-economy measures (docs/06_simulator.md §11), by round and Exchange: demand and unfilled demand, the
+-- | The whole-economy measures (docs/07_simulator.md §11), by round and Exchange: demand and unfilled demand, the
 -- | concentration of net worth, and the distribution of Money. Pure.
 module Views.WholeEconomy (wholeEconomy, herfindahl, unfilled, columns) where
 

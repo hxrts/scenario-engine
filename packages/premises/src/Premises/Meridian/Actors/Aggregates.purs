@@ -1,4 +1,4 @@
--- | Meridian's Aggregates (docs/05_meridian.md §10 Aggregate Catalog): the
+-- | Meridian's Aggregates (docs/06_meridian.md §10 Aggregate Catalog): the
 -- | collective Actors and the Representation Aggregates, with the EU's collective procedures.
 module Premises.Meridian.Actors.Aggregates (eu, euPool, cnPrivate, usWorkers, globalSmes, energySuppliers, worldHouseholds) where
 
@@ -30,7 +30,7 @@ coveredBy agg = mapMaybe covering seats
     Just (ImplicitCoverage a) | a == agg -> Just e
     _ -> Nothing
 
--- | The EU's solidarity pool (docs/05 §10.1): an Actor of its own, with no strategy, that starts
+-- | The EU's solidarity pool (docs/06 §10.1): an Actor of its own, with no strategy, that starts
 -- | empty. The EU's solidarity procedure draws on it as the EU's agent (`euAggregate`).
 euPool :: Actor
 euPool = aggregateActor holdings n.euPool { capabilities: [], kind: Aggregate euPoolAggregate }

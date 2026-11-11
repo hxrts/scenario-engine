@@ -1,4 +1,4 @@
--- | OpenAPI documents for the two independently built services (docs/06_simulator.md §8), generated from the
+-- | OpenAPI documents for the two independently built services (docs/07_simulator.md §8), generated from the
 -- | route table's paths and methods and from the contract's Shapes and refusals of each request and reply, so a document cannot
 -- | describe a route differently from how it behaves.
 module Server.OpenApi

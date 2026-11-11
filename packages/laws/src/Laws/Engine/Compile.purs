@@ -3,7 +3,8 @@ module Laws.Engine.Compile
   ( entered
   , WorldKernel
   , kernelOf
-  , fillTransaction
+  , pairTransaction
+  , named
   , transformTransaction
   , payTransaction
   , fractionLaw
@@ -27,8 +28,8 @@ import Data.Newtype (unwrap)
 import Data.Either (either, Either(..))
 
 import Core.Kernel.Consume (enter)
-import Laws.Types (EnterF, Capability, Direction(..), ActorId, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeId, Payment, CandidateTransactionId, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
-import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, Mechanism(..), PendingTransaction(..), RejectReason(..), WorldState)
+import Laws.Types (ActorId, Capability, Direction(..), EnterF, FlowEffect(..), Id(..), LevyBasis(..), LevyRecipient(..), Payment, ResourceId, RoundIndex, Rule, RuleF(..), RuleId, TransformationId, idText)
+import Laws.World (AuthoredLaw(..), Cause(..), Flow, LegQuery, PendingTransaction(..), RejectReason(..), WorldState)
 
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Resolve (Consumed, Kernel, resolve)
@@ -70,22 +71,41 @@ runTransaction w start c = case resolve (kernelOf w start) [ c ] of
 named :: ActorId -> K.Account
 named = K.HeldBy <<< K.Named
 
--- | One cleared fill: the base settled Flow first, then the quote settled Flow. A negative quantity is a sale, so each
--- | settled Flow's direction flips.
-fillTransaction :: ExchangeId -> Exchange -> { actor :: ActorId, pid :: CandidateTransactionId, intent :: Int, quantity :: Q, paid :: Q } -> Transaction
-fillTransaction id m f =
+-- | One cleared pair: the base moving from the seller to the buyer, the quote moving back at the batch price, and
+-- | the levies the flows Rules charge the seller on that movement. Delivery and payment are bound `Whole` to each
+-- | other, so neither moves without the other, and each levy stands only with the delivery. A side with no
+-- | Actor is the Exchange's reserve. The obligor of a leg is the Actor who answers for it: its side's Actor, or
+-- | the other side's when its side is the reserve.
+pairTransaction
+  :: { base :: ResourceId
+     , quote :: ResourceId
+     , seller :: K.Account
+     , buyer :: K.Account
+     , sellerActor :: ActorId
+     , buyerActor :: ActorId
+     , quantity :: Q
+     , paid :: Q
+     , levies :: Array { to :: Maybe ActorId, in :: ResourceId, amount :: Q }
+     , cause :: Cause
+     }
+  -> Transaction
+pairTransaction p =
   { obligations:
-      if f.quantity >= Q.zero then [ leg "base" (K.Reserve id) (named f.actor) m.base f.quantity, leg "quote" (named f.actor) (K.Reserve id) m.quote f.paid ]
-      else [ leg "base" (named f.actor) (K.Reserve id) m.base (Q.neg f.quantity), leg "quote" (K.Reserve id) (named f.actor) m.quote (Q.neg f.paid) ]
+      [ leg "delivery" p.sellerActor p.seller p.buyer p.base p.quantity [ bound 1 ]
+      , leg "payment" p.buyerActor p.buyer p.seller p.quote p.paid [ bound 0 ]
+      ]
+        <> map (\l -> leg "levy" p.sellerActor p.seller (maybe K.Destroyed named l.to) l.in l.amount [ bound 0 ]) p.levies
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 1
-  , cause: Just (OfIntent { candidateTransaction: f.pid, intent: f.intent, mechanism: Curve id })
+  , cause: Just p.cause
   , consented: []
   }
   where
-  leg :: String -> K.Account -> K.Account -> ResourceId -> Q -> Oblige
-  leg oid from to resource owed =
-    { id: oid, obligor: K.Named f.actor, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when: [], onShort: K.Cap, next: K.noNext }
+  bound i = { condition: K.Performed { index: i, bond: K.Whole }, reason: Nothing }
+
+  leg :: String -> ActorId -> K.Account -> K.Account -> ResourceId -> Q -> Array _ -> Oblige
+  leg oid obligor from to resource owed when =
+    { id: oid, obligor: K.Named obligor, effect: K.Move { from, to, resource, owed: K.Exactly owed }, when, onShort: K.Cap, next: K.noNext }
 
 -- | One filled Transform, for what settles this round. The payment posts first, since it caps at what
 -- | is held before the inputs go, and every settled Flow stands only if all the inputs are held.

@@ -1,4 +1,4 @@
--- | What each operation of the API answers (docs/06_simulator.md §8, docs/07_architecture.md §6): its reply type,
+-- | What each operation of the API answers (docs/07_simulator.md §8, docs/08_architecture.md §6): its reply type,
 -- | reply Shape, format and success status, and the refusals it may make, one entry per constructor of `ApiRequest`.
 -- | The server dispatches through this module (`dispatch`), the client decodes through it (`Handlers.Api.Client.send`),
 -- | and the OpenAPI documents read it (`operations`), so a reply cannot differ from its statement. A refusal's status

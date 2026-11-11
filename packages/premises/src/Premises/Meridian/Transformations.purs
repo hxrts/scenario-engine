@@ -60,7 +60,7 @@ energyShipping :: Transformation
 energyShipping = noTransformation { payment = paid { intercept: q "0.3", slope: q 0, domain: { lo: q 0, hi: q 60 } } n.ship, draws = [ fromHolder n.transport (q 1) ], ownerSigns = true }
 
 -- | A deployment reserves 1 Mil per unit for the round and consumes and produces nothing: the
--- | reserved Mil is released at commit (docs/05_meridian.md §13.3).
+-- | reserved Mil is released at commit (docs/06_meridian.md §13.3).
 deployment :: Transformation
 deployment = noTransformation { draws = [ fromExecutor n.mil (q 1) ] }
 

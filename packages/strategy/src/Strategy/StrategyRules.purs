@@ -38,6 +38,9 @@ type ExprAlg a =
   , price :: ExchangeRef -> a
   , holding :: ResourceId -> a
   , factor :: BehaviorDomain -> a
+  , due :: ResourceId -> a
+  , scheduled :: ResourceId -> a
+  , planned :: ResourceId -> a
   , mul :: a -> a -> a
   , sub :: a -> a -> a
   , max :: a -> a -> a
@@ -86,6 +89,9 @@ monoidExpr =
   , price: const mempty
   , holding: const mempty
   , factor: const mempty
+  , due: const mempty
+  , scheduled: const mempty
+  , planned: const mempty
   , mul: append
   , sub: append
   , max: append
@@ -101,6 +107,9 @@ foldExpr alg = go
     Price m -> alg.price m
     Holding r -> alg.holding r
     Factor d -> alg.factor d
+    Due r -> alg.due r
+    Scheduled r -> alg.scheduled r
+    Planned r -> alg.planned r
     Mul a b -> alg.mul (go a) (go b)
     Sub a b -> alg.sub (go a) (go b)
     Max a b -> alg.max (go a) (go b)
@@ -163,6 +172,9 @@ refsExpr = monoidExpr
   , price = exchangeRefs
   , holding = \r -> [ Tuple RefResource (idText r) ]
   , factor = \d -> [ Tuple RefResource (idText d) ]
+  , due = \r -> [ Tuple RefResource (idText r) ]
+  , scheduled = \r -> [ Tuple RefResource (idText r) ]
+  , planned = \r -> [ Tuple RefResource (idText r) ]
   }
 
 refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))

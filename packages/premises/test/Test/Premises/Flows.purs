@@ -79,7 +79,7 @@ spec = describe "Primitive flows through the DSL" do
           , { from: Held b, to: InExchange (Id "m"), resource: m, owed: Q.fromInt 4, moved: Q.fromInt 4 }
           ]
           (Just (Q.fromInt 2))
-          (OfIntent { candidateTransaction: tradeId, intent: 0, mechanism: Curve (Id "m") })
+          (OfMatch { exchange: Id "m", buyer: Just { candidateTransaction: tradeId, intent: 0 }, seller: Nothing })
       , -- the order's run: no inputs, outputs, or cost, so no settled Flows
         settledEvent 1 [] Nothing (OfIntent { candidateTransaction: shipId, intent: 0, mechanism: Transformation { by: a, transformation: Id "ship", units: Q.fromInt 5 } })
       , -- the toll: 10% of 5 E, paid in the numeraire

@@ -1,4 +1,4 @@
--- | Pins: a hosted live session over the API (docs/06_simulator.md §8), with a stub model and no billed call.
+-- | Pins: a hosted live session over the API (docs/07_simulator.md §8), with a stub model and no billed call.
 module Test.Server.Sessions (spec) where
 
 import Prelude

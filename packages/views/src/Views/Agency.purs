@@ -1,4 +1,4 @@
--- | One Actor's agency profile: how far its alternative preset moves the run (docs/06 §10.4). The
+-- | One Actor's agency profile: how far its alternative preset moves the run (docs/07 §10.4). The
 -- | experiment computes it (`experiments`); the views present it.
 module Views.Agency (AgencyProfile, CriterionChange, agencyTable, agencyCriteria, agencyProfiles, columns) where
 

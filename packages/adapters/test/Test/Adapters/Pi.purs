@@ -1,8 +1,8 @@
--- | The `pi` process boundary, with no model (docs/06_simulator.md §14): a fake `pi` on the PATH answers
+-- | The `pi` process boundary, with no model (docs/07_simulator.md §14): a fake `pi` on the PATH answers
 -- | with a canned event stream and records its arguments. The prompts, the decoding, and the evidence
 -- | are the handler's and are tested in `Test.Handlers.Llm`. `Test.Adapters.LiveInterpret` is the one
 -- | billed check.
--- | Pins: the raw `pi` event-stream format (docs/06 §5) and the prompt passing on its command line.
+-- | Pins: the raw `pi` event-stream format (docs/07 §5) and the prompt passing on its command line.
 module Test.Adapters.Pi (spec) where
 
 import Prelude

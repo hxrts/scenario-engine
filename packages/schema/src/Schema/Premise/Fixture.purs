@@ -1,4 +1,4 @@
--- | The premise format of a literal premise (docs/05_meridian.md §21–§27), as three parts: the
+-- | The premise format of a literal premise (docs/06_meridian.md §21–§27), as three parts: the
 -- | `premise` (its seed, name and World), the `bindings` (each round's candidate Transactions, the answers a seat
 -- | plays as a Script binding, in order from the World's round), and the `expectations` (the checks a
 -- | round makes, each naming its round). A round with no expectation checks nothing. The file's

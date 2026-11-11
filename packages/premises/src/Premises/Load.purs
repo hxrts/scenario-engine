@@ -38,7 +38,7 @@ import Schema.Premise.Fixture (Literal, decodeLiteral)
 import Schema.Premise.Composition (decodeConfig, decodeComposition)
 import Schema.Premise.StrategyRules (presetsShape)
 
--- | The seat-strategy presets (docs/06_simulator.md §4.2) from the presets file's text.
+-- | The seat-strategy presets (docs/07_simulator.md §4.2) from the presets file's text.
 loadPresets :: String -> Either String (Object StrategyRules)
 loadPresets t = jsonParser t >>= presetsFrom
 

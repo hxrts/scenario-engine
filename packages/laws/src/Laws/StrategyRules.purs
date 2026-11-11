@@ -60,6 +60,9 @@ data Expr
   | Price ExchangeRef -- beginning-of-round marginal price of the Exchange the reference picks
   | Holding ResourceId -- the Actor's own holding
   | Factor BehaviorDomain -- the stored Representation factor, 1 when none
+  | Due ResourceId -- the fixed amount of a Resource the Actor's recurring flows take from it each round
+  | Scheduled ResourceId -- what scheduled Flows still pending will deliver of a Resource to the Actor
+  | Planned ResourceId -- what the Transforms the Strategy drafted earlier this round consume of a Resource
   | Mul Expr Expr
   | Sub Expr Expr
   | Max Expr Expr

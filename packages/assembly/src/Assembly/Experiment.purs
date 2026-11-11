@@ -1,4 +1,4 @@
--- | A Variant Experiment (docs/06_simulator.md §11): what varies, and the one variant it generates per value.
+-- | A Variant Experiment (docs/07_simulator.md §11): what varies, and the one variant it generates per value.
 -- | Pure: each variant is a recipe, so every run of an experiment is an ordinary run reproducible from its spec.
 module Assembly.Experiment
   ( Experiment(..)

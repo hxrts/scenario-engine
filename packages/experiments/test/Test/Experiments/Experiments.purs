@@ -1,6 +1,6 @@
--- | The variant experiments of docs/06_simulator.md §11 on Meridian,
+-- | The variant experiments of docs/07_simulator.md §11 on Meridian,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
--- | every invariant; the printed table is the balancing evidence for docs/05 §28–§29.
+-- | every invariant; the printed table is the balancing evidence for docs/06 §28–§29.
 module Test.Experiments.Experiments (spec) where
 
 import Schema.Build.Quantity (q)
@@ -131,7 +131,7 @@ spec context = describe "Experiments (§11) and performance" do
     for_ (range 1 100) \seed -> void (play ctx (spec' (const "RandomValid") [] seed))
     t2 <- millis
     log ("one game " <> show (t1 - t0) <> " ms; 100 seeds " <> show (t2 - t1) <> " ms")
-    -- the targets are 1 s and 1 min (docs/06); a loaded CI machine must not fail the gate, so the
+    -- the targets are 1 s and 1 min (docs/07); a loaded CI machine must not fail the gate, so the
     -- bound is ten times the target: a regression of an order of magnitude is what this catches
     (t1 - t0) `shouldSatisfy` (_ < 10000.0)
     (t2 - t1) `shouldSatisfy` (_ < 600000.0)

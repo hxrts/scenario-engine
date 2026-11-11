@@ -30,10 +30,10 @@ import Laws.Engine.Commit (resolveRound)
 import Laws.Engine.Prepare (prepareRound)
 import Core.Num as Q
 import Laws.Query (accountsOf, capabilitiesOf, drawable, droppedCandidateTransactions, actorsOf, lookupQ, exchangesOf, poolCeiling, procedureOf, procedureSupport, totalHolding, transformationsOf)
-import Laws.Types (IntentF(..), SignedCandidateTransaction, holderDraw, poolDraw)
+import Laws.Types (ActorId, CandidateTransactionId, Intent, IntentF(..), SignedCandidateTransaction, holderDraw, poolDraw)
 import Laws.Slice (transformationFills, event, foldEvents, ignore, select)
 import Laws.World (Cause(..), Endpoint(..), Mechanism(..), PendingTransaction(..), RoundResult, WorldState)
-import Data.Array (all, any, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, null, reverse, take)
+import Data.Array (all, any, catMaybes, concatMap, drop, elem, filter, find, fromFoldable, index, length, nub, null, reverse, take)
 import Data.Either (Either(..))
 import Data.Foldable (foldl)
 import Data.Map as Map
@@ -181,6 +181,8 @@ inv01 before r = foldEvents
   r.record.events
   where
   candidateTransactionById id = find (\p -> p.id == id) (map _.candidateTransaction r.record.inputs)
+
+  intentAt :: forall c. { candidateTransaction :: CandidateTransactionId, intent :: Int | c } -> Maybe (Tuple ActorId Intent)
   intentAt c = candidateTransactionById c.candidateTransaction >>= \p -> Tuple p.author <$> index p.intents c.intent
   baseOf m = _.base <$> Map.lookup m before.exchanges
   unmatched what = [ failure INV01 (what <> " has no Intent behind it") ]
@@ -191,12 +193,19 @@ inv01 before r = foldEvents
     OfRule c -> if Map.member c.kind before.ruleKinds then [] else [ failure INV01 ("a levy of undeclared kind " <> show c.kind) ]
     OfAgreement c -> if Map.member c.template before.templates then [] else [ failure INV01 ("an agreement of undeclared template " <> c.template) ]
     OfRecurring c -> if any (\x -> x.id == c.rule) before.recurring then [] else [ failure INV01 ("a recurring flow " <> show c.rule <> " the premise does not declare") ]
+    -- each side of a pair that is an order is a Trade on the Exchange, or a routed order for its base, by an
+    -- Actor the pair's settled Flows move to or from
+    OfMatch x -> concatMap (traded x.exchange ls) (map Just (catMaybes [ x.buyer, x.seller ]))
+  traded m ls side = case side >>= intentAt of
+    Just (Tuple author i)
+      | elem (Held author) (map _.to ls <> map _.from ls) && onExchange m i -> []
+    _ -> unmatched ("a pair on " <> show m)
+  onExchange m = case _ of
+    Trade o -> o.exchange == m
+    Route x -> baseOf m == Just x.pair.base
+    _ -> false
   -- the Intent the cause points at is of the mechanism's kind, and names what the settled Flows moved
-  settled author i mechanism ls = case mechanism of
-    Curve m -> elem (Held author) (map _.to ls <> map _.from ls) && case i of
-      Trade o -> o.exchange == m
-      Route x -> baseOf m == Just x.pair.base
-      _ -> false
+  settled _ i mechanism ls = case mechanism of
     Transformation c -> case i of
       Transform x -> x.by == c.by && x.transformation == c.transformation
       _ -> false
@@ -280,7 +289,7 @@ inv07 _ r = concatMap one (select (event @"Settled") r.record.events)
   where
   -- what may cross the boundary: a Transformation's recipe, a Rule, a recurring flow. A price or a plain transfer never does.
   one c = case c.cause of
-    OfIntent { mechanism: Curve m } -> concatMap (bad (show m)) c.legs
+    OfMatch x -> concatMap (bad (show x.exchange)) c.legs
     OfIntent { mechanism: Direct } -> concatMap (bad "a transfer") c.legs
     _ -> []
   bad what l

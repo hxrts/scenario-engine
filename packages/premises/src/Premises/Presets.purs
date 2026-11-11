@@ -1,4 +1,4 @@
--- | The names of the seat-strategy presets (docs/06_simulator.md §4.2), shared by every premise, and
+-- | The names of the seat-strategy presets (docs/07_simulator.md §4.2), shared by every premise, and
 -- | the ones a caller plays when it names none. The strategies are `Premises.Kit.Presets`, a function
 -- | of each premise's binding.
 module Premises.Presets (presetId, presetNames, defaultPresets) where

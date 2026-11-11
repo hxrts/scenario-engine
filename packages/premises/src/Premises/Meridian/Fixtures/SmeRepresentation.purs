@@ -1,4 +1,4 @@
--- | Golden fixtures for SME representation (docs/05_meridian.md §23, Fixture C): the
+-- | Golden fixtures for SME representation (docs/06_meridian.md §23, Fixture C): the
 -- | Small-Business Owner's Representation of Global SMEs' Energy demand, its stored factor applied
 -- | a round later (§12.2). Fixtures C1, C2, C3 and C5; C5 checks only the seeded noise.
 module Premises.Meridian.Fixtures.SmeRepresentation (fixtureC1, fixtureC2, fixtureC3, fixtureC5) where
@@ -47,7 +47,7 @@ fixtureC2 = fixture "C2" (defaultFixture { cut = smeAndGlobalSmes (q 0), candida
 fixtureC3 :: Tuple String Json
 fixtureC3 = fixture "C3" (defaultFixture { cut = smeAndGlobalSmes (q 0), candidateTransactions = Just ([ candidateTransaction { author: n.sme, intents: [ trade { exchange: n.energyAtlantic, quantity: q 4, limit: Just (q 1) } ] } ]), expect = Just ((noExpect { accounts = balances ([ Tuple n.sme (keyed [ n.money := 15, n.energy := 5 ]) ]), factors = balances ([ Tuple n.globalSmes (keyed [ idText n.energy := "0.95" ]) ]), rejected = Just ([ ref n.sme ]) })) })
 
--- | C5 pins the seeded noise (docs/05 §23): the draw for game seed 26021 gives a factor of 0.9358. The
+-- | C5 pins the seeded noise (docs/06 §23): the draw for game seed 26021 gives a factor of 0.9358. The
 -- | golden test also reruns it under another seed.
 fixtureC5 :: Tuple String Json
 fixtureC5 = fixture "C5" (defaultFixture { cut = smeAndGlobalSmes (q "0.1"), candidateTransactions = Just ([ candidateTransaction { author: n.sme, intents: [ trade { exchange: n.energyAtlantic, quantity: q 4, limit: Just (q "2.1") } ] } ]), expect = Just (noExpect { factors = balances ([ Tuple n.globalSmes (keyed [ idText n.energy := "0.9358" ]) ]) }) })

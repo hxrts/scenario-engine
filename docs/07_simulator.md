@@ -1,6 +1,6 @@
 # Simulator and Dashboard Specification
 
-**Reference PremiseComposition:** Meridian ([05](05_meridian.md))
+**Reference PremiseComposition:** Meridian ([06](06_meridian.md))
 
 ---
 
@@ -35,7 +35,7 @@ The engine owns all economic behaviour ([02 §8.1](02_kernel.md#81-canonical-res
 
 ## 3. Simulation Specification
 
-A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([07 §4](07_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
+A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([08 §4](08_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
 
 The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, and, for a derived run, its `source` and `kind`. A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
 
@@ -49,7 +49,7 @@ Each run stores its overrides in its spec and its initial World in its manifest,
 
 The engine accepts only Intents ([03 §10.4](03_premise.md#104-available-actions)). In simulation each seat is bound, at assembly, to a seat Strategy ([04 §3.1](04_run.md#31-selection-and-control)). Swapping a seat's Strategy never changes the Actor's definition and never turns a seat into a non-playable Actor ([INV-30](02_kernel.md#inv-30)).
 
-The simulator runs two machine bindings: a preset strategy and a script of literal candidate Transactions and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's objective ([05 §9.3](05_meridian.md#93-objectives)). Presets run on the shared decision-language interpreter that non-playable Actor and Aggregate Strategies use ([03 §8.1](03_premise.md#81-shared-interpreter), [INV-29](02_kernel.md#inv-29)).
+The simulator runs two machine bindings: a preset strategy and a script of literal candidate Transactions and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's objective ([06 §9.3](06_meridian.md#93-objectives)). Presets run on the shared decision-language interpreter that non-playable Actor and Aggregate Strategies use ([03 §8.1](03_premise.md#81-shared-interpreter), [INV-29](02_kernel.md#inv-29)). A seat whose Actor has a routine plays it after any of these bindings except a script ([04 §6](04_run.md#6-strategy-initialization)).
 
 Every kind sees only its Actor's View ([02 §4](02_kernel.md#4-strategies)) and maps it to Intents. Every accepted Intent is recorded, so every run replays from its round records. Seat Strategies never mutate the World: each Intent passes ordinary validation and settlement.
 
@@ -59,7 +59,7 @@ The simulator never invents default decisions. A seat meant to stay silent is bo
 
 ### 4.2 Presets
 
-Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the premises package's preset file, compiled into each PremiseComposition. A PremiseComposition binds the presets to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Exchanges the seat can access with the lowest and highest opening price ([03 §8](03_premise.md#8-strategy-catalog)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
+Presets are named parameter sets of the shared interpreter, not separate strategies. The executable definition is the premises package's preset file, compiled into each PremiseComposition, and each PremiseComposition offers its own. Meridian, and any composition built like it, binds the shared presets below to its own staple Resource and its money, build, investment, and deployment Transformations. "Cheapest" and "costliest" mean the staple Exchanges the seat can access with the lowest and highest opening price ([03 §8](03_premise.md#8-strategy-catalog)). A seat with access to none trades nowhere. Quantities are in Resource units per round.
 
 | Preset | Behaviour |
 |---|---|
@@ -75,7 +75,7 @@ Presets are named parameter sets of the shared interpreter, not separate strateg
 | `RandomValid` | Each round, one seeded draw picks one option: no action, buy 5 of the staple (limit 3), or sell 5 at the costliest Exchange (limit 2). |
 | `Deployer` | While the PremiseComposition's reference Exchange price is above its deployment threshold, orders the bound deployment and a sale of the bound Resource in the same round. Both are scaled to the seat's holding. |
 
-`GET /api/premise` lists these names, in the order written, for each PremiseComposition that has them. The launch form offers the same names.
+`GET /api/premise` lists, for each PremiseComposition, the shared names it has in the order written, then its own names in name order. The launch form offers the same names, and choosing another composition keeps the chosen preset only if that composition offers it. Pacific's presets are in [05 §7.2](05_pacific.md#72-presets).
 
 ## 5. Deterministic Randomness
 
@@ -165,7 +165,7 @@ These tests transform a configuration in a controlled way. Those marked with a t
 
 ### 7.3 Resolution-consistency test
 
-This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference PremiseComposition twice, once with a government's activity implicit and once with that government explicit ([05 §10.1](05_meridian.md#101-germany-and-the-eu), [05 §14.2](05_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
+This is the direct check of [INV-14](02_kernel.md#inv-14). It instantiates the reference PremiseComposition twice, once with a government's activity implicit and once with that government explicit ([06 §10.1](06_meridian.md#101-germany-and-the-eu), [06 §14.2](06_meridian.md#142-resolution-consistency)). At initialization the two instances must reconcile stocks, give every capability exactly one holder, and cover each behavioural responsibility exactly once; any difference is an accounting defect. The explicit instance is not played further, because an implicit government spends its members' flows internally, which no seat Strategy can reproduce action for action.
 
 ### 7.4 AI interpretation tests
 
@@ -227,7 +227,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/runs` | The run list, one row per run, with its id, archived, readable, and source flags. Archived runs are left out unless `archived=true`. | 200 |
 | `POST /api/runs` | Launch a run of one preset on every seat: `composition`, name, preset, player seed (null draws), rounds (null for the default). | 200 with the new id and seed used. 400 for a bad or refused launch, including rounds outside the range |
 | `POST /api/batch` | One run of one preset on each named PremiseComposition (every loaded one by default), so they can be read through Compare. Each run records its own PremiseComposition. The batch gives no score of how well a PremiseComposition plays. | 200 with a list of runs. 400 for a bad body or a PremiseComposition that cannot start |
-| `GET /api/runs/:id/:view` | One of 16 views: `overview`, `objectives`, `balances`, `exchanges`, `transformations`, `economy`, `representation`, `procedures`, `assertions`, `wholeeconomy`, `events`, `standings`, `networth`, `actions`, `drivers`, `balance`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad round. 404 for an unknown run or view. 409 when the view needs a PremiseComposition that is not loaded. 500 for an unreadable run |
+| `GET /api/runs/:id/:view` | One of 17 views: `overview`, `objectives`, `balances`, `exchanges`, `transformations`, `economy`, `representation`, `procedures`, `assertions`, `wholeeconomy`, `events`, `standings`, `networth`, `actions`, `drivers`, `balance`, `dependence`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad round. 404 for an unknown run or view. 409 when the view needs a PremiseComposition that is not loaded. 500 for an unreadable run |
 | `GET /api/runs/:id/actors` | The run's Actors, each marked as a seat or not, and the default Actor. | 200. 404. 500 |
 | `GET /api/runs/:id/actor/:actor` | One Actor's balance sheet after every round, with a chart and its net worth. | 200. 400 for an Actor the run does not have, listing the valid names. 404. 500 |
 | `POST /api/runs/:id/derive` | Derive a run of kind `duplicate`, `rerun`, `variant`, or `counterfactual`, with optional name, preset, player seed, rounds, and overrides. | 201 with the new id, source, and kind (plus `recordsMatch` for a rerun). 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 when the source cannot be compared or replayed. 500 |
@@ -334,7 +334,7 @@ The run list is a sortable table, one row per stored run, in creation order. It 
 
 ### 9.2 Run Details
 
-The page opens with a header of the run's facts. Its sections follow in order: key figures; marginal prices of each Exchange; standings; net worth over time; actions; drivers (rules enacted and repealed, procedure outcomes, shortfalls); balance measures (spread and Gini); objectives; the final balance sheet of every Actor (`Initial`, `Current`, `Change`); and one Actor's balance sheet, selected from the run's Actors, defaulting to the first seat.
+The page opens with a header of the run's facts. Its sections follow in order: key figures; marginal prices of each Exchange; standings; net worth over time; actions; drivers (rules enacted and repealed, procedure outcomes, shortfalls); balance measures (spread and Gini); objectives; dependence (for each fixed requirement: the capacity covering it, coverage = min(1, capacity / requirement), exposure = max(0, requirement − capacity), imports, exports, receipts, shortfall, the bans in force against it, and the capacity on order); the final balance sheet of every Actor (`Initial`, `Current`, `Change`); and one Actor's balance sheet, selected from the run's Actors, defaulting to the first seat.
 
 Net worth is Money plus each Resource that an Exchange trades against Money, valued at its marginal price. Where several Exchanges trade one Resource, its price is their mean, so a holding counts once, and a Resource with no Exchange is not counted. Spread is the highest minus the lowest final net worth of the players. The Gini coefficient of final net worths is 0 when every player holds the same and 1 − 1/n when one holds everything, and it is n/a when the total is zero or a value is negative.
 
@@ -377,6 +377,7 @@ The Dashboard names each difference between runs that are not directly comparabl
 - **Trajectory:** one metric across runs, such as each Exchange's price or each player's net worth.
 - **Final state:** ending holdings side by side, with differing values highlighted.
 - **Difference from baseline:** the holdings that differ from the baseline, as changes.
+- **Key values:** besides net worth, rank, actions, the balance measures, objectives and prices, each Actor's receipts from its Exchange sales over the run, the final coverage of each fixed requirement by the Actor's own capacity, and each requirement's shortfall over the run. Between a run and its counterfactual without a restriction, the shortfall row is the restriction's realized effect.
 - **Configuration difference:** parameter differences, one row each, categorised as version, seat Strategy, seed, or other. The other category holds deliberate changes such as overrides, so they are distinguished from the rest.
 
 ### 10.3 Counterfactual experiments
@@ -389,7 +390,7 @@ With both seeds and every draw key fixed, the difference is the intervention's t
 
 ### 10.4 Agency analysis
 
-For each Playable Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([05 §9.3](05_meridian.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
+For each Playable Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria ([06 §9.3](06_meridian.md#93-objectives)). An unknown preset name is an error, never a silent baseline.
 
 The Compare page's Agency (fixed baseline) tab shows one row per Playable Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Playable Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Playable Actor: its measures under the alternative, and its criteria met either way.
 
@@ -422,7 +423,7 @@ Correctness is established by the assertions (§7) and the mandatory tests (§14
 
 ## 13. Reference Coverage
 
-The suite runs the reference PremiseComposition, *Meridian* ([05](05_meridian.md)), with every seat bound to a simple, predictable preset.
+The suite runs the reference PremiseComposition, *Meridian* ([06](06_meridian.md)), with every seat bound to a simple, predictable preset.
 
 ## 14. Mandatory Tests
 
@@ -433,22 +434,25 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 1 | Full game | Five rounds under three presets (every seat `Conservative`, `Passive`, `RandomValid`), with the game seed fixed and `RandomValid` under two player seeds. Each round is valid, the implemented invariants of §7.1 hold, the same seeds reproduce, and different player seeds give different histories ([INV-13](02_kernel.md#inv-13)). |
 | 2 | Replay | `RandomValid` run twice with the same seeds, then once under the replay handler from the recorded input. Round records and round-end Worlds are identical ([INV-13](02_kernel.md#inv-13)). |
 | 3 | Submission order | For the `Conservative`, `Aggressive`, and `RandomValid` runs, each round's recorded inputs in three reorderings. Each reordering settles to the recorded world ([INV-11](02_kernel.md#inv-11)). |
-| 4 | Direct Exchange | [Fixture A](05_meridian.md#21-fixture-a-direct-exchange) and its limit-price variant A2. Fixture values; [INV-04](02_kernel.md#inv-04), [INV-06](02_kernel.md#inv-06). |
-| 5 | Germany and EU | [Fixture B](05_meridian.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a pair: Germany signs against not signing. The procedure executes in the same round only when support exceeds the threshold ([INV-10](02_kernel.md#inv-10)); signing moves no resources ([INV-03](02_kernel.md#inv-03)). |
-| 6 | SME Representation | [Fixture C](05_meridian.md#23-fixture-c-small-business-owner-representation), C1 to C3, and C1 with shrinkage 0. The factor applies in the following round, and shrinkage 0 leaves it at 1. Seeded-noise cases are checked in the premises suite ([INV-09](02_kernel.md#inv-09), [INV-13](02_kernel.md#inv-13)). |
-| 7 | Non-playable Actor response | [Fixture D](05_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment. |
-| 7b | Reservation | [Fixture R](05_meridian.md#133-military-deployment) and R-alone: a deployment reserves a Resource, a sale of the same Resource is scaled, and the reservation is released at commit ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05)). |
-| 7c | Deployer | The shipped `Deployer` preset with the other seats Passive. The scaled deployment and sale occur in the rounds the reference price is above its threshold, with the exact values of [05 §13.3](05_meridian.md#133-military-deployment). |
+| 4 | Direct Exchange | [Fixture A](06_meridian.md#21-fixture-a-direct-exchange) and its limit-price variant A2. Fixture values; [INV-04](02_kernel.md#inv-04), [INV-06](02_kernel.md#inv-06). |
+| 5 | Germany and EU | [Fixture B](06_meridian.md#22-fixture-b-germany-and-the-eu-collective-procedure) as a pair: Germany signs against not signing. The procedure executes in the same round only when support exceeds the threshold ([INV-10](02_kernel.md#inv-10)); signing moves no resources ([INV-03](02_kernel.md#inv-03)). |
+| 6 | SME Representation | [Fixture C](06_meridian.md#23-fixture-c-small-business-owner-representation), C1 to C3, and C1 with shrinkage 0. The factor applies in the following round, and shrinkage 0 leaves it at 1. Seeded-noise cases are checked in the premises suite ([INV-09](02_kernel.md#inv-09), [INV-13](02_kernel.md#inv-13)). |
+| 7 | Non-playable Actor response | [Fixture D](06_meridian.md#24-fixture-d-china-responds-as-a-non-playable-actor) as a pair, with and without the deployment. |
+| 7b | Reservation | [Fixture R](06_meridian.md#133-military-deployment) and R-alone: a deployment reserves a Resource, a sale of the same Resource is scaled, and the reservation is released at commit ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05)). |
+| 7c | Deployer | The shipped `Deployer` preset with the other seats Passive. The scaled deployment and sale occur in the rounds the reference price is above its threshold, with the exact values of [06 §13.3](06_meridian.md#133-military-deployment). |
 | 7d | Investor | Five seats play `Investor`. The capacity investment executes, and no Rejected event says the candidate Transaction "must sign". |
-| 8 | Scarcity | [Fixture E](05_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the round 3 disruption and regional prices. The expected propagation holds ([INV-05](02_kernel.md#inv-05), [INV-06](02_kernel.md#inv-06)). |
-| 8b | Major shock | Every seat plays each preset, calm and with the [major shock](05_meridian.md#136-energy-disruption), under the same seats and player seed. At least four presets flip their proposed kinds of action, deterministically ([INV-13](02_kernel.md#inv-13)). A second check pins the calm and shocked Conservative prices ([05 §13.6](05_meridian.md#136-energy-disruption)). |
-| 9 | Conflicting actions | [Fixture F](05_meridian.md#26-fixture-f-simultaneous-conflicting-orders). Fixture fills ([INV-11](02_kernel.md#inv-11)). |
-| 10 | Signed candidate Transactions | [Fixture G](05_meridian.md#27-fixture-g-candidate-transactions-and-signatures) cases G1, G2, G3, G3-ban, G5, and G5-unsigned. Fully signed candidate Transactions settle atomically with the fixture values, unsigned ones lapse while the round resolves, and a joint candidate Transaction under an `AccessBan` is rejected as a unit ([INV-10](02_kernel.md#inv-10)). |
+| 8 | Scarcity | [Fixture E](06_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the round 3 disruption and regional prices. The expected propagation holds ([INV-05](02_kernel.md#inv-05), [INV-06](02_kernel.md#inv-06)). |
+| 8b | Major shock | Every seat plays each preset, calm and with the [major shock](06_meridian.md#136-energy-disruption), under the same seats and player seed. At least four presets flip their proposed kinds of action, deterministically ([INV-13](02_kernel.md#inv-13)). A second check pins the calm and shocked Conservative prices ([06 §13.6](06_meridian.md#136-energy-disruption)). |
+| 9 | Conflicting actions | [Fixture F](06_meridian.md#26-fixture-f-simultaneous-conflicting-orders). Fixture fills ([INV-11](02_kernel.md#inv-11)). |
+| 10 | Signed candidate Transactions | [Fixture G](06_meridian.md#27-fixture-g-candidate-transactions-and-signatures) cases G1, G2, G3, G3-ban, G5, and G5-unsigned. Fully signed candidate Transactions settle atomically with the fixture values, unsigned ones lapse while the round resolves, and a joint candidate Transaction under an `AccessBan` is rejected as a unit ([INV-10](02_kernel.md#inv-10)). |
 | 11 (a) | Trade restriction, capstone | The DSL-authored US ban, EU tariff, and a banned shipment in the capstone run. The procedure executes, the tariff is in force, and a `Blocked` rejection is recorded. |
-| 11 (b) | Trade restriction, Fixture E2 | [Fixture E2](05_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the US enacts an `AccessBan` on China in round 2, in force from round 3, and China reciprocates, effective round 4. The fixture's values hold. |
+| 11 (b) | Trade restriction, Fixture E2 | [Fixture E2](06_meridian.md#25-fixture-e-scarcity-and-trade-restriction): the US enacts an `AccessBan` on China in round 2, in force from round 3, and China reciprocates, effective round 4. The fixture's values hold. |
 | 12 | Resolution consistency | [§7.3](#73-resolution-consistency-test): the reference PremiseComposition instantiated with an implicit and an explicit government ([INV-14](02_kernel.md#inv-14)). |
 | 13 | Persistence | Save a run to the Run Store, reload it, compare its stored records and round-end Worlds with the pure run, and replay from the stored records. The run is identical ([INV-31](02_kernel.md#inv-31)). |
 | 14 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference PremiseComposition. Under the `RandomValid` baseline, every Playable Actor has a measurable effect and its objective criteria are reported. Under the `Conservative` baseline, the Playable Actors with no measurable effect are pinned as balancing findings, so a PremiseComposition change is noticed. |
+| 15 | Pacific golden scenarios | [05 §11](05_pacific.md#11-golden-scenarios) A to H: free trade, each ban, each investment, a ban met by substitution in both directions, no phantom trade on an Exchange with no reserves, and the invariants, replay, submission order, repeated enactment and the bans that cannot be bypassed ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05), [INV-07](02_kernel.md#inv-07), [INV-11](02_kernel.md#inv-11), [INV-13](02_kernel.md#inv-13)). |
+| 16 | Routine beside a player | [05 §11](05_pacific.md#11-golden-scenarios) Routine: a human seat composed with its routine, whose commerce reads what the human's speech put forward. |
+| 17 | Sensitivity | [05 §12](05_pacific.md#12-sensitivity): the strategic tension holds over each dial changed alone. |
 
 The premises suite also runs the authored agreements of [03 §15](03_premise.md#15-authoring-laws-and-agreements), which are not a mandatory test. The core suite covers only the kernel, and the rest of the former core tests are in `packages/laws/test`. Unnumbered tests in the same suites: removing every representative observation leaves each Aggregate's factors at their baseline with no estimate recorded; every preset plays 8 rounds with the invariants holding; a run resumed from its third round-end World matches the uninterrupted run; the INV-29 and INV-30 checks; and a player-seed batch keeps every game-stream draw identical while seat behaviour varies.
 

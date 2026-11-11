@@ -1,4 +1,4 @@
--- | Counterfactuals, player-seed runs and agency (docs/06_simulator.md §10.4–§11, §10.5). Every
+-- | Counterfactuals, player-seed runs and agency (docs/07_simulator.md §10.4–§11, §10.5). Every
 -- | experiment composes the pure `simulate`; none has its own run loop. The views present the results.
 module Experiments.Agency
   ( difference

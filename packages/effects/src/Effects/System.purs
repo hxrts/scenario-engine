@@ -28,7 +28,7 @@ now = lift _clock (Now identity)
 drawSeed :: forall r. Run (ENTROPY + r) Int
 drawSeed = lift _entropy (DrawSeed identity)
 
--- | A run's player seed (docs/06_simulator.md §5): as given, and only an absent one is drawn. Everything
+-- | A run's player seed (docs/07_simulator.md §5): as given, and only an absent one is drawn. Everything
 -- | after this is a keyed draw on the result, so the caller records it and the run replays from it.
 resolveSeed :: forall r. Maybe Seed -> Run (ENTROPY + r) Seed
 resolveSeed = case _ of
@@ -38,7 +38,7 @@ resolveSeed = case _ of
 identify :: forall r. Run (PROCESS + r) ProcessIdentity
 identify = lift _process (Identify identity)
 
--- | The owner token of this process in a role, written on every run it creates (docs/06_simulator.md
+-- | The owner token of this process in a role, written on every run it creates (docs/07_simulator.md
 -- | §6.1): the role, the process id, and the process start time.
 ownerOf :: forall r. String -> Run (PROCESS + r) String
 ownerOf role = identify <#> \p -> role <> ":" <> p.pid <> ":" <> p.started

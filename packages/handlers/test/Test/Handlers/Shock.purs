@@ -1,7 +1,7 @@
--- | The major shock (docs/05 §13.6, `Premises.Meridian.majorShock`): a designed test case beside the
+-- | The major shock (docs/06 §13.6, `Premises.Meridian.majorShock`): a designed test case beside the
 -- | reference disruption. Calm and shocked games have the same seats, presets and player seed, so a
 -- | difference in a seat's proposals is the shock's doing.
--- | Pins: docs/05 §13.6 (the major shock).
+-- | Pins: docs/06 §13.6 (the major shock).
 module Test.Handlers.Shock (spec) where
 
 import Schema.Build.Quantity (q)
@@ -53,7 +53,7 @@ flips :: SimRun -> SimRun -> Boolean
 flips calm shocked = any (\i -> roundKinds calm i /= roundKinds shocked i) (range 0 (length calm.records - 1))
 
 spec :: Aff CompositionParts -> Spec Unit
-spec premise = describe "Major shock (docs/05 §13.6)" do
+spec premise = describe "Major shock (docs/06 §13.6)" do
   it "flips the behaviour of at least four presets, deterministically" do
     p <- premise
     let overrides = shockOverrides
@@ -66,7 +66,7 @@ spec premise = describe "Major shock (docs/05 §13.6)" do
       shockPresets
     let flipped = map (\(Tuple preset _) -> preset) (filter (\(Tuple _ f) -> f) results)
     flipped `shouldSatisfy` (\ns -> length ns >= 4)
-  it "pins the Conservative prices of docs/05 §13.6, and is deterministic" do
+  it "pins the Conservative prices of docs/06 §13.6, and is deterministic" do
     p <- premise
     calm <- play p "Conservative" []
     shocked <- play p "Conservative" shockOverrides
@@ -84,7 +84,7 @@ shockOverrides = map (\(Tuple name value) -> Parameter name (q value)) majorShoc
 prices' :: String -> SimRun -> Array Q.Q
 prices' m r = map (\x -> fromMaybe Q.zero (priceOf x.world (Id m))) r.records
 
--- | The same, as the two-decimal display (docs/05 §13.6 prints them so).
+-- | The same, as the two-decimal display (docs/06 §13.6 prints them so).
 prices :: String -> SimRun -> Array String
 prices m r = map Q.displayQuantity (prices' m r)
 

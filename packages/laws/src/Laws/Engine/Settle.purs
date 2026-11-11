@@ -13,13 +13,15 @@ module Laws.Engine.Settle
 
 import Prelude
 
-import Laws.Engine.Compile (entered, actionTransactions, delivery, fillTransaction, jointInputs, payTransaction, ruleChange, runTransaction, transformTransaction)
+import Laws.Engine.Compile (entered, actionTransactions, delivery, jointInputs, named, pairTransaction, payTransaction, ruleChange, runTransaction, transformTransaction)
 
 import Laws.Engine.Fund (Scaled, scaleOf)
 import Core.Map (entries, groupBy, sumInto)
 import Core.Kernel.Resolve (Fate(..))
-import Core.Kernel.Clear (clearSolvent)
+import Core.Kernel.Clear (Side(..), clearSolvent)
+import Laws.Engine.Screen (blockOf, leviesOn)
 import Core.Kernel.Post (Account(..), Ledger)
+import Core.Kernel.Types as K
 import Core.Kernel.Ration (fillPool)
 import Core.Kernel.Route as Route
 import Core.Num (Q)
@@ -27,12 +29,12 @@ import Core.Num as Q
 import Laws.Query (transformationPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
 import Laws.Types (ActorId, IntentF(..), ExchangeId, CandidateTransactionId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf, idText)
 import Laws.World (Cause(..), Event, Mechanism(..), PendingTransaction, RejectReason(..), WorldState, addEvents, settledEvent, orderRemoved, rejection)
-import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
+import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, nubEq, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Tuple (Tuple(..), fst)
 
 -- | The round's batch result: the ledger and Exchange positions, plus the deliveries, Rule changes,
@@ -169,24 +171,63 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
     scaled
   -- Trade fills are not capped by `pay`: clearing bounds them by the Exchange's domain and reserves,
   -- and escrow funds them (docs/02 §8.2). Their quote settled Flow is escrowed at the limit or the domain ceiling.
+  -- Each cleared pair settles as one transaction between its two sides (docs/02 §5.5). A flows Rule applies to
+  -- the base moving from the seller to the buyer as it does to a Transfer: a Block refuses the pair, and a Levy
+  -- is charged to the seller with it, once (docs/03 §5.5). The reserve has no jurisdiction, so no Rule applies
+  -- to a pair with the reserve. Trade fills are not capped by `pay`: clearing bounds them by the Exchange's
+  -- domain and reserves, and escrow funds them (docs/02 §8.2).
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.actor o.pid) (filter (\o -> o.exchange == id) orders)
       r = clearSolvent m os
-      fill a f =
+      actorOf = case _ of
+        Party o -> Just o.actor
+        Reserve -> Nothing
+      blockOn x = case actorOf x.seller, actorOf x.buyer of
+        Just from, Just to -> blockOf w { from, to, resource: m.base }
+        _, _ -> Nothing
+      { yes: settling, no: refused } = partition (isNothing <<< blockOn) r.pairs
+      blockedEvents = nubEq (concatMap (\x -> maybe [] (\k -> map (\o -> orderRemoved w.round o.pid (Blocked k)) (ordersOf x)) (blockOn x)) refused)
+      ordersOf x = mapMaybe
+        ( case _ of
+            Party o -> Just o
+            Reserve -> Nothing
+        )
+        [ x.buyer, x.seller ]
+      account = case _ of
+        Party o -> named o.actor
+        Reserve -> K.Reserve id
+      ref = case _ of
+        Party o -> Just { candidateTransaction: o.pid, intent: o.position }
+        Reserve -> Nothing
+      -- who answers for each leg: its side's Actor, or the other side's when its side is the reserve
+      answerers x = case actorOf x.seller, actorOf x.buyer of
+        Just s, Just b -> Just { sellerActor: s, buyerActor: b }
+        Just s, Nothing -> Just { sellerActor: s, buyerActor: s }
+        Nothing, Just b -> Just { sellerActor: b, buyerActor: b }
+        Nothing, Nothing -> Nothing
+      settlePair a x = maybe a (\who -> settleWith who a x) (answerers x)
+      settleWith { sellerActor, buyerActor } a x =
         let
-          paid = Q.mul r.price f.quantity
+          levies = case actorOf x.seller, actorOf x.buyer of
+            Just from, Just to -> filter (\l -> l.amount > Q.zero) (leviesOn w { from, to, resource: m.base } x.quantity)
+            _, _ -> []
+          cause = OfMatch { exchange: id, buyer: ref x.buyer, seller: ref x.seller }
+          posted = runTransaction w a.ledger (pairTransaction { base: m.base, quote: m.quote, seller: account x.seller, buyer: account x.buyer, sellerActor, buyerActor, quantity: x.quantity, paid: Q.mul r.price x.quantity, levies: map (\l -> { to: l.to, in: l.in, amount: l.amount }) levies, cause })
+          levyEvents = zipWith (\l leg -> settledEvent w.round [ leg ] Nothing (OfRule { kind: l.kind })) levies (drop 2 posted.flows)
         in
-          case runTransaction w a.ledger (fillTransaction id m { actor: f.order.actor, pid: f.order.pid, intent: f.order.position, quantity: f.quantity, paid }) of
-            posted -> applyActionLaws w f.order.actor (idText id) (Q.abs f.quantity) (addEvents [ settledEvent w.round posted.flows (Just r.price) (OfIntent { candidateTransaction: f.order.pid, intent: f.order.position, mechanism: Curve id }) ] a { ledger = posted.ledger })
+          addEvents ([ settledEvent w.round (take 2 posted.flows) (Just r.price) cause ] <> levyEvents) a { ledger = posted.ledger }
+      -- what each order settled across its pairs, for the action laws it is charged
+      settledBy = foldl (\mp x -> foldl (\m' o -> sumInto (Tuple o.actor (Tuple o.pid o.position)) x.quantity m') mp (ordersOf x)) Map.empty settling
     in
       if null os then acc
       else
         let
-          filled = foldl fill acc r.fills
+          paired = foldl settlePair acc settling
+          charged = foldl (\a (Tuple (Tuple actor _) q) -> applyActionLaws w actor (idText id) q a) paired (entries settledBy)
         in
-          addEvents (map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
-            filled { positions = Map.insert id (Q.add m.position r.net) filled.positions }
+          addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
+            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions }
 
 -- | Settle one candidate Transaction's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule delayed flows.

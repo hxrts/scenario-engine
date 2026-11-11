@@ -1,4 +1,4 @@
--- | One Actor's balanceSheet (docs/06_simulator.md §9): what it has done, what it has available, and what it can do,
+-- | One Actor's balanceSheet (docs/07_simulator.md §9): what it has done, what it has available, and what it can do,
 -- | scoped to that Actor. It names another Actor only where this one was party to a Transaction with it. Pure.
 module Views.BalanceSheet
   ( BalanceSheet

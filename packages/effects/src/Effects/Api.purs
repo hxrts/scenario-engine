@@ -1,4 +1,4 @@
--- | The `API` row (docs/06_simulator.md §8–§10): one operation per route of the
+-- | The `API` row (docs/07_simulator.md §8–§10): one operation per route of the
 -- | dashboard's HTTP API. A request is a value of `ApiRequest`: its path segments, query, and body, as
 -- | typed fields. A reply is the status and the body text the route answers with. `Handlers.Api.Route`
 -- | maps each operation to its method and path and decodes the reply's status; `Handlers.Api.Client`

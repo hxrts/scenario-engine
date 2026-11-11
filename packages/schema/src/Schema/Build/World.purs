@@ -184,7 +184,7 @@ definition
      , dependency :: String
      }
   -> ActorDefinition
-definition d = d { nonPlayableActor = map named d.nonPlayableActor, objective = Just d.objective }
+definition d = { required: d.required, seat: d.seat, nonPlayableActor: map named d.nonPlayableActor, routine: Nothing, fallback: d.fallback, objective: Just d.objective, description: d.description, dependency: d.dependency }
 
 -- | An Aggregate with its members and no procedures.
 aggregate :: forall p. Named p StrategyTag => { strategy :: p, members :: Array ActorId } -> Aggregate

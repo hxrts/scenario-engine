@@ -1,4 +1,4 @@
--- | The terminal (docs/07_architecture.md): one line of input after a prompt, and a line of output.
+-- | The terminal (docs/08_architecture.md): one line of input after a prompt, and a line of output.
 -- | The raw primitives only; the prompts and what is said are the handler's and the app's. Console.js
 -- | holds the readline interface.
 module Adapters.Console (readLine, writeLine, closeInput) where

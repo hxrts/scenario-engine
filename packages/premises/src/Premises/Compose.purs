@@ -31,7 +31,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Premises.Kit.Presets (PresetBinding, presetsOf)
+import Laws.StrategyRules (StrategyRules)
 import Premises.Layout as L
 import Schema.Composition (InstantiationConfig, PremiseComposition, PremiseRef, premiseRefShape, premiseRefText)
 import Schema.Premise.Composition (compositionShape, configShape)
@@ -41,13 +41,13 @@ import Schema.Premise.StrategyRules (presetsShape)
 type Premise = { id :: String, version :: String, sections :: Object Json }
 
 -- | A PremiseComposition as authored: its identity, its Premises in order, how it is instantiated, and the
--- | seat presets it offers.
+-- | seat presets it offers, each a name and its StrategyRules, in the order the launch form offers them.
 type CompositionSource =
   { id :: String
   , version :: String
   , premises :: Array Premise
   , config :: InstantiationConfig
-  , presets :: PresetBinding
+  , presets :: Array (Tuple String StrategyRules)
   }
 
 -- | Every way an ordered list of Premises can fail to compose. Each names the Premises and the thing.
@@ -311,7 +311,7 @@ files c =
 
 -- | A composition's seat presets, as the presets file holds them.
 presetsJson :: CompositionSource -> Json
-presetsJson c = encodeWith Authored presetsShape (presetsOf c.presets)
+presetsJson c = encodeWith Authored presetsShape c.presets
 
 -- | The same Premise (`id@version`) written differently by two compositions, for the compiler to refuse.
 sharedPremiseConflict :: Array CompositionSource -> Maybe String

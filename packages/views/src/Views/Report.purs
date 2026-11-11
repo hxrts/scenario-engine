@@ -1,4 +1,4 @@
--- | What one round produced, for a component that reports on it (docs/06_simulator.md §8): the round's
+-- | What one round produced, for a component that reports on it (docs/07_simulator.md §8): the round's
 -- | events, each Exchange's price and its movement, each Actor's holdings and their change, the
 -- | shortfalls, the Rules that took effect, and what was turned down. Pure.
 module Views.Report

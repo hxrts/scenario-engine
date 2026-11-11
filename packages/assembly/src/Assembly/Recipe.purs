@@ -1,4 +1,4 @@
--- | A run's recipe (docs/06_simulator.md §9.1): the preset, player seed, round count and overrides it
+-- | A run's recipe (docs/07_simulator.md §9.1): the preset, player seed, round count and overrides it
 -- | is played from, and the stored specification that records them. `encodeSpec` writes that
 -- | specification, `decodeSpec` reads it back, and `deriveRecipe` applies a derive request to a
 -- | source's recipe. The server keeps the HTTP status of each failure.

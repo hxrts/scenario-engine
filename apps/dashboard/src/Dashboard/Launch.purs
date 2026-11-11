@@ -1,4 +1,4 @@
--- | The launch form (docs/06_simulator.md §9): its fields, their defaults, validation, the summary line,
+-- | The launch form (docs/07_simulator.md §9): its fields, their defaults, validation, the summary line,
 -- | and the request `POST /api/runs` accepts (apps/server Launch). Every field has a default, so a launch
 -- | with no edits is valid. The composition (`GET /api/premise`) supplies the round range, the default
 -- | round count, the default run name, the presets and the game seed; the request carries no game seed,

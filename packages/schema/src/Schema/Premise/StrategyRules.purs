@@ -54,6 +54,9 @@ exprShape = recursive "Expr" \e -> genericPremiseSum "Expr"
   , "Price": atOneKey "price" "the beginning-of-round price of an Exchange" exchangeRefShape
   , "Holding": atOneKey "holding" "the Actor's own holding of a Resource" idShape
   , "Factor": atOneKey "factor" "the stored factor of a behaviour domain" idShape
+  , "Due": atOneKey "due" "the fixed amount of a Resource the Actor's recurring flows take from it each round" idShape
+  , "Scheduled": atOneKey "scheduled" "what scheduled Flows still pending will deliver of a Resource to the Actor" idShape
+  , "Planned": atOneKey "planned" "what the Transforms drafted earlier this round consume of a Resource" idShape
   , "Mul": atOneKey "mul" "a product" (pairOf e e)
   , "Sub": atOneKey "sub" "a difference" (pairOf e e)
   , "Max": atOneKey "max" "the larger of two" (pairOf e e)

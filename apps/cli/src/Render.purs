@@ -1,4 +1,4 @@
--- | The composition compiler's rendering (docs/07 §3): the DSL compositions, validated
+-- | The composition compiler's rendering (docs/08 §3): the DSL compositions, validated
 -- | exactly as the loader will decode them, rendered as the JSON files it reads. Pure: the `Compile`
 -- | module writes the files under the premise root. The output is gitignored: it is a pure function of
 -- | the DSL source. The encoders are `Shape` codecs (`Core.Shape`); no hand-written codec is used here.
@@ -18,7 +18,7 @@ import Data.Foldable (for_)
 import Data.Tuple (Tuple(..), fst)
 import Core.Shape (prettyJson)
 import Foreign.Object as Object
-import Premises.Meridian.Fixtures as Fixtures
+import Premises.Fixtures as Fixtures
 import Premises.Catalog (compositions)
 import Premises.Compose (CompositionSource, files, sharedPremiseConflict)
 import Premises.Load (parts)

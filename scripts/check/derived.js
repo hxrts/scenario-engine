@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Finds manual implementations of something that should be derived from one description (docs/07 §3):
+// Finds manual implementations of something that should be derived from one description (docs/08 §3):
 // a hand projection of a sum, a hand codec, a slice of the Events written as a `case`, a name written twice.
 //
 //   derived.js                     the gate: any hit outside scripts/check/derived.allow fails
@@ -184,7 +184,7 @@ const fixes = {
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check/derived.allow",
   "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check/derived.allow",
-  "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/07 §3)",
+  "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/08 §3)",
 };
 
 const ruleIds = Object.keys(fixes);

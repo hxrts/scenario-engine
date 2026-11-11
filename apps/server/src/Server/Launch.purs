@@ -1,4 +1,4 @@
--- | Launching a run (`POST /api/runs`, docs/06_simulator.md §9.1): the request and its validation,
+-- | Launching a run (`POST /api/runs`, docs/07_simulator.md §9.1): the request and its validation,
 -- | the seed handling (a player seed is drawn once, before the run starts), the run's stored spec,
 -- | and the play-to-completion that persists every round. Derived runs start through `start` too.
 module Server.Launch
@@ -11,7 +11,7 @@ module Server.Launch
 
 import Prelude
 
-import Data.Array (filter)
+import Data.Array (elem, filter, sort)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM, traverse_)
 import Data.Maybe (Maybe(..))
@@ -34,7 +34,7 @@ import Schema.Composition (premiseRefText)
 serverRole :: String
 serverRole = "server"
 
--- | The startup strategy (docs/06_simulator.md §6.1): a run a server left marked running was left by a
+-- | The startup strategy (docs/07_simulator.md §6.1): a run a server left marked running was left by a
 -- | process that stopped before it finished, so it is failed with that reason. Runs another role owns,
 -- | such as a live CLI session on the same store, are not this server's to fail. Returns the line to report, if any.
 startup :: forall r. Run (STORE + r) (Maybe String)
@@ -70,5 +70,6 @@ compositionInfo ps = do
     , rounds: { min: p.composition.rounds.min, max: p.composition.rounds.max, default: p.config.rounds }
     , gameSeed: unwrap p.config.seed
     , defaultName: next
-    , presets: filter (\n -> Object.member n p.presets) presetNames
+    -- the shared names in their order, then a composition's own names in name order
+    , presets: filter (\n -> Object.member n p.presets) presetNames <> filter (\n -> not (elem n presetNames)) (sort (Object.keys p.presets))
     }
