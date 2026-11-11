@@ -11,10 +11,11 @@ module Server.Launch
 
 import Prelude
 
-import Data.Array (elem, filter, sort)
+import Control.Alt ((<|>))
+import Data.Array (elem, filter, head, sort)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM, traverse_)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Effects.Launch (Launched, nextRunId, start)
 import Effects.Signatures (STORE)
@@ -71,5 +72,8 @@ compositionInfo ps = do
     , gameSeed: unwrap p.config.seed
     , defaultName: next
     -- the shared names in their order, then a composition's own names in name order
-    , presets: filter (\n -> Object.member n p.presets) presetNames <> filter (\n -> not (elem n presetNames)) (sort (Object.keys p.presets))
+    , presets: offered p
+    -- the composition's own default, else the first it offers
+    , defaultPreset: fromMaybe "" (p.config.preset <|> head (offered p))
     }
+  offered p = filter (\n -> Object.member n p.presets) presetNames <> filter (\n -> not (elem n presetNames)) (sort (Object.keys p.presets))

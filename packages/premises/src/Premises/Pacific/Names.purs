@@ -16,6 +16,9 @@ bilateralId = "bilateral-economy"
 strategicId :: String
 strategicId = "strategic-dependence"
 
+privateId :: String
+privateId = "private-sector"
+
 -- | The type of `p`.
 type Names =
   { us :: ActorId
@@ -32,6 +35,13 @@ type Names =
   , usTechnologyBan :: RuleKindId
   , cnIndustrialBan :: RuleKindId
   , commerce :: StrategyId
+  , usPrivate :: ActorId
+  , cnPrivate :: ActorId
+  , usFirm :: ActorId
+  , cnFirm :: ActorId
+  , usPrivateDemand :: StrategyId
+  , cnPrivateDemand :: StrategyId
+  , usImportTariff :: RuleKindId
   }
 
 p :: Names
@@ -50,4 +60,11 @@ p =
   , usTechnologyBan: Id "us-technology-ban"
   , cnIndustrialBan: Id "cn-industrial-ban"
   , commerce: Id "pacific-commerce-v0"
+  , usPrivate: Id "US-private"
+  , cnPrivate: Id "CN-private"
+  , usFirm: Id "US-firm"
+  , cnFirm: Id "CN-firm"
+  , usPrivateDemand: Id "us-private-demand-v0"
+  , cnPrivateDemand: Id "cn-private-demand-v0"
+  , usImportTariff: Id "us-import-tariff"
   }

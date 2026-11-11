@@ -69,9 +69,10 @@ configShape = object "Configuration"
       <*> fieldOf "nonPlayableActors" "each PlayableActor's NonPlayableActor Strategy" (emptyByDefault (idMap idShape)) _.nonPlayableActors
       <*> fieldOf "fallbacks" "overrides of each PlayableActor's declared fallback" (emptyByDefault (idMap fallbackShape)) _.fallbacks
       <*> fieldOf "representations" "the Representation assignments" (arrayOf assignmentShape) _.representations
+      <*> fieldOf "preset" "the preset a launch plays when it names none" (optionalOf stringShape) _.preset
   )
   where
-  mk s r se n f rep = { seed: Seed s, rounds: r, seats: se, nonPlayableActors: n, fallbacks: f, representations: rep }
+  mk s r se n f rep pr = { seed: Seed s, rounds: r, seats: se, nonPlayableActors: n, fallbacks: f, representations: rep, preset: pr }
 
 -- | A composition, decoded from its merged sections.
 decodeComposition :: Json -> Either JsonDecodeError PremiseComposition

@@ -129,7 +129,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.amount (mergeRequirements [ req Nothing, req Nothing ]) `shouldEqual` [ (req Nothing).amount ]
 
   describe "Coverage merge retargets references (docs/04 §4.2)" do
-    let config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
+    let config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
     it "a payee, an effect holder, and Rules naming a merged PlayableActor name its Aggregate instead" do
       case instantiate coverageComposition config of
         Left es -> fail (show es)
@@ -168,7 +168,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Unknown references at load (docs/03 §12)" do
     let
-      config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
+      config = { seed: Seed 1, rounds: 2, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
       w = coverageComposition.world
       us = Id "US" :: ActorId
       eu = Id "EU" :: ActorId

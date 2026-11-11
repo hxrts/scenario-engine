@@ -14,6 +14,8 @@ module Assembly.Patch
 
 import Prelude
 
+import Data.Maybe (Maybe(..))
+
 import Laws.World (WorldTemplate)
 import Data.Tuple (Tuple)
 
@@ -74,7 +76,7 @@ withCirculation c gb = gb
 engineOnly :: CompositionParts -> CompositionParts
 engineOnly p = p
   { composition = p.composition { explicitActors = Map.empty, schemes = [], strategies = map (const { rules: [], sign: [] }) p.composition.strategies }
-  , config = p.config { seats = Map.empty, nonPlayableActors = Map.empty, fallbacks = Map.empty, representations = [] }
+  , config = p.config { seats = Map.empty, nonPlayableActors = Map.empty, fallbacks = Map.empty, representations = [], preset = Nothing }
   , presets = Object.empty
   }
 

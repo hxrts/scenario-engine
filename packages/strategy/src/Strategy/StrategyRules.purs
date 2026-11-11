@@ -54,6 +54,7 @@ type CondAlg a c =
   , eq :: a -> a -> c
   , not :: c -> c
   , recorded :: { query :: RecordQuery, atLeast :: a } -> c
+  , acting :: ActorId -> c
   }
 
 type TemplateAlg a t =
@@ -125,6 +126,7 @@ foldCond expr alg = go
     Eq a b -> alg.eq (e a) (e b)
     Not c -> alg.not (go c)
     Recorded x -> alg.recorded { query: x.query, atLeast: e x.atLeast }
+    Acting a -> alg.acting a
 
 foldTemplate :: forall a t. ExprAlg a -> TemplateAlg a t -> Template -> t
 foldTemplate expr alg = go
@@ -185,6 +187,7 @@ refsCond =
   , eq: append
   , not: identity
   , recorded: \x -> queryRefs x.query <> x.atLeast
+  , acting: \a -> [ Tuple RefActor (idText a) ]
   }
 
 -- | The names a query of the record reads.

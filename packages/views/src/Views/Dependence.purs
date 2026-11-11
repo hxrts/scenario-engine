@@ -2,7 +2,7 @@
 -- | requirement of, what its own capacity covers, what it must import, what it traded, what it received for its
 -- | sales, what it went short, the Rules in force that block that Resource reaching it, and the capacity on
 -- | order for it. Derived from the World and the round's record only. Pure.
-module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, capacitiesOf, finalCoverage, cumulativeShortfall, cumulativeReceipts) where
+module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, demandsOf, capacitiesOf, finalCoverage, cumulativeShortfall, cumulativeReceipts, cumulativePurchases) where
 
 import Prelude
 
@@ -10,10 +10,11 @@ import Core.Num (Q)
 import Core.Map (values)
 import Core.Num as Q
 import Data.Array (concatMap, elem, filter, length, mapMaybe, zip)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Laws.Engine.Compile (deliveredOf)
-import Laws.Query (holding)
+import Laws.Query (holding, tradesOf)
 import Laws.Slice (exchangeFills, select, shortfalls)
 import Laws.Types (ActorId, FlowEffect(..), ResourceId, RuleF(..))
 import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RoundRecord, WorldState)
@@ -50,8 +51,11 @@ blockedColumn = column "Bans against" "The Rules in force after the round that b
 orderedColumn :: Column
 orderedColumn = column "Capacity on order" "Capacity for the Resource that scheduled Flows will still deliver to the Actor."
 
+unsoldColumn :: Column
+unsoldColumn = column "Unsold" "What the Actor offered of the Resource on the Exchanges in the round and no buyer took."
+
 columns :: Array Column
-columns = [ requirementColumn, capacityColumn, coverageColumn, exposureColumn, importsColumn, exportsColumn, receiptsColumn, shortfallColumn, blockedColumn, orderedColumn ]
+columns = [ requirementColumn, capacityColumn, coverageColumn, exposureColumn, importsColumn, exportsColumn, receiptsColumn, shortfallColumn, blockedColumn, orderedColumn, unsoldColumn ]
 
 coverage :: Q -> Q -> Q
 coverage requirement capacity = min Q.one (fromMaybe Q.one (Q.divMaybe capacity requirement))
@@ -68,9 +72,11 @@ dependence r =
   where
   actorColumn = column "Actor" "The Actor with the requirement."
   resourceColumn = column "Resource" "The Resource it requires."
-  rowsOf (Tuple rec w) = map (rowOf rec w) (requirementsOf w)
+  -- a fixed requirement, then a demand: an Actor whose requirement is what it buys, whose purchases are its
+  -- requirement and which has no capacity to cover it
+  rowsOf (Tuple rec w) = map (rowOf rec w) (map (\q -> q { amount = Just q.amount }) (requirementsOf w) <> map (\q -> { actor: q.actor, resource: q.resource, amount: Nothing }) (demandsOf w))
 
-  rowOf :: RoundRecord -> WorldState -> { actor :: ActorId, resource :: ResourceId, amount :: Q } -> Array String
+  rowOf :: RoundRecord -> WorldState -> { actor :: ActorId, resource :: ResourceId, amount :: Maybe Q } -> Array String
   rowOf rec w q =
     let
       caps = capacitiesOf w q.actor q.resource
@@ -81,20 +87,24 @@ dependence r =
       paid = Q.sumQ (map (\f -> Q.neg (Q.mul f.price f.quantity)) (filter (\f -> f.quantity < Q.zero) fills))
       short = Q.sumQ (map _.quantity (filter (\f -> f.actor == q.actor && f.resource == q.resource) (select shortfalls rec.events)))
       ordered = Q.sumQ (map _.quantity (filter (\d -> d.actor == q.actor && d.resource `elem` caps) (mapMaybe deliveredOf w.pending)))
+      offered = Q.sumQ (concatMap (\s -> if s.candidateTransaction.author == q.actor then map (\o -> Q.neg o.quantity) (filter (\o -> o.quantity < Q.zero && baseOf o.exchange == Just q.resource) (tradesOf s.candidateTransaction.intents)) else []) rec.inputs)
+      baseOf x = _.base <$> Map.lookup x w.exchanges
+      amount = fromMaybe bought q.amount
     in
       [ show rec.round
       , show q.actor
       , show q.resource
-      , quantity q.amount
+      , quantity amount
       , quantity capacity
-      , ratio (coverage q.amount capacity)
-      , quantity (exposure q.amount capacity)
+      , maybe "n/a" (\a -> ratio (coverage a capacity)) q.amount
+      , maybe "n/a" (\a -> quantity (exposure a capacity)) q.amount
       , quantity bought
       , quantity sold
       , quantity paid
       , quantity short
       , show (length (filter (blocks q.actor q.resource) (values w.rules)))
       , quantity ordered
+      , quantity (max Q.zero (Q.sub offered sold))
       ]
 
 -- | What a requirement's capacity covers after a World: min(1, capacity / requirement).
@@ -117,6 +127,14 @@ requirementsOf w = mapMaybe one w.recurring
     FromActor a, FixedAmount amount | x.kind == kinds.requirement -> Just { actor: a, resource: x.resource, amount }
     _, _ -> Nothing
 
+-- | Every requirement measured by what its Actor buys: the Actors whose demand is their purchases.
+demandsOf :: WorldState -> Array { actor :: ActorId, resource :: ResourceId }
+demandsOf w = mapMaybe one w.recurring
+  where
+  one x = case x.source, x.amount of
+    FromActor a, Measured _ | x.kind == kinds.requirement -> Just { actor: a, resource: x.resource }
+    _, _ -> Nothing
+
 -- | The capacities whose production delivers a Resource to an Actor.
 capacitiesOf :: WorldState -> ActorId -> ResourceId -> Array ResourceId
 capacitiesOf w a g = mapMaybe one w.recurring
@@ -134,3 +152,7 @@ blocks a g = case _ of
   isBlock = case _ of
     Block -> true
     Levy _ -> false
+
+-- | What an Actor bought of a Resource on the Exchanges over the run.
+cumulativePurchases :: StoredRun -> ActorId -> ResourceId -> Q
+cumulativePurchases r a g = Q.sumQ (concatMap (\rec -> map _.quantity (filter (\f -> f.actor == a && f.resource == g && f.quantity > Q.zero) (select exchangeFills rec.events))) (records r))

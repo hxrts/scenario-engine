@@ -105,7 +105,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Seat presets" do
     it "a human named for a live session must be a configured seat" do
-      let config = { seats: Map.singleton (Id "US") "seat-1", nonPlayableActors: Map.empty, representations: [], fallbacks: Map.empty, seed: Seed 1, rounds: 5 }
+      let config = { seats: Map.singleton (Id "US") "seat-1", nonPlayableActors: Map.empty, representations: [], fallbacks: Map.empty, seed: Seed 1, rounds: 5, preset: Nothing }
       unknownSeats [ Id "US", Id "USA" ] config `shouldEqual` [ Id "USA" ]
     it "a preset that does not exist is an error, and no seat is bound silently" do
       case presetBindings Object.empty (const "Missing") [ Id "US" ] of

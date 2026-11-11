@@ -71,6 +71,7 @@ condShape = recursive "Cond" \c -> genericPremiseSum "Cond"
   , "Eq": atOneKey "eq" "equal to" (pairOf exprShape exprShape)
   , "Not": atOneKey "not" "not" c
   , "Recorded": atOneKey "recorded" "what a query of the record reads is at least the threshold" recordedBody
+  , "Acting": atOneKey "acting" "the acting Actor is this one" idShape
   }
   where
   recordedBody = recordOf "Recorded"

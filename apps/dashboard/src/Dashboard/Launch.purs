@@ -6,6 +6,7 @@
 module Dashboard.Launch
   ( LaunchForm
   , emptyForm
+  , presetOf
   , selected
   , validate
   , summary
@@ -25,13 +26,16 @@ import Data.String (trim)
 import Effects.Api (Launch)
 import Views.Composition (CompositionInfo, RoundRange)
 
--- | The raw text of each field. A blank name is the default name; a blank preset cannot occur (it is a
--- | select), and a blank rounds or player seed is the default.
+-- | The raw text of each field. A blank name, preset, rounds or player seed is the composition's default.
 type LaunchForm = { composition :: String, name :: String, preset :: String, playerSeed :: String, rounds :: String }
 
--- | Blank name, the preset every seat plays, and blank seed and rounds (the defaults).
+-- | Every field blank: the composition's defaults.
 emptyForm :: LaunchForm
-emptyForm = { composition: "", name: "", preset: "Conservative", playerSeed: "", rounds: "" }
+emptyForm = { composition: "", name: "", preset: "", playerSeed: "", rounds: "" }
+
+-- | The preset a form plays: its own, or the composition's default when blank.
+presetOf :: CompositionInfo -> LaunchForm -> String
+presetOf s f = if f.preset == "" then s.defaultPreset else f.preset
 
 -- | The first problem with the form, or the request it describes. A blank name is the composition's
 -- | default name; a blank rounds is the composition's default rounds (sent as null).
@@ -41,14 +45,15 @@ validate s f = do
     name = case trim f.name of
       "" -> s.defaultName
       n -> n
-  if elem f.preset s.presets then pure unit else Left ("Preset is unknown: " <> f.preset <> ".")
+  let preset = presetOf s f
+  if elem preset s.presets then pure unit else Left ("Preset is unknown: " <> preset <> ".")
   playerSeed <- case trim f.playerSeed of
     "" -> Right Nothing
     t -> maybe (Left "Player seed must be a whole number. Leave it blank to draw one.") (Right <<< Just) (Int.fromString t)
   roundCount <- case trim f.rounds of
     "" -> Right Nothing
     t -> Just <$> rounds t
-  pure { composition: Just s.name, name, preset: f.preset, playerSeed, rounds: roundCount }
+  pure { composition: Just s.name, name, preset, playerSeed, rounds: roundCount }
 
 -- | The composition a form launches: the one it names, or the first when it names none.
 selected :: LaunchForm -> Array CompositionInfo -> Maybe CompositionInfo
@@ -65,10 +70,10 @@ roundChoices :: RoundRange -> Array Int
 roundChoices r = range r.min r.max
 
 -- | The line under the form: what the run will be, with the defaults filled in.
-summary :: RoundRange -> LaunchForm -> String
-summary r f = "This run: " <> f.preset <> ", " <> show n <> (if n == 1 then " round" else " rounds") <> ", " <> seed <> "."
+summary :: CompositionInfo -> LaunchForm -> String
+summary s f = "This run: " <> presetOf s f <> ", " <> show n <> (if n == 1 then " round" else " rounds") <> ", " <> seed <> "."
   where
-  n = roundValue r f.rounds
+  n = roundValue s.rounds f.rounds
   seed = case trim f.playerSeed of
     "" -> "seed drawn at launch"
     t -> "player seed " <> t

@@ -10,6 +10,7 @@ module Schema.Build.Decision
   , due
   , scheduled
   , planned
+  , acting
   , mulQ
   , subQ
   , gt
@@ -149,6 +150,10 @@ transformedLastRound r = Recorded { query: S.OfLegs { party: N.named r.by, windo
 
 restrictedLastRound :: forall b t. Named b ActorTag => Named t ActorTag => { by :: b, target :: t } -> Cond
 restrictedLastRound r = Recorded { query: S.RulesEnacted { governor: N.named r.by, counterparty: N.named r.target }, atLeast: lit 1 }
+
+-- | The acting Actor is this one: lets one StrategyRules say what each seat it serves does.
+acting :: forall a. Named a ActorTag => a -> Cond
+acting = Acting <<< N.named
 
 restrictionInForce :: forall b. Named b ActorTag => { by :: b } -> Cond
 restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by }, atLeast: lit 1 }

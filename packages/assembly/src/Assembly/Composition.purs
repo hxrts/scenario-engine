@@ -41,6 +41,8 @@ checkComposition p = do
   composition <- lmapInvalid (validateComposition p.composition p.config)
   traverse_ (\(Tuple (Id name) s) -> checkRefs ("strategy " <> name) (compositionNames composition) s) (entries composition.strategies)
   traverse_ (\(Tuple name s) -> checkRefs ("preset " <> name) (compositionNames composition) s) (Object.toUnfoldable p.presets :: Array _)
+  -- the default preset is one the composition offers
+  traverse_ (\name -> if Object.member name p.presets then Right unit else Left (UnknownPreset name)) p.config.preset
   pure p { composition = composition }
   where
   lmapInvalid = case _ of

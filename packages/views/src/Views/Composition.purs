@@ -18,4 +18,5 @@ type CompositionInfo =
   , gameSeed :: Int
   , defaultName :: String
   , presets :: Array String
+  , defaultPreset :: String -- the preset a launch plays when it names none
   }

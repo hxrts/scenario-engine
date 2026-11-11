@@ -20,7 +20,7 @@ import Schema.Build.World (emptyCirculation)
 import Schema.Build.Base (mayEnact)
 
 base :: CompositionParts
-base = { composition: compositionWith defaultDials, config: (pacific defaultDials).config, presets: Object.empty }
+base = { composition: compositionWith defaultDials, config: (pacific defaultDials).config { preset = Nothing }, presets: Object.empty }
 
 fixture :: String -> FixtureSpec -> Tuple String Json
 fixture = Kit.fixture { seed: gameSeed, base }
@@ -72,5 +72,23 @@ fixturePG = fixture "P-G" spec
   , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 100, p.industry := 10 ]) ], reserves = balances [ Tuple p.industryMarket (keyed [ p.money := 0, p.industry := 0 ]) ] })
   }
 
+-- | P-R: China releases 10 M to its private sector in round 1, and in round 2 the private sector buys 2 I from
+-- | the Chinese state on the matched market. The release is a transfer and the purchase a pair, so Money and
+-- | goods are conserved and the Exchange holds nothing.
+fixturePR :: Tuple String Json
+fixturePR = fixture "P-R" spec
+  { cut = cut { actors = [ { key: p.cn, accounts: Just [ p.money, p.industry ], capabilities: Just [ mayTrade p.industryMarket, mayTransfer p.money, mayTransfer p.industry ] }, { key: p.cnPrivate, accounts: Just [ p.money, p.industry ], capabilities: Just [ mayTrade p.industryMarket ] } ], exchanges = [ p.industryMarket ] }
+  , rounds = Just
+      [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.cn, intents: [ Transfer { from: p.cn, to: p.cnPrivate, resource: p.money, quantity: q 10 } ] } ] }
+      , noRound
+          { candidateTransactions = Just
+              [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryMarket, quantity: q (-2), limit: Just (q 2) } ] }
+              , candidateTransaction { author: p.cnPrivate, intents: [ trade { exchange: p.industryMarket, quantity: q 2, limit: Just (q 2) } ] }
+              ]
+          , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 94, p.industry := 8 ]), Tuple p.cnPrivate (keyed [ p.money := 6, p.industry := 2 ]) ], reserves = balances [ Tuple p.industryMarket (keyed [ p.money := 0, p.industry := 0 ]) ] })
+          }
+      ]
+  }
+
 fixtures :: Array (Tuple String Json)
-fixtures = [ fixturePA, fixturePB, fixturePG ]
+fixtures = [ fixturePA, fixturePB, fixturePG, fixturePR ]

@@ -148,6 +148,7 @@ refCond =
   , eq: append
   , not: identity
   , recorded: _.atLeast
+  , acting: const []
   }
 
 refTemplate :: TemplateAlg (Array ExchangeRef) (Array ExchangeRef)
@@ -206,6 +207,7 @@ holds env = foldCond (evalAlg env)
   , eq: lift2 (==)
   , not: map not
   , recorded: \c -> map (recordHolds env c.query) c.atLeast
+  , acting: \a -> Just (a == env.view.self.id)
   }
 
 -- | Whether what a query of the record reads is at least the threshold. A window that read nothing does

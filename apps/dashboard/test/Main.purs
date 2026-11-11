@@ -111,8 +111,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       roundValue premiseRounds " 7 " `shouldEqual` 7
       roundChoices premiseRounds `shouldEqual` [ 4, 5, 6, 7, 8 ]
     it "the summary line says what the run will play, with the defaults filled in" do
-      summary premiseRounds emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
-      summary premiseRounds (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
+      summary composition emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
+      summary composition (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
   describe "Launch form: validation" do
     it "rounds, when given, must be a whole number; the composition's range is the server's" do
       validate composition (emptyForm { rounds = " 6 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
@@ -127,8 +127,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       validate composition (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
       validate composition (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Premise reply" do
-    it "the composition's name, round range, game seed, default name and presets are decoded from GET /api/premise" do
-      decodePremise "{\"name\":\"meridian\",\"premises\":[\"meridian-energy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"]}"
+    it "the composition's name, round range, game seed, default name, presets and default preset are decoded from GET /api/premise" do
+      decodePremise "{\"name\":\"meridian\",\"premises\":[\"meridian-energy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\"}"
         `shouldEqual` Right composition
       decodePremise "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
   describe "Round count rule" do
@@ -183,7 +183,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   premiseRounds = { min: 4, max: 8, default: 5 }
 
   composition :: CompositionInfo
-  composition = { name: "meridian", version: "v0", premises: [ "meridian-energy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ] }
+  composition = { name: "meridian", version: "v0", premises: [ "meridian-energy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ], defaultPreset: "Conservative" }
 
   decodePremise :: String -> Either String CompositionInfo
   decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape CompositionInfo)

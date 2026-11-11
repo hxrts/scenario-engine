@@ -69,11 +69,14 @@ filtered s p = p
       , nonPlayableActors = Map.filterKeys keptActor p.config.nonPlayableActors
       , fallbacks = Map.filterKeys keptActor p.config.fallbacks
       , representations = filter (\r -> keptActor r.explicitActor && r.scheme `elem` map _.id schemes) p.config.representations
+      -- the default preset stays only if the preset itself does
+      , preset = p.config.preset >>= \name -> if Object.member name keptPresets then Just name else Nothing
       }
-  , presets = Object.filter resolves p.presets
+  , presets = keptPresets
   }
   where
   keptActor e = e `elem` s.actors
+  keptPresets = Object.filter resolves p.presets
   selected r = r `elem` s.resources
   old = p.composition
   authored = old.authored

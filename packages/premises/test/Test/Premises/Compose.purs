@@ -87,7 +87,7 @@ source premises =
   { id: "t"
   , version: "v0"
   , premises
-  , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
+  , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
   , presets: presetsOf { staple: Id "G", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
   }
 
@@ -177,11 +177,16 @@ spec = do
     it "its two Premises compose with no conflict and check" do
       map (const unit) (parts pacific) `shouldEqual` Right unit
     it "bilateral-economy alone is a whole economy with no bans or investments" do
-      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [] } of
+      -- the two states' seats only: the firms and their schemes are the private sector's
+      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { seats = Map.filterKeys (\k -> k == Id "US" || k == Id "CN") pacific.config.seats, representations = [], preset = Nothing } } of
         Left e -> fail e
         Right p -> do
           Map.size p.composition.world.transformations `shouldEqual` 0
           Map.size p.composition.world.ruleKinds `shouldEqual` 0
+    it "private-sector alone fails only on what the other Premises define" do
+      case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of
+        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Actor US, which no Premise in the composition defines"
+        Right _ -> fail "the private-sector Premise extends Actors it does not define"
     it "strategic-dependence alone fails only on the Actors the other Premise defines" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
         Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"

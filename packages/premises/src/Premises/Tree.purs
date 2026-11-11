@@ -15,13 +15,15 @@ module Premises.Tree
 
 import Prelude
 
-import Data.Array (catMaybes, concat, elem, sort)
+import Data.Argonaut.Core (toArray, toString)
+import Data.Argonaut.Parser (jsonParser)
+import Data.Array (catMaybes, concat, elem, filter, sort)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
 import Data.String (Pattern(..), stripSuffix)
 import Data.Traversable (traverse)
-import Premises.Layout (compositionFile, compositionsDir, instantiationFile, premiseFilePath, presetsFile)
+import Premises.Layout (compositionFile, compositionsDir, instantiationFile, orderFile, premiseFilePath, presetsFile)
 
 -- | One file: its name (`presets.json`), its path under the working directory (used in failure messages), and its text.
 type Section = { name :: String, path :: String, text :: String }
@@ -55,16 +57,21 @@ readPremiseFile ops r = do
   let path = root <> premiseFilePath r.id r.version
   map (\e -> map (\text -> { name: r.id, path, text }) (lmap unreadable e)) (ops.read path)
 
--- | Every composition directory under the root (`<id>/<version>`, the ones holding a `composition.json`), sorted.
+-- | Every composition directory under the root (`<id>/<version>`, the ones holding a `composition.json`): those
+-- | the order file lists, in its order, then any others, sorted.
 compositionDirs :: forall m. Monad m => FileOps m -> m (Either String (Array String))
 compositionDirs ops = do
   root <- premiseRoot ops
   let base = root <> compositionsDir <> "/"
   listed <- ops.list base
+  ordered <- ops.read (root <> orderFile) <#> case _ of
+    Right text -> fromMaybe [] (hush (jsonParser text) >>= toArray >>= traverse toString)
+    Left _ -> []
   case listed of
     Left e -> pure (Left (unreadable e))
-    Right ids -> map (Right <<< sort <<< concat) (traverse (versionsOf base) ids)
+    Right ids -> map (Right <<< inOrder ordered <<< concat) (traverse (versionsOf base) ids)
   where
+  inOrder ordered dirs = filter (_ `elem` dirs) ordered <> sort (filter (not <<< (_ `elem` ordered)) dirs)
   versionsOf base id = ops.list (base <> id <> "/") >>= case _ of
     Left _ -> pure []
     Right versions -> map catMaybes (traverse (compositionIn base id) versions)

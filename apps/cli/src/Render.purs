@@ -23,7 +23,7 @@ import Premises.Catalog (compositions)
 import Premises.Compose (CompositionSource, files, sharedPremiseConflict)
 import Premises.Load (parts)
 import Schema.Premise.Fixture (decodeLiteral)
-import Premises.Layout (fixturePath)
+import Premises.Layout (fixturePath, orderFile)
 
 -- | A compiled file: its path under the premise root, and its text.
 type Output = { path :: String, text :: String }
@@ -49,7 +49,8 @@ compileOnly id = case find (\c -> c.id == id) compositions of
 -- | Every compiled file's path under the premise root and its JSON.
 outputs :: Array (Tuple String Json)
 outputs =
-  concatMap files compositions
+  [ Tuple orderFile (fromArray (map (\c -> fromString (c.id <> "/" <> c.version)) compositions)) ]
+    <> concatMap files compositions
     <> map (\(Tuple name j) -> Tuple (fixturePath name) j) Fixtures.fixtures
 
 -- | Decode and check the compiled composition exactly as the loader will read it: the composition, the

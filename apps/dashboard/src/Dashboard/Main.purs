@@ -11,7 +11,7 @@ import Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets)
 import Web.HTML.Location (pathname)
 import Web.HTML.Window (location, document)
 import Data.String (Pattern(..), split)
-import Data.Array (filter, elem, find, findIndex, head, index, length, null)
+import Data.Array (elem, filter, find, findIndex, index, length, null)
 
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
@@ -19,7 +19,7 @@ import Dashboard.Client as Client
 import Dashboard.Components (diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
 import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
-import Dashboard.Launch (LaunchForm, emptyForm, roundChoices, roundValue, selected, summary, validate)
+import Dashboard.Launch (LaunchForm, emptyForm, presetOf, roundChoices, roundValue, selected, summary, validate)
 import Dashboard.Layout as Layout
 import Dashboard.Sets (mkSets)
 import Dashboard.Palette (runSwatch)
@@ -126,7 +126,7 @@ launchAction :: LaunchView -> JSX
 launchAction v = D.div
   { className: "flex flex-col gap-stack"
   , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.composition.rounds v.form) ] }
+      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.composition v.form) ] }
       , errorBlock v.failure
       , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
       , Layout.purpose (if length v.compositions > 1 then "Required: Preset and Composition. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
@@ -142,7 +142,7 @@ launchFields v = D.div
   , children:
       picker <>
         [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-        , selectField { label: "Preset", required: true, note: "required, " <> emptyForm.preset <> " by default: every seat plays this preset" } v.form.preset v.composition.presets (\x f -> f { preset = x })
+        , selectField { label: "Preset", required: true, note: "required, " <> v.composition.defaultPreset <> " by default: every seat plays this preset" } (presetOf v.composition v.form) v.composition.presets (\x f -> f { preset = x })
         , selectField
             { label: "Rounds", required: false, note: "optional, defaults to " <> show v.composition.rounds.default <> " rounds; allowed " <> show v.composition.rounds.min <> " to " <> show v.composition.rounds.max }
             (show (roundValue v.composition.rounds v.form.rounds))
@@ -160,11 +160,8 @@ launchFields v = D.div
   }
   where
   -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x, preset = presetIn x f.preset }) ] else []
-  -- a composition's presets are its own: the chosen preset stays when the new composition offers it, else its first
-  presetIn name current = case find (\c -> c.name == name) v.compositions of
-    Just c | not (elem current c.presets) -> fromMaybe current (head c.presets)
-    _ -> current
+  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x, preset = "" }) ] else []
+  -- a composition's presets are its own, so choosing another composition returns the preset to its default
   textField f value set = labelled (fieldHeading f) $ textInput
     { value, required: f.required, onChange: \x -> v.setForm (set x) }
   -- a select; `set` receives the chosen value

@@ -23,6 +23,11 @@ compositionsDir = "compositions"
 premisesDir :: String
 premisesDir = "premises"
 
+-- | The compositions in the order a launch offers them, the first its default (`compositions/order.json`):
+-- | each `<id>/<version>`. Written from `Premises.Catalog`.
+orderFile :: String
+orderFile = compositionsDir <> "/order.json"
+
 -- | A composition's directory under the premise root (`compositions/meridian/v0`).
 compositionDir :: String -> String -> String
 compositionDir id version = compositionsDir <> "/" <> id <> "/" <> version

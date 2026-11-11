@@ -38,7 +38,7 @@ import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spread
 import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, ratio, unitOf, cellOf, tableOf)
 import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
-import Views.Dependence (cumulativeReceipts, cumulativeShortfall, finalCoverage, requirementsOf)
+import Views.Dependence (cumulativePurchases, cumulativeReceipts, cumulativeShortfall, demandsOf, finalCoverage, requirementsOf)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -299,9 +299,12 @@ keyValues boardOf runs =
   -- fixed requirement its own capacity covers at the end, and what it went short over the run. Between a run
   -- and its counterfactual without a restriction, the shortfall row is the restriction's realized effect.
   requirements = nub (concatMap (\r -> map (\q -> { actor: q.actor, resource: q.resource }) (requirementsOf (final r))) runs)
+  -- domestic absorption: what each Actor whose requirement is its purchases bought over the run
+  demands = nub (concatMap (demandsOf <<< final) runs)
   dependenceRows =
     map (\p -> row [ "Receipts from sales, " <> show p, numeraireUnit runs ] (\v -> quantity (cumulativeReceipts v.run p))) (playerIds runs)
       <> map (\q -> row [ "Final coverage, " <> show q.actor <> " " <> show q.resource, "share of the requirement" ] (\v -> maybe "—" (ratio <<< finalCoverage (final v.run)) (find (\x -> x.actor == q.actor && x.resource == q.resource) (requirementsOf (final v.run))))) requirements
+      <> map (\q -> row [ "Purchases over the run, " <> show q.actor <> " " <> show q.resource, maybe "" (\r -> unitOf r q.resource) (head runs) ] (\v -> quantity (cumulativePurchases v.run q.actor q.resource))) demands
       <> map (\q -> row [ "Shortfall over the run, " <> show q.actor <> " " <> show q.resource, maybe "" (\r -> unitOf r q.resource) (head runs) ] (\v -> quantity (cumulativeShortfall v.run q.actor q.resource))) requirements
 
 -- | One chart per Player: its net worth in each run, one line per run, from round 0 to the final round.

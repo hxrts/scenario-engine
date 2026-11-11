@@ -92,7 +92,7 @@ harbor =
   { id: "harbor"
   , version: "v0"
   , premises: [ premiseOf { id: "harbor", version: "v0" } harborWorld ]
-  , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [] }
+  , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
   , presets: presetsOf harborBinding
   }
 
@@ -133,7 +133,8 @@ spec = describe "A second Premise" do
         cache <- liftEffect newServerCache
         let api method path query body = liftEffect (route (implement [ meridian, pc ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
-        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"FreeTrade\",\"Restrict\",\"RestrictAndSubstitute\",\"Substitute\"]")
+        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Balanced\",\"Cautious\",\"Confident\",\"Directed\",\"FreeTrade\",\"Neutral\",\"Rebalance\",\"Restrict\",\"RestrictAndSubstitute\",\"Retaliate\",\"Substitute\",\"Tariff\"]")
+        list.body `shouldSatisfy` contains (Pattern "\"defaultPreset\":\"FreeTrade\"")
         launched <- api "POST" "/api/runs" [] "{\"composition\":\"pacific\",\"name\":\"p\",\"preset\":\"Restrict\",\"playerSeed\":1,\"rounds\":6}"
         launched.status `shouldEqual` 200
         dependence <- api "GET" "/api/runs/run-1/dependence" [] ""

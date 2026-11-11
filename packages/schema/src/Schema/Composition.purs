@@ -150,6 +150,7 @@ type InstantiationConfig =
   , nonPlayableActors :: Map ActorId StrategyId -- Actor -> in-world Strategy
   , fallbacks :: Map ActorId Fallback -- overrides of the declared fallback
   , representations :: Array { scheme :: String, explicitActor :: ActorId, weight :: Q }
+  , preset :: Maybe String -- the preset a launch plays when it names none
   }
 
 type InitialWorld = { world :: WorldState, manifest :: Manifest }

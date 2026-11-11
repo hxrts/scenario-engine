@@ -245,53 +245,57 @@ test("sorting by a column does not move the header: its width is the same before
   expect((await header.boundingBox()).width).toBeCloseTo(before.width, 0);
 });
 
-test("the launch form on Prepare offers the known presets and the composition's rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
+test("the launch form on Prepare offers the default composition's presets and rounds, and rejects a bad player seed without a request", async ({ page, request }) => {
+  // Pacific is listed first, so it is the composition the form selects
   const [{ presets }] = await (await request.get("/api/premise")).json();
   const posts = postSpy(page);
   await page.goto("/admin/#/prepare");
-  await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
+  await expect(page.getByLabel("Preset")).toHaveValue("FreeTrade");
   await expect(page.getByLabel("Preset").locator("option")).toHaveText(presets);
-  await expect(page.getByLabel("Rounds")).toHaveValue("5");
-  await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["4", "5", "6", "7", "8"]);
-  // two compositions are present, Meridian first, so the form offers the choice
-  await expect(page.getByLabel("Composition").locator("option")).toHaveText(["meridian", "pacific"]);
-  await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
+  await expect(page.getByLabel("Rounds")).toHaveValue("6");
+  await expect(page.getByLabel("Rounds").locator("option")).toHaveText(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]);
+  // two compositions are present, Pacific first, so the form offers the choice
+  await expect(page.getByLabel("Composition").locator("option")).toHaveText(["pacific", "meridian"]);
+  await expect(page.getByText("This run: FreeTrade, 6 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByLabel("Player seed").fill("x");
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByText("Player seed must be a whole number.")).toBeVisible();
   expect(posts.count).toBe(0);
 });
 
-test("Run with no edits launches the default run: Conservative, the composition's rounds and a drawn seed", async ({ page, request }) => {
+test("Run with no edits launches the default run: Pacific, FreeTrade, its rounds and a drawn seed", async ({ page, request }) => {
   const spy = postSpy(page);
   await page.goto("/admin/#/prepare");
   // the name shows the next run id as its default, and the summary says what Run will play
   await expect(page.getByLabel("Name")).toHaveValue(/^run-\d+$/);
   const name = await page.getByLabel("Name").inputValue();
-  await expect(page.getByText("This run: Conservative, 5 rounds, seed drawn at launch.")).toBeVisible();
+  await expect(page.getByText("This run: FreeTrade, 6 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
   // the request leaves the seed and the rounds to the server, and the name is the default
-  expect(spy.body).toEqual({ composition: "meridian", name, preset: "Conservative" });
+  expect(spy.body).toEqual({ composition: "pacific", name, preset: "FreeTrade" });
   // the run is in the list with the composition's rounds and a seed, and its overview names the preset
   const row = rowWith(page, [id]);
-  await expect(row.getByRole("cell").nth(5)).toHaveText("5");
+  await expect(row.getByRole("cell").nth(5)).toHaveText("6");
   await expect(row.getByRole("cell").nth(4)).toHaveText(/^\d+$/);
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
-  expect(overview.facts).toContainEqual({ label: "Preset", value: "Conservative" });
+  expect(overview.facts).toContainEqual({ label: "Preset", value: "FreeTrade" });
 });
 
-test("a non-default preset and round count are sent, and the run plays them", async ({ page, request }) => {
+test("a non-default composition, preset and round count are sent, and the run plays them", async ({ page, request }) => {
   const spy = postSpy(page);
   await page.goto("/admin/#/prepare");
+  await page.getByLabel("Composition").selectOption("meridian");
+  // choosing another composition returns the preset to that composition's default
+  await expect(page.getByLabel("Preset")).toHaveValue("Conservative");
   await page.getByLabel("Preset").selectOption("Trader");
   await page.getByLabel("Rounds").selectOption("6");
   await expect(page.getByText("This run: Trader, 6 rounds, seed drawn at launch.")).toBeVisible();
   await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page).toHaveURL(/#\/runs\/run-\d+$/);
   const id = new URL(page.url()).hash.split("/").pop();
-  expect(spy.body).toMatchObject({ preset: "Trader", rounds: 6 });
+  expect(spy.body).toMatchObject({ composition: "meridian", preset: "Trader", rounds: 6 });
   expect(spy.body).not.toHaveProperty("playerSeed");
   await expect(rowWith(page, [id]).getByRole("cell").nth(5)).toHaveText("6");
   const overview = await (await request.get(`/api/runs/${id}/overview`)).json();
@@ -301,7 +305,7 @@ test("a non-default preset and round count are sent, and the run plays them", as
 test("the Game seed is shown read-only, with the composition's seed as the default", async ({ page }) => {
   await page.goto("/admin/#/prepare");
   await expect(page.getByText("Game seed", { exact: true })).toBeVisible();
-  await expect(page.getByText("26021", { exact: true })).toBeVisible();
+  await expect(page.getByText("1949", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Game seed")).toHaveCount(0);
 });
 
@@ -322,14 +326,14 @@ test("the launch form marks its required fields, and states the default of each 
   await expect(page.locator("label", { hasText: "Preset" })).toContainText("required");
   await expect(page.locator("label", { hasText: "Name" })).toContainText("optional, defaults to run-");
   await expect(page.locator("label", { hasText: "Player seed" })).toContainText("optional");
-  await expect(page.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 5");
+  await expect(page.locator("label", { hasText: "Rounds" })).toContainText("optional, defaults to 6");
   await expect(page.locator("label", { hasText: "Game seed" })).toHaveCount(0);
   await expect(page.getByText("Required: Preset and Composition.", { exact: false })).toBeVisible();
 });
 
 test("a launch opens the new run's page", async ({ page }) => {
   await page.goto("/admin/#/prepare");
-  await page.getByLabel("Preset").selectOption("Trader");
+  await page.getByLabel("Preset").selectOption("Restrict");
   await page.getByLabel("Player seed").fill("9");
   await page.getByLabel("Rounds").selectOption("6");
   await page.getByRole("button", { name: "Run", exact: true }).click();
@@ -381,7 +385,7 @@ test("clicking another run does not move the results", async ({ page }) => {
 });
 
 test("a resume refreshes the whole run page: the standings show the new round count without a reload", async ({ page, request }) => {
-  const launched = await (await request.post("/api/runs", { data: { name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 4 } })).json();
+  const launched = await (await request.post("/api/runs", { data: { composition: "meridian", name: "resumed", preset: "Conservative", playerSeed: 1, rounds: 4 } })).json();
   await page.goto(`/admin/#/runs/${launched.id}`);
   await expect(page.getByText("Standings after round 4", { exact: true })).toBeVisible();
   const region = page.getByRole("region", { name: "Resume", exact: true });

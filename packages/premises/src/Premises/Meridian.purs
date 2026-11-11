@@ -17,6 +17,7 @@ module Premises.Meridian
 import Prelude (identity, map, negate, show, (+), (/=), (<>))
 
 import Premises.Meridian.Names (meridianId, meridianVersion, n)
+import Premises.Presets (presetId)
 import Premises.Meridian.Actors.Seats (playableActors)
 import Premises.Meridian.Rules (ruleKinds)
 
@@ -180,5 +181,6 @@ instantiation =
   , nonPlayableActors: keyed [ Tuple n.cn n.strategyChinaStrategic ]
   , fallbacks: Map.empty
   , representations: [ { scheme: smeSample.id, explicitActor: smeSample.explicitActor, weight: (q 1) } ]
+  , preset: Just presetId.conservative
   }
 

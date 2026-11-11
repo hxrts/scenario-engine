@@ -1,5 +1,6 @@
--- | Every composition this repository compiles. Only the compiler reads this list: a running server
--- | loads what the premise root contains.
+-- | Every composition this repository compiles, in the order a launch offers them: the first is the default.
+-- | The compiler writes this order to the premise root (`Premises.Layout.orderFile`); a running server loads
+-- | what the premise root contains, in that order.
 module Premises.Catalog (compositions) where
 
 import Premises.Compose (CompositionSource)
@@ -7,4 +8,4 @@ import Premises.Meridian (defaultDials, meridian)
 import Premises.Pacific as Pacific
 
 compositions :: Array CompositionSource
-compositions = [ meridian defaultDials, Pacific.pacific Pacific.defaultDials ]
+compositions = [ Pacific.pacific Pacific.defaultDials, meridian defaultDials ]

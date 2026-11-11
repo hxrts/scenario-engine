@@ -47,7 +47,7 @@ defaultFixture :: FixtureSpec
 defaultFixture = { cut, candidateTransactions: Nothing, expect: Nothing, rounds: Nothing }
 
 base :: CompositionParts
-base = { composition: compositionWith defaultDials, config: (meridian defaultDials).config, presets: Object.empty }
+base = { composition: compositionWith defaultDials, config: (meridian defaultDials).config { preset = Nothing }, presets: Object.empty }
 
 -- | The fixture's JSON, named `name`, filtered from Meridian under its seed.
 fixture :: String -> FixtureSpec -> Tuple String Json

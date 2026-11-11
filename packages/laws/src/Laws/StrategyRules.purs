@@ -74,6 +74,7 @@ data Cond
   | Eq Expr Expr
   | Not Cond
   | Recorded { query :: RecordQuery, atLeast :: Expr } -- what a query of the record reads is at least the expression
+  | Acting ActorId -- the acting Actor is this one, so one StrategyRules can say what each seat it serves does
 
 -- | A question a StrategyRules asks of the record (docs/02 §4.4): a query of the settlement settled Flows, the Rules enacted by a governor against a counterparty
 -- | at this round's boundary, or the Rules in force that a governor governs.

@@ -6,8 +6,8 @@ module Test.Handlers.Pacific (spec, pacificParts) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Assembly.Assemble (assemble, liveBindings, withRounds)
-import Assembly.Types (SeatBinding(..))
+import Assembly.Assemble (assemble, liveBindings, presetBindings, withRounds)
+import Assembly.Types (Bindings, SeatBinding(..))
 import Handlers.Seats (proposeAnswer, seatEnv)
 import Laws.Engine.Prepare (observe)
 import Assembly.Bindings (strategyRulesBindings)
@@ -16,7 +16,8 @@ import Checks.Run (checkRun)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (filter, foldl, index, length, take, zip)
+import Data.Array (concatMap, filter, foldl, index, length, take, zip)
+import Core.Map (values)
 import Data.Foldable (for_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -38,6 +39,7 @@ import Premises.Load (loadFrom, parts)
 import Premises.Pacific as Pacific
 import Premises.Pacific.Strategies (banRule, presetId)
 import Premises.Pacific.Names (p, pacificId, pacificVersion)
+import Schema.Build.Quantity (q)
 import Schema.Build.Decision (asTemplate, eqQ, joint, lit, roundQ, rule, selfActor, selfTransform, signAll)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -53,11 +55,18 @@ preset parts name = case Object.lookup name parts.presets of
   Just s -> pure s
   Nothing -> throwError (error ("no preset " <> name))
 
+-- | Each state on its StrategyRules and each firm on no policy of its own: with nothing released, the fully
+-- | directed game of docs/05 §11.
+statesWith :: StrategyRules -> StrategyRules -> Bindings
+statesWith us cn = strategyRulesBindings [ Tuple p.us us, Tuple p.cn cn, Tuple p.usFirm none, Tuple p.cnFirm none ]
+  where
+  none = { rules: [], sign: [] }
+
 -- | Play `rounds` rounds with each country on its StrategyRules; every round's invariants must hold.
 playRules :: { us :: StrategyRules, cn :: StrategyRules } -> Int -> Aff SimRun
 playRules s rounds = do
   parts <- pacificParts
-  g <- orThrow (assemble (FromComposition parts) (strategyRulesBindings [ Tuple p.us s.us, Tuple p.cn s.cn ]) [])
+  g <- orThrow (assemble (FromComposition parts) (statesWith s.us s.cn) [])
   r <- run (Seed 1) (withRounds (Just rounds) g)
   checkRun r.manifest.initial r.records `shouldEqual` []
   pure r
@@ -69,6 +78,15 @@ play names rounds = do
   us <- preset parts names.us
   cn <- preset parts names.cn
   playRules { us, cn } rounds
+
+-- | Play with all four seats on named presets, from a composition's parts; every round's invariants must hold.
+playFour :: CompositionParts -> { us :: String, cn :: String, usFirm :: String, cnFirm :: String } -> Int -> Aff SimRun
+playFour parts names rounds = do
+  b <- orThrow (presetBindings parts.presets (\a -> if a == p.us then names.us else if a == p.cn then names.cn else if a == p.usFirm then names.usFirm else names.cnFirm) [ p.us, p.cn, p.usFirm, p.cnFirm ])
+  g <- orThrow (assemble (FromComposition parts) b [])
+  r <- run (Seed 1) (withRounds (Just rounds) g)
+  checkRun r.manifest.initial r.records `shouldEqual` []
+  pure r
 
 -- | One investment in round 1; commerce is the routine beside it.
 investOnce :: Array Clause
@@ -194,7 +212,7 @@ spec = describe "Pacific (docs/05 §11)" do
     for_ [ Tuple presetId.restrict presetId.adaptive, Tuple presetId.restrictAndSubstitute presetId.restrictAndSubstitute ] \(Tuple us cn) -> do
       usRules <- preset parts us
       cnRules <- preset parts cn
-      g <- orThrow (assemble (FromComposition parts) (strategyRulesBindings [ Tuple p.us usRules, Tuple p.cn cnRules ]) [])
+      g <- orThrow (assemble (FromComposition parts) (statesWith usRules cnRules) [])
       a <- run (Seed 1) g
       out <- orThrow (runReplay (seatEnv (Seed 1) g) 6 (map _.record a.records) g)
       map _.world out.records `shouldEqual` map _.world a.records
@@ -247,7 +265,7 @@ spec = describe "Pacific (docs/05 §11)" do
         playOn us cn = do
           usRules <- preset source us
           cnRules <- preset source cn
-          g <- orThrow (assemble (FromComposition source) (strategyRulesBindings [ Tuple p.us usRules, Tuple p.cn cnRules ]) [])
+          g <- orThrow (assemble (FromComposition source) (statesWith usRules cnRules) [])
           r <- run (Seed 1) (withRounds (Just 10) g)
           checkRun r.manifest.initial r.records `shouldEqual` []
           pure r
@@ -280,7 +298,7 @@ spec = describe "Pacific (docs/05 §11)" do
                 }
             }
         }
-    g <- orThrow (assemble (FromComposition levied) (strategyRulesBindings [ Tuple p.us freeTrade, Tuple p.cn freeTrade ]) [])
+    g <- orThrow (assemble (FromComposition levied) (statesWith freeTrade freeTrade) [])
     r <- run (Seed 1) (withRounds (Just 1) g)
     checkRun r.manifest.initial r.records `shouldEqual` []
     r1 <- roundOf r 1
@@ -288,6 +306,99 @@ spec = describe "Pacific (docs/05 §11)" do
     holdingAt r1 p.cn p.money `shouldEqual` Q.fromInt 102
     holdingAt r1 p.us p.money `shouldEqual` Q.fromInt 98
     length (select levies r1.record.events) `shouldEqual` 1
+
+  describe "Private sector (docs/05 §11.1)" do
+    let
+      neutral = { us: presetId.freeTrade, cn: presetId.freeTrade, usFirm: presetId.neutral, cnFirm: presetId.neutral }
+      money r a = holdingAt r a p.money
+      bought r a res = traded r a res
+    it "I Rebalancing absorbs output at home: China's private sector buys I from round 2 and US imports fall" do
+      parts <- pacificParts
+      r <- playFour parts neutral { cn = presetId.rebalance } 6
+      r1 <- roundOf r 1
+      money r1 p.cnPrivate `shouldEqual` Q.fromInt 10
+      money r1 p.cn `shouldEqual` Q.fromInt 98
+      bought r1 p.cnPrivate p.industry `shouldEqual` Q.zero
+      r2 <- roundOf r 2
+      bought r2 p.cnPrivate p.industry `shouldEqual` q "1.7647"
+      bought r2 p.us p.industry `shouldEqual` q "4.2353"
+      traded r2 p.cn p.industry `shouldEqual` Q.fromInt (-6)
+      shortOf r2 p.us p.industry `shouldEqual` q "1.7647"
+    it "J Release without confidence: a cautious firm sets the factor to 0.75 from round 2, and its private sector spends less" do
+      parts <- pacificParts
+      r <- playFour parts neutral { cn = presetId.rebalance, cnFirm = presetId.cautious } 6
+      r1 <- roundOf r 1
+      map (\m -> Map.lookup (Id "I") m) (Map.lookup p.cnPrivate r1.world.factors) `shouldEqual` Just (Just (q "0.75"))
+      r2 <- roundOf r 2
+      bought r2 p.cnPrivate p.industry `shouldEqual` q "1.2676"
+      money r2 p.cnPrivate `shouldEqual` q "15.6305"
+    it "K Directed investment overshoots: China holds 8 technology capacity against a need of 4, and 2 T sits unsold" do
+      parts <- pacificParts
+      r <- playFour parts neutral { cn = presetId.directed } 6
+      r6 <- roundOf r 6
+      holdingAt r6 p.cn p.technologyCapacity `shouldEqual` Q.fromInt 8
+      holdingAt r6 p.cn p.technology `shouldEqual` Q.fromInt 2
+      receipts r6 p.cn p.technology `shouldEqual` Q.zero
+      shortOf r6 p.us p.industry `shouldEqual` Q.fromInt 4
+    it "L The US tariff: China pays 6 M a round under directed policy, and less when it absorbs output at home" do
+      parts <- pacificParts
+      free <- playFour parts neutral { us = presetId.tariff } 6
+      rebalanced <- playFour parts neutral { us = presetId.tariff, cn = presetId.rebalance } 6
+      let levied r = map (\x -> foldl (\s l -> Q.add s l.amount) Q.zero (select levies x.record.events)) r.records
+      levied free `shouldEqual` [ Q.zero, Q.fromInt 6, Q.fromInt 6, Q.fromInt 6, Q.fromInt 6, Q.fromInt 6 ]
+      (fromMaybe Q.zero (index (levied rebalanced) 1)) `shouldEqual` q "4.2353"
+    it "M The US mirror: released Money moves imports from the US state to its private sector, and the state goes short" do
+      parts <- pacificParts
+      r <- playFour parts neutral { us = presetId.rebalance } 6
+      r1 <- roundOf r 1
+      money r1 p.usPrivate `shouldEqual` Q.fromInt 10
+      r2 <- roundOf r 2
+      bought r2 p.usPrivate p.industry `shouldEqual` q "1.7647"
+      bought r2 p.us p.industry `shouldEqual` q "4.2353"
+      receipts r2 p.cn p.industry `shouldEqual` Q.fromInt 12
+      shortOf r2 p.us p.industry `shouldEqual` q "1.7647"
+    it "N Representation: shrinkage 0 leaves the factor at 1, and every estimate is recorded the round its firm traded" do
+      flat <- orThrow (parts (Pacific.pacific Pacific.defaultDials { private = Pacific.defaultDials.private { shrinkage = Q.zero } }))
+      r <- playFour flat neutral { cn = presetId.rebalance, cnFirm = presetId.cautious } 3
+      r1 <- roundOf r 1
+      map (\m -> Map.lookup (Id "I") m) (Map.lookup p.cnPrivate r1.world.factors) `shouldEqual` Just (Just Q.one)
+      length (select (event @"Estimated") r1.record.events) `shouldEqual` 2
+    it "O Replay and submission order reproduce a four-seat run; Money totals stay constant" do
+      parts <- pacificParts
+      b <- orThrow (presetBindings parts.presets (\a -> if a == p.us then presetId.tariff else if a == p.cn then presetId.balanced else presetId.confident) [ p.us, p.cn, p.usFirm, p.cnFirm ])
+      g <- orThrow (assemble (FromComposition parts) b [])
+      a <- run (Seed 1) g
+      out <- orThrow (runReplay (seatEnv (Seed 1) g) 6 (map _.record a.records) g)
+      map _.world out.records `shouldEqual` map _.world a.records
+      let befores = [ a.manifest.initial ] <> map _.world a.records
+      for_ (zip befores a.records) \(Tuple before x) -> orderIndependent before x `shouldEqual` []
+      let total x = Q.sumQ (map (\ac -> lookupQ p.money ac.accounts) (values x.world.actors))
+      for_ a.records \x -> total x `shouldEqual` Q.fromInt 400
+
+  it "P Sensitivity of the private sector (docs/05 §12): over release share, firm reference, shrinkage and tariff rate, rebalancing lowers China's exports to the US and a tariff charges China less when it absorbs output at home" do
+    let
+      d = Pacific.defaultDials
+      variants =
+        [ d
+        , d { private = d.private { releaseShare = q "0.05" } }
+        , d { private = d.private { releaseShare = q "0.2" } }
+        , d { private = d.private { reference = q 1 } }
+        , d { private = d.private { reference = q 3 } }
+        , d { private = d.private { shrinkage = Q.zero } }
+        , d { private = d.private { shrinkage = Q.one } }
+        , d { tariffRate = q "0.5" }
+        , d { tariffRate = Q.fromInt 2 }
+        ]
+      neutral = { us: presetId.freeTrade, cn: presetId.freeTrade, usFirm: presetId.cautious, cnFirm: presetId.cautious }
+      usImports r = foldl Q.add Q.zero (map (\x -> traded x p.us p.industry) r.records)
+      levied r = foldl Q.add Q.zero (concatMap (\x -> map _.amount (select levies x.record.events)) r.records)
+    for_ variants \dials -> do
+      source <- orThrow (parts (Pacific.pacific dials))
+      directed <- playFour source neutral { us = presetId.tariff } 6
+      rebalanced <- playFour source neutral { us = presetId.tariff, cn = presetId.rebalance } 6
+      (usImports rebalanced < usImports directed) `shouldEqual` true
+      (levied rebalanced < levied directed) `shouldEqual` true
+      (levied directed > Q.zero) `shouldEqual` true
 
   it "H A ban enacted twice is in force once" do
     parts <- pacificParts
