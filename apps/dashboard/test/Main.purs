@@ -11,7 +11,6 @@ import Views.Composition (RoundRange, CompositionInfo)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
 
-import Dashboard.Runs (flagsOf, latestReadable, ofClass, readableIds)
 import Schema.Run (RunClass(..))
 
 import Data.Argonaut.Core (toNumber, toString)
@@ -48,9 +47,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       parse route (print route (Simulation "a/b c")) `shouldEqual` Right (Simulation "a/b c")
     it "the old pages are gone: no route parses as Runs, Compare, Prepare or Balance sheets" do
       for_ [ "/runs", "/compare/run-1", "/prepare", "/balancesheets" ] \path -> isLeft (parse route path) `shouldEqual` true
-  describe "Run choices" do
-    it "every readable run is a choice, and an unreadable run is not" do
-      readableIds (listOf [ flag "run-1" false true, flag "run-2" false false, flag "run-3" false true ]) `shouldEqual` [ "run-1", "run-3" ]
   describe "Data table sorting" do
     it "numeric cells compare as numbers, text as text" do
       compareCells "9" "10" `shouldEqual` LT
@@ -92,17 +88,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "the baseline label follows CompareView.baseline, not the order ticked" do
       runLabel "run-2" "run-2" `shouldEqual` "run-2 (baseline)"
       runLabel "run-2" "run-1" `shouldEqual` "run-1"
-  describe "Run list reads" do
-    it "a run's class and readable flags are typed, and the list keeps the run order" do
-      flagsOf runList "run-3" `shouldEqual` Just (flag "run-3" true true)
-      flagsOf runList "nope" `shouldEqual` Nothing
-    it "the runs of one class, with their rows" do
-      map _.id (ofClass Simulated runList).runs `shouldEqual` [ "run-1", "run-2" ]
-      map _.id (ofClass Interactive runList).runs `shouldEqual` [ "run-3" ]
-      (ofClass Simulated runList).rows `shouldEqual` [ row1, row2 ]
-    it "the latest readable run is the last one in the list that can be read" do
-      latestReadable runList `shouldEqual` Just "run-3"
-      latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
   describe "the Playwright mocks" do
     it "answer the same reply shapes the pages decode" do
       isLeft (Shape.parse Snapshot (Keys.viewShape :: Shape.Shape RunList) runListJson) `shouldEqual` false

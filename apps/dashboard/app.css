@@ -37,3 +37,10 @@ select.app-select {
   background-position: right 0.75rem center;
   background-size: 1rem 1rem;
 }
+
+/* The browser draws a select's open list itself: give it the theme's colour scheme and the popover's colours, so the
+   list is opaque and legible in either theme rather than showing the page through it. */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+select.app-select { background-color: var(--background); color: var(--foreground); }
+select.app-select option { background-color: var(--popover); color: var(--popover-foreground); }

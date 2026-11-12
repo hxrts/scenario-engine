@@ -333,31 +333,37 @@ The Dashboard is served at `/admin`, behind the password (§8.3). It has two pag
 
 ### 9.1 Simulations
 
-Simulations shows the static suite (§3), every run compared with every other:
+Simulations shows the static suite (§3), its default preset's run open to start:
 
-- **Suite runs.** A sortable table, one row per simulated run, in the order the suite stored them: its name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, and class. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. Selecting a row, or opening `#/simulations/:id`, opens that run; with no selection, the latest readable run is open.
-- **Every run compared.** The comparison of every simulated run (§10): prices by Exchange, net worth over time, final standings, the spread and Gini, the key values, and detail tabs (final state, baseline difference, configuration, compatibility, seed variation, and agency, §10.3, read from the suite's agency runs).
-- **Balance sheets.** Each Actor's page for the open run, as its whole address (§9.4).
-- **The open run.** Its results (§9.3).
+- **Suite runs.** One button per simulated run, by name: the presets' runs, then the agency runs. A run that did not complete says so. Selecting one, or opening `#/simulations/:id`, opens it below.
+- **The runs at a glance.** One row per run, by name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`).
+- **Plotted runs.** Up to five runs are ticked for the plots, one per chart colour, the default preset's run first and the baseline. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
+- **Agency.** Each agency run against the preset run it deviates from, and its seat's criteria under each (§10.3).
+- **The open run.** Its results (§9.3), set apart beneath a rule.
 
 ### 9.2 Live
 
 Live shows the one live run (§8.2) and the past interactive runs. The live run's state is read every second and a half:
 
-- **Live run.** Its id, tag, round, status, whether it is paused or ending after this round, its window, and which human seats have spoken and which are awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
+- **Live run.** Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
 - **Start a live run.** The composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field. When a run is live the form says so and starts with "Clear and start", which clears it first.
 - **The live run's balance sheets and results so far** (§9.4, §9.3).
-- **Past interactive runs.** A table of every interactive run with its tag; selecting one opens its balance sheets and results. The runs of each tag are compared together.
+- **Past interactive runs.** A table of every interactive run with its tag; selecting one opens its balance sheets and results.
 
 ### 9.3 Run Details
 
-The page opens with a header of the run's facts, then four sections by economic object, each a generic view over any composition: the headline (`Indicators`: for each country its substitute gap, net external position and domestic absorption, and for each seat its debt service and viability margins, by round, [05 §8.2](05_pacific.md#82-what-is-derived-not-stored)); the national regimes (`Regimes`: for each country with households, three panels, its productive capability (capacity, competence, units run and idle), its effective demand (household income, spending and saving, sales at home and abroad) and its financial capacity (owed to it, what it owes, debt service paid)); international clearing (`Clearing`: goods and capital across each border and the Rules at the borders, beside the Exchanges' prices and each country's current account); and the seat scorecards (objectives). An engine-detail tab holds every other view, in order: key figures; marginal prices of each Exchange; standings; net worth over time; actions; drivers (rules enacted and repealed, procedure outcomes, shortfalls); balance measures (spread and Gini); objectives; dependence (for each fixed requirement: the capacity covering it, coverage = min(1, capacity / requirement), exposure = max(0, requirement − capacity), imports, exports, receipts, shortfall, the bans in force against it, and the capacity on order); finance (the bonds open after each round, with lender, borrower, currency, principal and rate; and each country's external accounts by round and currency, with goods, currency trades, levies and interest across its border and a residual that is zero when every flow is accounted, and its current account, financial account and valuation in the numeraire, [05 §4.4](05_pacific.md#44-accounting)); the final balance sheet of every Actor (`Initial`, `Current`, `Change`); and one Actor's balance sheet, selected from the run's Actors, defaulting to the first seat.
+The page opens with a header of the run's facts, then four sections by economic object, each a generic view over any composition:
+
+- **The headline** (`Indicators`) at the round chosen, the last to start: for each country its substitute gap, net external position and domestic absorption, and for each seat its debt service and viability margins ([05 §8.2](05_pacific.md#82-what-is-derived-not-stored)).
+- **The national regimes** (`Regimes`): for each country that holds productive capacity, three full-width panels: its productive capability (capacity, competence, units run and idle), its effective demand (household income, spending and saving, sales at home and abroad) and its financial capacity (owed to it, what it owes, debt service paid).
+- **International clearing** (`Clearing`): goods and capital across each border and the Rules at the borders, beside the Exchanges' prices and each country's current account ([05 §4.4](05_pacific.md#44-accounting)).
+- **The seat scorecards** (objectives).
 
 Net worth is the numeraire plus each other Resource valued in it: a Resource an Exchange quotes in the numeraire at its marginal price; a second currency, in which an Exchange quotes the numeraire, at one over that price; and a Resource quoted only in such a currency at its price there times the currency's value. Where several Exchanges trade one Resource, its price is their mean, so a holding counts once, and a Resource with none of these is not counted. Spread is the highest minus the lowest final net worth of the players. The Gini coefficient of final net worths is 0 when every player holds the same and 1 − 1/n when one holds everything, and it is n/a when the total is zero or a value is negative.
 
 Standings rank 1 is the highest net worth, and equal net worths share a rank. Aggregates are residual representations, not players. An objective criterion is met, not met, or not evaluated; it is never reported as met when its series is empty.
 
-The run page shows the representation and procedure records. The round-by-round action counts, the Exchange, Transformation, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived: the next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. The event inspector lists one round's events in engine order, with a text filter.
+The representation and procedure records, the round-by-round action counts, the Exchange, Transformation and economy views, the whole-economy measures, the balances, one Actor's history and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived: the next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase.
 
 ### 9.4 BalanceSheet pages
 

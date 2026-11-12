@@ -4,6 +4,7 @@
 module Views.Drivers
   ( driversStat
   , shortfallTotal
+  , shortfallsOf
   , drivers
   , columns
   , shortfallsColumn

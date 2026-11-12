@@ -29,7 +29,7 @@ import Dashboard.Api (useLoad)
 import Dashboard.Chart (barRows, chartRows, tooltipFormatter)
 import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
-import Dashboard.Palette (runColour, runLabel, seriesColour)
+import Dashboard.Palette (runColour, seriesColour)
 import Dashboard.UI as UI
 import Data.Array (cons, find, index, mapWithIndex, zip)
 import Data.Either (Either(..))
@@ -219,11 +219,11 @@ placeholderFrame message = element UI.region
   , children: [ D.text message ]
   }
 
--- | Runs on the same axes: one line per run, each in its run's colour and named in the legend. The
+-- | Runs on the same axes: one line per run, each in its run's colour and named in the legend by `label`. The
 -- | baseline (`CompareView.baseline`) is drawn thicker. The axes name the round and the unit.
-overlayChart :: Array String -> String -> Chart -> JSX
-overlayChart ids baseline c = plotFrame c.title $ lineChartOf
-  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) c.series)
+overlayChart :: Array String -> (String -> String) -> String -> Chart -> JSX
+overlayChart ids label baseline c = plotFrame c.title $ lineChartOf
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: label s.name, color: runColour ids s.name }) c.series)
   , className: "h-full w-full"
   , rows: chartRows c.kind c.series
   , xAxis: element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
@@ -234,9 +234,9 @@ overlayChart ids baseline c = plotFrame c.title $ lineChartOf
 
 -- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
 -- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
-groupedBars :: Array String -> String -> String -> Bars -> JSX
-groupedBars ids baseline xLabel b = plotFrame b.title $ barChartOf
-  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: runLabel baseline s.name, color: runColour ids s.name }) b.series)
+groupedBars :: Array String -> (String -> String) -> String -> String -> Bars -> JSX
+groupedBars ids label baseline xLabel b = plotFrame b.title $ barChartOf
+  { config: Object.fromFoldable (map (\s -> Tuple s.name { label: label s.name, color: runColour ids s.name }) b.series)
   , className: "h-full w-full"
   , rows: barRows b
   , xAxis: element UI.xAxis { dataKey: "category", label: { value: xLabel, position: "insideBottom", offset: -4 } }

@@ -38,9 +38,9 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   const start = await castWithoutAgents(page);
   await start.getByRole("textbox", { name: "Name", exact: true }).fill("rehearsal");
   await start.getByRole("button", { name: "Start", exact: true }).click();
-  await expect(fact(page, "Tag")).toHaveText("mock");
+  await expect(fact(page, "Run")).toHaveText(/\(mock\)$/);
   await expect(fact(page, "Awaiting")).toHaveText("US");
-  const id = await fact(page, "Run").textContent();
+  const id = (await fact(page, "Run").textContent()).replace(" (mock)", "");
   // the facilitator enters the US's text (here, nothing): the round closes
   const live = section(page, "Live run");
   await live.getByRole("button", { name: "Submit for US", exact: true }).click();
@@ -48,11 +48,11 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
   await expect(fact(page, "Round")).toHaveText("3");
   await live.getByRole("button", { name: "Pause", exact: true }).click();
-  await expect(fact(page, "Paused")).toHaveText("yes");
+  await expect(fact(page, "Status")).toHaveText("running, paused");
   await live.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect(fact(page, "Paused")).toHaveText("no");
+  await expect(fact(page, "Status")).toHaveText("running");
   await live.getByRole("button", { name: "End after this round", exact: true }).click();
-  await expect(fact(page, "Ending after this round")).toHaveText("yes");
+  await expect(fact(page, "Status")).toHaveText("running, ending after this round");
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("completed");
   // the run's results and balance sheets show beneath, and it is listed among the past runs, tagged mock
@@ -67,12 +67,12 @@ test("a live run can be cleared, and clear and start replaces it", async ({ page
   let start = await castWithoutAgents(page);
   await start.getByRole("button", { name: "Start", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("running");
-  const first = await fact(page, "Run").textContent();
+  const first = (await fact(page, "Run").textContent()).replace(" (mock)", "");
   // a run is live: the form says so, and starting replaces it
   start = section(page, "Start a live run");
   await expect(start.getByText("Run " + first + " is live. Starting another clears it first.")).toBeVisible();
   await start.getByRole("button", { name: "Clear and start", exact: true }).click();
-  await expect(fact(page, "Run")).not.toHaveText(first);
+  await expect(fact(page, "Run")).not.toHaveText(first + " (mock)");
   await expect(rowWith(section(page, "Past interactive runs"), [first, "cleared"])).toHaveCount(1);
   await section(page, "Live run").getByRole("button", { name: "Clear", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("cleared");

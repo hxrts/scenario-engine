@@ -15,6 +15,8 @@ module Views.Compare
   , netWorthCharts
   , standingsBars
   , balanceBars
+  , summary
+  , moving
   , columns
   ) where
 
@@ -34,7 +36,11 @@ import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
 import Views.Difference (differenceOfWorlds)
 import Views.Actions (actionTotals)
-import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spreadMeasure)
+import Views.Balance (completionOf, giniCell, giniColumn, giniMeasure, measuresOf, runMeasures, spreadCell, spreadMeasure)
+import Views.Drivers (shortfallsOf)
+import Laws.Slice (event, select)
+import Core.Num as Q
+import Data.Array (length)
 import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, ratio, unitOf, cellOf, tableOf)
 import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
@@ -60,6 +66,8 @@ type CompareView =
   , diff :: Table
   , config :: Marked
   , seeds :: Table
+  , runs :: Array { id :: String, name :: String } -- the runs compared, in order, each with its name for the legends
+  , summary :: Table -- one row per run: who leads, how even it ends, what went short and which Rules were enacted
   , agency :: Table -- each agency run against the preset run it deviates from (docs/07 §10.3)
   , agencyCriteria :: Table
   , skipped :: Array String
@@ -133,7 +141,44 @@ unitColumn = column "Unit" "The unit of this row's values."
 
 -- | The columns this module defines.
 columns :: Array Column
-columns = [ engineColumn, unitsColumn, exchangeDefinitions, explicitActorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ]
+columns = [ engineColumn, unitsColumn, exchangeDefinitions, explicitActorSelection, comparableColumn, deltaColumn, categoryColumn, parameterColumn, unitColumn ] <> summaryColumns
+
+leaderColumn :: Column
+leaderColumn = column "Leader" "The player with the highest net worth after the final round."
+
+leadColumn :: Column
+leadColumn = column "Leader's net worth" "The leader's net worth after the final round, in the numeraire."
+
+spreadColumn :: Column
+spreadColumn = column "Net worth spread" "Highest minus lowest final net worth among the players, in the numeraire."
+
+shortColumn :: Column
+shortColumn = column "Units short" "Every unit of a fixed requirement that went unmet, summed over the rounds and Resources."
+
+enactedColumn :: Column
+enactedColumn = column "Rules enacted" "How many Rules the players enacted over the run."
+
+summaryColumns :: Array Column
+summaryColumns = [ leaderColumn, leadColumn, spreadColumn, giniColumn, shortColumn, enactedColumn ]
+
+-- | One row per run, the run named: who leads after the final round and with what, how even final net worth is (its
+-- | spread and Gini), how many units of fixed requirements went short, and how many Rules were enacted. The compact
+-- | reading of a comparison of many runs.
+summary :: Array StoredRun -> Table
+summary runs = { title: "The runs at a glance", columns: names ([ col.name ] <> summaryColumns), rows: map row runs }
+  where
+  row r =
+    let
+      leader = head (standingsOf r)
+      m = measuresOf r
+      short = Q.sumQ (concatMap (\x -> map _.quantity (shortfallsOf x.record)) r.rounds)
+      enacted = length (concatMap (\x -> select (event @"Enacted") x.record.events) r.rounds)
+    in
+      [ if r.name == "" then r.id else r.name, maybe "" (show <<< _.player) leader, maybe "" (quantity <<< _.netWorth) leader, spreadCell m.spread, giniCell m.gini, quantity short, show enacted ]
+
+-- | Whether a chart's lines move: a chart whose every line is flat says nothing a comparison needs.
+moving :: Chart -> Boolean
+moving c = any (\s -> length (nub (map _.value s.points)) > 1) c.series
 
 -- | A row with one leading label per run-independent column, then one cell per run: the "one row per
 -- | X, one column per run" shape the comparison tables share.

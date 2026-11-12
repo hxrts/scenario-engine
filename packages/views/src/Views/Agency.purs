@@ -110,7 +110,7 @@ columns = agencyColumns <> [ objective, criterion, baselineResult, alternativeRe
 agencyCriteria :: Array AgencyProfile -> Table
 agencyCriteria ps =
   { title: "Criteria under each alternative"
-  , columns: names ([ col.explicitActor ] <> columns)
+  , columns: names [ col.explicitActor, objective, criterion, baselineResult, alternativeResult ]
   , rows: concatMap (\p -> mapWithIndex (\i c -> [ show p.explicitActor, c.description, show (i + 1), show c.baseline, show c.alternative ]) p.criteria) ps
   }
 

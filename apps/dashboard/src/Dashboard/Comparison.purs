@@ -1,31 +1,34 @@
 -- | What the Simulations and Live pages share (docs/07_simulator.md §9): a run list as a table, one run's results, and
--- | the comparison's plots and tables. Every view model comes from the read API, through `Dashboard.Client`.
-module Dashboard.Comparison (Fetch, runTable, mkRunPage, mkComparison, plots) where
+-- | a comparison of many runs. The comparison reads in two parts: every run at a glance, one row each, and the plots
+-- | of the few runs ticked, named in their legends. Every view model comes from the read API, through
+-- | `Dashboard.Client`.
+module Dashboard.Comparison (runTable, mkRunPage, mkComparison, plotLimit) where
 
 import Prelude
 
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (diffTable, groupedBars, note, overlayChart, placeholderFrame, selectInput, status, tableOf)
+import Dashboard.Components (groupedBars, loaded, note, overlayChart, placeholderFrame, selectInput, tableOf)
 import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
+import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
-import Data.Array (elem, find, index, null)
+import Dashboard.UI as UI
+import Data.Array (elem, filter, find, index, length, null, take)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Uncurried (mkEffectFn1)
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, JSX, component, useState', (/\))
+import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
 import React.Basic.Hooks as React
-import Views.Balance (giniStat, spreadStat)
-import Views.Compare (CompareView, compatibilityPurpose)
+import Views.Compare (CompareView)
 import Views.Overview (RunList)
 
--- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
--- | A fetched view: its key, and its load, which renders what it reads (`Fetched` in `Dashboard.Components`).
-type Fetch = { key :: String, load :: Aff (Either String JSX) } -> JSX
+-- | The most runs the plots draw at once: one per chart colour, so every line can be told apart.
+plotLimit :: Int
+plotLimit = 5
 
 -- | The run list's id column: a run's id is its first cell, and a click on it selects the run.
 runKeyColumn :: Int
@@ -45,133 +48,100 @@ runTable grid t s = D.div
       ]
   }
 
--- | The run page: the selected run's overview, fetched once, and its results.
+-- | The run page: the selected run's overview, fetched once, and its results, set apart from what is above it.
 mkRunPage :: DataTable -> Component { id :: String }
 mkRunPage grid = do
   results <- mkRunResults grid
   component "RunPage" \p -> React.do
     overview <- useLoad p.id (Client.overview p.id)
     pure $ D.div
-      { className: "flex min-w-0 flex-col gap-gutter"
+      { className: "flex min-w-0 flex-col gap-gutter border-t-2 border-border pt-8"
       , children: [ results { id: p.id, version: 0, overview } ]
       }
 
--- | The plots and tables of the comparison, each section with its purpose line. The plots answer, in
--- | order: how each Exchange's price moves, how each player's net worth moves, who ends ahead, how even
--- | the outcome is, and what the key values are. Until a comparison is loaded, each plot's frame is
--- | shown in the same place and size, so nothing moves when the data arrives. The tables in the tabs
--- | hold the rest.
-plots :: DataTable -> Fetch -> Array String -> Maybe (Either String CompareView) -> Maybe String -> (Maybe String -> Effect Unit) -> JSX
-plots grid fetch ids shown picked setPicked = D.div
-  { className: "flex min-w-0 flex-col gap-section"
-  , children: skippedRuns <>
-      [ Layout.section
-          { title: "Prices by exchange"
-          , purpose: "How each Exchange's marginal price moves after every round: one line per run, on the same axes."
-          , children: loadedWith (Layout.grid [ item "Prices by exchange" waiting ]) \c ->
-              [ Layout.grid (c.exchanges <#> \m -> item m.title (overlayChart ids c.baseline m)) ]
-          }
-      , Layout.section
-          { title: "Net worth over time"
-          , purpose: "One player's net worth from the start (round 0) to the final round, with one line per run. Choose the player."
-          , children:
-              [ D.div { className: "flex h-9 items-center", children: loadedWith (D.span_ []) (\c -> [ playerPicker c ]) }
-              , D.div { children: loadedWith waiting (\c -> netWorthPlot c) }
-              ]
-          }
-      , Layout.section
-          { title: "Final standings"
-          , purpose: "Each player's net worth after the final round: one group per player, with one bar per run."
-          , children: loadedWith waiting \c -> [ groupedBars ids c.baseline "Player" c.standings ]
-          }
-      , Layout.section
-          { title: "Spread and Gini"
-          , purpose: balancePurpose
-          , children: loadedWith (balance waiting waiting) \c -> [ balance (groupedBars ids c.baseline "Measure" c.balance.spread) (groupedBars ids c.baseline "Measure" c.balance.gini) ]
-          }
-      , Layout.section
-          { title: "Key values"
-          , purpose: "One row per measure or player, one column per run; each column is headed by the run's name and id. A run keeps its colour in the plots."
-          , children: loadedWith waiting \c -> [ tableOf grid c.keyValues ]
-          }
-      , Layout.section
-          { title: "Details"
-          , purpose: "The comparison's full tables, one tab each."
-          , children:
-              [ Layout.tabbed
-                  [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
-                  , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
-                  , { key: "config", label: "Configuration", purpose: "The specification fields that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
-                  , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
-                  , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
-                  , { key: "agency", label: "Agency", purpose: "For each agency run among those compared: how far one seat playing the alternative preset moves the run, against the preset run it deviates from, and its objective criteria under each.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: loadedWith waiting \c -> if null c.agency.rows then [ note "No agency run is among the runs compared." ] else [ Layout.captioned c.agency.title [ tableOf grid c.agency ], Layout.captioned c.agencyCriteria.title [ tableOf grid c.agencyCriteria ] ] } }
-                  ]
-              ]
-          }
-      ]
-  }
-  where
-  -- the requested runs that could not be read, each with its reason (docs/07_simulator.md §10.1)
-  skippedRuns = case shown of
-    Just (Right c) | not (null c.skipped) ->
-      [ Layout.section
-          { title: "Skipped runs"
-          , purpose: "These runs could not be read and are not in the comparison."
-          , children: [ D.ul { className: "list-disc pl-5 text-sm", children: c.skipped <#> \s -> D.li { key: s, children: [ D.text s ] } } ]
-          }
-      ]
-    _ -> []
-
-  message = "Loading the comparison…"
-  waiting = placeholderFrame message
-
-  -- the loaded comparison's content; until one is loaded, the waiting content of the same size shows
-  loadedWith :: JSX -> (CompareView -> Array JSX) -> Array JSX
-  loadedWith waitingContent f = case shown of
-    Just (Right c) -> f c
-    Just (Left e) -> [ status (Just e) ]
-    Nothing -> [ waitingContent ]
-
-  item title child = D.div
-    { className: "col-span-12 min-w-0 lg:col-span-6"
-    , children: [ Layout.captioned title [ child ] ]
-    }
-
-  -- the unit of the spread, which the loaded comparison names; until one is loaded, the copy omits it
-  spreadUnit = case shown of
-    Just (Right c) -> Just c.balance.unit
-    _ -> Nothing
-  balancePurpose = "How even final net worth is among the players in each run. "
-    <> maybe "" (\u -> "The spread is in " <> u <> ". ") spreadUnit
-    <> giniStat.definition
-
-  -- the two balance plots side by side, each in its own panel
-  balance spreadPlot giniPlot = Layout.grid
-    [ Layout.panel { span: 6, title: "Spread", purpose: spreadStat.definition, children: [ spreadPlot ] }
-    , Layout.panel { span: 6, title: "Gini coefficient", purpose: giniStat.definition, children: [ giniPlot ] }
-    ]
-
-  playerPicker c = D.label
-    { className: "flex items-center gap-2 text-sm"
+-- | A comparison of the runs given (in order, the first the baseline): every run at a glance, then the plots of the
+-- | runs ticked, at most `plotLimit`, and the agency of each seat when agency runs are among them. `initial` names the
+-- | runs ticked to start with.
+mkComparison :: DataTable -> Component { ids :: Array String, names :: String -> String, initial :: Array String }
+mkComparison grid = component "Comparison" \p -> React.do
+  everyRun <- useLoad (String.joinWith "," p.ids) (Client.compare p.ids)
+  ticked /\ setTicked <- useState' (Nothing :: Maybe (Array String))
+  picked /\ setPicked <- useState' (Nothing :: Maybe String)
+  let
+    plotted = take plotLimit (fromMaybe p.initial ticked)
+    toggle id on = setTicked (Just (if on then (if elem id plotted || length plotted >= plotLimit then plotted else plotted <> [ id ]) else filter (_ /= id) plotted))
+  plots <- useLoad (String.joinWith "," plotted) (if null plotted then pure (Left "") else Client.compare plotted)
+  pure $ D.div
+    { className: "flex min-w-0 flex-col gap-section"
     , children:
-        [ D.text "Player"
-        , selectInput { value: chosen c, options: map _.player c.netWorth, onChange: setPicked }
+        [ Layout.section
+            { title: "The runs at a glance"
+            , purpose: "One row per run: who leads after the final round and with what, how even final net worth is, how many units of fixed requirements went short, and how many Rules were enacted."
+            , children: [ loaded everyRun.value \c -> tableOf grid c.summary ]
+            }
+        , Layout.section
+            { title: "Plotted runs"
+            , purpose: "Tick up to " <> show plotLimit <> " runs to plot them on shared axes. The first ticked is the baseline."
+            , children: [ chooser p.ids p.names plotted toggle ]
+            }
+        , if null plotted then note "Tick a run above to plot it." else plotSections plotted picked setPicked plots.value
+        , loaded everyRun.value \c ->
+            if null c.agency.rows then D.span_ []
+            else Layout.section
+              { title: "Agency"
+              , purpose: "For each agency run: how far one seat playing its alternative preset moves the run, against the preset run it deviates from, and its objective criteria under each."
+              , children: [ tableOf grid c.agency, tableOf grid c.agencyCriteria ]
+              }
         ]
     }
+  where
+  chooser ids names plotted toggle = D.div
+    { className: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+    , children: ids <#> \id -> D.label
+        { key: id
+        , className: "flex items-center gap-2 text-sm"
+        , children:
+            [ element UI.checkbox { checked: elem id plotted, onCheckedChange: mkEffectFn1 (toggle id) }
+            , D.span { className: "size-3 shrink-0 rounded-full " <> (if elem id plotted then runSwatch plotted id else "bg-transparent") }
+            , D.span { children: [ D.text (names id) ] }
+            ]
+        }
+    }
+  plotSections plotted picked setPicked shown =
+    let
+      baseline = fromMaybe "" (index plotted 0)
+      waiting = placeholderFrame "Loading the plots…"
 
-  netWorthPlot c = case find (\nw -> nw.player == chosen c) c.netWorth of
-    Nothing -> [ waiting ]
-    Just nw -> [ overlayChart ids c.baseline nw.chart ]
-
-  -- the player shown: the one picked, when the comparison has them, else the first
-  chosen c = case picked of
-    Just p | elem p (map _.player c.netWorth) -> p
-    _ -> maybe "" _.player (index c.netWorth 0)
-
--- | The comparison of the runs named (every simulated run when none is), with its plots. The player picked for net
--- | worth is kept here; the last comparison shows until the next arrives.
-mkComparison :: DataTable -> Fetch -> Component { ids :: Array String, colours :: Array String }
-mkComparison grid fetch = component "Comparison" \{ ids, colours } -> React.do
-  comparison <- useLoad (String.joinWith "," ids) (Client.compare ids)
-  picked /\ setPicked <- useState' (Nothing :: Maybe String)
-  pure (plots grid fetch colours comparison.value picked setPicked)
+      withPlots :: (CompareView -> Array JSX) -> Array JSX
+      withPlots f = case shown of
+        Just (Right c) -> f c
+        Just (Left e) -> [ note e ]
+        Nothing -> [ waiting ]
+      label c id = maybe id _.name (find (\r -> r.id == id) c.runs) <> (if id == baseline then " (baseline)" else "")
+      chosen c = case picked of
+        Just pl | elem pl (map _.player c.netWorth) -> pl
+        _ -> maybe "" _.player (index c.netWorth 0)
+    in
+      D.div
+        { className: "flex min-w-0 flex-col gap-section"
+        , children:
+            [ Layout.section
+                { title: "Prices that move"
+                , purpose: "Each Exchange price that changes in any plotted run, after every round: one line per run, on the same axes."
+                , children: withPlots \c -> if null c.exchanges then [ note "No price moves in the plotted runs." ] else [ Layout.grid (c.exchanges <#> \m -> D.div { className: "col-span-12 min-w-0 lg:col-span-6", children: [ Layout.captioned m.title [ overlayChart plotted (label c) baseline m ] ] }) ]
+                }
+            , Layout.section
+                { title: "Net worth over time"
+                , purpose: "One player's net worth from the start (round 0) to the final round, with one line per plotted run. Choose the player."
+                , children: withPlots \c ->
+                    [ D.label { className: "flex items-center gap-2 text-sm", children: [ D.text "Player", selectInput { value: chosen c, options: map _.player c.netWorth, onChange: setPicked } ] }
+                    , maybe waiting (\nw -> overlayChart plotted (label c) baseline nw.chart) (find (\nw -> nw.player == chosen c) c.netWorth)
+                    ]
+                }
+            , Layout.section
+                { title: "Final standings"
+                , purpose: "Each player's net worth after the final round: one group per player, with one bar per plotted run."
+                , children: withPlots \c -> [ groupedBars plotted (label c) baseline "Player" c.standings ]
+                }
+            ]
+        }

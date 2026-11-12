@@ -12,8 +12,8 @@ import Core.Shape (Format(..), decodeJsonWith, encodeWith)
 import Dashboard.Api (useLoad)
 import Dashboard.BalanceSheet (mkLinks)
 import Dashboard.Client as Client
-import Dashboard.Comparison (mkComparison, mkRunPage, runTable)
-import Dashboard.Components (errorBlock, fetched, labelled, loaded, note, selectInput, textInput)
+import Dashboard.Comparison (mkRunPage, runTable)
+import Dashboard.Components (errorBlock, labelled, loaded, note, selectInput, textInput)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
 import Dashboard.Route (Route(..), navigate)
@@ -69,8 +69,6 @@ emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", see
 
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
-  fetch <- fetched
-  comparison <- mkComparison grid fetch
   runPage <- mkRunPage grid
   links <- mkLinks
   start <- mkStart
@@ -97,12 +95,10 @@ mkLive grid = do
           { className: "flex min-w-0 flex-col gap-section"
           , children:
               [ runTable grid t { selected: fromMaybe "" p.selected, select: \id -> navigate (LiveRun id) } ]
-                <> map (\tag -> byTag tag (map _.id (filter (\f -> f.readable && f.tag == Just tag) t.runs))) [ "production", "mock" ]
           }
-      byTag tag ids = if null ids then D.span_ [] else Layout.section { title: "The " <> tag <> " runs compared", purpose: "The past " <> tag <> " runs side by side.", children: [ comparison { ids, colours: ids } ] }
     pure $ Layout.page
       { title: "Live"
-      , purpose: "The one live run: start it, follow it round by round, take a facilitator's text for a seat, and drive its lifecycle. Below it, every past interactive run, compared within its tag."
+      , purpose: "The one live run: start it, follow it round by round, take a facilitator's text for a seat, and drive its lifecycle. Below it, every past interactive run."
       , children:
           [ Layout.section
               { title: "Live run"
@@ -117,7 +113,7 @@ mkLive grid = do
           , maybe (D.span_ []) (\st -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ Layout.section { title: "Balance sheets", purpose: "Each Actor's own page for the live run, to hand to whoever plays it.", children: [ links st.id ] }, runPage { id: st.id } ] }) current
           , Layout.section
               { title: "Past interactive runs"
-              , purpose: "Every interactive run, live or past, with its tag. Click one to open its results and balance sheets; the runs of each tag are compared together."
+              , purpose: "Every interactive run, live or past, with its tag. Click one to open its results and balance sheets."
               , children: [ loaded past.value \t -> pastRuns t ]
               }
           , maybe (D.span_ []) (\id -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ Layout.section { title: "Balance sheets of " <> id, purpose: "Each Actor's own page for the selected past run.", children: [ links id ] }, runPage { id } ] }) (p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id)
@@ -152,17 +148,12 @@ mkControls = component "LiveControls" \p -> React.do
         setFailure (either' out)
         setTexts (Object.delete seat texts)
         p.bump
-    yesNo b = if b then "yes" else "no"
+    -- the run, its round and status (paused or ending after this round said with it), and who is awaited
     facts =
-      [ Tuple "Run" st.id
-      , Tuple "Tag" st.tag
+      [ Tuple "Run" (st.id <> " (" <> st.tag <> ")")
       , Tuple "Round" (show st.round)
-      , Tuple "Status" (show st.status)
-      , Tuple "Paused" (yesNo st.paused)
-      , Tuple "Ending after this round" (yesNo st.ending)
-      , Tuple "Window, seconds" (if st.window == 0 then "none" else show st.window)
+      , Tuple "Status" (show st.status <> (if running && st.paused then ", paused" else "") <> (if running && st.ending then ", ending after this round" else ""))
       , Tuple "Awaiting" (if null st.awaiting then "none" else joinWith ", " st.awaiting)
-      , Tuple "Spoken" (if null st.submitted then "none" else joinWith ", " st.submitted)
       ]
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-stack"

@@ -211,7 +211,7 @@ compareView compositions { runs: asked, exchange } = do
       Right trajectory -> ok
         ( { compatibility: Compare.compatible good
           , trajectory
-          , exchanges: Exchanges.exchangeCharts good
+          , exchanges: filter Compare.moving (Exchanges.exchangeCharts good)
           , netWorth: Compare.netWorthCharts good
           , standings: Compare.standingsBars good
           , balance: Compare.balanceBars good
@@ -221,6 +221,8 @@ compareView compositions { runs: asked, exchange } = do
           , diff: Compare.baselineDiff base others
           , config: Compare.configDiff base others
           , seeds: Balance.seedVariation (Compare.sameSpecification good)
+          , runs: map (\r -> { id: r.id, name: r.name }) good
+          , summary: Compare.summary good
           , agency: agencyTable profiles
           , agencyCriteria: agencyCriteria profiles
           , skipped

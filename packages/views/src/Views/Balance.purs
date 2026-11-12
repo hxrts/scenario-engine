@@ -18,6 +18,9 @@ module Views.Balance
   , completionOf
   , completion
   , seedVariation
+  , spreadCell
+  , giniCell
+  , giniColumn
   , columns
   ) where
 

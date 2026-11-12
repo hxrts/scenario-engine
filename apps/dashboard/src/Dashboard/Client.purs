@@ -15,8 +15,6 @@ module Dashboard.Client
   , composition
   , glossary
   , overview
-  , actors
-  , actor
   , balanceSheet
   , balanceSheetLinks
   , runView
@@ -35,7 +33,7 @@ import Views.Compare (CompareView)
 import Effects.Api (StartLive, Submission)
 import Handlers.Api.Contract (SessionStarted, SessionState)
 import Schema.Run (RunClass)
-import Views.Actor (ActorList, History)
+
 import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
 import Views.Glossary (Glossary)
 import Views.Keys (ViewKey)
@@ -44,7 +42,7 @@ import Views.Overview (RunList, RunOverview)
 import Views.Composition (CompositionInfo)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
+
 import Effect.Aff (Aff)
 
 -- | The run list: every run, in creation order.
@@ -93,14 +91,6 @@ glossary = send @"Glossary" fetch unit
 -- | A run's overview: its rounds, target and header facts.
 overview :: String -> Aff (Either String RunOverview)
 overview id = runView (Keys.viewKey @"Overview") id Nothing
-
--- | A run's Actors, each flagged as a seat, and the default one.
-actors :: String -> Aff (Either String ActorList)
-actors = send @"Actors" fetch
-
--- | One Actor's history.
-actor :: String -> String -> Aff (Either String History)
-actor id e = send @"Actor" fetch (Tuple id e)
 
 -- | One Actor's balanceSheet, by its token.
 balanceSheet :: String -> String -> Aff (Either String BalanceSheet)
