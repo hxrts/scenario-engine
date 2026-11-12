@@ -7,7 +7,7 @@ import { section } from "./helpers.js";
 test("a Pacific run launches with its own preset and its run page shows China's dependence on US technology", async ({ page, request }) => {
   const premise = await (await request.get("/api/premise")).json();
   const pacific = premise.find((c) => c.name === "pacific");
-  expect(pacific.presets).toEqual(["Adaptive", "Balanced", "Cautious", "Confident", "Directed", "FreeTrade", "Neutral", "Rebalance", "Restrict", "RestrictAndSubstitute", "Retaliate", "Substitute", "Tariff"]);
+  expect(pacific.presets).toEqual(["Adaptive", "Balanced", "Builder", "Directed", "Exporter", "FreeTrade", "Hawk", "Merchant", "Patron", "Planner", "Populist", "Rebalance", "Reformer", "Restrict", "RestrictAndSubstitute", "Retaliate", "Substitute", "Tariff"]);
   expect(pacific.defaultPreset).toBe("FreeTrade");
   const launched = await request.post("/api/runs", { data: { composition: "pacific", name: "pacific", preset: "Restrict", playerSeed: 1, rounds: 6 } });
   expect(launched.status()).toBe(200);

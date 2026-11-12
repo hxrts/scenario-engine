@@ -197,7 +197,7 @@ queryRefs = case _ of
     TransformationOf t -> [ Tuple RefTransformation (idText t) ]
     _ -> []
   RulesEnacted x -> [ Tuple RefActor (idText x.governor), Tuple RefActor (idText x.counterparty) ]
-  RulesInForce x -> [ Tuple RefActor (idText x.governor) ]
+  RulesInForce x -> [ Tuple RefActor (idText x.governor) ] <> map (\k -> Tuple RefRuleKind (idText k)) x.kinds
 
 refsTemplate :: TemplateAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))
 refsTemplate =

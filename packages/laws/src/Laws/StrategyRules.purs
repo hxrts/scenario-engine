@@ -20,7 +20,7 @@ import Prelude
 
 import Core.Num (Q)
 import Laws.World (LegQuery)
-import Laws.Types (Id(..), BehaviorDomain, CollectiveProcedureId, ActorId, IntentF, ExchangeId, StrategyId, CandidateTransactionF, ResourceId, TransformationId)
+import Laws.Types (Id(..), BehaviorDomain, CollectiveProcedureId, ActorId, IntentF, ExchangeId, RuleKindId, StrategyId, CandidateTransactionF, ResourceId, TransformationId)
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Show.Generic (genericShow)
@@ -81,7 +81,7 @@ data Cond
 data RecordQuery
   = OfLegs LegQuery
   | RulesEnacted { governor :: ActorId, counterparty :: ActorId }
-  | RulesInForce { governor :: ActorId }
+  | RulesInForce { governor :: ActorId, kinds :: Array RuleKindId } -- of these kinds, or of any when none is named
 
 -- | A StrategyRules's template: an Intent or a candidate Transaction with its quantities as expressions, or one of the
 -- | combinators that choose among them or depend on the last round's events. `self` names the acting

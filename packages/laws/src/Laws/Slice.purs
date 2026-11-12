@@ -21,6 +21,7 @@ module Laws.Slice
   , legs
   , FlowOwed
   , exchangeFills
+  , trades
   , transformationFills
   , transformationPaymentsTo
   , runLegQuery
@@ -157,6 +158,16 @@ exchangeFills = settledSelect "the cause is a pair an Exchange cleared" \c -> ca
             _, _ -> []
         in
           side x.buyer base.to identity <> side x.seller base.from Q.neg
+  _, _, _ -> []
+
+-- | Trades between two Actors: each cleared pair whose sides are both Actors, with its seller, buyer, Resource,
+-- | quantity and price. A pair with the reserve is no trade between Actors.
+trades :: Select { round :: RoundIndex, exchange :: ExchangeId, seller :: ActorId, buyer :: ActorId, resource :: ResourceId, quantity :: Q, price :: Q }
+trades = settledSelect "the cause is a pair between two Actors an Exchange cleared" \c -> case c.cause, index c.legs 0, c.rate of
+  OfMatch x, Just base, Just price
+    | not c.delivered -> case base.from, base.to of
+        Held seller, Held buyer -> [ { round: c.round, exchange: x.exchange, seller, buyer, resource: base.resource, quantity: base.moved, price } ]
+        _, _ -> []
   _, _, _ -> []
 
 -- | TransformationFills: the units run, and what was paid to the payee.

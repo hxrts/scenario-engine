@@ -172,21 +172,20 @@ spec = do
         Left e -> e `shouldEqual` "composition meridian: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
         Right _ -> fail "a conflict must fail the load"
 
-  describe "Pacific (docs/05 §2)" do
+  describe "Pacific (docs/05 §8)" do
     let pacific = Pacific.pacific Pacific.defaultDials
     it "its two Premises compose with no conflict and check" do
       map (const unit) (parts pacific) `shouldEqual` Right unit
-    it "bilateral-economy alone is a whole economy with no bans or investments" do
-      -- the two states' seats only: the firms and their schemes are the private sector's
-      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { seats = Map.filterKeys (\k -> k == Id "US" || k == Id "CN") pacific.config.seats, representations = [], preset = Nothing } } of
+    it "bilateral-economy alone is a whole economy of states and firms, with no Rules and only the firms' investments" do
+      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { preset = Nothing } } of
         Left e -> fail e
         Right p -> do
-          Map.size p.composition.world.transformations `shouldEqual` 0
+          Map.size p.composition.world.transformations `shouldEqual` 2
           Map.size p.composition.world.ruleKinds `shouldEqual` 0
     it "private-sector alone fails only on what the other Premises define" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of
-        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Actor US, which no Premise in the composition defines"
-        Right _ -> fail "the private-sector Premise extends Actors it does not define"
+        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Exchange industry-cn, which no Premise in the composition defines"
+        Right _ -> fail "the private-sector Premise extends Exchanges it does not define"
     it "strategic-dependence alone fails only on the Actors the other Premise defines" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
         Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"

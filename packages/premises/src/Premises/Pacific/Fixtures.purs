@@ -1,9 +1,9 @@
--- | Pacific's engine-level golden fixtures (docs/05_pacific.md §8): small worlds cut from Pacific with no
+-- | Pacific's engine-level golden fixtures (docs/05_pacific.md §9.3): small worlds cut from Pacific with no
 -- | circulation, whose decisions are literal candidate Transactions. They pin the matched-only Exchange and a
--- | ban on a matched pair through `resolveRound` alone. Every expected value is a literal from docs/05.
+-- | ban, the US export tax, a home Exchange, Chinese credit and a release through `resolveRound` alone. Every expected value is a literal from docs/05.
 module Premises.Pacific.Fixtures (fixtures) where
 
-import Prelude (map, negate, (<>), (==))
+import Prelude (negate, (#))
 
 import Premises.Kit.Prelude
 
@@ -17,7 +17,7 @@ import Premises.Pacific.Names (p)
 import Premises.Pacific.Strategies (banRule)
 import Schema.Build.Fixture (noRound)
 import Schema.Build.World (emptyCirculation)
-import Schema.Build.Base (mayEnact)
+import Schema.Build.Base (mayEnact, mayTransform)
 
 base :: CompositionParts
 base = { composition: compositionWith defaultDials, config: (pacific defaultDials).config { preset = Nothing }, presets: Object.empty }
@@ -25,70 +25,96 @@ base = { composition: compositionWith defaultDials, config: (pacific defaultDial
 fixture :: String -> FixtureSpec -> Tuple String Json
 fixture = Kit.fixture { seed: gameSeed, base }
 
--- | Both countries with their Money and goods, trade capabilities, and the US ban's enactment.
-countries :: Array KeptActor
-countries = map (\a -> { key: a, accounts: Just [ p.money, p.technology, p.industry ], capabilities: Just (capabilities a) }) [ p.us, p.cn ]
-  where
-  trading = [ mayTrade p.technologyMarket, mayTrade p.industryMarket, mayTransfer p.technology, mayTransfer p.industry ]
-  capabilities a = if a == p.us then trading <> [ mayEnact p.usTechnologyBan ] else trading
+-- | Each Actor a fixture keeps: its accounts, and exactly the Capabilities it uses.
+us :: KeptActor
+us = { key: p.us, accounts: Just [ p.money, p.technology, p.industry ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.industryWorld, mayTrade p.technologyUs, mayEnact p.usTechnologyBan ] }
+
+usFirm :: KeptActor
+usFirm = { key: p.usFirm, accounts: Just [ p.money, p.technology ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.technologyUs ] }
+
+cn :: KeptActor
+cn = { key: p.cn, accounts: Just [ p.money, p.technology, p.industry, p.credit ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.industryWorld, mayTrade p.industryCn, mayTransfer p.money ] }
+
+cnFirm :: KeptActor
+cnFirm = { key: p.cnFirm, accounts: Just [ p.money, p.industry, p.industryCapacity ], capabilities: Just [ mayTrade p.industryWorld, mayTransform p.cnFirmInvestment ] }
+
+cnPrivate :: KeptActor
+cnPrivate = { key: p.cnPrivate, accounts: Just [ p.money, p.industry ], capabilities: Just [ mayTrade p.industryCn ] }
 
 cut :: Cut
-cut = { actors: countries, resources: [ p.money, p.technology, p.industry ], exchanges: [ p.technologyMarket, p.industryMarket ], transformations: [], circulation: emptyCirculation, patches: [] }
+cut = { actors: [ us, usFirm, cn, cnFirm ], resources: [ p.money, p.technology, p.industry ], exchanges: [ p.technologyWorld, p.industryWorld, p.technologyUs ], transformations: [], circulation: emptyCirculation, patches: [] }
 
 spec :: FixtureSpec
 spec = { cut, candidateTransactions: Nothing, expect: Nothing, rounds: Nothing }
 
--- | Each country's round-1 commerce: the US sells 4 T and buys 6 I, China sells 6 I and buys 4 T, at the prices.
-commerce :: Array SignedCandidateTransaction
-commerce =
-  [ candidateTransaction { author: p.us, intents: [ trade { exchange: p.technologyMarket, quantity: q (-4), limit: Just (q 1) }, trade { exchange: p.industryMarket, quantity: q 6, limit: Just (q 2) } ] }
-  , candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryMarket, quantity: q (-6), limit: Just (q 2) }, trade { exchange: p.technologyMarket, quantity: q 4, limit: Just (q 1) } ] }
+-- | The US firm sells 4 T on the world Exchange and China buys them.
+exports :: Array SignedCandidateTransaction
+exports =
+  [ candidateTransaction { author: p.usFirm, intents: [ trade { exchange: p.technologyWorld, quantity: q (-4), limit: Just (q 1) } ] }
+  , candidateTransaction { author: p.cn, intents: [ trade { exchange: p.technologyWorld, quantity: q 4, limit: Just (q 1) } ] }
   ]
 
--- | P-A: free trade, one round. The matched Exchanges move 4 T and 6 I and hold nothing.
+-- | P-A: the US firm exports 4 T to China at 1 and pays the export tax, 0.5 a unit, to the US state.
 fixturePA :: Tuple String Json
 fixturePA = fixture "P-A" spec
-  { candidateTransactions = Just commerce
-  , expect = Just (noExpect { accounts = balances [ Tuple p.us (keyed [ p.money := 92, p.technology := 6, p.industry := 6 ]), Tuple p.cn (keyed [ p.money := 108, p.technology := 4, p.industry := 4 ]) ], reserves = balances [ Tuple p.technologyMarket (keyed [ p.money := 0, p.technology := 0 ]), Tuple p.industryMarket (keyed [ p.money := 0, p.industry := 0 ]) ] })
+  { candidateTransactions = Just exports
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 52, p.technology := 4 ]), Tuple p.cn (keyed [ p.money := 96, p.technology := 4 ]), Tuple p.us (keyed [ p.money := 102 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.money := 0, p.technology := 0 ]) ] })
   }
 
--- | P-B: the US enacts its ban in round 1; in round 2 the same commerce moves no T and no Money for it, and I
--- | still crosses.
+-- | P-H: the US firm sells 2 T at home to its own state, at the home price of 1.25, and pays no tax.
+fixturePH :: Tuple String Json
+fixturePH = fixture "P-H" spec
+  { candidateTransactions = Just
+      [ candidateTransaction { author: p.usFirm, intents: [ trade { exchange: p.technologyUs, quantity: q (-2), limit: Just (q "1.25") } ] }
+      , candidateTransaction { author: p.us, intents: [ trade { exchange: p.technologyUs, quantity: q 2, limit: Just (q "1.25") } ] }
+      ]
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := "52.5", p.technology := 6 ]), Tuple p.us (keyed [ p.money := "97.5", p.technology := 4 ]) ] })
+  }
+
+-- | P-B: the US enacts its ban in round 1; in round 2 the same exports move nothing, so the firm keeps its T.
 fixturePB :: Tuple String Json
 fixturePB = fixture "P-B" spec
   { rounds = Just
       [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.us, intents: [ ChangeRule (Enact (banRule p.us)) ] } ] }
       , noRound
-          { candidateTransactions = Just commerce
-          , expect = Just (noExpect { accounts = balances [ Tuple p.us (keyed [ p.money := 88, p.technology := 10, p.industry := 6 ]), Tuple p.cn (keyed [ p.money := 112, p.technology := 0, p.industry := 4 ]) ] })
+          { candidateTransactions = Just exports
+          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 50, p.technology := 8 ]), Tuple p.cn (keyed [ p.money := 100, p.technology := 0 ]) ] })
           }
       ]
   }
 
--- | P-G: China offers 6 I and nobody buys. Nothing moves; China keeps its I and is paid nothing.
+-- | P-G: the Chinese firm offers 2 I and nobody buys. Nothing moves.
 fixturePG :: Tuple String Json
 fixturePG = fixture "P-G" spec
-  { candidateTransactions = Just [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryMarket, quantity: q (-6), limit: Just (q 2) } ] } ]
-  , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 100, p.industry := 10 ]) ], reserves = balances [ Tuple p.industryMarket (keyed [ p.money := 0, p.industry := 0 ]) ] })
+  { candidateTransactions = Just [ candidateTransaction { author: p.cnFirm, intents: [ trade { exchange: p.industryWorld, quantity: q (-2), limit: Just (q 2) } ] } ]
+  , expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.money := 50, p.industry := 2 ]) ], reserves = balances [ Tuple p.industryWorld (keyed [ p.money := 0, p.industry := 0 ]) ] })
   }
 
--- | P-R: China releases 10 M to its private sector in round 1, and in round 2 the private sector buys 2 I from
--- | the Chinese state on the matched market. The release is a transfer and the purchase a pair, so Money and
--- | goods are conserved and the Exchange holds nothing.
+-- | P-C: the Chinese firm invests 2 I on state credit, an order China signs; the new capacity is there in round 2.
+fixturePC :: Tuple String Json
+fixturePC = fixture "P-C" spec
+  { cut = cut { actors = [ cn, cnFirm ], resources = [ p.money, p.industry, p.industryCapacity, p.credit ], exchanges = [], transformations = [ p.cnFirmInvestment ] }
+  , rounds = Just
+      [ noRound { candidateTransactions = Just [ (candidateTransaction { author: p.cnFirm, intents: [ Transform { by: p.cnFirm, transformation: p.cnFirmInvestment, quantity: q 1 } ] }) # \s -> s { candidateTransaction = s.candidateTransaction { signers = [ p.cn ] }, signatures = [ p.cn ] } ] }
+      , noRound { expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.industry := 0, p.industryCapacity := 3 ]) ] }) }
+      ]
+  }
+
+-- | P-R: China releases 10 M to its private sector, which in round 2 buys 2 I at home from the Chinese state at 2.5.
 fixturePR :: Tuple String Json
 fixturePR = fixture "P-R" spec
-  { cut = cut { actors = [ { key: p.cn, accounts: Just [ p.money, p.industry ], capabilities: Just [ mayTrade p.industryMarket, mayTransfer p.money, mayTransfer p.industry ] }, { key: p.cnPrivate, accounts: Just [ p.money, p.industry ], capabilities: Just [ mayTrade p.industryMarket ] } ], exchanges = [ p.industryMarket ] }
+  { cut = cut { actors = [ cn, cnPrivate ], resources = [ p.money, p.industry ], exchanges = [ p.industryCn ] }
   , rounds = Just
       [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.cn, intents: [ Transfer { from: p.cn, to: p.cnPrivate, resource: p.money, quantity: q 10 } ] } ] }
       , noRound
           { candidateTransactions = Just
-              [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryMarket, quantity: q (-2), limit: Just (q 2) } ] }
-              , candidateTransaction { author: p.cnPrivate, intents: [ trade { exchange: p.industryMarket, quantity: q 2, limit: Just (q 2) } ] }
+              [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryCn, quantity: q (-2), limit: Just (q "2.5") } ] }
+              , candidateTransaction { author: p.cnPrivate, intents: [ trade { exchange: p.industryCn, quantity: q 2, limit: Just (q "2.5") } ] }
               ]
-          , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 94, p.industry := 8 ]), Tuple p.cnPrivate (keyed [ p.money := 6, p.industry := 2 ]) ], reserves = balances [ Tuple p.industryMarket (keyed [ p.money := 0, p.industry := 0 ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 95, p.industry := 6 ]), Tuple p.cnPrivate (keyed [ p.money := 5, p.industry := 2 ]) ] })
           }
       ]
   }
 
 fixtures :: Array (Tuple String Json)
-fixtures = [ fixturePA, fixturePB, fixturePG, fixturePR ]
+fixtures = [ fixturePA, fixturePH, fixturePB, fixturePG, fixturePC, fixturePR ]

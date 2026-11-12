@@ -15,7 +15,7 @@ import Core.Sum (ctor)
 import Prelude
 
 import Laws.Query (transfersOf, transformsOf)
-import Core.Shape (genericPremiseSum, atOneKey, atEmbedded, iso, partialIso, Format(..), Shape, arrayOf, atLiteral, decodeJsonWith, embedded, encodeWith, field, fieldOf, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, recordOf, recordShape, recursive, requiredMaybe, premiseSum, stringShape, unitShape, (&.))
+import Core.Shape (defaultsTo, genericPremiseSum, atOneKey, atEmbedded, iso, partialIso, Format(..), Shape, arrayOf, atLiteral, decodeJsonWith, embedded, encodeWith, field, fieldOf, keyedOf, object, omittedWhen, oneKey, optionalOf, pairOf, recordOf, recordShape, recursive, requiredMaybe, premiseSum, stringShape, unitShape, (&.))
 import Core.Num (qShape)
 import Laws.StrategyRules (Clause, Cond, Expr, IntentTemplate, ExchangeRef, RecordQuery, SignRule, StrategyRules, Template(..), selfId)
 import Schema.Premise.Intent (ruleBody)
@@ -84,7 +84,7 @@ recordQueryShape :: Shape RecordQuery
 recordQueryShape = genericPremiseSum "RecordQuery"
   { "OfLegs": atOneKey "legs" "a query of the settlement legs" legQueryShape
   , "RulesEnacted": atOneKey "rulesEnacted" "the Rules a governor enacted against a counterparty at this round's boundary" (recordShape "RulesEnacted" { governor: idShape, counterparty: idShape })
-  , "RulesInForce": atOneKey "rulesInForce" "the Rules in force a governor governs" (recordShape "RulesInForce" { governor: idShape })
+  , "RulesInForce": atOneKey "rulesInForce" "the Rules in force a governor governs, of the kinds named or of any" (recordShape "RulesInForce" { governor: idShape, kinds: defaultsTo [] (arrayOf idShape) })
   }
 
 type TransformRec = { transformation :: TransformationId, quantity :: Expr }

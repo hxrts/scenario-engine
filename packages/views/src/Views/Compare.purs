@@ -38,7 +38,7 @@ import Views.Balance (completionOf, giniMeasure, measuresOf, runMeasures, spread
 import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, column, completed, exact, final, names, ofCount, players, pointsOf, price, quantity, ratio, unitOf, cellOf, tableOf)
 import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
-import Views.Dependence (cumulativePurchases, cumulativeReceipts, cumulativeShortfall, demandsOf, finalCoverage, requirementsOf)
+import Views.Dependence (blockedOrders, salesSplit, cumulativePurchases, cumulativeReceipts, cumulativeShortfall, demandsOf, finalCoverage, requirementsOf)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -304,6 +304,7 @@ keyValues boardOf runs =
   dependenceRows =
     map (\p -> row [ "Receipts from sales, " <> show p, numeraireUnit runs ] (\v -> quantity (cumulativeReceipts v.run p))) (playerIds runs)
       <> map (\q -> row [ "Final coverage, " <> show q.actor <> " " <> show q.resource, "share of the requirement" ] (\v -> maybe "—" (ratio <<< finalCoverage (final v.run)) (find (\x -> x.actor == q.actor && x.resource == q.resource) (requirementsOf (final v.run))))) requirements
+      <> concatMap (\a -> [ row [ "Sales at home over the run, " <> show a, "units" ] (\v -> quantity (salesSplit v.run a).home), row [ "Sales abroad over the run, " <> show a, "units" ] (\v -> quantity (salesSplit v.run a).abroad), row [ "Orders blocked over the run, " <> show a, "count" ] (\v -> show (blockedOrders v.run a)) ]) (playerIds runs)
       <> map (\q -> row [ "Purchases over the run, " <> show q.actor <> " " <> show q.resource, maybe "" (\r -> unitOf r q.resource) (head runs) ] (\v -> quantity (cumulativePurchases v.run q.actor q.resource))) demands
       <> map (\q -> row [ "Shortfall over the run, " <> show q.actor <> " " <> show q.resource, maybe "" (\r -> unitOf r q.resource) (head runs) ] (\v -> quantity (cumulativeShortfall v.run q.actor q.resource))) requirements
 

@@ -25,7 +25,7 @@ The configuration is the choice of each Run that the PremiseComposition leaves o
 | `representations` | list of scheme, Actor, weight | no | Active representatives. Weight defaults to 1 ([§5](#5-representation-assignment)). |
 | `preset` | preset name | no | The preset a launch plays when it names none. It must be one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
 
-Meridian's values are in [06 §14](06_meridian.md#14-run-configuration), and Pacific's in [05 §3](05_pacific.md#3-actors-and-resources).
+Meridian's values are in [06 §14](06_meridian.md#14-run-configuration), and Pacific's in [05 §3.1](05_pacific.md#31-resources-and-holdings).
 
 The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The PremiseComposition fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)).
 

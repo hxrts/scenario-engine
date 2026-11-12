@@ -21,11 +21,11 @@ import Laws.CandidateTransaction (CandidateTransactionBody)
 import Laws.Query (lookupQ, enactedAtBoundary)
 import Laws.Slice (runLegQuery)
 import Laws.StrategyRules (RecordQuery(..), Cond, Expr, IntentTemplate, ExchangeRef(..), SignRule(..), StrategyRules, Template(..), selfName)
-import Laws.Types (governorOf, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransactionF, CandidateTransactionId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withExchange)
+import Laws.Types (governorOf, ruleKind, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransactionF, CandidateTransactionId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withExchange)
 import Laws.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
-import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub)
+import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
 import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -216,7 +216,7 @@ recordHolds :: Env -> RecordQuery -> Q -> Boolean
 recordHolds env query least = case query of
   OfLegs q -> maybe false (_ >= least) (runLegQuery env.view.round env.view.events (q { party = actorRef env q.party }))
   RulesEnacted x -> Q.fromInt (length (enacted env x)) >= least
-  RulesInForce x -> Q.fromInt (length (filter (\r -> governorOf r == Just (actorRef env x.governor)) (values env.view.rules))) >= least
+  RulesInForce x -> Q.fromInt (length (filter (\r -> governorOf r == Just (actorRef env x.governor) && (null x.kinds || ruleKind r `elem` x.kinds)) (values env.view.rules))) >= least
 
 -- | The Rules a governor enacted against a counterparty, as they took effect at this round's boundary.
 enacted :: Env -> { governor :: ActorId, counterparty :: ActorId } -> Array Rule

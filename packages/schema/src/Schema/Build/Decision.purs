@@ -20,6 +20,7 @@ module Schema.Build.Decision
   , transformedLastRound
   , restrictedLastRound
   , restrictionInForce
+  , ruleInForce
   , asTemplate
   , orderAt
   , selfTransform
@@ -53,7 +54,7 @@ import Data.Maybe (Maybe(..))
 import Laws.StrategyRules (Clause, Cond(..), Expr(..), IntentTemplate, ExchangeRef(..), SignRule(..), StrategyRules, Template(..))
 import Laws.StrategyRules as S
 import Laws.World (CausePattern(..), LegAggregate(..), Side(..), Window(..))
-import Laws.Types (ActorId, ActorTag, Id(..), IntentF(..), ExchangeTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, TransformationId, TransformationTag, idText)
+import Laws.Types (ActorId, ActorTag, Id(..), IntentF(..), ExchangeTag, ProcedureTag, ResourceId, ResourceTag, RuleChangeF(..), RuleF, RuleKindTag, TransformationId, TransformationTag, idText)
 import Schema.Build.Named (class Named)
 import Schema.Build.Named (named) as N
 import Schema.Build.Quantity (class ToQty, q)
@@ -156,7 +157,11 @@ acting :: forall a. Named a ActorTag => a -> Cond
 acting = Acting <<< N.named
 
 restrictionInForce :: forall b. Named b ActorTag => { by :: b } -> Cond
-restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by }, atLeast: lit 1 }
+restrictionInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by, kinds: [] }, atLeast: lit 1 }
+
+-- | A Rule of one of these kinds is in force, governed by `by`.
+ruleInForce :: forall b k. Named b ActorTag => Named k RuleKindTag => { by :: b, kinds :: Array k } -> Cond
+ruleInForce r = Recorded { query: S.RulesInForce { governor: N.named r.by, kinds: map N.named r.kinds }, atLeast: lit 1 }
 
 -- Templates ------------------------------------------------------------------------------
 

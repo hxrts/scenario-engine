@@ -2,24 +2,24 @@
 -- | requirement of, what its own capacity covers, what it must import, what it traded, what it received for its
 -- | sales, what it went short, the Rules in force that block that Resource reaching it, and the capacity on
 -- | order for it. Derived from the World and the round's record only. Pure.
-module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, demandsOf, capacitiesOf, finalCoverage, cumulativeShortfall, cumulativeReceipts, cumulativePurchases) where
+module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, demandsOf, capacitiesOf, finalCoverage, cumulativeShortfall, cumulativeReceipts, cumulativePurchases, salesSplit, blockedOrders) where
 
 import Prelude
 
 import Core.Num (Q)
 import Core.Map (values)
 import Core.Num as Q
-import Data.Array (concatMap, elem, filter, length, mapMaybe, zip)
+import Data.Array (concatMap, elem, filter, find, length, mapMaybe, zip)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Laws.Engine.Compile (deliveredOf)
 import Laws.Query (holding, tradesOf)
-import Laws.Slice (exchangeFills, select, shortfalls)
+import Laws.Slice (event, exchangeFills, select, shortfalls, trades)
 import Laws.Types (ActorId, FlowEffect(..), ResourceId, RuleF(..))
-import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RoundRecord, WorldState)
+import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RejectReason(..), RoundRecord, WorldState)
 import Schema.Recurring (kinds)
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio, records, snapshots)
+import Views.Common (Column, StoredRun, Table, col, column, final, names, quantity, ratio, records, snapshots)
 
 requirementColumn :: Column
 requirementColumn = column "Requirement" "What the Actor's fixed recurring requirement consumes of the Resource each round."
@@ -156,3 +156,22 @@ blocks a g = case _ of
 -- | What an Actor bought of a Resource on the Exchanges over the run.
 cumulativePurchases :: StoredRun -> ActorId -> ResourceId -> Q
 cumulativePurchases r a g = Q.sumQ (concatMap (\rec -> map _.quantity (filter (\f -> f.actor == a && f.resource == g && f.quantity > Q.zero) (select exchangeFills rec.events))) (records r))
+
+-- | What an Actor sold over the run to Actors that count as its own country (home) and to the rest (abroad),
+-- | by the World's groups (docs/03 §5.5).
+salesSplit :: StoredRun -> ActorId -> { home :: Q, abroad :: Q }
+salesSplit r a = { home: Q.sumQ (map _.quantity (filter (\t -> groupOf t.buyer == groupOf a) sold)), abroad: Q.sumQ (map _.quantity (filter (\t -> groupOf t.buyer /= groupOf a) sold)) }
+  where
+  w = final r
+  groupOf x = fromMaybe x (Map.lookup x w.groups)
+  sold = filter (\t -> t.seller == a) (concatMap (\rec -> select trades rec.events) (records r))
+
+-- | How many of an Actor's orders a Rule blocked over the run.
+blockedOrders :: StoredRun -> ActorId -> Int
+blockedOrders r a = length (filter mine (concatMap (\rec -> map (\o -> Tuple rec o) (select (event @"OrderRemoved") rec.events)) (records r)))
+  where
+  mine (Tuple rec o) = isBlocked o.reason && authorOf rec o.candidateTransaction == Just a
+  authorOf rec id = _.candidateTransaction.author <$> find (\s -> s.candidateTransaction.id == id) rec.inputs
+  isBlocked = case _ of
+    Blocked _ -> true
+    _ -> false
