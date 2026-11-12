@@ -74,6 +74,15 @@ What no seat decides runs by itself (§7.1): a state's routine trade, currency a
 
 ## 3. The national reproduction regime
 
+Each regime's three dimensions are made of the ordinary vocabulary:
+
+| Dimension | Resources | Transformations | Laws and agreements | Exchanges |
+|---|---|---|---|---|
+| Productive capability | `K_T`, `K_I`, `S_T`, `S_I`, and the goods as inputs | each production and investment (§3.5) | competence wear (depreciation), upkeep (a stock law), requirements | none of its own |
+| Effective demand | the country's currency held by its households | none | wages (an action law on each Transformation's units), transfers and dividends (Transfers) | the home Exchange (`technology-us`, `industry-cn`), on which its households buy |
+| Financial capacity | the country's currency | none | the bond templates (§3.4), with their interest and arrears | none of its own |
+
+
 ### 3.1 Resources and holdings
 
 | Resource | ID | Moves | Use |
@@ -165,6 +174,15 @@ The regimes are one builder's, configured twice (§9). Their configurations diff
 These are stylized starting configurations, not permanent traits of either country.
 
 ## 4. The international clearing system
+
+The clearing system's three categories, likewise:
+
+| Category | Resources | Rules | Exchanges | Agreements and Actors |
+|---|---|---|---|---|
+| Trade | `T`, `I` | import bans, export controls, tariffs, the export tax (§4.1) | `technology-world`, `industry-world` | the groups that make each country one party |
+| Currency | `USD`, `RMB` | none | the `usd-rmb` dealer (§4.2) | China's reserves, world savings |
+| Capital | `USD` | the asset fee | none | the US bond lent from abroad (§4.3); the rest of the world |
+
 
 ### 4.1 Trade and the Rules at the border
 
@@ -404,7 +422,7 @@ Firms on the default (all offered on the world Exchange) unless named.
 
 ### 10.4 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 986, 961, 976 and 984 of their criteria (US, China, US firm, Chinese firm): 2.47, 2.40, 2.44 and 2.46 of 4 a run. The bars are set so; a change to any dial is checked against this sample.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 986, 961, 976 and 984 of the 1,600 criteria each holds over the sample (US, China, US firm, Chinese firm). The bars are set so; a change to any dial is checked against this sample.
 
 ### 10.5 Circuits, accounting and loops
 
