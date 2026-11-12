@@ -14,9 +14,9 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Laws.StrategyRules (Clause, Cond, Expr, StrategyRules)
 import Laws.Types (ActorId, Direction(..), ExchangeId, FlowEffect(..), IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId)
-import Premises.Pacific.Private (countries, payShare, releaseShare, tariffRate)
+import Premises.Pacific.Private (countries, payShare, releaseShare, stockpileUnits, tariffRate)
 import Premises.Pacific.Names (p)
-import Schema.Build.Decision (acting, asTemplate, due, gt, holding, joint, lit, max', mulQ, named, orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signTransformation, subQ)
+import Schema.Build.Decision (acting, asTemplate, due, gt, holding, joint, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signTransformation, subQ)
 
 -- | A country's ban: it blocks its own exports of one good to the other.
 banRule :: forall v. ActorId -> RuleF v
@@ -64,6 +64,7 @@ presetId
      , merchant :: String
      , builder :: String
      , patron :: String
+     , hedger :: String
      }
 presetId =
   { freeTrade: "FreeTrade"
@@ -84,6 +85,7 @@ presetId =
   , merchant: "Merchant"
   , builder: "Builder"
   , patron: "Patron"
+  , hedger: "Hedger"
   }
 
 -- | A preset is the policy every seat plays in a simulated run (docs/05 §6.3). A state preset is the states' policy
@@ -112,6 +114,8 @@ presets =
   , Tuple presetId.merchant (firm abroad spend)
   , Tuple presetId.builder (firm home accumulate)
   , Tuple presetId.patron (firm home spend)
+  -- the firms' second tool abroad: stockpile the foreign good while it flows, and sell the stock once it is banned
+  , Tuple presetId.hedger (firm abroad stockpile)
   ]
   where
   state clauses signs = { rules: clauses <> sellAll abroad, sign: if signs then [ signTransformation p.cnFirmInvestment ] else [] }
@@ -152,5 +156,15 @@ presets =
     [ rule [ acting p.usFirm ] [ asTemplate (selfTransform { transformation: p.usFirmInvestment, quantity: lit 1 }) ]
     , rule [ acting p.cnFirm ] [ joint { signers: [ p.cn ], transfers: [], transforms: [ { transformation: p.cnFirmInvestment, quantity: lit 1 } ] } ]
     ]
+  -- stockpile: while the other country's ban is not in force, buy the foreign good on its world Exchange; once it
+  -- is, sell what it holds of it there, where its own state buys
+  stockpile = do
+    c <- countries
+    let banned = ruleInForce { by: other c, kinds: [ otherBan c ] }
+    [ rule [ acting c.firm, not' banned ] [ orderAt (named c.world) (param stockpileUnits) (Just (priceAt (named c.world))) ]
+    , rule [ acting c.firm, banned ] [ orderAt (named c.world) (subQ (lit 0) (holding c.foreign)) (Just (priceAt (named c.world))) ]
+    ]
+  other c = if c.state == p.us then p.cn else p.us
+  otherBan c = if c.state == p.us then p.cnIndustrialBan else p.usTechnologyBan
   -- spend: pay a share of its Money to its own private sector
   spend = map (\c -> rule [ acting c.firm ] [ asTemplate (Transfer { from: selfActor, to: c.private, resource: p.money, quantity: mulQ (param payShare) (holding p.money) }) ]) countries

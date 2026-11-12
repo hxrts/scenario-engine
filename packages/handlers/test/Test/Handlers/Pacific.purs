@@ -262,6 +262,19 @@ spec = describe "Pacific (docs/05 §9)" do
       map (\a -> holdingAt u6 a p.technology) [ p.us, p.usFirm ] `shouldEqual` map Q.fromInt [ 0, 20 ]
       map (\a -> holdingAt c6 a p.industry) [ p.cn, p.cnFirm ] `shouldEqual` map Q.fromInt [ 20, 10 ]
 
+    it "O Stockpiling: a firm that stocks the foreign good takes from its own state, and covers part of a ban" do
+      parts <- pacificParts
+      free <- playAll parts "FreeTrade" "FreeTrade" "Hedger" "Hedger" 2
+      f1 <- roundOf free 1
+      traded f1 p.usFirm p.industry `shouldEqual` q "1.5"
+      shortOf f1 p.us p.industry `shouldEqual` q "1.5"
+      traded f1 p.cnFirm p.technology `shouldEqual` q "1.6"
+      shortOf f1 p.cn p.technology `shouldEqual` q "0.8"
+      banned <- playAll parts "FreeTrade" "Restrict" "Hedger" "Hedger" 2
+      b2 <- roundOf banned 2
+      traded b2 p.usFirm p.industry `shouldEqual` q "-1.2"
+      shortOf b2 p.us p.industry `shouldEqual` q "4.8"
+
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, credit and the home premium, each structural difference keeps its effect" do
       let

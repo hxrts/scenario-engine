@@ -12,7 +12,7 @@ Each country is played by two seats: its **state** and its **firm**. Behind them
 | Seat | Abroad | At home |
 |---|---|---|
 | State | **Press or protect.** Ban its exports, or for the US tax China's, to hurt the other side, at the cost of its own sales and of retaliation. Or invest in a substitute, which costs goods now and pays only later. | **Direct or release.** Keep what it holds for strategic production, or release it to its private sector, whose demand absorbs output at home. |
-| Firm | **Export or sell at home.** The world Exchange is larger but exposed to bans and levies the states decide; the home Exchange pays a premium but is only as large as its private sector's demand. | **Accumulate or spend.** Reinvest its goods in more capacity, or pay its private sector, whose demand grows the home market the firm sells into. |
+| Firm | **Export or sell at home.** The world Exchange is larger but exposed to bans and levies the states decide; the home Exchange pays a premium but is only as large as its private sector's demand. Or stockpile the foreign good against a ban, at the cost of what its own state can buy. | **Accumulate or spend.** Reinvest its goods in more capacity, or pay its private sector, whose demand grows the home market the firm sells into. |
 
 The two countries are built differently, so the same dilemmas weigh differently.
 
@@ -31,8 +31,10 @@ So in China the state's choice between direction and release is a choice about c
 
   ┌─────────────────────────────────┐                    ┌─────────────────────────────────┐
   │ state                           │                    │ state                           │
-  │  abroad   press  ◀─▶ protect    │ ──── bans T ✕ ───▶ │  abroad   press  ◀─▶ protect    │
+  │  abroad   press  ◀─▶ protect    │                    │  abroad   press  ◀─▶ protect    │
+  │    ban · tariff · invest        │ ──── bans T ✕ ───▶ │    ban · invest                 │
   │  at home  direct ◀─▶ release    │ ◀─── bans I ✕ ──── │  at home  direct ◀─▶ release    │
+  │    release                      │                    │    release · sign credit        │
   │                                 │                    │                                 │
   │  holds 2 of 10 T capacity       │ ◀── tariff on I ── │  holds 8 of 10 I capacity       │
   │  lives on levies                │ ── pays for I ───▶ │  lives on its own sales         │
@@ -43,8 +45,10 @@ So in China the state's choice between direction and release is a choice about c
                    │                                                      │
   ┌────────────────┴────────────────┐                    ┌────────────────┴────────────────┐
   │ firm                            │                    │ firm                            │
-  │  abroad   export ◀─▶ home       │ ───── sells T ───▶ │  abroad   export ◀─▶ home       │
+  │  abroad   export ◀─▶ home       │                    │  abroad   export ◀─▶ home       │
+  │    sell where · stockpile I     │ ───── sells T ───▶ │    sell where · stockpile T     │
   │  at home  build  ◀─▶ spend      │ ◀──── sells I ──── │  at home  build  ◀─▶ spend      │
+  │    invest · pay                 │                    │    invest on credit · pay       │
   │                                 │                    │                                 │
   │  holds 8 of 10 T capacity       │ ◀── pays for T ─── │  holds 2 of 10 I capacity       │
   │  invests freely                 │ ─── pays for I ──▶ │  invests only on credit         │
@@ -65,8 +69,19 @@ Each seat faces the same two dilemmas, one abroad and one at home (§1). What di
 |---|---|---|---|---|
 | US state | `US` | **Press or protect:** ban technology exports to China and levy Chinese industrial inputs, or invest technology in industrial capacity. | **Direct or release:** hold its Money and goods, or release Money to the US private sector. | Holds 2 of 10 technology capacity and lives on levies: the tariff and the tax on its firm's exports. China's state instead sells its own industrial inputs. |
 | China state | `CN` | **Press or protect:** ban industrial-input exports to the US, or invest industrial inputs in technology capacity. | **Direct or release:** hold its Money and goods, or release Money to China's private sector; and sign or refuse its firm's credit. | Holds 8 of 10 industrial capacity and lives on its own export sales. It controls its firm through credit, where the US state taxes its firm's exports. |
-| US firm | `US-firm` | **Export or sell at home:** sell technology on the world Exchange, exposed to bans and the export tax, or at home for the premium. | **Accumulate or spend:** invest technology in capacity, or pay the US private sector. | Holds 8 of 10 technology capacity and invests freely. Its home demand is large, since America's private sector spends most of what it holds. |
-| China firm | `CN-firm` | **Export or sell at home:** sell industrial inputs on the world Exchange, exposed to bans and the tariff, or at home for the premium. | **Accumulate or spend:** invest industrial inputs in capacity, or pay China's private sector. | Holds 2 of 10 industrial capacity and invests only on credit its state signs. Its home demand is small, since China's private sector saves most of what it holds. |
+| US firm | `US-firm` | **Export or sell at home:** sell technology on the world Exchange, exposed to bans and the export tax, or at home for the premium; and stockpile industrial inputs against a Chinese ban. | **Accumulate or spend:** invest technology in capacity, or pay the US private sector. | Holds 8 of 10 technology capacity and invests freely. Its home demand is large, since America's private sector spends most of what it holds. |
+| China firm | `CN-firm` | **Export or sell at home:** sell industrial inputs on the world Exchange, exposed to bans and the tariff, or at home for the premium; and stockpile technology against a US ban. | **Accumulate or spend:** invest industrial inputs in capacity, or pay China's private sector. | Holds 2 of 10 industrial capacity and invests only on credit its state signs. Its home demand is small, since China's private sector saves most of what it holds. |
+
+Each seat holds four tools, split between its two dilemmas. The states' tools sit differently: the US state's extra tool is abroad (the tariff), China's at home (credit). The firms' tools match, and differ only in what the Chinese firm's investment needs.
+
+| Seat | Abroad | At home | Tools |
+|---|---|---|---:|
+| US state | Ban technology exports to China; levy Chinese industrial inputs; invest technology in industrial capacity | Release Money to the US private sector | 4 |
+| China state | Ban industrial-input exports to the US; invest industrial inputs in technology capacity | Release Money to China's private sector; sign or refuse its firm's credit | 4 |
+| US firm | Sell technology abroad or at home; stockpile industrial inputs | Invest technology in capacity; pay the US private sector | 4 |
+| China firm | Sell industrial inputs abroad or at home; stockpile technology | Invest industrial inputs in capacity, on credit; pay China's private sector | 4 |
+
+The export tax is in force from the start, so it is no one's choice. A firm stockpiles by buying the foreign good on its world Exchange while it flows; once the other country bans it, the firm sells its stock there, where its own state buys. Stockpiling takes supply its own state would have bought, so it is a hedge with a cost at home.
 
 The private sectors, `US-private` and `CN-private`, are Aggregates that spend by a fixed rule (§6.2). A state's routine trade is automatic (§6.1). Each seat may be played by a human, an AI agent or a preset (§6.3), and is briefed with its description, which names its two dilemmas, and its objective (§7).
 
@@ -175,6 +190,7 @@ A preset is the policy every seat plays in a simulated run. A state preset gives
 | `Merchant` | firm | Export | Spend half its Money a round (a dial) | |
 | `Builder` | firm | Sell at home | Accumulate | |
 | `Patron` | firm | Sell at home | Spend | |
+| `Hedger` | firm | Export, and stockpile 2 units (a dial) of the foreign good a round until the other country bans it, then sell the stock | Nothing | |
 
 The single-lever state presets remain for experiments: `FreeTrade` (nothing strategic), `Restrict`, `Substitute`, `RestrictAndSubstitute`, `Adaptive` (substitute only while the other's ban is in force), `Directed` (invest one unit every round), `Rebalance`, `Balanced` (substitute and release half as much), `Tariff` and `Retaliate` (China bans the round after the US restricts it). Each signs China's credit. No preset repeals, since a repeal names the Rule's id; a human or agent seat can.
 
@@ -202,7 +218,7 @@ Pacific is three Premises, each at version `v0`, each a layer on the ones before
 
 The second and third Premises each extend what the first defines, so neither loads alone.
 
-**Dials.** `Premises.Pacific.Dials` holds every number: the prices and the home premium, opening Money, how each country's capacity splits between state and firm, the requirements, each investment, Chinese credit, the tariff and tax rates, the spend shares, the release and pay shares, and the firms' Money.
+**Dials.** `Premises.Pacific.Dials` holds every number: the prices and the home premium, opening Money, how each country's capacity splits between state and firm, the requirements, each investment, Chinese credit, the tariff and tax rates, the spend shares, the release and pay shares, the units a stockpiling firm buys, and the firms' Money.
 
 **Engine features it uses.** Trades settling as pairs ([02 §5.5](02_kernel.md#55-simultaneous-clearing)), Rules acting on pairs ([03 §5.5](03_premise.md#55-geography-access-and-rules)), Actor groups, an owner-signed draw ([03 §5.3](03_premise.md#53-transformations)), a routine beside a player ([04 §6](04_run.md#6-strategy-initialization)), Aggregates ([02 §7](02_kernel.md#7-aggregates-and-representation)), the `acting` condition and kind-specific "Rules in force" ([03 §8](03_premise.md#8-strategy-catalog)), and a composition's default preset ([04 §2](04_run.md#2-instantiation-configuration)).
 
@@ -244,6 +260,7 @@ Firms on the default (export) unless named.
 - **L. The US state's income.** US `Tariff`: levies are 2, 8, 8, 8, 8, 8 `M` by round, the export tax alone and then with the tariff.
 - **M. China saves, America spends.** Both states `Rebalance`: after round 6 China's private sector holds 43.525 `M` and America's 13.2591.
 - **N. Who a ban hurts.** After six rounds under a US ban the US state holds 0 `T` and its firm 20; under a Chinese ban China's state holds 20 `I` and its firm 10.
+- **O. Stockpiling.** Both firms `Hedger`. In round 1 the US firm buys 1.5 `I` and its state is short 1.5; China's firm buys 1.6 `T` and its state is short 0.8. With China `Restrict`, in round 2 the US firm sells 1.2 `I` of its stock and the US state is short 4.8 `I` rather than 6.
 
 ### 9.3 Engine fixtures
 

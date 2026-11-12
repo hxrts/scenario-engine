@@ -15,6 +15,7 @@ module Premises.Pacific.Private
   , releaseShare
   , payShare
   , tariffRate
+  , stockpileUnits
   ) where
 
 import Prelude
@@ -33,16 +34,18 @@ import Schema.Build.Quantity (q)
 
 -- | The private sector's numbers: the share of what each private sector holds that it spends each round (China's
 -- | low, America's high), the share of what a state releases when it rebalances, the share of its Money a firm
--- | pays its private sector when it spends, and each firm's opening Money.
+-- | pays its private sector when it spends, the units of the foreign good a stockpiling firm buys a round, and each
+-- | firm's opening Money.
 type PrivateDials =
   { spendShare :: { us :: Q, cn :: Q }
   , releaseShare :: Q
   , payShare :: Q
+  , stockpile :: Q
   , firmMoney :: { us :: Q, cn :: Q }
   }
 
 defaultPrivate :: PrivateDials
-defaultPrivate = { spendShare: { us: q "0.8", cn: q "0.2" }, releaseShare: q "0.1", payShare: q "0.5", firmMoney: { us: q 50, cn: q 50 } }
+defaultPrivate = { spendShare: { us: q "0.8", cn: q "0.2" }, releaseShare: q "0.1", payShare: q "0.5", stockpile: q 2, firmMoney: { us: q 50, cn: q 50 } }
 
 -- | Each country: its state, private sector, firm, private demand Strategy, its own good and that good's home
 -- | Exchange and world Exchange, and the foreign good's world Exchange.
@@ -75,6 +78,10 @@ releaseShare = "release-share"
 payShare :: String
 payShare = "pay-share"
 
+-- | The units of the foreign good a stockpiling firm buys in a round.
+stockpileUnits :: String
+stockpileUnits = "stockpile-units"
+
 -- | The rate of the US import tariff, per unit of industrial inputs.
 tariffRate :: String
 tariffRate = "tariff-rate"
@@ -82,7 +89,7 @@ tariffRate = "tariff-rate"
 -- | The parameters the private sector's Strategies and presets read.
 parameters :: PrivateDials -> { technologyPrice :: Q, industryPrice :: Q, tariff :: Q } -> Object Q
 parameters d prices = Object.fromFoldable
-  ( [ Tuple releaseShare d.releaseShare, Tuple payShare d.payShare, Tuple tariffRate prices.tariff ] <> do
+  ( [ Tuple releaseShare d.releaseShare, Tuple payShare d.payShare, Tuple stockpileUnits d.stockpile, Tuple tariffRate prices.tariff ] <> do
       c <- countries
       g <- [ Tuple p.technology prices.technologyPrice, Tuple p.industry prices.industryPrice ]
       let Tuple good price = g
