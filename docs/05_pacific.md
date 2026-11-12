@@ -75,11 +75,11 @@ Each seat holds four tools, each set off, low or high every round, so every seat
 
 | Seat | Actor | # | Tool | Off / low / high | What it trades off |
 |---|---|---|---|---|---|
-| US state | `US` | 1 | Trade barrier | none / a tariff on Chinese industrial inputs, paid by the importer / an export control on US technology to China | Tariff income, or denying China technology, against its importers' cost, its firm's sales and retaliation |
+| US state | `US` | 1 | Trade barrier | none / an import ban on Chinese industrial inputs (demand pressure) / an export control on US technology to China (supply pressure) | Cutting China's sales abroad, or China's supply of technology, against its own supply of inputs, its firm's sales and retaliation |
 | | | 2 | Industrial policy: build industrial capacity, and train the workforce to run it | none / 1 unit / 2 units a round | Technology and construction wages now, for less dependence on China later |
 | | | 3 | Transfer to US households | none / 5% / 15% of its USD a round | Its own USD, for household purchases and home demand |
 | | | 4 | Asset fee on foreign lending to the US | none / 0.02 / 0.05 USD per USD lent | Fee income and a weaker dollar, which makes US industry competitive, against foreign financing and dearer imports |
-| China state | `CN` | 1 | Trade barrier | none / a tariff on US technology, paid by the importer / an export control on Chinese industrial inputs to the US | Tariff income, or denying America inputs, against its own exporters' sales and retaliation |
+| China state | `CN` | 1 | Trade barrier | none / an import ban on US technology (demand pressure) / an export control on Chinese industrial inputs to the US (supply pressure) | Cutting America's sales abroad, or America's supply of inputs, against its own supply of technology, its exporters' sales and retaliation |
 | | | 2 | Industrial policy: build technology capacity, and train the workforce to run it | none / 1 unit / 2 units a round | Industrial inputs and construction wages now, for less dependence on the US later |
 | | | 3 | Financial repression | off: households paid 5%, the firm lent 5% of the state's RMB at 5% / low: 2%, 10% at 1% / high: nothing, 20% free | Cheap credit for industry, against household income and home demand |
 | | | 4 | Dollar reserves | none / 3 / 6 USD bought a round, and lent to the US state | A weaker renminbi and dearer US technology, against RMB spent on dollar claims |
@@ -92,7 +92,7 @@ Each seat holds four tools, each set off, low or high every round, so every seat
 | | | 3 | Capital investment in industrial capacity | none / 1 unit / 2 units a round | Capacity and future sales, against goods and construction wages, which its state's loans pay for |
 | | | 4 | Dividends to Chinese households | none / 5% / 15% of its RMB a round | Its own RMB, for a home market that grows slowly, since households save |
 
-The tools meet across the seats. A state's barrier cuts the other country's sales; an export control denies the other's firm the input half its capacity runs on, which is why a firm holds an inventory. The asset fee, China's reserves and the rest of the world's savings all move the dollar, and the dollar decides whether each country's substitute industry runs (§3.2). Repression sets what China's firm pays for its loans and what its households earn on their deposits. Wages, a transfer and dividends all reach the same households, whose spending is the home market where a firm sells what it does not offer abroad.
+The barrier is a ladder of pressure: an import ban is demand pressure, cutting the other country's sales and, with them, its income, employment and debt service, slowly; an export control is supply pressure, cutting the other country's input at once, until it substitutes. The tariff is no longer a tool level: it stays a Rule kind with its rate a dial (§5.1), which a human or agent seat may enact and no preset does. The tools meet across the seats. A state's barrier cuts the other country's sales; an export control denies the other's firm the input half its capacity runs on, which is why a firm holds an inventory. The asset fee, China's reserves and the rest of the world's savings all move the dollar, and the dollar decides whether each country's substitute industry runs (§3.2). Repression sets what China's firm pays for its loans and what its households earn on their deposits. Wages, a transfer and dividends all reach the same households, whose spending is the home market where a firm sells what it does not offer abroad.
 
 A firm's world-market share applies to what it holds of its own good after its investment's inputs: that share is offered on the world Exchange, and the rest on its home Exchange at the home price. A seat's investment is never ordered beyond the goods and the money for its construction wages it holds.
 
@@ -215,6 +215,8 @@ Twelve feedback loops arise from the rules. None is scripted; each holds under c
 
 | Rule kind | Governor | Effect |
 |---|---|---|
+| `us-import-ban` | US | Blocks `I` coming into the US from China. |
+| `cn-import-ban` | China | Blocks `T` coming into China from the US. |
 | `us-import-tariff` | US | Charges 1 `USD` (a dial) for each unit of `I` coming into the US from China, paid by the importer to the US. |
 | `us-export-control` | US | Blocks `T` leaving the US for China. |
 | `cn-import-tariff` | China | Charges 1 `RMB` (the same dial) for each unit of `T` coming into China from the US, paid by the importer to China. |
@@ -286,13 +288,13 @@ A preset is the policy every seat plays in a simulated run, written as each tool
 | Preset | Seat | US: barrier · industrial policy · transfer · asset fee | China: barrier · industrial policy · repression · reserves |
 |---|---|---|---|
 | `FreeTrade` | states | none · none · none · none | none · none · off · none |
-| `Tariff` | states | tariff · none · none · none | tariff · none · off · none |
+| `Ban` | states | import ban · none · none · none | import ban · none · off · none |
 | `Restrict` | states | control · none · none · none | control · none · off · none |
 | `Substitute` | states | none · 1 · none · none | none · 1 · off · none |
 | `StatusQuo` | states | none · none · none · none | none · none · high · high |
 | `Rebalance` | states | none · none · none · high | none · none · off · none |
 | `Hawk` | states | control · none · none · high | control · none · high · high |
-| `Populist` | states | tariff · none · 15% · none | tariff · none · off · none |
+| `Populist` | states | import ban · none · 15% · none | import ban · none · off · none |
 | `Planner` | states | none · 2 · none · high | none · 2 · high · none |
 | `Reformer` | states | none · 1 · 5% · none | none · 1 · off · none |
 

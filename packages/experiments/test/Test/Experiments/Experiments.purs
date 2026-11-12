@@ -108,7 +108,7 @@ spec context = describe "Experiments (§11) and performance" do
         , Tuple "US Hawk, China Reformer" (spec' (\s -> if s == "US" then "Hawk" else if s == "CN" then "Reformer" else "FreeTrade") [] 1)
         , Tuple "firms Hedger" (spec' (firms "Hedger") [] 1)
         , Tuple "firms Builder" (spec' (firms "Builder") [] 1)
-        ] <> map (\x -> Tuple ("tariff rate " <> x) (spec' (const "Tariff") [ Parameter "tariff-rate" (q x) ] 1)) [ "0", "1", "2" ]
+        ] <> map (\x -> Tuple ("asset fee " <> x) (spec' (const "Rebalance") [ Parameter "asset-fee-high" (q x) ] 1)) [ "0", "0.05", "0.2" ]
           <> map (\x -> Tuple ("input share " <> x) (spec' (const "Restrict") [ Parameter "input-share" (q x) ] 1)) [ "0", "0.5", "1" ]
           <> map (\x -> Tuple ("game seed " <> show x) (spec' (const "Hawk") [ GameSeed x ] 1)) [ 1, 2, 3 ]
     log header

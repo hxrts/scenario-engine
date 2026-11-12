@@ -246,7 +246,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/premise" [] ""
           scen.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-1\"")
-          scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Builder\"")
+          scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Ban\",\"Builder\"")
           _ <- api "POST" "/api/runs" [] "{\"name\":\"t\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
           scen2 <- api "GET" "/api/premise" [] ""
           scen2.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-2\"")

@@ -122,13 +122,13 @@ defaultDials =
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §9.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q "18.8", cn: q "12.3" }
-      , viability: { us: q "0.79", cn: q 8 }
-      , prosperity: { us: q "14.4", cn: q "1.09" }
+      { security: { us: q "19.52", cn: q "13.6" }
+      , viability: { us: q "0.6", cn: q 8 }
+      , prosperity: { us: q "12.5", cn: q "0.63" }
       , industry: { us: q "10.9", cn: q 4 }
-      , wealth: { us: q "3.5", cn: q 10 }
-      , output: { us: q "6.65", cn: q "1.6" }
-      , market: { us: q "14.4", cn: q "1.09" }
+      , wealth: { us: q "3.35", cn: q "8.85" }
+      , output: { us: q "5.1", cn: q "1.5" }
+      , market: { us: q "12.5", cn: q "0.63" }
       }
   }
 

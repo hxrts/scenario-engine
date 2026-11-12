@@ -83,6 +83,8 @@ clearing d = emptyParts
   ruleKinds =
     [ Tuple p.usExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls technology exports to {counterparty}" }
     , Tuple p.cnExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls industrial input exports to {counterparty}" }
+    , Tuple p.usImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans industrial inputs from {counterparty}" }
+    , Tuple p.cnImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans technology from {counterparty}" }
     , Tuple p.usImportTariff { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} USD per unit on industrial inputs from {counterparty}, paid by the importer" }
     , Tuple p.cnImportTariff { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} RMB per unit on technology from {counterparty}, paid by the importer" }
     , Tuple p.usExportTax { form: LevyFlows GovernedBySource, text: "{governor} taxes technology exports at {amount} USD per unit" }

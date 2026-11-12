@@ -32,7 +32,7 @@ import Premises.Pacific.Strategies (Levels, controlRule, firmPolicy, statePolicy
 import Schema.Build.Decision (acting, asTemplate, ge, lit, roundQ, rule, selfEnact)
 import Schema.Build.Quantity (q)
 import Schema.Run (RunStatus(..), emptySpec)
-import Test.Handlers.Pacific (fx, holdingAt, moved, pacificParts, playAll, ran, roundOf, shortOf)
+import Test.Handlers.Pacific (fx, holdingAt, moved, pacificParts, playAll, playTariffed, ran, roundOf, shortOf)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Testkit.Run (orThrow, run)
@@ -83,7 +83,7 @@ soldOn r a x = Q.neg (Q.sumQ (concatMap (\y -> map _.quantity (filter (\f -> f.a
 
 -- | Every preset's run of 8 rounds.
 presetNames :: Array String
-presetNames = [ "FreeTrade", "Tariff", "Restrict", "Substitute", "Adaptive", "Retaliate", "StatusQuo", "Rebalance", "Cautious", "Hawk", "Populist", "Planner", "Reformer", "Exporter", "Merchant", "Builder", "Patron", "Hedger" ]
+presetNames = [ "FreeTrade", "Ban", "Restrict", "Substitute", "Adaptive", "Retaliate", "StatusQuo", "Rebalance", "Cautious", "Hawk", "Populist", "Planner", "Reformer", "Exporter", "Merchant", "Builder", "Patron", "Hedger" ]
 
 -- | A dial variant's parts.
 variant :: (Pacific.Dials -> Pacific.Dials) -> Aff CompositionParts
@@ -206,7 +206,7 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
       [ boughtOn paying p.usPrivate p.technologyUs, boughtOn keeping p.usPrivate p.technologyUs, soldOn paying p.usFirm p.technologyUs, soldOn keeping p.usFirm p.technologyUs ] `shouldEqual` [ q "12.5523", q "8.2937", q "12.5523", q "8.2937" ]
     it "F9 Tariff erosion: a tariff cuts the imports it is levied on, and with them its base" do
       source <- pacificParts
-      tariffed <- playAll source "Tariff" "FreeTrade" "FreeTrade" "FreeTrade" 6
+      tariffed <- playTariffed source 6
       free <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
       [ boughtOn tariffed p.usPrivate p.industryWorld, boughtOn free p.usPrivate p.industryWorld ] `shouldEqual` [ q "5.1744", q "6.8236" ]
     it "F10 Restriction leverage: under China's export control, a US that kept its industrial competence goes short of far less than one that lost it" do

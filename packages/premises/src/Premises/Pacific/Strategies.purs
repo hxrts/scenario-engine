@@ -9,6 +9,8 @@ module Premises.Pacific.Strategies
   , presetId
   , presets
   , controlRule
+  , banRule
+  , tariffRule
   , inputParam
   , inputShare
   , outputParam
@@ -41,6 +43,15 @@ controlRule a =
     c = countryOf a
   in
     FlowRule { kind: c.control, scope: { governor: c.state, counterparty: c.other, direction: Outbound, over: [ c.good ] }, effect: Block }
+
+-- | A state's import ban: it blocks the other country's good coming in. Demand pressure: it cuts the other's sales
+-- | abroad, and the importer's own supply.
+banRule :: forall v. ActorId -> RuleF v
+banRule a =
+  let
+    c = countryOf a
+  in
+    FlowRule { kind: c.ban, scope: { governor: c.state, counterparty: c.other, direction: Inbound, over: [ c.foreign ] }, effect: Block }
 
 -- | A state's import tariff: a levy per unit of the other country's good coming in, paid by the importer to the
 -- | state in its own currency. Its rate is a parameter, so it is a dial.
@@ -104,8 +115,8 @@ importCost c =
 -- | inputs the Strategy's earlier clauses committed, and buy what the requirement needs beyond what is held, both on
 -- | the good's world Exchange. Buy the foreign currency that two rounds of the foreign requirement cost. Produce its
 -- | own good as far as its capacity, competence and the wages it can pay allow; and the foreign good only when that
--- | is cheaper than importing it at the round's exchange rate and tariff, or when the other country's export control
--- | is in force. It signs the bonds its state borrows on.
+-- | is cheaper than importing it at the round's exchange rate and tariff, or when it cannot import it at all: the
+-- | other country's export control, or its own import ban, is in force. It signs the bonds its state borrows on.
 commerce :: Country -> Array String -> StrategyRules
 commerce c signs =
   { rules:
@@ -115,8 +126,9 @@ commerce c signs =
       , buy p.industry p.industryWorld
       , rule [] [ asTemplate (selfTransform { transformation: c.production, quantity: q1 }) ]
       , substitute [ controlled ]
-      , substitute [ not' controlled, tariffed, le (param (wageParam c.substitute)) (addQ (importCost c) (param tariffRate)) ]
-      , substitute [ not' controlled, not' tariffed, le (param (wageParam c.substitute)) (importCost c) ]
+      , substitute [ not' controlled, banned ]
+      , substitute [ not' controlled, not' banned, tariffed, le (param (wageParam c.substitute)) (addQ (importCost c) (param tariffRate)) ]
+      , substitute [ not' controlled, not' banned, not' tariffed, le (param (wageParam c.substitute)) (importCost c) ]
       , rule [] [ ofForeign c cover ]
       ]
   , sign: if signs == [] then [] else [ SignAgreements signs ]
@@ -126,7 +138,9 @@ commerce c signs =
   buy r x = rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) (Just (priceAt (named x))) ]
   q1 = minQ (runnable c.capacity c.skill) (divQ (holding c.money) (param (wageParam c.production)))
   q2 = minQ (runnable c.foreignCapacity c.foreignSkill) (divQ (subQ (holding c.money) (mulQ q1 (param (wageParam c.production)))) (param (wageParam c.substitute)))
+  -- the foreign good cannot come in: the other country controls its export, or this one bans it
   controlled = ruleInForce { by: c.other, kinds: [ c.otherControl ] }
+  banned = ruleInForce { by: c.state, kinds: [ c.ban ] }
   tariffed = ruleInForce { by: c.state, kinds: [ c.tariff ] }
   substitute conds = rule conds [ asTemplate (selfTransform { transformation: c.substitute, quantity: q2 }) ]
   cover = max' (lit 0) (subQ (mulQ (mulQ (lit 2) (due c.foreign)) (priceAt (named c.world))) (holding c.foreignMoney))
@@ -179,10 +193,11 @@ withoutHome3 :: ActorId -> Levels -> StrategyRules
 withoutHome3 a lv = { rules: barrier <> industrial <> home4, sign: [] }
   where
   c = countryOf a
-  -- enacting a Rule already in force adds nothing, so it may be enacted every round
+  -- the barrier ladder: none, an import ban (demand pressure), an export control (supply pressure). Enacting a Rule
+  -- already in force adds nothing, so it may be enacted every round
   barrier = case lv.one of
     0 -> []
-    1 -> [ rule [ acting a ] [ asTemplate (selfEnact (tariffRule a)) ] ]
+    1 -> [ rule [ acting a ] [ asTemplate (selfEnact (banRule a)) ] ]
     _ -> [ rule [ acting a ] [ asTemplate (selfEnact (controlRule a)) ] ]
   -- build while capacity held and on order is below the requirement it substitutes for
   industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding c.foreignCapacity) (scheduled c.foreignCapacity)) ] [ asTemplate (selfTransform { transformation: c.investment, quantity: affordable lv.two c.investment c.good c.money }) ] ]
@@ -218,7 +233,7 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
 -- | The presets' names (docs/05 §6.3).
 presetId
   :: { freeTrade :: String
-     , tariff :: String
+     , ban :: String
      , restrict :: String
      , substitute :: String
      , adaptive :: String
@@ -238,7 +253,7 @@ presetId
      }
 presetId =
   { freeTrade: "FreeTrade"
-  , tariff: "Tariff"
+  , ban: "Ban"
   , restrict: "Restrict"
   , substitute: "Substitute"
   , adaptive: "Adaptive"
@@ -262,7 +277,7 @@ presetId =
 presets :: Array (Tuple String StrategyRules)
 presets =
   [ Tuple presetId.freeTrade (both (lv 0 0 0 0))
-  , Tuple presetId.tariff (both (lv 1 0 0 0))
+  , Tuple presetId.ban (both (lv 1 0 0 0))
   , Tuple presetId.restrict (both (lv 2 0 0 0))
   , Tuple presetId.substitute (both (lv 0 1 0 0))
   , Tuple presetId.adaptive (both (lv 0 0 0 0) `withPolicy` adaptive)
@@ -291,7 +306,7 @@ presets =
   states us cn = combine ([ statePolicy p.us us, statePolicy p.cn cn ] <> exporting)
   both s = states s s
   firms f = combine ([ statePolicy p.us (lv 0 0 0 0), statePolicy p.cn (lv 0 0 0 0) ] <> map (\x -> firmPolicy x.firm f) countries)
-  barrierKinds a = let x = countryOf a in [ x.tariff, x.control ]
+  barrierKinds a = let x = countryOf a in [ x.tariff, x.ban, x.control ]
   -- build one unit while the other country keeps a barrier against this one
   adaptive = { rules: map (\x -> invest x [ ruleInForce { by: x.other, kinds: barrierKinds x.other } ]) countries, sign: [] }
 
