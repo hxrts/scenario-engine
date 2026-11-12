@@ -2,7 +2,7 @@
 -- | flow; the bonds and the external accounts balance; and each feedback loop shows its sign under the conditions
 -- | docs/05 states, with the counter-case where a countervailing force undoes it. Expected values are literals from
 -- | docs/05.
-module Test.Handlers.Loops (spec) where
+module Test.Handlers.Loops (spec, experiments) where
 
 import Prelude
 
@@ -14,10 +14,10 @@ import Core.Draw (Seed(..))
 import Core.Kernel.Types (Endpoint(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (all, any, concatMap, filter, length, nub, sort, take)
+import Data.Array (all, any, concatMap, drop, filter, length, nub, sort, take)
 import Data.Traversable (traverse)
-import Data.Foldable (for_)
-import Data.Maybe (Maybe(..))
+import Data.Foldable (for_, minimum)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Handlers.Simulate (SimRun)
@@ -28,7 +28,8 @@ import Premises.Load (parts)
 import Premises.Pacific as Pacific
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Private (deposit, loan, usBond)
-import Premises.Pacific.Strategies (Levels, firmPolicy, statePolicy)
+import Premises.Pacific.Strategies (Levels, controlRule, firmPolicy, statePolicy)
+import Schema.Build.Decision (acting, asTemplate, ge, lit, roundQ, rule, selfEnact)
 import Schema.Build.Quantity (q)
 import Schema.Run (RunStatus(..), emptySpec)
 import Test.Handlers.Pacific (fx, holdingAt, moved, pacificParts, playAll, ran, roundOf, shortOf)
@@ -183,8 +184,8 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
       f6 <- roundOf free 6
       h6 <- roundOf held' 6
       [ fx f6, fx h6 ] `shouldEqual` [ q "0.9626", q "1.084" ]
-    it "F7 Strong-dollar trap, when US industry costs nearly what imports do: a strong dollar idles the capacity the US built, a weak one runs it" do
-      near <- variant (\d -> d { wage = d.wage { usIndustry = q "1.95" } })
+    it "F7 Strong-dollar trap: US industry costs nearly what imports do, so a strong dollar idles the capacity the US built and its competence wears away; a weak one runs it" do
+      near <- pacificParts
       strong <- playLevels near { us: lv 0 1 0 0, cn: lv 0 0 0 2, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 } 6
       weak <- playLevels near { us: lv 0 1 0 2, cn: lv 0 0 0 0, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 } 6
       let made r = Q.sumQ (map (\x -> ran x p.usIndustryProduction) r.records)
@@ -236,3 +237,86 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
     Held _ -> true
     InExchange _ -> true
     _ -> false
+
+-- | The experiments (docs/05 §10).
+experiments :: Spec Unit
+experiments = describe "Experiments (docs/05 §10)" do
+  it "Political trap: rebalancing costs China no industrial output, so its viability floor is at risk only when a US export control cuts its firm; its households gain the interest repression took" do
+    source <- pacificParts
+    let arm cn us = { us, cn, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
+    repressed <- playLevels source (arm (lv 0 0 2 2) (lv 0 0 0 0)) 6
+    rebalanced <- playLevels source (arm (lv 0 0 0 2) (lv 0 0 0 0)) 6
+    shocked <- playLevels source (arm (lv 0 0 0 2) (lv 2 0 0 0)) 6
+    let
+      industry r = map (\x -> Q.add (ran x p.cnIndustryProduction) (Q.add (ran x p.cnFirmProduction) (ran x p.cnFirmBaseProduction))) r.records
+      purchases r = Q.sumQ (map (\x -> boughtBy' x p.cnPrivate) r.records)
+      wagesOf r = flowed r (wageTo p.cnPrivate)
+    (industry repressed <> industry rebalanced <> industry shocked <> [ purchases repressed, purchases rebalanced, wagesOf repressed, wagesOf rebalanced ]) `shouldEqual` [ q 10, q 10, q "9.8889", q "9.9514", q "9.7742", q "9.9291", q 10, q 10, q "9.8889", q "9.9494", q "9.7718", q "9.9235", q 10, q 10, q 9, q 9, q 9, q 9, q "5.6023", q "5.7554", q "14.8859", q "14.8835" ]
+  it "Dollar trap: the asset fee weakens the dollar; with US industry costing nearly what imports do, the strong dollar idles it and the weaker one runs it, and US households, paid its wages, buy more; where US industry is cheap, the dollar does not decide" do
+    source <- pacificParts
+    cheap <- variant (\d -> d { wage = d.wage { usIndustry = q "1.5" } })
+    let arm us = { us, cn: lv 0 0 2 2, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
+    noFee <- playLevels source (arm (lv 0 1 0 0)) 6
+    fee <- playLevels source (arm (lv 0 1 0 2)) 6
+    cheapNoFee <- playLevels cheap (arm (lv 0 1 0 0)) 6
+    cheapFee <- playLevels cheap (arm (lv 0 1 0 2)) 6
+    let
+      made r = Q.sumQ (map (\x -> ran x p.usIndustryProduction) r.records)
+      purchases r = Q.sumQ (map (\x -> boughtBy' x p.usPrivate) r.records)
+    e1 <- roundOf noFee 6
+    e2 <- roundOf fee 6
+    [ fx e1, fx e2, purchases noFee, purchases fee, made noFee, made fee, made cheapNoFee, made cheapFee ] `shouldEqual` [ q "1.063", q "0.6992", q "10.0555", q "12.2293", q "1.225", q "14.2316", q "14.2316", q "14.2316" ]
+  it "Lost knowledge: with the same 4 units of industrial capacity under China's export control, the US that kept its workforce runs them all from round 1; the one that lost it runs a quarter of a unit, learning a twentieth more a round" do
+    skilled <- variant (\d -> d { industryCapacity = d.industryCapacity { us = q 4 }, competence = d.competence { us = d.competence.us { industry = q 6 } } })
+    unskilled <- variant (\d -> d { industryCapacity = d.industryCapacity { us = q 4 } })
+    let l = { us: lv 0 0 0 0, cn: lv 2 0 0 0, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
+    a <- playLevels skilled l 6
+    b <- playLevels unskilled l 6
+    (map (\x -> ran x p.usIndustryProduction) a.records <> map (\x -> ran x p.usIndustryProduction) b.records <> map (\x -> shortOf x p.us p.industry) a.records <> map (\x -> shortOf x p.us p.industry) b.records) `shouldEqual` [ q 4, q 4, q 4, q 4, q 4, q 4, q "0.25", q "0.2625", q "0.2757", q "0.2895", q "0.3039", q "0.3191", q 0, q 1, q 1, q 1, q 1, q 1, q 0, q "4.75", q "4.7375", q "4.7243", q "4.7105", q "4.6961" ]
+  it "Status quo against rebalancing: each country's arrangement, kept or undone, alone or together, over 8 rounds; then the other's export control from round 5" do
+    source <- pacificParts
+    let
+      -- each builds a little of its substitute throughout
+      keepUs = lv 0 1 0 0
+      undoUs = lv 0 1 0 2
+      keepCn = lv 0 1 2 2
+      undoCn = lv 0 1 0 0
+      arms = [ Tuple keepUs keepCn, Tuple undoUs keepCn, Tuple keepUs undoCn, Tuple undoUs undoCn ]
+      -- each firm sells half at home, so households can buy from the first round
+      firms = { usFirm: lv 1 0 0 0, cnFirm: lv 1 0 0 0 }
+      margins r =
+        [ Q.sub (minOf (map (\x -> boughtBy' x p.usPrivate) r.records)) (q "1.25")
+        , Q.sub (minOf (map (\x -> Q.add (ran x p.cnIndustryProduction) (Q.add (ran x p.cnFirmProduction) (ran x p.cnFirmBaseProduction))) r.records)) (q "9.2")
+        ]
+    rows <- traverse
+      ( \(Tuple us cn) -> do
+          r <- playLevels source { us, cn, usFirm: firms.usFirm, cnFirm: firms.cnFirm } 8
+          -- the same arm, with the other country's export control from round 5: what the arrangement left it exposed to
+          hitUs <- playShocked source { us, cn, usFirm: firms.usFirm, cnFirm: firms.cnFirm } p.cn
+          hitCn <- playShocked source { us, cn, usFirm: firms.usFirm, cnFirm: firms.cnFirm } p.us
+          r4 <- roundOf r 4
+          r8 <- roundOf r 8
+          let
+            owed = Q.sumQ (map _.principal (filter (\b -> b.borrower == p.us && b.lender /= p.usPrivate) (bondsOf r8.world)))
+            short x who res = Q.sumQ (map (\y -> shortOf y who res) (drop 4 x.records))
+          pure (margins r <> [ fx r8, owed, holdingAt r4 p.us p.industryCompetence, holdingAt r4 p.cn p.technologyCompetence, short hitUs p.us p.industry, short hitCn p.cn p.technology ])
+      )
+      arms
+    -- by arm: the US's and China's viability margins, the dollar after round 8, what the US owes abroad, US industrial
+    -- and Chinese technology competence after round 4, and each one's shortfall under the other's export control
+    rows `shouldEqual`
+      [ [ q "0.4589", q "0.2522", q "1.236", q "77.5913", q "2.7519", q "1.845", q "12.0944", q "2.6929" ]
+      , [ q "1.1432", q "0.2522", q "0.838", q "35.3039", q "3.0605", q "1.845", q "3.7876", q "7.5852" ]
+      , [ q "0.3609", q "0.2496", q "1.0227", q "37.264", q "2.7519", q "1.845", q "12.0458", q "2.706" ]
+      , [ q "1.1398", q "0.2243", q "0.6111", q "0.7647", q "3.0605", q "1.71", q "3.7437", q "7.8636" ]
+      ]
+  where
+  minOf xs = fromMaybe Q.zero (minimum xs)
+  playShocked source l by = do
+    let
+      shock = [ rule [ acting by, ge roundQ (lit 5) ] [ asTemplate (selfEnact (controlRule by)) ] ]
+      policy a levels = let x = statePolicy a levels in if a == by then x { rules = x.rules <> shock } else x
+      bindings = strategyRulesBindings [ Tuple p.us (policy p.us l.us), Tuple p.cn (policy p.cn l.cn), Tuple p.usFirm (firmPolicy p.usFirm l.usFirm), Tuple p.cnFirm (firmPolicy p.cnFirm l.cnFirm) ]
+    g <- orThrow (assemble (FromComposition source) bindings [])
+    run (Seed 1) (withRounds (Just 8) g)
+  boughtBy' x a = Q.sumQ (map _.quantity (filter (\f -> f.actor == a && f.quantity > Q.zero && (f.resource == p.technology || f.resource == p.industry)) (select exchangeFills x.record.events)))

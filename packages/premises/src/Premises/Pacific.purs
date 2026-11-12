@@ -71,7 +71,7 @@ type Dials =
   , money :: { us :: Q, cn :: Q }
   , foreignMoney :: { us :: Q, cn :: Q, usFirm :: Q, cnFirm :: Q }
   , technologyCapacity :: { us :: Q, usFirm :: Q }
-  , industryCapacity :: { cn :: Q, cnFirm :: Q }
+  , industryCapacity :: { cn :: Q, cnFirm :: Q, us :: Q }
   , technologyNeed :: { us :: Q, cn :: Q }
   , industryNeed :: { us :: Q, cn :: Q }
   , usInvestment :: Investment
@@ -134,7 +134,8 @@ defaultDials =
   -- each opens with two rounds of the other currency its imports need
   , foreignMoney: { us: q 12, cn: q 6, usFirm: q 4, cnFirm: q 4 }
   , technologyCapacity: { us: q 2, usFirm: q 8 }
-  , industryCapacity: { cn: q 8, cnFirm: q 2 }
+  -- America opens with no industrial capacity of its own
+  , industryCapacity: { cn: q 8, cnFirm: q 2, us: q 0 }
   , technologyNeed: { us: q 6, cn: q 3 }
   , industryNeed: { us: q 5, cn: q 4 }
   -- capacity arrives `delay` rounds after the order, and its first output one round after that
@@ -148,9 +149,10 @@ defaultDials =
   -- half of a firm's capacity runs on the foreign input, at this much per unit: each firm's uses one unit a round
   , inputPerUnit: { usFirm: q "0.25", cnFirm: q 1 }
   , inputShare: q "0.5"
-  -- what a unit produced pays its producer's households, in its currency: dear for America to make industrial
-  -- inputs, dearer for China to make technology than for the US
-  , wage: { usTechnology: q "0.25", usIndustry: q "1.5", cnTechnology: q "0.75", cnIndustry: q "0.25" }
+  -- what a unit produced pays its producer's households, in its currency. Each country makes its own good cheaply;
+  -- the other's it can make for a little under what importing it costs at one RMB per USD (2 RMB is 2 USD for
+  -- industrial inputs, 1 USD is 1 RMB for technology), so the exchange rate decides whether its substitute runs
+  , wage: { usTechnology: q "0.25", usIndustry: q "1.95", cnTechnology: q "0.97", cnIndustry: q "0.25" }
   , tariffRate: q 1
   , taxRate: q "0.5"
   , cautiousOutput: q "0.5"
@@ -159,13 +161,13 @@ defaultDials =
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §9.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q 18, cn: q "12.5" }
-      , viability: { us: q "1.25", cn: q "9.2" }
-      , prosperity: { us: q 14, cn: q "1.25" }
-      , industry: { us: q "12.5", cn: q "6.5" }
-      , wealth: { us: q "4.3", cn: q "16.5" }
-      , output: { us: q "11.5", cn: q "1.6" }
-      , market: { us: q 14, cn: q "1.25" }
+      { security: { us: q "18.5", cn: q 13 }
+      , viability: { us: q "1.25", cn: q "9.25" }
+      , prosperity: { us: q "14.5", cn: q "1.25" }
+      , industry: { us: q "12.9", cn: q "6.5" }
+      , wealth: { us: q "3.9", cn: q "17.5" }
+      , output: { us: q "11.7", cn: q "1.65" }
+      , market: { us: q "14.5", cn: q "1.25" }
       }
   }
 
@@ -182,7 +184,7 @@ derive instance Ord Layer
 -- | holds its savings.
 table :: Dials -> HoldingTable
 table d =
-  [ Tuple p.us [ p.usd := d.money.us, p.rmb := d.foreignMoney.us, p.technology := d.technologyCapacity.us, p.industry := 0, p.technologyCapacity := d.technologyCapacity.us, p.industryCapacity := 0, p.technologyCompetence := d.competence.us.technology, p.industryCompetence := d.competence.us.industry ]
+  [ Tuple p.us [ p.usd := d.money.us, p.rmb := d.foreignMoney.us, p.technology := d.technologyCapacity.us, p.industry := 0, p.technologyCapacity := d.technologyCapacity.us, p.industryCapacity := d.industryCapacity.us, p.technologyCompetence := d.competence.us.technology, p.industryCompetence := d.competence.us.industry ]
   , Tuple p.cn [ p.rmb := d.money.cn, p.usd := d.foreignMoney.cn, p.technology := 0, p.industry := d.industryCapacity.cn, p.technologyCapacity := 0, p.industryCapacity := d.industryCapacity.cn, p.technologyCompetence := d.competence.cn.technology, p.industryCompetence := d.competence.cn.industry ]
   -- each firm opens with one round's foreign input
   , Tuple p.usFirm [ p.usd := d.private.firmMoney.us, p.rmb := d.foreignMoney.usFirm, p.technology := d.technologyCapacity.usFirm, p.industry := Q.mul (Q.mul d.technologyCapacity.usFirm d.inputShare) d.inputPerUnit.usFirm, p.technologyCapacity := d.technologyCapacity.usFirm, p.technologyCompetence := d.competence.usFirm ]

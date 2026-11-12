@@ -290,7 +290,7 @@ spec = describe "Pacific (docs/05 §9)" do
         -- and every flow across a border is accounted (docs/05 §4.3): no external account has a residual
         let unaccounted = length (filter (\l -> l.residual /= Q.zero) (externalAccounts (storedRun { id: "balance", name: "balance", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records))))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm, unaccounted ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3, 4 ] `shouldEqual` [ 993, 997, 991, 1006, 0 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3, 4 ] `shouldEqual` [ 974, 991, 987, 994, 0 ]
 
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do
@@ -300,7 +300,7 @@ spec = describe "Pacific (docs/05 §9)" do
           [ d
           , d { private = d.private { spendShare = { us: q "0.6", cn: q "0.3" } } }
           , d { technologyCapacity = { us: Q.fromInt 4, usFirm: Q.fromInt 6 } }
-          , d { industryCapacity = { cn: Q.fromInt 6, cnFirm: Q.fromInt 4 } }
+          , d { industryCapacity = d.industryCapacity { cn = Q.fromInt 6, cnFirm = Q.fromInt 4 } }
           , d { taxRate = q "0.25" }
           , d { taxRate = Q.one }
           , d { world = d.world { loanShare = d.world.loanShare { off = q "0.1" } } }
