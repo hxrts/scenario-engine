@@ -66,6 +66,7 @@ data Expr
   | Mul Expr Expr
   | Sub Expr Expr
   | Max Expr Expr
+  | Div Expr Expr -- a quotient, zero when the divisor is zero
 
 data Cond
   = Gt Expr Expr

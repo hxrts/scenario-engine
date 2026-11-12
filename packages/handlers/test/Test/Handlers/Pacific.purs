@@ -288,7 +288,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 946, 948, 944, 953 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 869, 884, 867, 889 ]
 
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, credit and the home premium, each structural difference keeps its effect" do

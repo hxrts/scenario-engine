@@ -1,6 +1,7 @@
 -- | Pins: strategy JSON is the premise format of docs/03 §11 (marked `Pins`), and the expected candidate Transactions are the strategy semantics of docs/02 §7.
 module Test.Strategy.Main where
 
+import Schema.Build.Decision (divQ, subQ, holding)
 import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfActor, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)
 import Schema.Build.Intent (repeal, route, transfer)
 import Schema.Build.Quantity (q)
@@ -152,6 +153,13 @@ strategyRulesParams = map snd <<< Array.filter ((_ == RefParameter) <<< fst) <<<
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
+  describe "Expressions" do
+    it "divQ divides, and is zero when the divisor is zero" do
+      let
+        order e = intentsOf (propose ({ rules: [ rule [] [ orderAt (named "energy-atlantic") e Nothing ] ], sign: [] }) env)
+      order (divQ (lit 3) (lit 2)) `shouldEqual` [ [ trade "energy-atlantic" "1.5" ] ]
+      order (subQ (divQ (lit 3) (lit 0)) (lit (-1))) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+      order (divQ (holding "semiconductors") (lit "0.5")) `shouldEqual` [ [ trade "energy-atlantic" "2" ] ]
   describe "Unknown parameters" do
     it "a clause reading a parameter the premise lacks does not fire, even under not" do
       let

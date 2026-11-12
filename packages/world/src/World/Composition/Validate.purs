@@ -171,7 +171,8 @@ compositionRefs gb config =
     ShortfallOf r -> [ name RefResource r ]
     ShortfallRounds r -> [ name RefResource r ]
     Schema.PayeeReceipts -> []
-    Schema.Spending -> []
+    Schema.Bought rs -> map (name RefResource) rs
+    Schema.Produced r -> [ name RefResource r ]
     VolumeOf t -> [ name RefTransformation t ]
   -- the Aggregate a coverage fallback names
   coverageOf = case _ of

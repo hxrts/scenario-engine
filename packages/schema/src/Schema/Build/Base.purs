@@ -17,7 +17,8 @@ module Schema.Build.Base
   , shortfallRounds
   , payeeReceipts
   , volumeOf
-  , spending
+  , bought
+  , producedOf
   , final
   , everyRound
   , cumulative
@@ -88,8 +89,13 @@ payeeReceipts :: Measure
 payeeReceipts = PayeeReceipts
 
 -- | The Money an Actor paid for what it bought on the Exchanges.
-spending :: Measure
-spending = Spending
+-- | The units of these Resources an Actor bought on the Exchanges.
+bought :: forall a. Named a ResourceTag => Array a -> Measure
+bought rs = Bought (map named rs)
+
+-- | The units of a Resource an Actor's Transformations delivered.
+producedOf :: forall a. Named a ResourceTag => a -> Measure
+producedOf r = Produced (named r)
 
 volumeOf :: forall a. Named a TransformationTag => a -> Measure
 volumeOf t = VolumeOf (named t)

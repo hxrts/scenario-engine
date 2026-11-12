@@ -44,6 +44,7 @@ type ExprAlg a =
   , mul :: a -> a -> a
   , sub :: a -> a -> a
   , max :: a -> a -> a
+  , div :: a -> a -> a
   }
 
 -- | `a` is what an expression became, `c` what a condition becomes.
@@ -96,6 +97,7 @@ monoidExpr =
   , mul: append
   , sub: append
   , max: append
+  , div: append
   }
 
 foldExpr :: forall a. ExprAlg a -> Expr -> a
@@ -114,6 +116,7 @@ foldExpr alg = go
     Mul a b -> alg.mul (go a) (go b)
     Sub a b -> alg.sub (go a) (go b)
     Max a b -> alg.max (go a) (go b)
+    Div a b -> alg.div (go a) (go b)
 
 foldCond :: forall a c. ExprAlg a -> CondAlg a c -> Cond -> c
 foldCond expr alg = go

@@ -60,6 +60,7 @@ exprShape = recursive "Expr" \e -> genericPremiseSum "Expr"
   , "Mul": atOneKey "mul" "a product" (pairOf e e)
   , "Sub": atOneKey "sub" "a difference" (pairOf e e)
   , "Max": atOneKey "max" "the larger of two" (pairOf e e)
+  , "Div": atOneKey "div" "a quotient, zero when the divisor is zero" (pairOf e e)
   }
 
 -- | A condition.

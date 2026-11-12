@@ -44,6 +44,7 @@ module Schema.Build.Decision
   , tradeAt
   , priceAt
   , max'
+  , divQ
   , not'
   ) where
 
@@ -127,6 +128,10 @@ subQ = Sub
 
 max' :: Expr -> Expr -> Expr
 max' = Max
+
+-- | A quotient, zero when the divisor is zero.
+divQ :: Expr -> Expr -> Expr
+divQ = Div
 
 -- Conditions -----------------------------------------------------------------------------
 

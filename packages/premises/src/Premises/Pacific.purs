@@ -42,7 +42,7 @@ import Schema.Build.Agreement (agreement, clause, guard, onAction, spawn, step)
 import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Party(..), Short(..), noNext)
 import Laws.World (AuthoredLaw, WorldTemplate)
 import Laws.StrategyRules (SignRule(..))
-import Schema.Build.Base (holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, shortfallOf, cumulative, final, spending, volumeOf, (:=))
+import Schema.Build.Base (holdingOf, bought, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, shortfallOf, cumulative, final, volumeOf, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (actorsOf, aggregate, atLeast, byKey, criterion, emptyWorld, finishes, fromHolder, metric, noResource, noTransformation, resourcesOf)
 import Schema.Composition (Bound(..), Criterion, InstantiationConfig, PremiseComposition)
@@ -329,7 +329,7 @@ privateCriteria :: Dials -> ActorId -> Array Criterion
 privateCriteria d a =
   let
     -- what the private sector bought over the run, in Money: its consumption
-    spent who bar = criterion { metric: metric { actors: [ who ], measure: spending, negated: false }, over: cumulative, atLeast: atLeast bar }
+    spent who bar = criterion { metric: metric { actors: [ who ], measure: bought [ p.technology, p.industry ], negated: false }, over: cumulative, atLeast: atLeast bar }
   in
     if a == p.us then [ spent p.usPrivate d.objectives.prosperity.us ]
     else if a == p.cn then [ spent p.cnPrivate d.objectives.prosperity.cn ]

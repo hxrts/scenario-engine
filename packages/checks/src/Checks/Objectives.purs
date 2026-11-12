@@ -18,7 +18,8 @@ import Laws.Query (holding)
 import Laws.Slice (exchangeFills, select, transformationPaymentsTo, transformationFills, count, read, runSlice, shortfalls, total, whereEq)
 import Laws.Types (ActorId)
 import Laws.World (RoundResult)
-import Data.Array (all, any, concatMap, filter, last, null, zipWith)
+import Data.Array (all, any, concatMap, elem, filter, last, null, zipWith)
+import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 
@@ -72,7 +73,8 @@ evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
     ShortfallOf _ -> true
     ShortfallRounds _ -> true
     PayeeReceipts -> true
-    Spending -> true
+    Bought _ -> true
+    Produced _ -> true
     VolumeOf _ -> true
 
 -- | One Actor's value of a measure in one round.
@@ -82,7 +84,10 @@ measureValue msr e r = case msr of
   ShortfallOf res -> runSlice (total (read @"quantity" (shortfall res))) r.record.events
   ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
   PayeeReceipts -> runSlice (total (read @"moved" (transformationPaymentsTo e))) r.record.events
-  Spending -> Q.sumQ (map (\f -> Q.mul f.price f.quantity) (filter (\f -> f.actor == e && f.quantity > Q.zero) (select exchangeFills r.record.events)))
+  Bought rs -> Q.sumQ (map _.quantity (filter (\f -> f.actor == e && f.quantity > Q.zero && f.resource `elem` rs) (select exchangeFills r.record.events)))
+  Produced res -> Q.sumQ (map (\f -> Q.mul f.quantity (perUnit res f.transformation)) (filter (\f -> f.by == e) (select transformationFills r.record.events)))
   VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid transformationFills))) r.record.events
   where
   shortfall res = whereEq @"resource" res (whereEq @"actor" e shortfalls)
+  -- what one unit of a Transformation delivers of a Resource
+  perUnit res tid = maybe Q.zero (\t -> Q.sumQ (map _.perUnit (filter (\x -> x.resource == res) t.effects))) (Map.lookup tid r.world.transformations)

@@ -11,7 +11,7 @@ module Schema.Premise.PlayableActor
   ) where
 
 import Core.Num (qShape)
-import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, boolShape, defaultsTo, field, genericPremiseSum, listOf, optionalOf, recordOf, stringShape, (&.))
+import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, atOneKey, boolShape, defaultsTo, field, genericPremiseSum, listOf, optionalOf, recordOf, stringShape, (&.))
 import Laws.Types (idShape)
 import Schema.Composition (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
@@ -38,8 +38,11 @@ shortfallRoundsTag = "shortfallRounds"
 payeeReceiptsTag :: String
 payeeReceiptsTag = "payeeReceipts"
 
-spendingTag :: String
-spendingTag = "spending"
+boughtTag :: String
+boughtTag = "bought"
+
+producedTag :: String
+producedTag = "produced"
 
 volumeTag :: String
 volumeTag = "volume"
@@ -101,14 +104,15 @@ fallbackShape = genericPremiseSum "Fallback"
   , "PermittedOmission": atBare { tag: omissionTag, desc: "the PlayableActor's accounts are permitted to lapse" }
   }
 
--- | A measure: a holding, a shortfall, a count of shortfall rounds, payee receipts, or a volume.
+-- | A measure: a holding, a shortfall, a count of shortfall rounds, payee receipts, goods bought, goods produced, or a volume.
 measureShape :: Shape Measure
 measureShape = genericPremiseSum "Measure"
   { "HoldingOf": atKindArg { tag: holdingTag, desc: "an Actor's holding of a Resource" } idShape
   , "ShortfallOf": atKindArg { tag: shortfallTag, desc: "the shortfall of a Resource in a round" } idShape
   , "ShortfallRounds": atKindArg { tag: shortfallRoundsTag, desc: "the rounds the Actor was short of a Resource" } idShape
   , "PayeeReceipts": atBare { tag: payeeReceiptsTag, desc: "Money received as a transformation payee" }
-  , "Spending": atBare { tag: spendingTag, desc: "Money paid for what the Actor bought on the Exchanges" }
+  , "Bought": atOneKey boughtTag "the units of these Resources the Actor bought on the Exchanges" (arrayOf idShape)
+  , "Produced": atKindArg { tag: producedTag, desc: "the units of a Resource the Actor's Transformations delivered" } idShape
   , "VolumeOf": atKindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
   }
 

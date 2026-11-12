@@ -19,3 +19,12 @@ package:
       - spec
       - spec-node
       - sp-testkit
+      - sp-core
+      - sp-laws
+      - sp-schema
+      - sp-premises
+      - foldable-traversable
+      - maybe
+      - ordered-collections
+      - arrays
+      - prelude

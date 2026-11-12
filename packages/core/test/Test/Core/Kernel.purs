@@ -55,6 +55,17 @@ kernel = describe "Core.Kernel" do
     it "the reserve takes the net: buys beyond the sellers pair with it" do
       let r = clearSolvent (exchangeWith (Map.fromFoldable [ Tuple (Id "G") (q "50"), Tuple m (q "50") ]) "-100") [ order "B" "6", order "S" "-2" ]
       shown r `shouldEqual` [ Tuple "B<-S" (q "2"), Tuple "B<-reserve" (q "4") ]
+    it "a dealer's price moves with its position: up on net buying, down on net selling, and its domain bounds the move" do
+      let
+        dealer = (exchangeWith (Map.fromFoldable [ Tuple (Id "G") (q "50"), Tuple m (q "50") ]) "-10") { cost = { intercept: q "1", slope: q "0.1", domain: { lo: q "-10", hi: q "10" } } }
+        bought = clearSolvent dealer [ order "B" "4" ]
+        sold = clearSolvent dealer [ order "S" "-4" ]
+        capped = clearSolvent dealer [ order "B" "30" ]
+      [ bought.price, bought.net ] `shouldEqual` [ q "1.2", q "4" ]
+      [ sold.price, sold.net ] `shouldEqual` [ q "0.8", q "-4" ]
+      capped.net `shouldEqual` q "10"
+      -- from a position carried over from an earlier round, the same buy costs more
+      (clearSolvent dealer { position = q "4" } [ order "B" "4" ]).price `shouldEqual` q "1.6"
     it "every fill is the sum of its pairs, to the last grid unit" do
       let r = clearSolvent matched [ order "B" "1", order "C" "1", order "D" "1", order "S" "-1", order "T" "-1", order "U" "-1" ]
       Q.sumQ (map _.quantity r.pairs) `shouldEqual` q "3"

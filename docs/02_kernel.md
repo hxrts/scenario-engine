@@ -158,7 +158,7 @@ This section defines how quantity is priced and exchanged, and what stays closed
 
 ### 5.1 Cost function
 
-A cost function is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round.
+A cost function is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round. So an Exchange with a positive slope and reserves of both its Resources is a dealer whose price moves: each round's net, which its reserves take, moves its position, and the next round starts from there. Its price rises after net buying and falls after net selling, within its domain and as far as its reserves allow. No other mechanism moves a price.
 
 ### 5.2 Exchanges
 

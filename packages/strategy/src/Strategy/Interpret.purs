@@ -189,6 +189,7 @@ evalAlg env =
   , mul: lift2 Q.mul
   , sub: lift2 Q.sub
   , max: lift2 max
+  , div: lift2 (\a b -> fromMaybe Q.zero (Q.divMaybe a b))
   }
 
   where

@@ -14,7 +14,7 @@ import Core.Num as Q
 import Laws.StrategyRules (StrategyRules)
 import Core.Shape (Format(..), decodeJsonWith, encodeWith, prose)
 import Data.Foldable (for_)
-import Schema.Build.Decision (selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signTransformation, signIf, signProcedures, subQ, transformedLastRound)
+import Schema.Build.Decision (divQ, selfEnact, selfTransform, asTemplate, choose, joint, eqQ, factor, ge, gt, holding, le, lit, max', mulQ, noAction, not', param, priceAt, named, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, signAll, signTransformation, signIf, signProcedures, subQ, transformedLastRound)
 import Schema.Build.Decision as D
 import Schema.Build.Intent (enactRule, repeal, route, transfer)
 import Schema.Premise.Intent (capabilityShape, intentShape, ruleShape)
@@ -71,7 +71,7 @@ roundTripStrategyRulesRules =
   , { rules:
         [ D.rule [ gt (priceAt (named "m")) (lit "2.5"), ge (holding "E") (param "p"), le (roundQ) (lit 3), eqQ (factor "d") (lit 0) ]
             [ asTemplate (route { base: "E", quote: "M", quantity: lit (-4), limit: lit 2 })
-            , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (lit 3))) })
+            , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (divQ (lit 3) (lit 2)))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
             , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: lit "0.5", basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }))
             , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block }))

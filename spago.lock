@@ -93,7 +93,16 @@
         },
         "test": {
           "dependencies": [
+            "arrays",
             "effect",
+            "foldable-traversable",
+            "maybe",
+            "ordered-collections",
+            "prelude",
+            "sp-core",
+            "sp-laws",
+            "sp-premises",
+            "sp-schema",
             "sp-testkit",
             "spec",
             "spec-node"
