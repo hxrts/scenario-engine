@@ -20,7 +20,7 @@ The two countries are built differently, so the same dilemmas weigh differently.
 |---|---|---|
 | Capacity | The state holds most of China's industrial capacity (8 of 10). | The firm holds most of America's technology capacity (8 of 10). |
 | Exports | Mostly the state's. | Mostly the firm's. |
-| State income | Its own export sales. | A tax on US exports, in force from the start, and any tariff, so it lives off what its firm and its importers pay. |
+| State income | Its own export sales, and any tariff. | A tax on US exports, in force from the start, and any tariff, so it lives off what its firm and its importers pay. |
 | The firm's investment | Draws on state credit, at the lending rate the state sets. | Free, and the state may subsidise it. |
 | Private sector | Saves most of what it holds. | Spends most of what it holds. |
 
@@ -37,7 +37,7 @@ So in China the state's choice between direction and stimulus is a choice about 
   │    stimulus · capex subsidy     │                    │    stimulus · lending rate      │
   │                                 │                    │                                 │
   │  holds 2 of 10 T capacity       │ ◀──── sells I ──── │  holds 8 of 10 I capacity       │
-  │  lives on the export tax        │ ─── pays for I ──▶ │  lives on its own sales         │
+  │  lives on taxes and tariffs     │ ─── pays for I ──▶ │  lives on sales and tariffs     │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
          subsidy ▼ │  ▲ tax on its                               credit ▼ │  ▲ interest
