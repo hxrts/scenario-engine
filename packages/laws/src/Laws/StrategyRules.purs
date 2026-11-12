@@ -95,8 +95,10 @@ data Template
   | NoAction -- propose nothing (an option for Choose)
 
 -- | The in-world Strategies (non-playable Actor and Aggregate) and the premise parameters they read. The Strategies
--- | are the composition's catalog; this is the Type System's record of them (docs/02 §4.4).
-type InWorld = { strategyRules :: Map StrategyId StrategyRules, params :: Object Q }
+-- | are the composition's catalog; this is the Type System's record of them (docs/02 §4.4). `routines` holds, for a
+-- | non-playable Actor whose definition names a routine, the routine it runs after its Strategy, reading what the
+-- | Strategy put forward, as a seat's routine runs after its player (docs/04 §6).
+type InWorld = { strategyRules :: Map StrategyId StrategyRules, routines :: Map ActorId StrategyRules, params :: Object Q }
 
 data SignRule
   = SignProcedures (Array CollectiveProcedureId)

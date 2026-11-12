@@ -6,8 +6,12 @@ module Assembly.Assemble
   , configuredSeats
   , presetBindings
   , liveBindings
+  , liveCast
   , unknownSeats
   , assemblePreset
+  , assembleCast
+  , castable
+  , defaultCast
   , withRounds
   , checkRounds
   ) where
@@ -22,11 +26,12 @@ import World.Composition.Instantiate (instantiate)
 import Laws.StrategyRules (InWorld, StrategyRules)
 import Laws.World (manifestOf)
 import World.Composition.Validate (Names, compositionNames, worldNames)
-import Laws.Types (ActorId)
+import Laws.Types (ActorId, Id(..))
 import Data.Array (elem, findMap, fromFoldable, null, filter)
+import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
-import Data.Foldable (traverse_)
+import Data.Foldable (foldl, traverse_)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
@@ -40,6 +45,7 @@ import Assembly.Composition (CompositionParts, Origin(..), checkRefs)
 import Assembly.Types (Bindings, PreparedRun, SeatBinding(..))
 import Strategy.InWorld (inWorldOf)
 import Schema.Composition (PremiseComposition, InstantiationConfig)
+import Schema.Cast (Cast, Role(..), isSeat, presetCast)
 
 -- | A game from a premise, its seat bindings, and the overrides applied to it. Fails when an override
 -- | names something the baseline lacks, when the world does not instantiate, when the bindings are not
@@ -67,7 +73,7 @@ assemble premise bindings overrides = case premise of
         pure
           { manifest: manifestOf "literal" [] p.world
           , world: p.world
-          , inWorld: { strategyRules: Map.empty, params: Object.empty } :: InWorld
+          , inWorld: { strategyRules: Map.empty, routines: Map.empty, params: Object.empty } :: InWorld
           , rounds: p.rounds
           , seats: bindings
           }
@@ -114,14 +120,59 @@ assemblePreset :: CompositionParts -> String -> Array Override -> Maybe Int -> E
 assemblePreset p preset overrides rounds = do
   -- an `Implicit` override removes a seat, so the seats to bind are those left after the overrides
   resolved <- resolve { composition: p.composition, config: p.config } overrides
-  bindings <- presetBindings p.presets seatPreset (configuredSeats resolved.config)
-  game <- assemble (FromComposition p) bindings overrides
-  pure (withRounds rounds game)
+  assembleCast p (Map.fromFoldable (map (\e -> Tuple e (CastPreset (seatPreset e))) (configuredSeats resolved.config))) overrides rounds
   where
   seatPreset e = fromMaybe preset (findMap (deviating e) overrides)
   deviating e = case _ of
     SeatPreset seat name | seat == e -> Just name
     _ -> Nothing
+
+-- | The Actors a cast may name: those with a definition, in id order. Aggregates are never cast.
+castable :: CompositionParts -> Array ActorId
+castable p = fromFoldable (Map.keys p.composition.explicitActors)
+
+-- | The cast a simulated run plays by default: every configured seat a seat playing one preset.
+defaultCast :: CompositionParts -> String -> Cast
+defaultCast p name = presetCast name (configuredSeats p.config)
+
+-- | The game a cast plays (docs/04 §3.1), under overrides, with the round count given (or the configuration's when
+-- | Nothing). Each cast Actor is a seat (human, agent or preset), or a non-playable Actor running a preset as its
+-- | in-world Strategy, with its routine after it. A configured seat the cast leaves out has no binding, an error, as
+-- | does a cast naming an Aggregate or an unknown id, a seat on an Actor whose definition permits none, or an unknown
+-- | preset.
+assembleCast :: CompositionParts -> Cast -> Array Override -> Maybe Int -> Either AssemblyError PreparedRun
+assembleCast p cast overrides rounds = do
+  traverse_ check (entries cast)
+  bindings <- traverse bindingOf (Map.filter isSeat cast)
+  nonplayers <- traverse (\(Tuple e name) -> Tuple e <$> presetRules name) (entries (Map.mapMaybe nonplayerOf cast))
+  game <- assemble (FromComposition (withNonplayers nonplayers)) bindings overrides
+  pure (withRounds rounds (game { inWorld = game.inWorld { routines = Map.fromFoldable (Array.mapMaybe routineOf nonplayers) } }))
+  where
+  check (Tuple e role) = case Map.lookup e p.composition.explicitActors of
+    Nothing -> Left (NotCastable e)
+    Just d
+      | isSeat role && not d.seat -> Left (SeatForbidden e)
+      | otherwise -> Right unit
+  nonplayerOf = case _ of
+    CastNonplayer name -> Just name
+    _ -> Nothing
+  presetRules name = maybe (Left (UnknownPreset name)) (\rules -> Right { name, rules }) (Object.lookup name p.presets)
+  bindingOf = case _ of
+    CastHuman -> Right Human
+    CastAgent -> Right (Agent Nothing)
+    CastAgentOn model -> Right (Agent (Just model))
+    CastPreset name -> StrategyRules <<< _.rules <$> presetRules name
+    CastNonplayer name -> Left (UnknownPreset name)
+  strategyId name = Id ("preset/" <> name)
+  -- each non-playable Actor runs its preset as a named in-world Strategy, which its definition then permits
+  withNonplayers nps = p
+    { composition = p.composition
+        { strategies = Map.union (Map.fromFoldable (map (\(Tuple _ x) -> Tuple (strategyId x.name) x.rules) nps)) p.composition.strategies
+        , explicitActors = foldl (\m (Tuple e x) -> Map.update (\d -> Just d { nonPlayableActor = d.nonPlayableActor <> [ strategyId x.name ] }) e m) p.composition.explicitActors nps
+        }
+    , config = foldl (\c (Tuple e x) -> c { seats = Map.delete e c.seats, nonPlayableActors = Map.insert e (strategyId x.name) c.nonPlayableActors }) p.config nps
+    }
+  routineOf (Tuple e _) = Map.lookup e p.composition.explicitActors >>= _.routine >>= \s -> Tuple e <$> Map.lookup s p.composition.strategies
 
 -- | The game with its round count replaced, when one is given (a launch's or a variant's `rounds`).
 withRounds :: Maybe Int -> PreparedRun -> PreparedRun
@@ -139,7 +190,12 @@ checkRounds gb n
 unknownSeats :: Array ActorId -> InstantiationConfig -> Array ActorId
 unknownSeats humans config = filter (\h -> not (elem h (configuredSeats config))) humans
 
+-- | The cast of a live session given only its humans: each listed human a human seat, and every other configured
+-- | seat an agent on the run's model.
+liveCast :: Array ActorId -> CompositionParts -> Cast
+liveCast humans p = Map.fromFoldable (map (\e -> Tuple e (if elem e humans then CastHuman else CastAgent)) (configuredSeats p.config))
+
 -- | The seat bindings of a live session: each listed human is a Human seat, and every other configured
 -- | seat is an Agent.
 liveBindings :: Array ActorId -> InstantiationConfig -> Bindings
-liveBindings humans config = Map.fromFoldable (map (\e -> Tuple e (if elem e humans then Human else Agent)) (configuredSeats config))
+liveBindings humans config = Map.fromFoldable (map (\e -> Tuple e (if elem e humans then Human else Agent Nothing)) (configuredSeats config))

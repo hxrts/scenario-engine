@@ -44,7 +44,7 @@ type Live =
   , say :: String -> Effect Unit -- a line for the facilitator
   , notify :: ActorId -> String -> Aff Unit -- a message to the seat that needs no answer
   , interpret :: RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction)) -- the round's joint pass
-  , speak :: ActorId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call)
+  , speak :: Maybe String -> ActorId -> View -> Aff String -- an AI-agent seat's transcript for the round (its model call, on the seat's model or the run's)
   , record :: RecordSink -- persist the round
   }
 
@@ -90,7 +90,7 @@ runLive live game = do
   seat window op = case op of
     Speak e v k -> case binding e of
       Just Human -> liftAff (k <<< spokenText <$> human window e v.round)
-      Just Agent -> liftAff (k <<< spokenText <$> live.speak e v)
+      Just (Agent model) -> liftAff (k <<< spokenText <$> live.speak model e v)
       _ -> lift _seatInput op
     _ -> lift _seatInput op
 

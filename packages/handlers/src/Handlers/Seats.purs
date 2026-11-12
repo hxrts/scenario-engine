@@ -57,7 +57,7 @@ proposeAnswer :: SeatEnv -> ActorId -> View -> SeatBinding -> Array CandidateTra
 proposeAnswer env e v = case _ of
   StrategyRules p -> Strategy.propose p (seatEnvFor env e v)
   Script rounds -> maybe [] _.propose (find (\r -> r.round == v.round) rounds)
-  Agent -> []
+  Agent _ -> []
   Human -> []
   Composed c ->
     let
@@ -70,7 +70,7 @@ signAnswer :: SeatEnv -> ActorId -> View -> SeatBinding -> Array CandidateTransa
 signAnswer env e v = case _ of
   StrategyRules p -> Strategy.sign p (seatEnvFor env e v)
   Script rounds -> maybe [] _.sign (find (\r -> r.round == v.round) rounds)
-  Agent -> []
+  Agent _ -> []
   Human -> []
   Composed c -> nub (signAnswer env e v c.player <> Strategy.sign c.routine (seatEnvFor env e v))
 

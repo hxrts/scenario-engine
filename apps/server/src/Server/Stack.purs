@@ -4,6 +4,8 @@ module Server.Stack (Devices, ServerCache, newServerCache, openDatabase, localSt
 
 import Prelude
 
+import Data.Maybe (fromMaybe)
+
 import Adapters.Clock (nowIso)
 import Adapters.Process (processAlive, processIdentity)
 import Adapters.Random (drawOsSeed)
@@ -66,4 +68,4 @@ implement compositions store cache sessions = implementOn { system: systemDevice
 
 -- | The session host of the real server: its seats and joint pass run through the `pi` model process.
 newHost :: StoreBackend -> Effect SessionHost
-newHost store = newSessionHost { store, metricsOf: roundMetrics, llm: backend { model: defaultModel, call: pi { model: defaultModel, rawDir: "runs/server/raw" }, digest: sha256 } }
+newHost store = newSessionHost { store, metricsOf: roundMetrics, llm: \m -> let model = fromMaybe defaultModel m in backend { model, call: pi { model, rawDir: "runs/server/raw" }, digest: sha256 } }

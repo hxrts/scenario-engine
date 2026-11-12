@@ -8,8 +8,7 @@ module Server.Sessions
 
 import Prelude
 
-import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
-import Assembly.Composition (Origin(..))
+import Assembly.Assemble (assembleCast, checkRounds, liveCast, unknownSeats, withRounds)
 import Core.Draw (Seed(..))
 import Assembly.Recipe (encodeSpec)
 import Data.Either (Either(..))
@@ -40,7 +39,7 @@ startSession compositions s = case chosen compositions s.composition of
   Left why -> badRequest why
   Right parts
     | unknown <- unknownSeats humans parts.config, unknown /= [] -> badRequest ("no such seat: " <> joinWith ", " (map idText unknown))
-    | otherwise -> case traverse_ (checkRounds parts.composition) s.rounds *> assemble (FromComposition parts) (liveBindings humans parts.config) [] of
+    | otherwise -> case traverse_ (checkRounds parts.composition) s.rounds *> assembleCast parts (liveCast humans parts) [] Nothing of
         Left e -> badRequest (show e)
         Right assembled -> do
           let game = withRounds s.rounds assembled
@@ -49,7 +48,7 @@ startSession compositions s = case chosen compositions s.composition of
           owner <- ownerOf serverRole
           id <- nextRunId
           let
-            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just defaultModel, humans: Just (joinWith "," s.humans) }
+            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just defaultModel, humans: Just (joinWith "," s.humans), cast: liveCast humans parts }
             briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
           startRun { id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
             Left why -> badRequest why

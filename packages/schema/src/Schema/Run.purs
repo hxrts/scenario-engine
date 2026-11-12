@@ -69,11 +69,12 @@ type Spec =
   , kind :: Maybe DeriveKind
   , model :: Maybe String
   , humans :: Maybe String
+  , cast :: Maybe String -- the cast, as JSON text (`Schema.Cast`); absent is every seat on `preset`
   }
 
 -- | A specification with no field recorded.
 emptySpec :: Spec
-emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, source: Nothing, kind: Nothing, model: Nothing, humans: Nothing }
+emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, source: Nothing, kind: Nothing, model: Nothing, humans: Nothing, cast: Nothing }
 
 -- | A whole number stored as text, an absent key being Nothing.
 storedInt :: String -> Shape (Maybe Int)
@@ -84,8 +85,8 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
     Just text -> Just <$> note ("the stored spec's " <> what <> " is not an integer: " <> text) (Int.fromString text)
 
 -- | The keys of a stored specification, in one place.
-specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, source :: String, kind :: String, model :: String, humans :: String }
-specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", source: "source", kind: "kind", model: "model", humans: "humans" }
+specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, source :: String, kind :: String, model :: String, humans :: String, cast :: String }
+specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", source: "source", kind: "kind", model: "model", humans: "humans", cast: "cast" }
 
 -- | The stored specification. Every value is stored as text, in the premise
 -- | format, so an absent field is not written.
@@ -102,7 +103,8 @@ specShape = object "Spec" ado
   kind <- fieldOf specKey.kind "how it was derived" (optionalOf deriveKindShape) _.kind
   model <- fieldOf specKey.model "a live session's model" (optionalOf stringShape) _.model
   humans <- fieldOf specKey.humans "a live session's human seats" (optionalOf stringShape) _.humans
-  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, source, kind, model, humans }
+  cast <- fieldOf specKey.cast "the cast: each castable Actor's role, as JSON text" (optionalOf stringShape) _.cast
+  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, source, kind, model, humans, cast }
 
 -- | The recorded fields of a specification as key and text pairs, in the shape's order, for a
 -- | configuration diff.

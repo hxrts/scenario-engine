@@ -27,7 +27,7 @@ type SessionDevices =
   , metricsOf :: RoundResult -> Array Metric
   , input :: ActorId -> RoundIndex -> String -> Aff String
   , say :: String -> Effect Unit
-  , llm :: Backend
+  , llm :: Maybe String -> Backend -- the model backend: a seat's own model, or the run's default (Nothing)
   }
 
 interpretLive :: SessionDevices -> LiveF ~> Aff
@@ -39,8 +39,8 @@ interpretLive d (PlayLive r k) = do
     , window: if r.window > 0 then Just (delay (Milliseconds (toNumber (r.window * 1000)))) else Nothing
     , say: d.say
     , notify: \_ text -> liftEffect (d.say ("  " <> text))
-    , interpret: interpreter d.llm r.game.world
-    , speak: speak d.llm r.briefing
+    , interpret: interpreter (d.llm Nothing) r.game.world
+    , speak: \model -> speak (d.llm model) r.briefing
     , record: \result transcripts -> save result transcripts *> for_ (r.report result) d.say
     }
     r.game

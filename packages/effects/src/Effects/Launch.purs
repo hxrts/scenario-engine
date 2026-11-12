@@ -26,7 +26,7 @@ import Effects.Play (playRun)
 import Effects.Signatures (CLOCK, ENTROPY, OBSERVE, PLAY, PROCESS, PlayRequest(..), STORE)
 import Effects.Store (checkRunId, createSet)
 import Effects.System (now, ownerOf, resolveSeed)
-import Assembly.Assemble (assemblePreset, checkRounds)
+import Assembly.Assemble (assemblePreset, checkRounds, defaultCast)
 import Assembly.Experiment (ExperimentRequest, variants)
 import Assembly.Override (Override)
 import Assembly.Recipe (Derivation, encodeSpec)
@@ -70,7 +70,7 @@ startAs role id p l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: Just l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: Just l.preset, cast: defaultCast p l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
       created <- now
       owner <- ownerOf role
       attempt <- playRun (Simulated { seed, game, run: { id, name: l.name, created, spec, manifest: game.manifest, owner } })

@@ -18,6 +18,8 @@ data AssemblyError
   | UnboundSeat ActorId -- a configured seat has no binding
   | NotASeat ActorId -- a binding names something that is not a configured seat
   | RoundsOutside { rounds :: Int, min :: Int, max :: Int } -- a round count the composition does not support
+  | NotCastable ActorId -- a cast names an Aggregate or an unknown id: only an Actor with a definition is cast
+  | SeatForbidden ActorId -- a cast makes a seat of an Actor whose definition permits none
 
 derive instance Eq AssemblyError
 
@@ -34,4 +36,6 @@ renderAssemblyError = case _ of
   LiteralOverrides -> "a literal premise takes no overrides"
   UnboundSeat e -> "seat " <> show e <> " has no binding"
   NotASeat e -> show e <> " is bound but is not a configured seat"
+  NotCastable e -> show e <> " cannot be cast: only an Actor with a definition is cast, not an Aggregate or an unknown id"
+  SeatForbidden e -> show e <> " cannot be a seat: its definition permits none"
   RoundsOutside r -> "rounds must be from " <> show r.min <> " to " <> show r.max <> ", got " <> show r.rounds

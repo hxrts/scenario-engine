@@ -80,7 +80,7 @@ liveWith g0 n seat input backend = do
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
     , interpret: interpreter backend g.world
-    , speak: speak backend (const "Secure energy at a fair price.")
+    , speak: \_ -> speak backend (const "Secure energy at a fair price.")
     , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
     }
     (g { rounds = n })
@@ -108,7 +108,7 @@ spec = do
     it "a scripted live session equals replaying its recorded CandidateTransactions and signatures" do
       g <- pacificParts >>= unseated
       backend <- withAnswers model
-      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "CN" then Agent else Script []) scripted backend
+      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "CN" then Agent Nothing else Script []) scripted backend
       length out.records `shouldEqual` 3
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
       replayed g 3 out.records `shouldEqual` map _.world out.records
@@ -192,7 +192,7 @@ spec = do
         , say: \_ -> pure unit
         , notify: \_ _ -> pure unit
         , interpret: interpreter backend g.world
-        , speak: speak backend (const "")
+        , speak: \_ -> speak backend (const "")
         , record: \_ _ -> pure unit
         }
         base
@@ -206,7 +206,7 @@ spec = do
     it "an all-AI-agent game completes five rounds and replays from its records" do
       g <- pacificParts >>= unseated
       backend <- withAnswers model
-      out <- liveWith g 5 (const Agent) (const (pure "")) backend
+      out <- liveWith g 5 (const (Agent Nothing)) (const (pure "")) backend
       length out.records `shouldEqual` 5
       replayed g 5 out.records `shouldEqual` map _.world out.records
   where

@@ -47,10 +47,10 @@ type SessionHost =
   { sessions :: Ref (Map String Hosted)
   , store :: StoreBackend
   , metricsOf :: RoundResult -> Array Metric
-  , llm :: Backend
+  , llm :: Maybe String -> Backend
   }
 
-newSessionHost :: { store :: StoreBackend, metricsOf :: RoundResult -> Array Metric, llm :: Backend } -> Effect SessionHost
+newSessionHost :: { store :: StoreBackend, metricsOf :: RoundResult -> Array Metric, llm :: Maybe String -> Backend } -> Effect SessionHost
 newSessionHost d = (\sessions -> { sessions, store: d.store, metricsOf: d.metricsOf, llm: d.llm }) <$> Ref.new Map.empty
 
 interpretSessions :: SessionHost -> SessionsF ~> Effect

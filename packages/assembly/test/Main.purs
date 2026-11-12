@@ -176,7 +176,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       unknownNames scope [ Tuple RefStrategy firstStrategy, Tuple RefRuleKind "us-import-tariff" ] `shouldEqual` []
     it "an Agent or Human seat cannot be simulated" do
       p <- pacificParts
-      g <- orThrow (assemble (FromComposition p) (Map.insert (Id "US") Agent (silent p)) [])
+      g <- orThrow (assemble (FromComposition p) (Map.insert (Id "US") (Agent Nothing) (silent p)) [])
       case simulate (Seed 1) g of
         Left e -> e `shouldEqual` NotSimulable (Id "US")
         Right _ -> fail "expected NotSimulable"

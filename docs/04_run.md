@@ -33,6 +33,17 @@ Overrides respect the layer boundaries. Tuning a Run's configuration changes dec
 
 An invalid configuration fails before any economic state is created ([§10](#10-initialization-pipeline)).
 
+**The cast.** A Run is initialized with a cast: for each castable Actor, the role it is played in. A castable Actor is one with a definition; an Aggregate keeps its own Strategy and is never cast. The roles:
+
+| Role | Written | Controller |
+|---|---|---|
+| Human | `human` | A seat answered by a person's transcript each Round. |
+| Agent | `agent`, `agent:<model>` | A seat answered by a model call each Round, on the model named or the Run's default. |
+| Preset | `preset:<name>` | A seat answered by one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
+| Non-player | `nonplayer:<name>` | No seat: the Actor is a non-playable Actor running the named preset as its in-world Strategy. |
+
+The cast decides `seats` and `nonPlayableActors` for the Run, so the configuration file's values are only the default: every configured seat a preset seat on the default preset. A non-player's preset is added to the catalog as `preset/<name>` and permitted on that Actor, and its routine runs after it as it would after a seat ([§6](#6-strategy-initialization)). The cast is refused for an Aggregate or an unknown id, a seat on an Actor whose definition permits none ([03 §6.2](03_premise.md#62-actor-definitions)), an unknown preset, and a configured seat it leaves out. A simulated Run refuses a human or an agent seat. The Run's spec records the cast ([07 §3](07_simulator.md#3-simulation-specification)).
+
 ## 3. Actors, Controllers, and Fallbacks
 
 This section covers Actors with a definition, not Aggregates: who controls each one, and what happens to one that nothing controls.
@@ -46,7 +57,7 @@ Selection decides which Actors a Run plays. Control decides who answers for each
 - **Non-playable Actor.** Allowed only if the Strategy is in the Actor's list of non-playable Actor Strategies. The Strategy is in-world ([03 §8](03_premise.md#8-strategy-catalog)).
 - **Required.** A required Actor must be selected.
 - **Unselected.** Unless its fallback applies, an unselected Actor keeps the PremiseComposition's default controller, the seat of its own id. A seat with no binding submits nothing. Assembly neither asks for nor accepts a binding for an unselected Actor.
-- **Live seats.** In live play, each listed human is bound to a Human seat, and every other configured seat to an Agent.
+- **Cast seats.** The cast ([§2](#2-instantiation-configuration)) chooses each castable Actor's controller: a human, agent or preset seat, or a non-playable Actor running a preset. A live session given only its humans casts every other configured seat as an agent.
 - **Seat bindings.** A seat binding answers a seat's Propose and Sign steps: `StrategyRules`, a Script (literal candidate Transactions and signatures per Round), an Agent (a model call per Round), or a Human (a transcript per Round).
 - **Binding errors.** Every configured seat has exactly one bound seat Strategy. A binding for a non-playable Actor, an Aggregate, or an unknown id is an error, and so is a configured seat with no binding ([§10](#10-initialization-pipeline)).
 

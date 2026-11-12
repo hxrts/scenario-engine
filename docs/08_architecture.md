@@ -13,7 +13,7 @@ These terms are for people working on the code. The anchors are defined in [01 T
 | Term | Definition |
 |---|---|
 | **Layer** | One spec's share of the design: the kernel ([02](02_kernel.md)), the Premise ([03](03_premise.md)), the Run ([04](04_run.md)), the Simulator and Dashboard ([07](07_simulator.md)), or this doc. |
-| **`PreparedRun`** | A Run ready to play, which `assemble` builds and every runner plays: the initial World, the Run manifest, the in-world Strategies, the rounds to play, and one `SeatBinding` per seat. |
+| **`PreparedRun`** | A Run ready to play, which `assemble` builds and every runner plays: the initial World, the Run manifest, the in-world Strategies (with the routine each non-playable Actor runs after its Strategy), the rounds to play, and one `SeatBinding` per seat. `assembleCast` builds it from a cast ([04 §2](04_run.md#2-instantiation-configuration)). |
 | **Round runner** | The effectful code that runs Propose and Sign for every Strategy, then calls the pure `resolveRound` ([§2](#2-runtime-shape)). |
 | **Kernel** | The modules under `packages/core/src/Core/Kernel`: the types of [02 §3](02_kernel.md#3-the-kernel), posting, resolution, consumption, Laws, rationing, clearing and routing. |
 | **Settlement sequence** | The per-mechanism order of `resolveRound` in `packages/laws`, which calls the kernel in stated phases ([§4](#4-key-interfaces)). |
@@ -140,7 +140,7 @@ These are the seams. Every other piece is an internal detail of a package. Signa
 assemble :: Origin -> Bindings -> Array Override -> Either AssemblyError PreparedRun
 -- Origin = FromComposition CompositionParts | FromLiteral { world, rounds }
 -- Bindings = Map ActorId SeatBinding
--- SeatBinding = StrategyRules | Script (Array ScriptRound) | Agent | Human | Composed { routine, player }
+-- SeatBinding = StrategyRules | Script (Array ScriptRound) | Agent (Maybe model) | Human | Composed { routine, player }
 ```
 
 **Instantiation and validation** (`world`). Pure and atomic: it returns the initial World or every error.

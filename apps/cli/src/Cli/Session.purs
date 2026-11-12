@@ -23,9 +23,9 @@ import Effects.Signatures (CLOCK, CONSOLE, ENTROPY, FILES, LIVE, OBSERVE, PROCES
 import Effects.Store (startRun)
 import Views.BalanceSheet (linksOf)
 import Effects.System (closeInput, files, now, ownerOf, resolveSeed, writeLine)
-import Assembly.Assemble (assemble, checkRounds, liveBindings, unknownSeats, withRounds)
+import Assembly.Assemble (assembleCast, checkRounds, liveCast, unknownSeats, withRounds)
 import Assembly.Recipe (encodeSpec)
-import Assembly.Composition (CompositionParts, Origin(..))
+import Assembly.Composition (CompositionParts)
 import Assembly.Types (PreparedRun)
 import Run (Run)
 import Schema.Composition (gameIdOf, compositionRef, premisesText)
@@ -52,7 +52,7 @@ prepare o = loadFrom files (o.composition <> "/v0") <#> case _ of
   Left e -> Left e
   Right parts | unknown <- unknownSeats (humansOf o) parts.config, unknown /= [] ->
     Left ("error: --humans names no seat of this composition: " <> joinWith ", " (map show unknown))
-  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assemble (FromComposition parts) (liveBindings (humansOf o) parts.config) [] of
+  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assembleCast parts (liveCast (humansOf o) parts) [] Nothing of
     Left e -> Left (show e)
     Right assembled -> Right { parts, game: withRounds o.rounds assembled }
 
@@ -64,7 +64,7 @@ session o { parts, game } = do
   created <- now
   owner <- ownerOf "session"
   let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans }
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts }
   startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do

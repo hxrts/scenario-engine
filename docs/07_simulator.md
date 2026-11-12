@@ -37,7 +37,7 @@ The engine owns all economic behaviour ([02 §8.1](02_kernel.md#81-canonical-res
 
 A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([08 §4](08_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
 
-The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, and, for a derived run, its `source` and `kind`. A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
+The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the cast ([04 §2](04_run.md#2-instantiation-configuration)), and, for a derived run, its `source` and `kind`. A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
 
 ### 3.1 Configuration inheritance
 

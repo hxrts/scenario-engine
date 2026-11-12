@@ -14,13 +14,14 @@ import Laws.StrategyRules (InWorld, StrategyRules)
 import Laws.Types (ActorId, CandidateTransactionId, RoundIndex)
 import Laws.World (Manifest, WorldState)
 import Data.Map (Map)
+import Data.Maybe (Maybe)
 
 -- | What answers a seat's Propose and Sign steps. Agent and Human seats are answered by live play; a
 -- | simulation rejects them (`Assembly.Error.NotSimulable`).
 data SeatBinding
   = StrategyRules StrategyRules -- a declarative StrategyRules, interpreted by `strategy`
   | Script (Array ScriptRound) -- literal candidate Transactions and signatures per round
-  | Agent -- a model call per round (live play only)
+  | Agent (Maybe String) -- a model call per round on the model named, or the run's (live play only)
   | Human -- a person's transcript per round (live play only)
   | Composed { routine :: StrategyRules, player :: SeatBinding } -- the player first, then the Actor's routine, which reads what the player put forward
 

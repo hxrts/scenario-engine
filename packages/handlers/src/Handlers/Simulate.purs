@@ -39,7 +39,7 @@ machineOnly g = traverse_ check (entries g.seats)
   where
   check (Tuple e b) = case playerOf b of
     Human -> Left (NotSimulable e)
-    Agent -> Left (NotSimulable e)
+    Agent _ -> Left (NotSimulable e)
     _ -> Right unit
 
 -- | Play a game to completion with records kept in memory. Pure.

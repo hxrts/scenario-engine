@@ -4,6 +4,8 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
+import Data.Map as Map
+
 import Test.Server.Host (testHost)
 
 import Views.Keys (ViewKey, viewShape)
@@ -306,7 +308,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
-    let written = encodeSpec { gameId: "pacific/pacific-01", composition: "pacific@v0", premises: joinWith "," (map (\x -> x.id <> "@" <> x.version) (Pacific.pacific Pacific.defaultDials).premises), playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    let written = encodeSpec { cast: Map.empty, gameId: "pacific/pacific-01", composition: "pacific@v0", premises: joinWith "," (map (\x -> x.id <> "@" <> x.version) (Pacific.pacific Pacific.defaultDials).premises), playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
     liftEffect do
       runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
       for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of

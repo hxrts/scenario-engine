@@ -66,3 +66,4 @@ name-literal packages/views/src/Views/BalanceSheet.purs exchangeTable the balanc
 name-literal packages/views/src/Views/BalanceSheet.purs transformationTable the balance sheet's own column headings, for a player and not a glossary name
 hand-json apps/server/src/Server/OpenApi.purs obj an OpenAPI document is itself the output of the Shape interpreters, in a format no type here decodes
 hand-json packages/premises/src/Premises/Compose.purs compose fills the sections no Premise wrote with empty JSON before the one decode
+name-literal packages/schema/src/Schema/Cast.purs presetTag the cast role's tag, which spells the same word as the specification key but is the role's own name

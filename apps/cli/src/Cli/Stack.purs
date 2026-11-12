@@ -3,6 +3,8 @@ module Cli.Stack (runSystem, runSession, runInterpret, runLaunches) where
 
 import Prelude
 
+import Data.Maybe (fromMaybe)
+
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine, writeLine)
 import Adapters.Digest (sha256)
@@ -67,7 +69,7 @@ runSession o program = do
   turn <- liftEffect (lineSink (dir <> "/turns.jsonl"))
   db <- liftEffect (openStore open o.db)
   let
-    llm = logging evidence turn (backend { model: o.model, call: pi { model: o.model, rawDir: dir <> "/raw" }, digest: sha256 })
+    llm m = let model = fromMaybe o.model m in logging evidence turn (backend { model, call: pi { model, rawDir: dir <> "/raw" }, digest: sha256 })
     store = sqlStore db processAlive
   run
     ( case_

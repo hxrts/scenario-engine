@@ -16,16 +16,16 @@ import Laws.CandidateTransaction (assembleSigned, candidateTransactionsOf, signa
 import Schema.Joint (jointCandidateTransactionsOf, numberJoint)
 import Laws.Types (Actor)
 import Laws.World (RoundResult, View, WorldState)
-import Data.Array (concat, concatMap, filter, mapMaybe, null)
+import Data.Array (concat, concatMap, filter, mapMaybe, nub, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), isNothing)
+import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (for)
 import Effects.Signatures (INTERPRET, InterpretF(..), RECORD, RecordF(..), SEAT_INPUT, SeatInputF(..), _interpret, _record, _seatInput)
 import Strategy.InWorld (strategyOf)
-import Laws.StrategyRules (StrategyRules, InWorld)
+import Laws.StrategyRules (InWorld)
 import Strategy.Interpret (Env, envFor)
 import Strategy.Interpret as Strategy
 import Run (Run, lift)
@@ -67,14 +67,17 @@ runRound inWorld w0 = do
     lift _record (Record r transcripts unit)
   pure result
   where
-  proposeFor = decide Strategy.propose \e v -> lift _seatInput (Propose e.id v identity)
-  signFor = decide Strategy.sign \e v -> lift _seatInput (Sign e.id v identity)
-
-  -- an in-world Actor answers through its Strategy, a seat through SEAT_INPUT
-  decide :: forall a. (StrategyRules -> Env -> Array a) -> (Actor -> View -> Run _ (Array a)) -> Actor -> View -> Run _ (Array a)
-  decide strategy ask e v = case strategyOf inWorld e of
-    Just strategyRules -> pure (strategy strategyRules (env e v))
-    Nothing -> ask e v
+  -- an in-world Actor answers through its Strategy, then its routine if it has one; a seat through SEAT_INPUT
+  proposeFor e v = case strategyOf inWorld e of
+    Just strategyRules ->
+      let
+        own = Strategy.propose strategyRules (env e v)
+      in
+        pure (own <> maybe [] (\routine -> Strategy.propose routine (env e (v { proposed = v.proposed <> concatMap _.intents own }))) (Map.lookup e.id inWorld.routines))
+    Nothing -> lift _seatInput (Propose e.id v identity)
+  signFor e v = case strategyOf inWorld e of
+    Just strategyRules -> pure (nub (Strategy.sign strategyRules (env e v) <> maybe [] (\routine -> Strategy.sign routine (env e v)) (Map.lookup e.id inWorld.routines)))
+    Nothing -> lift _seatInput (Sign e.id v identity)
 
   env :: Actor -> View -> Env
   env e = envFor { params: inWorld.params, seed: w0.seed, source: "strategy" } e.id

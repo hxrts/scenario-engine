@@ -76,14 +76,14 @@ play ctx s = do
 spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Views and error paths" do
   it "the stored specification is typed: what Assembly.Recipe writes is what the views read" do
-    let written = encodeSpec { gameId: "g", composition: "c@v1", premises: "p@v1,q@v2", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, model: Nothing, humans: Nothing }
+    let written = encodeSpec { gameId: "g", composition: "c@v1", premises: "p@v1,q@v2", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], derivation: Just { source: "run-1", kind: Variant }, cast: Map.empty, model: Nothing, humans: Nothing }
     written.gameId `shouldEqual` Just "g"
     written.preset `shouldEqual` Just "P"
     written.playerSeed `shouldEqual` Just 7
     written.rounds `shouldEqual` Just 3
     written.source `shouldEqual` Just "run-1"
     written.kind `shouldEqual` Just Variant
-    specPairs written `shouldEqual` [ Tuple "gameId" "g", Tuple "composition" "c@v1", Tuple "premises" "p@v1,q@v2", Tuple "preset" "P", Tuple "playerSeed" "7", Tuple "overrides" "[]", Tuple "rounds" "3", Tuple "source" "run-1", Tuple "kind" "variant" ]
+    specPairs written `shouldEqual` [ Tuple "gameId" "g", Tuple "composition" "c@v1", Tuple "premises" "p@v1,q@v2", Tuple "preset" "P", Tuple "playerSeed" "7", Tuple "overrides" "[]", Tuple "rounds" "3", Tuple "source" "run-1", Tuple "kind" "variant", Tuple "cast" "{}" ]
   it "an unknown preset or override is an error, never a silent no-op (§3, §4.2)" do
     ctx <- context
     let base = conservative 2
