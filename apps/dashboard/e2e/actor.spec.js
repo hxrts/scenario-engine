@@ -31,10 +31,10 @@ test("choosing an Actor updates its holdings plot and legend, and its net worth 
   await selector.selectOption(other);
   await expect(selector).toHaveValue(other);
   await expect(s.getByText(`Holdings of ${other}`, { exact: false })).toBeVisible();
-  // the holdings plot has a legend naming its lines by Resource id; M (Money) is held by every Actor
+  // the holdings plot has a legend naming its lines by Resource id; USD, the numeraire, is held by every Actor
   const holdings = s.locator(".recharts-wrapper").first();
   await expect(holdings).toBeVisible();
-  await expect(holdings.getByText("M", { exact: true })).toBeVisible();
+  await expect(holdings.getByText("USD", { exact: true })).toBeVisible();
   await expect(holdings.locator(".recharts-line")).not.toHaveCount(0);
   // the net worth plot is its own chart, beside the holdings plot
   const netWorth = s.locator(".recharts-wrapper").nth(1);

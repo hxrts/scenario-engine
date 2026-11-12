@@ -40,7 +40,7 @@ test("the run page shows standings, net worth, actions, drivers, balance measure
   expect((await standings.boundingBox()).y).toBeLessThan((await netWorth.boundingBox()).y);
   await expect(page.getByRole("columnheader", { name: "Change from start", exact: true })).toBeVisible();
   // the net-worth chart has one line per player, and the drivers timeline is shown
-  await expect(page.getByText("Net worth by player (M)", { exact: true })).toBeVisible();
+  await expect(page.getByText("Net worth by player (USD)", { exact: true })).toBeVisible();
   await expect(page.locator(".recharts-line").first()).toBeAttached();
   await expect(page.getByRole("columnheader", { name: "Driver", exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Criterion", exact: true })).toBeVisible();
@@ -151,12 +151,12 @@ test("the manage actions are visible sections, not disclosures", async ({ page }
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
   // [Actor, kind, resource, initial, current, change] at round 5 of run-1
-  await expect(rowWith(page, ["CN-private", "Aggregate (residual)", "M", "0", "8.72", "8.72"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN-private", "Aggregate (residual)", "RMB", "10", "10.45", "0.45"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/admin/#/runs/run-4");
   // the balances shown are run-4's last round (4), not its initial state
-  await expect(rowWith(page, ["CN", "Actor", "M", "88", "101.99", "13.99"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN", "Actor", "RMB", "88", "104.72", "16.72"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
