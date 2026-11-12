@@ -9,6 +9,7 @@ import Dashboard.Client as Client
 import Dashboard.Components (loaded, metricChart, selectInput, status, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
+import Dashboard.Theme (themeToggle)
 import Control.Alt ((<|>))
 import Data.Array (last)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -20,9 +21,15 @@ import Views.BalanceSheet (BalanceSheet)
 
 -- | The page an Actor is given: what it has done, has available, and can do.
 mkBalanceSheet :: DataTable -> Component { run :: String, token :: String }
-mkBalanceSheet grid = component "BalanceSheet" \p -> React.do
-  value <- useLoad p (Client.balanceSheet p.run p.token)
-  pure $ D.main_ [ loaded value.value page ]
+mkBalanceSheet grid = do
+  toggle <- themeToggle
+  component "BalanceSheet" \p -> React.do
+    value <- useLoad p (Client.balanceSheet p.run p.token)
+    -- the bar links only back to this page, which links nowhere else
+    pure $ D.div_
+      [ Layout.topBar { brand: "Scenario Engine", home: "/balancesheet/" <> p.run <> "/" <> p.token, nav: [], themeButton: toggle unit }
+      , D.main_ [ loaded value.value page ]
+      ]
   where
   page :: BalanceSheet -> _
   page x = Layout.page
