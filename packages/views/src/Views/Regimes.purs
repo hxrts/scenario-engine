@@ -1,4 +1,4 @@
--- | The Regimes view (docs/07 §9.2; docs/05 §3): each country's reproduction regime, round by round, in its three
+-- | The Regimes view (docs/07 §9.3; docs/05 §3): each country's reproduction regime, round by round, in its three
 -- | dimensions. Generic: a country is an Actor group; its capability is what it holds of Resources in the capacity and
 -- | competence categories and what its Transformations run on them; its demand is what its Aggregates (households)
 -- | receive and buy, and what its Actors sell at home and abroad; its finance is its open agreements. Every amount is

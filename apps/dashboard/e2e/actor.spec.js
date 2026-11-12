@@ -1,12 +1,12 @@
-// The Actor balance sheet section on the Runs page (docs/07_simulator.md §9.2): a selector of the
+// The Actor balance sheet section on the run page (docs/07_simulator.md §9.2): a selector of the
 // run's Actors, and the chosen Actor's holdings and net worth plotted round by round. Runs against
-// the e2e server's seeded run-1, so the Actors are the ones the run has.
+// the e2e server's suite run-1, so the Actors are the ones the run has.
 
 import { test, expect } from "@playwright/test";
 import { section } from "./helpers.js";
 
-test("the Runs page has an Actor balance sheet: a selector defaulting to the first Actor, and no table", async ({ page }) => {
-  await page.goto("/admin/#/runs/run-1");
+test("the run page has an Actor balance sheet: a selector defaulting to the first Actor, and no table", async ({ page }) => {
+  await page.goto("/admin/#/simulations/run-1");
   const s = section(page, "Actor balance sheet");
   await expect(s.getByRole("heading", { name: "Actor balance sheet", exact: true })).toBeVisible();
   const selector = s.getByRole("combobox", { name: "Actor", exact: true });
@@ -20,7 +20,7 @@ test("the Runs page has an Actor balance sheet: a selector defaulting to the fir
 });
 
 test("choosing an Actor updates its holdings plot and legend, and its net worth plot", async ({ page }) => {
-  await page.goto("/admin/#/runs/run-1");
+  await page.goto("/admin/#/simulations/run-1");
   const s = section(page, "Actor balance sheet");
   const selector = s.getByRole("combobox", { name: "Actor", exact: true });
   await expect(selector).toBeVisible();

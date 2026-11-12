@@ -287,7 +287,7 @@ keyValues boardOf runs =
 
   measureRows = map (\m -> row [ m.label, m.unit (numeraireUnit runs) ] (\v -> m.cell (m.read v.measures))) runMeasures
 
-  -- the run page's headline (docs/07 §9.2), after the final round, so an experiment's arms read side by side
+  -- the run page's headline (docs/07 §9.3), after the final round, so an experiment's arms read side by side
   indicatorRows =
     concatMap
       ( \c -> [ row [ "Net external position, " <> show c, numeraireUnit runs ] (\v -> maybe "—" (quantity <<< _.netExternal) (find (\x -> x.country == c) v.countries)) ]

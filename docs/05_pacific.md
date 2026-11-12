@@ -354,7 +354,7 @@ No indicator is a Resource or a stored score: each is read from the record by a 
 | Leverage | For each good a country imports: the other country's exposure, `max(0, requirement − capacity)`, which its export control would turn into a shortfall; and the other's sales abroad of the good it exports, which its import ban would cut | What a barrier can cost the other (§11, international leverage) |
 | Resilience | For each state and good: `coverage = min(1, capacity / requirement)`, capacity being the least it holds of what each unit of its production draws, capacity or competence | How far it could carry on under the other's control |
 
-The dashboard's headline shows them by round, and Compare by run ([07 §9.2](07_simulator.md#92-run-details)). The Regimes view shows each country's capability, demand and finance by round, and the Clearing view its goods, capital and the Rules at its borders.
+The dashboard's headline shows them by round, and the Simulations comparison by run ([07 §9.3](07_simulator.md#93-run-details)). The Regimes view shows each country's capability, demand and finance by round, and the Clearing view its goods, capital and the Rules at its borders.
 
 ## 9. How it is built
 

@@ -15,7 +15,7 @@ export const listed = (rows) => ({
   title: "Simulation runs",
   columns: COLUMNS,
   rows,
-  runs: rows.map((r) => ({ id: r[0], runClass: r[9] === "interactive" ? "interactive" : "simulated", readable: r[6] !== "unreadable" })),
+  runs: rows.map((r) => ({ id: r[0], runClass: r[9] === "interactive" ? "interactive" : "simulated", readable: r[6] !== "unreadable", tag: r[10] ? r[10] : null })),
 });
 export const ACTIVE = ["run-1", "base", "pacific@v0", "1949", "1", "3", "completed", "0", "", "simulated", ""];
 export const LIVE = ["run-9", "rehearsal", "pacific@v0", "1949", "4", "3", "completed", "0", "", "interactive", "mock"];

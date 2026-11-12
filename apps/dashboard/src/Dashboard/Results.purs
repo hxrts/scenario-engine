@@ -1,4 +1,4 @@
--- | One run's results (docs/07_simulator.md §9.2), a presentational view of the overview the run page
+-- | One run's results (docs/07_simulator.md §9.3), a presentational view of the overview the run page
 -- | fetched. A compact header names the run from the overview's facts; then the sections answer the five
 -- | questions in order: the key figures, the marginal prices, the standings, net worth over time, the
 -- | actions players take, the drivers, the balance of the game, the objectives, and the final balance

@@ -1,4 +1,4 @@
--- | Dependence (docs/07_simulator.md §9.2): for each round, each Actor and each Resource it has a fixed
+-- | Dependence (docs/07_simulator.md §9.3): for each round, each Actor and each Resource it has a fixed
 -- | requirement of, what its own capacity covers, what it must import, what it traded, what it received for its
 -- | sales, what it went short, the Rules in force that block that Resource reaching it, and the capacity on
 -- | order for it. Derived from the World and the round's record only. Pure.

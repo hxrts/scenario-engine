@@ -9,12 +9,9 @@ const session = createHash("sha256").update(`${password}:admin`).digest("hex").s
 // Requires the browser binaries: run `npx playwright install` once (see AGENTS.md).
 export default defineConfig({
   testDir: "e2e",
-  // one worker, and the seeding project first: the specs share one store, and they read the seeded runs
+  // one worker: the specs share one store, which the static suite filled before the server started, and one live run
   workers: 1,
-  projects: [
-    { name: "seed", testMatch: /seed\.setup\.js/ },
-    { name: "dashboard", testMatch: /\.spec\.js$/, dependencies: ["seed"] },
-  ],
+  projects: [{ name: "dashboard", testMatch: /\.spec\.js$/ }],
   use: {
     baseURL: `http://localhost:${E2E_PORT}`,
     storageState: { cookies: [{ name: "admin", value: session, domain: "localhost", path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" }], origins: [] },

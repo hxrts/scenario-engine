@@ -2,6 +2,8 @@ package:
   name: sp-dashboard
   dependencies:
     - prelude
+    - tailrec
+    - datetime
     - effect
     - aff
     - aff-promise

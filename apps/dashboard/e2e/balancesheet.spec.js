@@ -1,4 +1,4 @@
-// The balance sheet each Actor is given, and the admin page that lists them.
+// The balance sheet each Actor is given (docs/07 §9.4); the panel that lists them is in simulations.spec.js.
 import { test, expect } from "@playwright/test";
 
 test("an Actor's balance sheet shows its plots and tables, without an admin session", async ({ request, browser }) => {
@@ -13,13 +13,4 @@ test("an Actor's balance sheet shows its plots and tables, without an admin sess
   await expect(open.getByText("What it has done").first()).toBeVisible();
   await expect(open.locator("svg.recharts-surface").first()).toBeVisible();
   await anonymous.close();
-});
-
-test("the admin page links to each Actor's balance sheet", async ({ page }) => {
-  await page.goto("/admin/#/balancesheets");
-  const open = page.getByRole("link", { name: /\/balancesheet\// }).first();
-  await expect(open).toBeVisible();
-  const href = await open.getAttribute("href");
-  expect(href).toMatch(/^https?:\/\/[^/]+\/balancesheet\//);
-  await expect(open).toHaveText(href);
 });

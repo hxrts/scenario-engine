@@ -1,4 +1,4 @@
--- | The representation and collective-procedure views (docs/07_simulator.md §9.2): each active
+-- | The representation and collective-procedure views (docs/07_simulator.md §9.3): each active
 -- | Representation's four-stage record and influence ratio, and each voted candidate Transaction with its
 -- | signers, support, threshold, and outcome. Pure.
 module Views.Representation

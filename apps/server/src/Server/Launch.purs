@@ -7,6 +7,9 @@ module Server.Launch
 
 import Prelude
 
+import Assembly.Assemble (castable, configuredSeats)
+import Laws.Types (idText)
+
 import Schema.Run (RunStatus(..))
 
 import Control.Alt ((<|>))
@@ -54,5 +57,7 @@ compositionInfo ps = do
     , presets: offered p
     -- the composition's own default, else the first it offers
     , defaultPreset: fromMaybe "" (p.config.preset <|> head (offered p))
+    , castable: map idText (castable p)
+    , seats: map idText (configuredSeats p.config)
     }
   offered p = presetNames p

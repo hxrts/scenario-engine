@@ -1,20 +1,20 @@
--- | The balanceSheet pages (docs/07_simulator.md §9): the page each Actor is given, which shows only its own
--- | data and links nowhere else, and the admin page that lists every Actor's link for a Run.
-module Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets) where
+-- | The balance sheet pages (docs/07_simulator.md §9): the page each Actor is given, which shows only its own data and
+-- | links nowhere else, and the balance sheets panel the Simulations and Live pages show for their selected run, which
+-- | lists every Actor's link.
+module Dashboard.BalanceSheet (mkBalanceSheet, mkLinks) where
 
 import Prelude
 
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (loaded, metricChart, selectInput, status, tableOf)
+import Dashboard.Components (loaded, metricChart, tableOf)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
 import Dashboard.Theme (themeToggle)
-import Control.Alt ((<|>))
-import Data.Array (last)
-import Data.Maybe (Maybe(..), fromMaybe)
+
+import Data.Tuple (Tuple(..))
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, component, useState', (/\))
+import React.Basic.Hooks (Component, component)
 import React.Basic.Hooks as React
 import Views.Common (Table)
 import Views.BalanceSheet (BalanceSheet)
@@ -55,35 +55,6 @@ mkBalanceSheet grid = do
   table :: Table -> _
   table = tableOf grid
 
--- | The admin page: a Run, and a link to each of its Actors' balanceSheets.
-mkBalanceSheets :: Component Unit
-mkBalanceSheets = do
-  linksOf <- mkLinks
-  component "BalanceSheets" \_ -> React.do
-    list <- useLoad unit Client.runs
-    chosen /\ setChosen <- useState' (Nothing :: Maybe String)
-    pure $ Layout.page
-      { title: "Balance sheets"
-      , purpose: "Each Actor's own page, to hand to whoever plays it. A page shows only that Actor's data."
-      , children:
-          [ loaded list.value \l ->
-              let
-                ids = map _.id l.runs
-                current = fromMaybe "" (chosen <|> last ids)
-              in
-                if ids == [] then status (Just "There are no runs yet.")
-                else Layout.grid
-                  [ Layout.panel
-                      { span: 4
-                      , title: "Run"
-                      , purpose: "The run whose Actors' pages are listed."
-                      , children: [ D.label { className: "flex flex-col gap-1 text-sm", children: [ D.text "Run", selectInput { value: current, options: ids, onChange: setChosen } ] } ]
-                      }
-                  , Layout.panel { span: 8, title: "Actors", purpose: "Each Actor of the run, and the link to its page.", children: [ linksOf current ] }
-                  ]
-          ]
-      }
-
 -- | Each Actor's page, shown as its whole address, so it can be copied and sent to the player.
 mkLinks :: Component String
 mkLinks = (origin =<< location =<< window) >>= \here -> component "BalanceSheetLinks" \id -> React.do
@@ -96,7 +67,7 @@ mkLinks = (origin =<< location =<< window) >>= \here -> component "BalanceSheetL
             , children:
                 [ D.thead
                     { className: "border-b bg-muted/50 text-left text-muted-foreground"
-                    , children: [ D.tr_ (map (\h -> D.th { className: "px-3 py-2 font-medium", children: [ D.text h ] }) [ "Actor", "Kind", "Page" ]) ]
+                    , children: [ D.tr_ (map (\(Tuple h def) -> D.th { className: "px-3 py-2 font-medium", title: def, children: [ D.text h ] }) [ Tuple "Actor" "An Actor of the run.", Tuple "Kind" "Playable Actor, non-playable Actor or Aggregate.", Tuple "Page" "The Actor's own balance sheet page, to hand to whoever plays it: it shows only that Actor's data." ]) ]
                     }
                 , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: here <> x.path, className: "break-all font-mono text-xs underline-offset-4 hover:underline", children: [ D.text (here <> x.path) ] } ] ] }) ls)
                 ]

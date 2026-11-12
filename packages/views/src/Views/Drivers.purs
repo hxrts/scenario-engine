@@ -1,4 +1,4 @@
--- | Drivers of gameplay (docs/07_simulator.md §9.2): the rules enacted and repealed, the collective
+-- | Drivers of gameplay (docs/07_simulator.md §9.3): the rules enacted and repealed, the collective
 -- | procedure outcomes, and the shortfalls, by round, on the same round axis as the price chart. This
 -- | is the one definition of a shortfall total. Pure.
 module Views.Drivers

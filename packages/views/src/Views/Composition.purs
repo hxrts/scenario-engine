@@ -1,5 +1,5 @@
--- | The composition a launch form runs (`GET /api/premise`, docs/07_simulator.md §9.1): the shape the server
--- | replies with and the dashboard reads. Pure.
+-- | A composition the live run's start form offers (`GET /api/premise`, docs/07_simulator.md §9.2): the shape the
+-- | server replies with and the dashboard reads. Pure.
 module Views.Composition
   ( RoundRange
   , CompositionInfo
@@ -18,5 +18,7 @@ type CompositionInfo =
   , gameSeed :: Int
   , defaultName :: String
   , presets :: Array String
-  , defaultPreset :: String -- the preset a launch plays when it names none
+  , defaultPreset :: String -- the default preset
+  , castable :: Array String -- the Actors a cast may name, in id order, and the seats among them
+  , seats :: Array String
   }

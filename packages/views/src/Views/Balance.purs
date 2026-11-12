@@ -1,4 +1,4 @@
--- | Balance of the game (docs/07_simulator.md §9.2, §10.2): the spread and the Gini coefficient of
+-- | Balance of the game (docs/07_simulator.md §9.3, §10.2): the spread and the Gini coefficient of
 -- | final net worth, objective completion by role, and the seed-to-seed variation of those measures
 -- | across runs of one specification. This module holds the one definition of spread and Gini. Pure.
 module Views.Balance

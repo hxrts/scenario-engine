@@ -132,7 +132,7 @@ An unknown, repeated, or valueless flag, or a bad value, is a usage error and ex
 
 ## 7. Run Assertions
 
-Assertions check engine properties after every round, without reimplementing the engine. They are pure predicates over the records: the invariant checks applied to each round, the PremiseComposition's expectations ([03](03_premise.md)) checked against each round's observed record, and the objective scoring of each Actor ([§9.2](#92-run-details)). Initialization is not asserted separately.
+Assertions check engine properties after every round, without reimplementing the engine. They are pure predicates over the records: the invariant checks applied to each round, the PremiseComposition's expectations ([03](03_premise.md)) checked against each round's observed record, and the objective scoring of each Actor ([§9.3](#93-run-details)). Initialization is not asserted separately.
 
 ### 7.1 Required assertions
 
@@ -329,13 +329,27 @@ Everything that shows more than one Actor's data sits behind a password.
 
 ## 9. Pages
 
-The Dashboard is served at `/admin`, behind the password (§8.3). It has three pages, each with its own hash route and a top bar that links to them from every page: Runs (`#/runs`, the home page, and `#/runs/:id` with that run selected), Compare (`#/compare`, and `#/compare/:ids` with the ticked runs), and BalanceSheets (`#/balancesheets`, [§9.4](#94-balancesheet-pages)). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
+The Dashboard is served at `/admin`, behind the password (§8.3). It has two pages, each with its own hash route and a top bar that links to them from every page: Simulations (`#/simulations`, the home page, and `#/simulations/:id` with that run selected) and Live (`#/live`, and `#/live/:id` with a past run selected). Runs are never launched, derived, resumed, archived or deleted from the dashboard. It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
 
-### 9.1 Simulation Runs
+### 9.1 Simulations
 
-The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, class (simulated or interactive), and, for an interactive run, its tag. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown.
+Simulations shows the static suite (§3), every run compared with every other:
 
-### 9.2 Run Details
+- **Suite runs.** A sortable table, one row per simulated run, in the order the suite stored them: its name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, and class. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. Selecting a row, or opening `#/simulations/:id`, opens that run; with no selection, the latest readable run is open.
+- **Every run compared.** The comparison of every simulated run (§10): prices by Exchange, net worth over time, final standings, the spread and Gini, the key values, and detail tabs (final state, baseline difference, configuration, compatibility, seed variation, and agency, §10.3, read from the suite's agency runs).
+- **Balance sheets.** Each Actor's page for the open run, as its whole address (§9.4).
+- **The open run.** Its results (§9.3).
+
+### 9.2 Live
+
+Live shows the one live run (§8.2) and the past interactive runs. The live run's state is read every second and a half:
+
+- **Live run.** Its id, tag, round, status, whether it is paused or ending after this round, its window, and which human seats have spoken and which are awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
+- **Start a live run.** The composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field. When a run is live the form says so and starts with "Clear and start", which clears it first.
+- **The live run's balance sheets and results so far** (§9.4, §9.3).
+- **Past interactive runs.** A table of every interactive run with its tag; selecting one opens its balance sheets and results. The runs of each tag are compared together.
+
+### 9.3 Run Details
 
 The page opens with a header of the run's facts, then four sections by economic object, each a generic view over any composition: the headline (`Indicators`: for each country its substitute gap, net external position and domestic absorption, and for each seat its debt service and viability margins, by round, [05 §8.2](05_pacific.md#82-what-is-derived-not-stored)); the national regimes (`Regimes`: for each country with households, three panels, its productive capability (capacity, competence, units run and idle), its effective demand (household income, spending and saving, sales at home and abroad) and its financial capacity (owed to it, what it owes, debt service paid)); international clearing (`Clearing`: goods and capital across each border and the Rules at the borders, beside the Exchanges' prices and each country's current account); and the seat scorecards (objectives). An engine-detail tab holds every other view, in order: key figures; marginal prices of each Exchange; standings; net worth over time; actions; drivers (rules enacted and repealed, procedure outcomes, shortfalls); balance measures (spread and Gini); objectives; dependence (for each fixed requirement: the capacity covering it, coverage = min(1, capacity / requirement), exposure = max(0, requirement − capacity), imports, exports, receipts, shortfall, the bans in force against it, and the capacity on order); finance (the bonds open after each round, with lender, borrower, currency, principal and rate; and each country's external accounts by round and currency, with goods, currency trades, levies and interest across its border and a residual that is zero when every flow is accounted, and its current account, financial account and valuation in the numeraire, [05 §4.4](05_pacific.md#44-accounting)); the final balance sheet of every Actor (`Initial`, `Current`, `Change`); and one Actor's balance sheet, selected from the run's Actors, defaulting to the first seat.
 
@@ -345,13 +359,9 @@ Standings rank 1 is the highest net worth, and equal net worths share a rank. Ag
 
 The run page shows the representation and procedure records. The round-by-round action counts, the Exchange, Transformation, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived: the next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. The event inspector lists one round's events in engine order, with a text filter.
 
-### 9.3 Compare
-
-The Compare page lists every readable run as a tick box. The ticked runs, in the order ticked, form the Run set, and the first is the baseline. The page shows prices by Exchange, net worth over time, final standings, the spread and Gini, a key-values table, and detail tabs (final state, baseline difference, configuration, compatibility, seed variation, and agency, §10.5). Unreadable runs are listed as skipped, with their reasons. Every statistic is computed in the views, not in the browser.
-
 ### 9.4 BalanceSheet pages
 
-At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/sessions` and the CLI's `session` command report each Actor's path at the start, and the admin BalanceSheets page lists every path for a selected Run, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
+At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/live` and the CLI's `session` command report each Actor's path at the start, and the balance sheets panel of the Simulations and Live pages lists every path for the open run, each as its whole address, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
 
 The page has three parts, each from `Views.BalanceSheet`:
 

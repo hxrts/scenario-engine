@@ -36,22 +36,19 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Dashboard routes" do
-    it "round-trip /runs, /runs/:id, /compare/:ids" do
-      for_ [ Runs, Run "run-1", Compare [ "run-1", "run-2" ], Compare [ "run-1" ], Compare [] ] \r ->
+    it "round-trip /simulations, /simulations/:id, /live and /live/:id" do
+      for_ [ Simulations, Simulation "run-1", Live, LiveRun "run-9" ] \r ->
         parse route (print route r) `shouldEqual` Right r
-    it "the home page is /runs, and the run list's page is that same route" do
-      print route Runs `shouldEqual` "/runs"
-      parse route "/runs" `shouldEqual` Right Runs
-    it "Run round-trips as /runs/:id, the selected run on the Runs page" do
-      print route (Run "run-1") `shouldEqual` "/runs/run-1"
-      parse route "/runs/run-1" `shouldEqual` Right (Run "run-1")
-    it "Compare round-trips as /compare/:ids" do
-      print route (Compare [ "run-1", "run-2" ]) `shouldEqual` "/compare/run-1/run-2"
-      parse route "/compare/run-1/run-2" `shouldEqual` Right (Compare [ "run-1", "run-2" ])
+    it "the pages are /simulations and /live, a selected run one segment beneath" do
+      print route Simulations `shouldEqual` "/simulations"
+      print route (Simulation "run-1") `shouldEqual` "/simulations/run-1"
+      print route Live `shouldEqual` "/live"
+      parse route "/live/run-9" `shouldEqual` Right (LiveRun "run-9")
     it "a run id with reserved characters is one segment, encoded and decoded intact" do
-      parse route (print route (Run "a/b c")) `shouldEqual` Right (Run "a/b c")
-      parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])
-  describe "Compare choices" do
+      parse route (print route (Simulation "a/b c")) `shouldEqual` Right (Simulation "a/b c")
+    it "the old pages are gone: no route parses as Runs, Compare, Prepare or Balance sheets" do
+      for_ [ "/runs", "/compare/run-1", "/prepare", "/balancesheets" ] \path -> isLeft (parse route path) `shouldEqual` true
+  describe "Run choices" do
     it "every readable run is a choice, and an unreadable run is not" do
       readableIds (listOf [ flag "run-1" false true, flag "run-2" false false, flag "run-3" false true ]) `shouldEqual` [ "run-1", "run-3" ]
   describe "Data table sorting" do
@@ -88,7 +85,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
   describe "Premise reply" do
     it "the composition's name, round range, game seed, default name, presets and default preset are decoded from GET /api/premise" do
-      decodePremise "{\"name\":\"example\",\"premises\":[\"example-economy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\"}"
+      decodePremise "{\"name\":\"example\",\"premises\":[\"example-economy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\",\"castable\":[\"US\"],\"seats\":[\"US\"]}"
         `shouldEqual` Right composition
       decodePremise "{\"name\":\"example\"}" `shouldSatisfy` isLeft
   describe "Compare labels" do
@@ -116,7 +113,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   row3 = [ "run-3", "old", "interactive" ]
 
   flag :: String -> Boolean -> Boolean -> RunFlags
-  flag id live readable = { id, runClass: if live then Interactive else Simulated, readable }
+  flag id live readable = { id, runClass: if live then Interactive else Simulated, readable, tag: if live then Just "mock" else Nothing }
 
   -- a run list whose rows are one row per run, in the order given
   listOf :: Array RunFlags -> RunList
@@ -130,7 +127,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   premiseRounds = { min: 4, max: 8, default: 5 }
 
   composition :: CompositionInfo
-  composition = { name: "example", version: "v0", premises: [ "example-economy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ], defaultPreset: "Conservative" }
+  composition = { name: "example", version: "v0", premises: [ "example-economy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ], defaultPreset: "Conservative", castable: [ "US" ], seats: [ "US" ] }
 
   decodePremise :: String -> Either String CompositionInfo
   decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape CompositionInfo)

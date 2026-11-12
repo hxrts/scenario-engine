@@ -148,7 +148,7 @@ spec context = describe "Views and error paths" do
     (held == Q.zero) `shouldEqual` false
     any (\row -> row == [ "other", show e, show money, quantity (Q.neg held) ]) rows `shouldEqual` true
 
-  it "a round outside the run is rejected, never shown as the initial state (§9.2)" do
+  it "a round outside the run is rejected, never shown as the initial state (§9.3)" do
     ctx <- context
     r <- play ctx (conservative 5)
     let s = toStored "run-1" r
@@ -189,7 +189,7 @@ spec context = describe "Views and error paths" do
     map (\row -> cell row 6) t.rows `shouldEqual` [ show Completed, "unreadable" ]
     map (\row -> cell row 8) t.rows `shouldEqual` [ "", "manifest: bad json" ]
 
-  it "an Actor's history shows each round's holding, and its net worth matches the standings (§9.2)" do
+  it "an Actor's history shows each round's holding, and its net worth matches the standings (§9.3)" do
     ctx <- context
     r <- play ctx (conservative 3)
     let

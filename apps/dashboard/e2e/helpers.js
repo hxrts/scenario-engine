@@ -10,8 +10,12 @@ export const sectionHas = (scope, has) => scope.locator("section").filter({ has 
 // The choice list's checkbox for one run: the label whose run-id text is exactly that id.
 export const choice = (page, id) => page.locator("label").filter({ has: page.getByText(id, { exact: true }) }).getByRole("checkbox");
 
-// The row of the visible table whose cells include every given text exactly.
-export const rowWith = (scope, cells) => cells.reduce((rows, text) => rows.filter({ has: scope.getByRole("cell", { name: text, exact: true }) }), scope.getByRole("row"));
+// The row of the visible table whose cells include every given text exactly, within `scope` (the page, or a locator
+// of it). Each cell is matched relative to its row, so the scope is not searched for again inside the row.
+export const rowWith = (scope, cells) => {
+  const page = typeof scope.page === "function" ? scope.page() : scope;
+  return cells.reduce((rows, text) => rows.filter({ has: page.getByRole("cell", { name: text, exact: true }) }), scope.getByRole("row"));
+};
 
 // A spy on the POSTs to `url` (the run list by default): `count` is how many were sent, `body` the last one's JSON.
 // The requests still go through to the server.

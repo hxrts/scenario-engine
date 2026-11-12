@@ -21,7 +21,7 @@ import Data.String (joinWith)
 import Data.Array (concatMap, mapWithIndex)
 import Data.Either (Either(..), either)
 import Record as Record
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Schema.Run (RunClass(..))
 import Checks.Objectives (CriterionResult, ObjectiveResult, evaluateObjectives)
 import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
@@ -44,9 +44,9 @@ type ListedRun = Record
 -- | A stored run that cannot be read: the list shows it with the reason, and keeps the others.
 type Unreadable = { id :: String, name :: String, reason :: String }
 
--- | The typed flags of one listed run: its class, and whether the server can read it. A run that cannot be read
--- | is listed as simulated and not readable.
-type RunFlags = { id :: String, runClass :: RunClass, readable :: Boolean }
+-- | The typed flags of one listed run: its class, whether the server can read it, and an interactive run's tag. A run
+-- | that cannot be read is listed as simulated and not readable.
+type RunFlags = { id :: String, runClass :: RunClass, readable :: Boolean, tag :: Maybe String }
 
 -- | The run list (`GET /api/runs`): the table the list shows, and the flags of each run in the same order.
 type RunList = Record (TableRow (runs :: Array RunFlags))
@@ -55,8 +55,8 @@ runList :: Array (Either Unreadable ListedRun) -> RunList
 runList rows = Record.merge (tableOf "Simulation runs" runFields rows) { runs: map flags rows }
   where
   flags = case _ of
-    Left u -> { id: u.id, runClass: Simulated, readable: false }
-    Right s -> { id: s.id, runClass: s.runClass, readable: true }
+    Left u -> { id: u.id, runClass: Simulated, readable: false, tag: Nothing }
+    Right s -> { id: s.id, runClass: s.runClass, readable: true, tag: s.tag }
 
 -- | The run list's columns and cells. An unreadable run's class and tag are not decoded, so they show as unknown.
 runFields :: Array (Field (Either Unreadable ListedRun))
