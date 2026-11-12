@@ -295,11 +295,11 @@ appendNew = foldl (\acc x -> if x `elem` acc then acc else snoc acc x)
 
 -- Files -------------------------------------------------------------------------------------
 
--- | A composition's directory under the premise root (`compositions/meridian/v0`).
+-- | A composition's directory under the premise root (`compositions/pacific/v0`).
 directory :: forall r. { id :: String, version :: String | r } -> String
 directory c = L.compositionDir c.id c.version
 
--- | A Premise's file under the premise root (`premises/meridian-energy/v0.json`).
+-- | A Premise's file under the premise root (`premises/bilateral-economy/v0.json`).
 premisePath :: forall r. { id :: String, version :: String | r } -> String
 premisePath p = L.premiseFilePath p.id p.version
 

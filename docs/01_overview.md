@@ -17,7 +17,7 @@ Two roles sit around the engine:
 
 Speech transcription and the newspaper are separate components, built outside this repository, that use its API ([07 §8.2](07_simulator.md#82-external-services)). One submits what a player said as text. The other reads what a round produced and writes the front page.
 
-**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes part of an economy, and a PremiseComposition, an ordered list of Premises, describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Meridian* is the reference PremiseComposition ([06](06_meridian.md)). Comparing several Runs of one PremiseComposition, which differ in a shock, an override or a seed, is the scenario planning the game is for.
+**The frame.** The kernel says what any World can be made of ([02](02_kernel.md)). A Premise describes part of an economy, and a PremiseComposition, an ordered list of Premises, describes a set of possible Worlds ([03](03_premise.md)). A Run realizes one of them, Round by Round ([04](04_run.md)). *Pacific* is the reference PremiseComposition ([05](05_pacific.md)). Comparing several Runs of one PremiseComposition, which differ in a shock, an override or a seed, is the scenario planning the game is for.
 
 ## Terms
 
@@ -25,7 +25,7 @@ These 17 anchors are the project's vocabulary, and this is the one place they ar
 
 Launching and playing:
 
-- **Premise.** An authored, composable description of part of an economy, such as an energy shock or a set of Actors. A PremiseComposition is an ordered list of Premises that together describe a set of possible Worlds and is what a Run is launched from, such as *Meridian*.
+- **Premise.** An authored, composable description of part of an economy, such as an energy shock or a set of Actors. A PremiseComposition is an ordered list of Premises that together describe a set of possible Worlds and is what a Run is launched from, such as *Pacific*.
 - **Run.** One realization of a PremiseComposition, played Round by Round and recorded. A derived Run starts from a stored one, and a Run set is several Runs compared together.
 - **Round.** One step of a Run, in which every decision is made on the same opening World and all of them resolve as one update.
 - **World.** The complete economic state at a Round boundary, including the pending Obligations, the Laws in force and the seed. A possible World is one a PremiseComposition allows, a realized World is one a Run produced, a round-end World is what a Round ends with, and world laws are the Laws in force.
@@ -143,6 +143,5 @@ This section lists the rules that every PremiseComposition and every rule should
 - [03 Premise](03_premise.md): how Premises are authored and composed, and the vocabulary that compiles to the kernel.
 - [04 Run](04_run.md): how a PremiseComposition is assembled and realized, Round by Round.
 - [05 Pacific](05_pacific.md): *Pacific*, a two-country PremiseComposition of trade, export bans and substitution.
-- [06 Meridian](06_meridian.md): *Meridian*, the reference PremiseComposition.
 - [07 Simulator](07_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
 - [08 Architecture](08_architecture.md): guidelines and the structure of the implementation.

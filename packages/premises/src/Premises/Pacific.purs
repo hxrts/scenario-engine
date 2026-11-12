@@ -102,7 +102,7 @@ defaultDials =
   { technologyPrice: q 1
   , industryPrice: q 2
   , homePremium: q "1.25"
-  , money: { us: q 108, cn: q 92 }
+  , money: { us: q 112, cn: q 88 }
   , technologyCapacity: { us: q 2, usFirm: q 8 }
   , industryCapacity: { cn: q 8, cnFirm: q 2 }
   , technologyNeed: { us: q 6, cn: q 3 }
@@ -126,7 +126,7 @@ defaultDials =
       { security: { us: q 26, cn: q 14 }
       , prosperity: { us: q 20, cn: q 4 }
       , industry: { us: q 9, cn: q 3 }
-      , wealth: { us: q 42, cn: q 30 }
+      , wealth: { us: q 42, cn: q 28 }
       , output: { us: q 12, cn: q 2 }
       , market: { us: q 20, cn: q 4 }
       }
@@ -207,7 +207,7 @@ worldOf layer d =
   , label: Just "pacific-01"
   , parameters: Object.union (Object.fromFoldable [ Tuple (inputParam p.usFirm) d.inputPerUnit.usFirm, Tuple (inputParam p.cnFirm) d.inputPerUnit.cnFirm, Tuple (outputParam p.usFirm) (perInput d.inputPerUnit.usFirm), Tuple (outputParam p.cnFirm) (perInput d.inputPerUnit.cnFirm), Tuple inputShare d.inputShare, Tuple unitsPerMoney (perInput d.wage) ]) $ Object.union (if layer >= Strategic then Object.singleton tariffRate d.tariffRate else Object.empty) (if private then parameters d.private { technologyPrice: d.technologyPrice, industryPrice: d.industryPrice, tariff: d.tariffRate, subsidy: d.subsidy } else Object.empty)
   , schemes: []
-  , strategies: keyed ([ Tuple p.commerce { rules: commerceRules, sign: if private then [ SignAgreements [ bondIssue ] ] else [] }, Tuple p.supply { rules: supplyRules, sign: [] } ] <> (if private then demandStrategies else []))
+  , strategies: keyed ([ Tuple p.commerce { rules: commerceRules, sign: [ SignAgreements [ bondIssue ] ] }, Tuple p.supply { rules: supplyRules, sign: [] } ] <> (if private then demandStrategies else []))
   -- commerce runs beside whoever plays each state, and supply beside whoever plays each firm (docs/04 §6)
   , explicitActors: keyed (map (\(Tuple k (Tuple _ def)) -> Tuple k (def { routine = Just (if k == p.us || k == p.cn then p.commerce else p.supply) })) seats)
   , authored: { circulation: circulation layer d, reservable: [ p.technologyCapacity, p.industryCapacity ], decays: [] }
@@ -238,7 +238,9 @@ worldOf layer d =
       , recurring = compileIn p.money (circulation layer d) []
       -- every unit produced pays its wage to the producer's private sector
       , laws = if private then wages d else []
-      , templates = if private then bonds d else Map.empty
+      -- the household bond, which the commerce routine signs, is defined with the economy; the private sector
+      -- lends through it
+      , templates = bonds d
       }
   }
   where
@@ -383,7 +385,7 @@ premisesOf d =
   , withExtends (map (\a -> Tuple a { capabilities: stateCapabilities Strategic a `difference` stateCapabilities Bilateral a, criteria: [] }) [ p.us, p.cn ]) []
       (pick { id: strategicId, version: pacificVersion } (encoded Strategic) [ "ruleKinds", "rules" ] [ Tuple "transformations" (map idText [ p.usIndustrialInvestment, p.cnTechnologyInvestment ]), Tuple "parameters" [ tariffRate ] ])
   , withExtends (map (\a -> Tuple a { capabilities: [], criteria: privateCriteria d a }) [ p.us, p.cn, p.usFirm, p.cnFirm ]) [ Tuple p.technologyWorld [ p.cnPrivate, p.usPrivate ], Tuple p.industryWorld [ p.cnPrivate, p.usPrivate ], Tuple p.technologyUs [ p.usPrivate ], Tuple p.industryCn [ p.cnPrivate ] ]
-      (pick { id: privateId, version: pacificVersion } whole [ "parameters", "circulation", "groups", "laws", "templates" ] [ Tuple "actors" (map idText [ p.usPrivate, p.cnPrivate ]), Tuple "strategies" (map (idText <<< _.demand) countries) ])
+      (pick { id: privateId, version: pacificVersion } whole [ "parameters", "circulation", "groups", "laws" ] [ Tuple "actors" (map idText [ p.usPrivate, p.cnPrivate ]), Tuple "strategies" (map (idText <<< _.demand) countries) ])
   ]
   where
   encoded layer = fromMaybe Object.empty (toObject (encodeWith Authored compositionShape (worldOf layer d)))

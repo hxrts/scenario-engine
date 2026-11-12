@@ -2,7 +2,7 @@
 -- | composition, its instantiation configuration, and the shared seat presets; a literal premise is a
 -- | World State written out in full (fixtures). `checkComposition` is the one place a decoded
 -- | composition is validated against its configuration and against every StrategyRules it names.
-module Assembly.Composition (CompositionParts, Origin(..), checkComposition, checkRefs) where
+module Assembly.Composition (CompositionParts, Origin(..), checkComposition, checkRefs, presetNames, presetOr) where
 
 import Prelude
 
@@ -19,7 +19,9 @@ import Laws.StrategyRules (StrategyRules)
 import Laws.Types (Id(..), RefKind(..))
 import Laws.World (WorldState)
 import Data.Either (Either(..))
-import Data.Maybe (maybe)
+import Data.Maybe (fromMaybe, maybe)
+import Data.Array as Array
+import Control.Alt ((<|>))
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -64,3 +66,13 @@ checkRefs what names s = maybe (Right unit) (Left <<< unresolved) (head (unknown
   unresolved = case _ of
     UnknownReference kind ref -> Unresolved what kind ref
     e -> Invalid [ e ]
+
+-- | A composition's preset names, in name order.
+presetNames :: CompositionParts -> Array String
+presetNames p = Array.sort (Object.keys p.presets)
+
+-- | The preset named, or, when the name is blank, the composition's own default, else the first it offers.
+presetOr :: String -> CompositionParts -> String
+presetOr name p
+  | name /= "" = name
+  | otherwise = fromMaybe "" (p.config.preset <|> Array.head (presetNames p))

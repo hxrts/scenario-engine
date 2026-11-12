@@ -1,4 +1,4 @@
--- | A literal premise (a fixture, docs/06_meridian.md) as a PreparedRun: its World written out in full,
+-- | A literal premise (a fixture, docs/05_pacific.md §9.3) as a PreparedRun: its World written out in full,
 -- | and each seat that proposes or signs in its rounds given those answers as a Script binding. A
 -- | literal premise plays through `simulate` like any other game, so its expectations are checked
 -- | against the records the engine writes (`Checks`), not against the premise.

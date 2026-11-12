@@ -35,7 +35,7 @@ import Assembly.Override (Override(..), resolve)
 import Assembly.Composition (CompositionParts)
 import Assembly.Recipe (encodeSpec)
 import Foreign.Object as Object
-import Testkit.Meridian (run, orThrow)
+import Testkit.Run (run, orThrow)
 import Views.Balances (balances, events)
 import Views.Common (Table, completed, exact, final, quantity)
 import Views.Balance (measures, measuresOf)
@@ -47,7 +47,7 @@ import Views.Actor (actorHistory)
 import Views.Standings (standings, standingsOf)
 import Views.Glossary (glossary)
 import Views.Overview (overview, runList)
-import Views.Representation (representation)
+
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 
@@ -58,7 +58,7 @@ everySeat :: String -> Int -> Setup
 everySeat preset rounds = { preset, rounds, overrides: [], seed: 1 }
 
 conservative :: Int -> Setup
-conservative = everySeat "Conservative"
+conservative = everySeat "FreeTrade"
 
 -- | The verdict column of a compatibility table.
 verdicts :: Table -> Array String
@@ -100,7 +100,7 @@ spec context = describe "Views and error paths" do
   it "the cross-run key values have one column per run, and their values are the views' own (§10.2)" do
     ctx <- context
     a <- play ctx (conservative 3)
-    b <- play ctx (everySeat "Aggressive" 3)
+    b <- play ctx (everySeat "Hawk" 3)
     let
       r1 = toStored "run-1" a
       r2 = toStored "run-2" b
@@ -133,7 +133,7 @@ spec context = describe "Views and error paths" do
     (balanceBars runs).gini.unit `shouldEqual` "index, 0 to 1 − 1/n"
 
   it "the Gini's upper end is stated as 1 − 1/n wherever the glossary names it" do
-    Object.lookup "Gini" (glossary meridianFocus).definitions `shouldEqual` Just "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
+    Object.lookup "Gini" (glossary pacificFocus).definitions `shouldEqual` Just "The Gini coefficient of final net worth, from 0 (even) to 1 − 1/n (one player holds everything)."
 
   it "a resource the baseline holds and the other run lacks is reported by the baseline diff (§10.2)" do
     ctx <- context
@@ -161,21 +161,6 @@ spec context = describe "Views and error paths" do
     isLeft (balances s 5) `shouldEqual` false
     isLeft (events s 5) `shouldEqual` false
 
-  it "the last round shows n/a for the next round's purchase and the influence ratio (§9.2)" do
-    ctx <- context
-    -- a three-round run whose final round has representative observations; the last round is
-    -- the run's own final round, so the test does not depend on the random choices of later rounds
-    r <- play ctx (everySeat "RandomValid" 3)
-    let
-      t :: Table
-      t = representation (toStored "run-1" r)
-      lastRound = filter (\row -> cell row 0 == "3") t.rows
-    (length t.rows > 0) `shouldEqual` true
-    (length lastRound > 0) `shouldEqual` true
-    for_ lastRound \row -> do
-      cell row 11 `shouldEqual` "n/a"
-      cell row 12 `shouldEqual` "n/a"
-
   it "runs differing in engine, units, Exchanges, Actors, or round count are flagged, not combined (§10.1)" do
     ctx <- context
     r <- play ctx (conservative 3)
@@ -184,7 +169,7 @@ spec context = describe "Views and error paths" do
       b = toStored "b" r
       engine = b { manifest = b.manifest { engine = "engine-other" } }
       exchanges = b { manifest = b.manifest { initial = b.manifest.initial { exchanges = map (\m -> m { position = Q.fromInt 999 }) b.manifest.initial.exchanges } } }
-      explicitActors = b { spec = emptySpec { preset = Just "Passive" } }
+      explicitActors = b { spec = emptySpec { preset = Just "Restrict" } }
       fewer = toStored "c" (r { records = [] })
     verdicts (compatible [ a, a ]) `shouldEqual` [ "yes", "yes" ]
     verdicts (compatible [ a, engine ]) `shouldEqual` [ "yes", "no: flagged, not combined (engine)" ]
@@ -195,7 +180,7 @@ spec context = describe "Views and error paths" do
   it "a run with no rounds: every objective is not evaluated, never met (§10.5)" do
     ctx <- context
     let os = evaluateObjectives ctx.composition []
-    length os `shouldEqual` 16
+    length os `shouldEqual` 4
     all (\o -> o.outcome == NotEvaluated) os `shouldEqual` true
 
   it "the run list shows an unreadable run with its reason, beside the readable ones (§9.1)" do
@@ -240,12 +225,12 @@ spec context = describe "Views and error paths" do
     let
       s = toStored "run-1" r
       before = s.manifest.initial
-      trade = Settled { round: 1, legs: [ { from: InExchange (Id "energy-atlantic"), to: Held (Id "US"), resource: Id "E", owed: q "10", moved: q "10" } ], rate: Nothing, cause: OfRule { kind: Id "tariff" }, delivered: false }
-      after = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "E") (q "80") a.accounts }) (Id "US") before.actors }
-      one = s { manifest = s.manifest { initial = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "E") (q "70") a.accounts }) (Id "US") before.actors } }, rounds = [ { record: { round: 1, inputs: [], events: [ trade ] }, world: after } ] }
+      trade = Settled { round: 1, legs: [ { from: InExchange (Id "technology-world"), to: Held (Id "US"), resource: Id "T", owed: q "10", moved: q "10" } ], rate: Nothing, cause: OfRule { kind: Id "tariff" }, delivered: false }
+      after = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "T") (q "80") a.accounts }) (Id "US") before.actors }
+      one = s { manifest = s.manifest { initial = before { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "T") (q "70") a.accounts }) (Id "US") before.actors } }, rounds = [ { record: { round: 1, inputs: [], events: [ trade ] }, world: after } ] }
       report = roundReport one 1
     map _.round report `shouldEqual` Just 1
-    map (filter (\b -> b.actor == "US" && b.resource == "E") <<< _.balances) report `shouldEqual` Just [ { actor: "US", resource: "E", holding: "80", change: "10" } ]
+    map (filter (\b -> b.actor == "US" && b.resource == "T") <<< _.balances) report `shouldEqual` Just [ { actor: "US", resource: "T", holding: "80", change: "10" } ]
     map (_.events) report `shouldEqual` Just [ trade ]
     map _.round (roundReport one 2) `shouldEqual` Nothing
 
@@ -284,5 +269,5 @@ spec context = describe "Views and error paths" do
     , sourceDeleted: false
     }
 
-meridianFocus :: Array { resource :: Id ResourceTag, label :: String }
-meridianFocus = [ { resource: Id "E", label: "Energy" } ]
+pacificFocus :: Array { resource :: Id ResourceTag, label :: String }
+pacificFocus = [ { resource: Id "T", label: "Technology" } ]

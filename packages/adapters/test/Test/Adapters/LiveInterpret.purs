@@ -27,19 +27,20 @@ import Effect.Exception (error, message)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Llm.Backend (backend, defaultModel)
 import Node.Process (exit', lookupEnv)
-import Testkit.Meridian (presetSeats)
+import Testkit.Run (pacificParts, presetSeats)
 
--- | The fixed transcripts: the US and Germany describe one trade, and Japan says something unrelated.
+-- | The fixed transcripts: the US firm and China describe one exchange, and the US says something unrelated.
 transcripts :: Array Transcript
 transcripts =
-  [ { seat: Id "US", text: "I will sell Germany ten units of energy this round for fifty units of money." }
-  , { seat: Id "DE", text: "Agreed. I will buy ten units of energy from the US for fifty units of money." }
-  , { seat: Id "JP", text: "I am keeping my money at home this round." }
+  [ { seat: Id "US-firm", text: "I will give China two units of technology this round, and China gives me two units of money." }
+  , { seat: Id "CN", text: "Agreed. The US firm sends me two units of technology and I send it two units of money." }
+  , { seat: Id "US", text: "I am keeping my money at home this round." }
   ]
 
 world :: Aff WorldState
 world = do
-  g <- presetSeats [] "Passive" Nothing
+  p <- pacificParts
+  g <- presetSeats p [] "FreeTrade" Nothing
   pure g.world
 
 -- | One joint pass, then the checks. A failed check throws; the caller reports and exits 1.
@@ -53,9 +54,9 @@ check = do
     Left why -> throwError (error ("the reply did not decode: " <> why))
   liftEffect $ log ("model " <> defaultModel <> ": " <> show (length js) <> " CandidateTransaction(s)")
   for_ js \j -> liftEffect (log ("  author " <> show j.author <> ", signed " <> show j.signed <> ", intents " <> show (length j.draft.intents)))
-  let both = filter (\j -> elem (Id "US") j.signed && elem (Id "DE") j.signed) js
+  let both = filter (\j -> elem (Id "US-firm") j.signed && elem (Id "CN") j.signed) js
   when (length both /= 1) $
-    throwError (error ("the US and German transcripts must reconcile into one CandidateTransaction signed by both; got " <> show (length both)))
+    throwError (error ("the US firm's and China's transcripts must reconcile into one CandidateTransaction signed by both; got " <> show (length both)))
   liftEffect $ log "ok: the reply decodes and the matching transcripts reconcile into one CandidateTransaction"
 
 main :: Effect Unit

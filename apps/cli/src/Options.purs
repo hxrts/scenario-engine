@@ -24,7 +24,6 @@ import Assembly.Experiment (Experiment(..), ExperimentRequest)
 import Data.Maybe (Maybe(..))
 import Flags (Flag, checkedFlag, intFlagOf, optionalIntFlag, textFlag)
 import Effects.Store (validRunId)
-import Premises.Presets (defaultPresets)
 import Cli.Session (Options)
 
 -- | The options of `run`.
@@ -32,7 +31,7 @@ type RunOptions = { preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
 
 runFlags :: Flag RunOptions
 runFlags = { preset: _, rounds: _, seed: _ }
-  <$> textFlag "--preset" "name" defaultPresets.run
+  <$> textFlag "--preset" "name" ""
   <*> roundsFlag
   <*> seedFlag
 
@@ -54,7 +53,7 @@ type ExperimentOptions = { composition :: String, db :: String, request :: Exper
 experimentFlags :: String -> Flag ExperimentFlags
 experimentFlags composition = { composition, name: _, preset: _, rounds: _, seed: _, db: _, parameter: _, values: _, combine: _, seat: _, alternatives: _, playerSeeds: _, gameSeeds: _ }
   <$> textFlag "--name" "set" "experiment"
-  <*> textFlag "--preset" "name" defaultPresets.run
+  <*> textFlag "--preset" "name" ""
   <*> roundsFlag
   <*> seedFlag
   <*> textFlag "--db" "file" "runs.db"

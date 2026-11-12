@@ -144,7 +144,8 @@ function loadContext() {
   const routeSegments = need("route segments in the endpoint table", [...new Set(inRoute("endpoints").filter((s) => s.startsWith("/api/")).flatMap((s) => s.split("/")).filter((p) => /^[a-z]+$/.test(p)))]);
 
   const specKeys = need("spec keys in Schema.Run", [...((/^specKey = ([^\n]*)/m.exec(read(specFile)) || ["", ""])[1]).matchAll(/: "(\w+)"/g)].map((m) => m[1]));
-  const presets = need("preset names in Premises.Presets", [...read(presetsFile).matchAll(/^\s*[{,] \w+: "([A-Z]\w+)"/gm)].map((m) => m[1]));
+  // each composition names its presets once, in its `presetId` record
+  const presets = need("preset names in each composition's presetId", presetsFiles.flatMap((f) => { const src = read(f); const at = src.indexOf("\npresetId ="); return at < 0 ? [] : [...src.slice(at).split("\n\n")[0].matchAll(/^\s*[{,] \w+: "([A-Z]\w+)"/gm)].map((m) => m[1]); }));
 
   const columns = new Set();
   for (const f of walk(path.join(root, "packages/views/src"), (n) => n.endsWith(".purs"))) {
@@ -157,14 +158,15 @@ function loadContext() {
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
 const viewFile = "packages/schema/src/Schema/View.purs";
-const presetsFile = "packages/premises/src/Premises/Presets.purs";
+// the modules that name a composition's presets (`presetId =`)
+const presetsFiles = walk(path.join(root, "packages/premises/src"), (n) => n.endsWith(".purs")).map((f) => path.relative(root, f)).filter((f) => /\npresetId =/.test(fs.readFileSync(path.join(root, f), "utf8")));
 const specFile = "packages/schema/src/Schema/Run.purs";
 
 // Rules ----------------------------------------------------------------------------------------------
 
 const inTest = (f) => /\/test\//.test(f);
 const inSrc = (f) => /\/src\//.test(f);
-const bannedWords = /\b(region|carrier|deployment|deal|military|tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|meridian|capacit)/i;
+const bannedWords = /\b(region|carrier|deployment|deal|military|tariff|access\s*ban|accessban|withholding|transport|jurisdiction|shipment|shipping|facilit(y|ies)|wage|salary|payroll|energy|money|household|soft\s*power|capacit)/i;
 const enginePath = "packages/laws/src/Laws/Engine/";
 const shapeFile = "packages/core/src/Core/Shape.purs";
 const header = "(header)";
@@ -179,7 +181,7 @@ const fixes = {
   "silent-default": "write the fold against one handler per Event kind, with an explicit ignore",
   "hand-instance": "derive the instance (derive instance, or genericShow); if the text is its meaning, name a reason in scripts/check/derived.allow",
   "doc-type": "decode the core type directly through its Shape; no *Doc type or *ToCore function",
-  "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, Premises.Presets, the views' columns, the Event shape) instead of writing it again",
+  "name-literal": "use the name's one source (Schema.View.viewName, Schema.Run.specKey, a composition's presetId, the views' columns, the Event shape) instead of writing it again",
   "repeated-idiom": "use the helper in Core.Map or Core.Exchange (entries, sumInto, exchangePrice) instead of writing the idiom again",
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check/derived.allow",
@@ -299,7 +301,7 @@ function scan(file, text, ctx) {
       // a spec key, outside Assembly.Recipe's one table
       if (ctx.specKeys.includes(s.value) && !keyed && file !== specFile && file !== routeFile) hit("spec", i);
       // a preset
-      if (ctx.presets.includes(s.value) && file !== presetsFile) hit("preset", i);
+      if (ctx.presets.includes(s.value) && !presetsFiles.includes(file)) hit("preset", i);
       // a column: a table heading is a Column, so a literal in a `columns:` list repeats it
       if (file.startsWith("packages/views/src/") && ctx.columns.has(s.value) && /\bcolumns:\s*\[[^\]]*"$/.test(before)) hit("column", i);
     }

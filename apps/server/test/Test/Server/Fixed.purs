@@ -22,19 +22,19 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Data.String (Pattern(..), contains)
 import Testkit.Devices (fixedSystem)
-import Testkit.Meridian (anyRounds, meridianParts)
+import Testkit.Run (anyRounds, pacificParts)
 
 -- | A session of requests on a fresh store, and what it leaves there.
 session :: Aff (Array String)
 session = do
-  ctx <- anyRounds <$> meridianParts
+  ctx <- anyRounds <$> pacificParts
   db <- liftEffect (openDatabase ":memory:")
   cache <- liftEffect newServerCache
   let
     store = localStore db
     api method path body = liftEffect (route (implementOn { system: fixedSystem, sessions: testHost store, store, cache } [ ctx ]) { method, path, query: Object.empty, body })
   -- no player seed given: it comes from the entropy device
-  launched <- api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"RandomValid\",\"rounds\":2}"
+  launched <- api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Hawk\",\"rounds\":2}"
   launched.status `shouldEqual` 200
   launched.body `shouldSatisfy` contains (Pattern "\"playerSeed\":42")
   (api "POST" "/api/runs/run-1/derive" "{\"kind\":\"rerun\"}" <#> _.status) >>= (_ `shouldEqual` 201)

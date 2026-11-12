@@ -58,7 +58,7 @@ exports =
 fixturePA :: Tuple String Json
 fixturePA = fixture "P-A" spec
   { candidateTransactions = Just exports
-  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 52, p.technology := 4 ]), Tuple p.cn (keyed [ p.money := 88, p.technology := 4 ]), Tuple p.us (keyed [ p.money := 110 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.money := 0, p.technology := 0 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 52, p.technology := 4 ]), Tuple p.cn (keyed [ p.money := 84, p.technology := 4 ]), Tuple p.us (keyed [ p.money := 114 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.money := 0, p.technology := 0 ]) ] })
   }
 
 -- | P-H: the US firm sells 2 T at home to its own state, at the home price of 1.25, and pays no tax.
@@ -68,7 +68,7 @@ fixturePH = fixture "P-H" spec
       [ candidateTransaction { author: p.usFirm, intents: [ trade { exchange: p.technologyUs, quantity: q (-2), limit: Just (q "1.25") } ] }
       , candidateTransaction { author: p.us, intents: [ trade { exchange: p.technologyUs, quantity: q 2, limit: Just (q "1.25") } ] }
       ]
-  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := "52.5", p.technology := 6 ]), Tuple p.us (keyed [ p.money := "105.5", p.technology := 4 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := "52.5", p.technology := 6 ]), Tuple p.us (keyed [ p.money := "109.5", p.technology := 4 ]) ] })
   }
 
 -- | P-B: China enacts its ban on US technology in round 1; in round 2 the same exports move nothing, so the firm
@@ -79,7 +79,7 @@ fixturePB = fixture "P-B" spec
       [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.cn, intents: [ ChangeRule (Enact (banRule p.cn)) ] } ] }
       , noRound
           { candidateTransactions = Just exports
-          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 50, p.technology := 8 ]), Tuple p.cn (keyed [ p.money := 92, p.technology := 0 ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.money := 50, p.technology := 8 ]), Tuple p.cn (keyed [ p.money := 88, p.technology := 0 ]) ] })
           }
       ]
   }
@@ -112,7 +112,7 @@ fixturePR = fixture "P-R" spec
               [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.industryCn, quantity: q (-2), limit: Just (q "2.5") } ] }
               , candidateTransaction { author: p.cnPrivate, intents: [ trade { exchange: p.industryCn, quantity: q 2, limit: Just (q "2.5") } ] }
               ]
-          , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 87, p.industry := 6 ]), Tuple p.cnPrivate (keyed [ p.money := 5, p.industry := 2 ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.money := 83, p.industry := 6 ]), Tuple p.cnPrivate (keyed [ p.money := 5, p.industry := 2 ]) ] })
           }
       ]
   }

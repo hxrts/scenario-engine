@@ -18,29 +18,31 @@ import Handlers.Simulate (simulate)
 import Run (Run)
 import Schema.Composition (compositionRef)
 import Premises.Load (loadFrom)
-import Premises.Presets (presetNames)
+import Assembly.Composition (presetNames, presetOr)
 import Type.Row (type (+))
 import Views.Common (price)
 import Views.Exchanges (exchangePrices, roundPressure)
 
 type Simulation = { composition :: String, preset :: String, rounds :: Maybe Int, seed :: Maybe Seed }
 
--- | The shipped preset names, one per line.
-presets :: forall r. Run (CONSOLE + r) Unit
-presets = for_ presetNames writeLine
+-- | A composition's preset names, one per line.
+presets :: forall r. String -> Run (FILES + CONSOLE + r) (Either String Unit)
+presets composition = loadFrom files (composition <> "/v0") >>= case _ of
+  Left e -> pure (Left e)
+  Right parts -> Right <$> for_ (presetNames parts) writeLine
 
 -- | Play the game and print each round. The player seed is the one given, else drawn once and printed.
 simulation :: forall r. Simulation -> Run (FILES + ENTROPY + CONSOLE + r) (Either String Unit)
 simulation o = loadFrom files (o.composition <> "/v0") >>= case _ of
   Left e -> pure (Left e)
-  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assemblePreset parts o.preset [] o.rounds of
+  Right parts -> case traverse_ (checkRounds parts.composition) o.rounds *> assemblePreset parts (presetOr o.preset parts) [] o.rounds of
     Left e -> pure (Left (show e))
     Right game -> do
       seed <- resolveSeed o.seed
       case simulate seed game of
         Left e -> pure (Left (show e))
         Right out -> do
-          writeLine (compositionRef parts.composition <> ", every seat " <> o.preset <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
+          writeLine (compositionRef parts.composition <> ", every seat " <> presetOr o.preset parts <> ", " <> show game.rounds <> " rounds, player seed " <> show (unwrap seed))
           void $ foldM (\w r -> summarize w r $> r.world) game.world out.records
           pure case out.final of
             Left e -> Left (show e)

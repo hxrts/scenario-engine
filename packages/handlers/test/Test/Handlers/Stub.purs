@@ -1,7 +1,7 @@
 -- | Test support for the model handler: backends that stand in for the `pi`
 -- | process. A stub answers each call with a reply text, so the handler's prompts, decoding, and
 -- | fallbacks all run; `answering` builds those texts from typed replies. `replayCall` answers from the
--- | recorded capstone turns in their recorded order, checking each call's effect, round and seats
+-- | recorded turns in their recorded order, checking each call's effect, round and seats
 -- | (never its prompt text).
 module Test.Handlers.Stub
   ( answering
@@ -58,13 +58,13 @@ answering counter answer = backendOf \system input -> do
 -- | A candidate Transaction that transfers ten Energy from `author` to Germany, with the signers and agreed seats given.
 jointOf :: ActorId -> Array ActorId -> Array ActorId -> ProposedJoint
 jointOf author signers agreed =
-  { author, intents: [ Transfer { from: author, to: Id "DE", resource: Id "E", quantity: Q.fromInt 10 } ], signers, agreed }
+  { author, intents: [ Transfer { from: author, to: Id "CN", resource: Id "T", quantity: Q.fromInt 10 } ], signers, agreed }
 
 -- | The candidate Transaction that trades ten Energy in the Atlantic exchange.
 tradeTenEnergy :: ProposedJoint
 tradeTenEnergy =
   { author: Id "US"
-  , intents: [ Trade { exchange: Id "energy-atlantic", quantity: Q.fromInt 10, limitPrice: Nothing } ]
+  , intents: [ Trade { exchange: Id "technology-world", quantity: Q.fromInt 10, limitPrice: Nothing } ]
   , signers: []
   , agreed: [ Id "US" ]
   }

@@ -17,8 +17,8 @@ export const listed = (rows) => ({
   rows,
   runs: rows.map((r) => ({ id: r[0], archived: r[9] === "yes", readable: r[6] !== "unreadable", source: r[10] ? r[10] : null })),
 });
-export const ACTIVE = ["run-1", "base", "meridian@v0", "26021", "1", "3", "completed", "0", "", "no", ""];
-export const ARCHIVED = ["run-9", "old", "meridian@v0", "26021", "4", "3", "completed", "0", "", "yes", "run-1"];
+export const ACTIVE = ["run-1", "base", "pacific@v0", "1949", "1", "3", "completed", "0", "", "no", ""];
+export const ARCHIVED = ["run-9", "old", "pacific@v0", "1949", "4", "3", "completed", "0", "", "yes", "run-1"];
 
 // A run's overview: three rounds completed, of a target of `target`. Resume is offered only for a completed
 // run (the server's `resumable`). The header facts are the server's.
@@ -29,11 +29,11 @@ export const overview = (target, { id = "run-1", status = "completed" } = {}) =>
   resumable: status === "completed",
   facts: [
     { label: "Name", value: "base" },
-    { label: "Preset", value: "Conservative" },
-    { label: "Composition", value: "meridian@v0" },
+    { label: "Preset", value: "FreeTrade" },
+    { label: "Composition", value: "pacific@v0" },
     { label: "Status", value: status },
     { label: "Rounds completed", value: `3 of ${target}` },
-    { label: "Game ID", value: "meridian/meridian-test-01" },
+    { label: "Game ID", value: "pacific/pacific-01" },
   ],
 });
 

@@ -10,7 +10,7 @@ import { section , choice } from "./helpers.js";
 const NAMES = { "run-a": "Alpha", "run-b": "Beta" };
 // A run's row in the run list: one cell per column the list shows.
 const row = (id) => {
-  const cells = { Run: id, Name: NAMES[id], Composition: "meridian@v0", "Game seed": "26021", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
+  const cells = { Run: id, Name: NAMES[id], Composition: "pacific@v0", "Game seed": "1949", "Player seed": "1", Rounds: "3", Status: "completed", "Assertions failing": "0", Reason: "", Archived: "no", Source: "" };
   return COLUMNS.map((c) => cells[c]);
 };
 
@@ -31,11 +31,11 @@ const bars = (title, unit, kind, categories, ids, value) => ({
 
 // The comparison of the given runs, in the shape `/api/compare` returns.
 function comparison(ids, skipped = []) {
-  const players = ["US", "DE"];
+  const players = ["US", "CN"];
   const line = (id, base) => ({ name: id, points: [0, 1, 2, 3].map((round) => ({ round, value: String(base + round) })) });
   const cols = ["Measure", "Unit", ...ids.map(header)];
   return {
-    exchanges: ["energy-atlantic", "energy-asia"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i + k)) })),
+    exchanges: ["technology-world", "industry-world"].map((m, k) => ({ title: `Price, ${m}`, unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i + k)) })),
     netWorth: players.map((p) => ({ player: p, chart: { title: `Net worth, ${p}`, unit: "M", kind: "quantity", series: ids.map((id, i) => line(id, 10 + i)) } })),
     standings: bars("Final net worth by player", "M", "quantity", players, ids, (i, j) => String(10 + i + j)),
     balance: {
@@ -46,8 +46,8 @@ function comparison(ids, skipped = []) {
     keyValues: table("Key values by run", cols, [["Final net worth, US", "M", ...ids.map(() => "10.0000")]]),
     final: { table: table("Final state", ["Actor", "Resource", ...ids.map(header)], [["US", "M", ...ids.map((_, i) => (i === 0 ? "10.0000" : "12.0000"))]]), marked: [[false, false, ...ids.map((_, i) => i !== 0)]] },
     diff: table("Difference from baseline", ["Run", "Actor", "Resource", "Δ"], []),
-    config: { table: table("Configuration differences", ["Category", "Parameter", ...ids.map(header)], [["seat Strategy", "preset", ...ids.map(() => "Conservative")]]), marked: [[false, false, ...ids.map(() => false)]] },
-    trajectory: { title: "Price, energy-atlantic", unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i)) },
+    config: { table: table("Configuration differences", ["Category", "Parameter", ...ids.map(header)], [["seat Strategy", "preset", ...ids.map(() => "FreeTrade")]]), marked: [[false, false, ...ids.map(() => false)]] },
+    trajectory: { title: "Price, technology-world", unit: "M/E", kind: "price", series: ids.map((id, i) => line(id, 1 + i)) },
     skipped,
     compatibility: table("Compatibility", ["Run", "Comparable with the first"], ids.map((id, i) => [header(id), i === 0 ? "yes" : "yes"])),
     seeds: table("Seed-to-seed variation", ["Run"], [["one run of this specification"]]),

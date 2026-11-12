@@ -128,9 +128,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       validate composition (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Premise reply" do
     it "the composition's name, round range, game seed, default name, presets and default preset are decoded from GET /api/premise" do
-      decodePremise "{\"name\":\"meridian\",\"premises\":[\"meridian-energy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\"}"
+      decodePremise "{\"name\":\"example\",\"premises\":[\"example-economy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\"}"
         `shouldEqual` Right composition
-      decodePremise "{\"name\":\"meridian\"}" `shouldSatisfy` isLeft
+      decodePremise "{\"name\":\"example\"}" `shouldSatisfy` isLeft
   describe "Round count rule" do
     it "the launch form and the resume form apply one rule: a whole number of at least one" do
       rounds " 6 " `shouldEqual` Right 6
@@ -178,12 +178,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   runList :: RunList
   runList = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
 
-  -- the meridian composition's round range: 4 to 8, with 5 by default
+  -- an example composition's round range: 4 to 8, with 5 by default
   premiseRounds :: RoundRange
   premiseRounds = { min: 4, max: 8, default: 5 }
 
   composition :: CompositionInfo
-  composition = { name: "meridian", version: "v0", premises: [ "meridian-energy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ], defaultPreset: "Conservative" }
+  composition = { name: "example", version: "v0", premises: [ "example-economy@v0" ], rounds: premiseRounds, gameSeed: 26021, defaultName: "run-3", presets: [ "Passive", "Conservative", "Trader" ], defaultPreset: "Conservative" }
 
   decodePremise :: String -> Either String CompositionInfo
   decodePremise = lmap printJsonDecodeError <<< Shape.parse Snapshot (Keys.viewShape :: Shape.Shape CompositionInfo)

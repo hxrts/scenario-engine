@@ -109,7 +109,7 @@ What no seat decides runs by itself (§6.1): a state's routine trade and its own
 
 | Opening holding | US | US firm | CN | CN firm | Each private sector |
 |---|---:|---:|---:|---:|---:|
-| `M` | 108 | 50 | 92 | 50 | 0 |
+| `M` | 112 | 50 | 88 | 50 | 0 |
 | `T` | 2 | 8 | 0 | 1 | 0 |
 | `I` | 0 | 1 | 8 | 2 | 0 |
 | `K_T` | 2 | 8 | 0 | | |
@@ -232,7 +232,7 @@ Each seat has four criteria, evaluated from the recorded run ([03 §10.5](03_pre
 | Seat | Criteria |
 |---|---|
 | Each state | **Security:** its shortfall of the good it imports is at most 26 (US) or 14 (China) over the run. **Power:** it ends with at least the other state's Money. **Industry:** its firm ends with at least 9 `K_T` (US) or 3 `K_I` (China). **Prosperity:** its private sector spends at least 20 `M` (US) or 4 `M` (China) over the run. |
-| Each firm | **Wealth:** it ends with at least 42 `M` (US) or 30 `M` (China). **Growth:** the same capacity bar as its state's industry. **Output:** its input-dependent production is at least 12 units (US) or 2 (China) over the run. **Home demand:** the same bar as its state's prosperity. |
+| Each firm | **Wealth:** it ends with at least 42 `M` (US) or 28 `M` (China). **Growth:** the same capacity bar as its state's industry. **Output:** its input-dependent production is at least 12 units (US) or 2 (China) over the run. **Home demand:** the same bar as its state's prosperity. |
 
 Prosperity is what households consume, the Money they spend on goods, so a private sector that spends is not scored below one that hoards. A state and its firm share two criteria, industry and their households' spending, so a country's seats gain together at home and contend abroad. The households' criteria are added by the `private-sector` Premise (§8).
 
@@ -244,9 +244,9 @@ Pacific is three Premises, each at version `v0`, each a layer on the ones before
 
 | Premise | Adds |
 |---|---|
-| `bilateral-economy` | The states and firms, the goods, capacities and credit, every production Transformation, the requirements, all four Exchanges, the firms' investments at each lending rate, the groups, both routines, the `wage` kind, and the criteria that read only these. It is a complete economy on its own, with no wages paid. |
+| `bilateral-economy` | The states and firms, the goods, capacities and credit, every production Transformation, the requirements, all four Exchanges, the firms' investments at each lending rate, the groups, both routines, the `wage` kind, the bond templates the commerce routine signs, and the criteria that read only these. It is a complete economy on its own, with no wages paid and no one lending. |
 | `strategic-dependence` | The tariffs, the bans and the export tax (in force), the states' investments, and, by `extends`, each state's authority over its own. |
-| `private-sector` | The private sectors, their demand, lending and requirements, the wage laws, the bond templates, the parameters of the tools' levels, and, by `extends`, their access to the Exchanges and each seat's households' criterion. |
+| `private-sector` | The private sectors, their demand, lending and requirements, the wage laws, the parameters of the tools' levels, and, by `extends`, their access to the Exchanges and each seat's households' criterion. |
 
 The second and third Premises each extend what the first defines, so neither loads alone.
 
@@ -272,8 +272,8 @@ Each scenario plays the composition with the presets named, the states' then the
 
 Firms on the default (all offered on the world Exchange) unless named.
 
-- **A. Free trade.** Every seat `FreeTrade`, six rounds. In round 1 the US firm exports 8 `T`; China buys 3 and the US 5 `I`; China's state sells 4 `I` and its firm 2. After round 1 the US holds 95.5 `M`, China 95, the US firm 52 and the Chinese firm 52.5; the export tax is 2 `M`. From round 2 households spend their wages and the US goes short of `I` by 0.3846, 0.6473, 0.7833, 0.8918 and 0.9801. All Money totals 300.
-- **B. US import ban.** US `Restrict`. From round 2 the US is short 5 `I`; China sells no `I`; 5 orders are `Blocked`. The ban cuts the US firm's own input, so once its inventory is used it runs only its input-free half: it produces 8, 8, 4, 4, 4, 4 by round, and China, whose technology came from it, goes short of 0, 0.0909, 0.1785, 1.6224, 1.7268, 1.7301 `T`. By round 6 China's state holds 20 unsold `I`.
+- **A. Free trade.** Every seat `FreeTrade`, six rounds. In round 1 the US firm exports 8 `T`; China buys 3 and the US 5 `I`; China's state sells 4 `I` and its firm 2. After round 1 the US holds 99.5 `M`, China 91, the US firm 52 and the Chinese firm 52.5; the export tax is 2 `M`. From round 2 households spend their wages and the US goes short of `I` by 0.3846, 0.6155, 0.7439, 0.8506 and 0.9446. All Money totals 300.
+- **B. US import ban.** US `Restrict`. From round 2 the US is short 5 `I`; China sells no `I`; 5 orders are `Blocked`. The ban cuts the US firm's own input, so once its inventory is used it runs only its input-free half: it produces 8, 8, 4, 4, 4, 4 by round, and China, whose technology came from it, goes short of 0, 0.0909, 0.1449, 1.5987, 1.7002, 1.6956 `T`. By round 6 China's state holds 20 unsold `I`.
 - **C. Chinese import ban.** China `Restrict`. From round 2 China is short 3 `T`; its firm, cut off from its input, produces 2, 2, 1, 1, 1, 1.
 - **D. US substitution.** US `Substitute`. Investing 2 `T` leaves the US state 2 `T` short in round 1. It holds 4 `K_I` and imports 3 `I` in round 3, and 6 `K_I` and imports 1 in round 4.
 - **E. The importer pays.** US `Tariff`. China still sells 4 `I` in round 2; the US firm, paying the tariff on its input, holds 53.0972 `M` after round 2.
@@ -281,17 +281,17 @@ Firms on the default (all offered on the world Exchange) unless named.
 - **H. Invariants.** US `Hawk`, China `Reformer`, firms `Exporter`: every round passes `checkRun`, the replay handler reproduces every round-end World, every reordering of each round's inputs settles to the same World, and all Money totals 300. A ban enacted every round is one Rule beside the export tax. Under China's ban in round 2, a US gift of 3 `T`, a joint candidate Transaction moving 1 `T` that China signs, and a Chinese routed purchase of 4 `T` at limit 1 all fail: China holds no `T`, is short 3, and at least three `Blocked` records are written.
 - **Routine.** A human China seat with nothing to say: its routine sells 4 `I`. When its speech orders one technology investment, the routine sells none; an order of 4 against the maximum of 2 also leaves it selling none.
 - **Dependence view.** China `Restrict`. China's technology row after round 2: requirement 3, capacity 0, coverage 0.00, exposure 3, no trade, shortfall 3; the same after round 6. China's industrial row after round 2: capacity 8, coverage 1.00, exports 4, receipts 8.
-- **Counterfactual.** China `Restrict` against `FreeTrade`, six rounds: China's technology shortfall over the run is 15 against 1.52; the US firm's receipts 27.88 against 47.03, its sales at home 23.88 against 21.97 and abroad 4 against 25.06, and 5 of its orders blocked against none.
-- **Private demand.** China `Rebalance`: China's private sector buys 1.35 `T` abroad in round 2, its requirement and its imports, with no capacity; 12.11 `T` over six rounds.
+- **Counterfactual.** China `Restrict` against `FreeTrade`, six rounds: China's technology shortfall over the run is 15 against 1.31; the US firm's receipts 27.88 against 47.06, its sales at home 23.88 against 22.25 and abroad 4 against 24.81, and 5 of its orders blocked against none.
+- **Private demand.** China `Rebalance`: China's private sector buys 1.31 `T` abroad in round 2, its requirement and its imports, with no capacity; 10.47 `T` over six rounds.
 
 ### 9.2 Firms, credit and the private sectors
 
 - **I. Credit.** China's firm `Exporter`: at the high lending rate (China `Planner`) it pays 2 `M` for its unit and holds 48 `M` after round 1, against 50 at no rate (China `Reformer`); either way it holds 3 `K_I` in round 2.
 - **P. Subsidy.** US `Hawk` (high subsidy) against `Restrict` (none), US firm `Exporter`: after round 2 the subsidised firm holds 2 `M` more.
 - **J. Dividends.** Both firms `Patron`. After round 1 each private sector holds 10 `M`, wages and dividends; in round 2 the US firm sells 4 `T`.
-- **K. Selling only at home starves the other firm.** Both firms `Builder` (nothing on the world Exchange, high investment): China's firm gets no technology in round 1, so in round 2 it produces nothing; it produces 2, 0, 2, 2, 2, 0.467 by round.
-- **L. Levies.** US `Tariff`: the tariffs and the export tax are 2, 8.0606, 8.1191, 8.0762, 8.134, 8.0811 `M` by round, wages apart.
-- **M. China saves, America spends.** Both states `Rebalance` (high stimulus): after round 6 China's private sector holds 67.9322 `M` and America's 37.2904.
+- **K. Selling only at home starves the other firm.** Both firms `Builder` (nothing on the world Exchange, high investment): China's firm gets no technology in round 1, so in round 2 it produces nothing; it produces 2, 0, 2, 2, 2, 0.5142 by round.
+- **L. Levies.** US `Tariff`: the tariffs and the export tax are 2, 8.0606, 8.0966, 8.0452, 8.1129, 8.0438 `M` by round, wages apart.
+- **M. China saves, America spends.** Both states `Rebalance` (high stimulus): after round 6 China's private sector holds 57.5173 `M` and America's 37.6759.
 - **N. Who a ban hurts.** After six rounds under a US ban China's state holds 20 unsold `I`; after four rounds under a Chinese ban the US firm holds 11.8136 unsold `T` and the US state none.
 - **O. Input inventory.** Both firms `Hedger`. Under a US ban the US firm produces 8, 8, 8, 5, 4, 4 by round, against 8, 8, 4, 4, 4, 4 without an inventory (B); under a Chinese ban China's firm produces 2, 2, 2, 1.4, 1, 1.
 
@@ -299,16 +299,16 @@ Firms on the default (all offered on the world Exchange) unless named.
 
 Literal worlds cut from Pacific with no production or requirements, run through `resolveRound` alone, so nothing is produced or consumed.
 
-- **P-A.** The US firm sells 4 `T` to China on the world Exchange and pays 2 `M` of export tax: it ends with 52 `M` and 4 `T`, China with 88 `M` and 4 `T`, and the US state with 110 `M`. The Exchange holds nothing.
-- **P-H.** The US firm sells 2 `T` at home to its state at 1.25, untaxed: the firm ends with 52.5 `M` and 6 `T`, the state with 105.5 `M` and 4 `T`.
-- **P-B.** China enacts its ban on US technology in round 1; in round 2 the same exports move nothing, leaving the firm with 50 `M` and 8 `T` and China with 92 `M` and no `T`.
+- **P-A.** The US firm sells 4 `T` to China on the world Exchange and pays 2 `M` of export tax: it ends with 52 `M` and 4 `T`, China with 84 `M` and 4 `T`, and the US state with 114 `M`. The Exchange holds nothing.
+- **P-H.** The US firm sells 2 `T` at home to its state at 1.25, untaxed: the firm ends with 52.5 `M` and 6 `T`, the state with 109.5 `M` and 4 `T`.
+- **P-B.** China enacts its ban on US technology in round 1; in round 2 the same exports move nothing, leaving the firm with 50 `M` and 8 `T` and China with 88 `M` and no `T`.
 - **P-G.** The Chinese firm offers 2 `I` and nobody buys: it keeps 50 `M` and 2 `I`.
 - **P-C.** The Chinese firm orders an investment that China signs: in round 2 it holds no `I` and 3 `K_I`.
-- **P-R.** China gives its private sector a stimulus of 10 `M`, which in round 2 buys 2 `I` at home from China at 2.5: China ends with 87 `M` and 6 `I`, its private sector with 5 `M` and the 2 `I`, which it keeps, since this cut has no requirements.
+- **P-R.** China gives its private sector a stimulus of 10 `M`, which in round 2 buys 2 `I` at home from China at 2.5: China ends with 83 `M` and 6 `I`, its private sector with 5 `M` and the 2 `I`, which it keeps, since this cut has no requirements.
 
 ### 9.4 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 965, 947, 951 and 939 of their criteria (US, China, US firm, Chinese firm): 2.41, 2.37, 2.38 and 2.35 of 4 a run. The opening Money and the bars are set so; a change to any dial is checked against this sample.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 946, 948, 944 and 953 of their criteria (US, China, US firm, Chinese firm): 2.37, 2.37, 2.36 and 2.38 of 4 a run. The opening Money and the bars are set so; a change to any dial is checked against this sample.
 
 ## 10. Sensitivity
 

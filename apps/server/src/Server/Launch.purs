@@ -26,9 +26,8 @@ import Effects.Api (Launch, LaunchBatch)
 import Effects.Store (failRunning)
 import Foreign.Object as Object
 import Views.Composition (CompositionInfo)
-import Premises.Presets (presetNames)
 import Assembly.Assemble (checkRounds)
-import Assembly.Composition (CompositionParts)
+import Assembly.Composition (CompositionParts, presetNames)
 import Schema.Composition (premiseRefText)
 
 -- | The role of the runs a server creates (`Effects.System.ownerOf`).
@@ -71,9 +70,9 @@ compositionInfo ps = do
     , rounds: { min: p.composition.rounds.min, max: p.composition.rounds.max, default: p.config.rounds }
     , gameSeed: unwrap p.config.seed
     , defaultName: next
-    -- the shared names in their order, then a composition's own names in name order
+    -- the composition's presets, in name order
     , presets: offered p
     -- the composition's own default, else the first it offers
     , defaultPreset: fromMaybe "" (p.config.preset <|> head (offered p))
     }
-  offered p = filter (\n -> Object.member n p.presets) presetNames <> filter (\n -> not (elem n presetNames)) (sort (Object.keys p.presets))
+  offered p = presetNames p

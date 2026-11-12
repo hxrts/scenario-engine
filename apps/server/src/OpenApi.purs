@@ -34,7 +34,7 @@ main :: Effect Unit
 main = do
   args <- drop 2 <$> argv
   case parseWith flags args of
-    Left e -> usageError [ "usage: openapi " <> usageOf flags, "  e.g. just openapi meridian --out build/openapi" ] e
+    Left e -> usageError [ "usage: openapi " <> usageOf flags, "  e.g. just openapi pacific --out build/openapi" ] e
     Right f
       | f.composition == "" -> for_ services \s -> fileDevice.write ("openapi/" <> serviceName s <> ".json") (prettyJson (document s))
       | otherwise -> run (case_ # on _files (interpretFiles fileDevice)) (loadAll files) >>= case _ of

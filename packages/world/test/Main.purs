@@ -1,7 +1,7 @@
 -- | Pins: the composition premise JSON of docs/03 in each `-- Pins` case; the rest use `Schema.Build`.
 module Test.World.Main where
 
-import Testkit.Meridian (orThrow)
+import Testkit.Run (orThrow)
 import Schema.Build.Decision (passive)
 import Schema.Build.World (emptyWorld, noResource)
 import Prelude

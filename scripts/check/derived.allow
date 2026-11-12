@@ -39,9 +39,7 @@ intent-walk packages/laws/src/Laws/Authority.purs authorized the authority rule 
 test-literal packages/schema/test/Main.purs main format-pinning test: JSON text in schema decode tests
 implicit-codec packages/laws/test/Main.purs roundTrip format-pinning test: pins the argonaut instance's round trip
 implicit-codec packages/laws/test/Main.purs main format-pinning test: pins the wire form of an Intent
-implicit-codec packages/handlers/test/Test/Handlers/SimCapstone.purs spec format-pinning test: byte identity between the shape and the instance
 implicit-codec packages/adapters/test/Main.purs main format-pinning test: byte identity of records through the store
-implicit-codec packages/adapters/test/Test/Adapters/Capstone.purs spec format-pinning test: byte identity of records and snapshots through the store
 implicit-codec packages/handlers/test/Main.purs main format-pinning test: byte identity of recorded inputs
 intent-walk packages/laws/src/Laws/Types.purs jointIntent which Intents a joint CandidateTransaction may bundle; a per-kind rule, nothing to traverse
 # Guarded or merged constructors of a premise sum: not a one-to-one image of the type's constructors (S6).
@@ -57,7 +55,6 @@ hand-json apps/dashboard/src/Dashboard/Components.purs stackedBars a bar row's k
 name-literal packages/schema/src/Schema/Premise/Fixture.purs procedureShape the name of this record's shape, in which an Event kind's name is reused as an English word
 implicit-codec apps/server/test/Main.purs main format-pinning test: request and reply JSON are the wire format of docs/06 §8.1
 implicit-codec packages/adapters/test/Test/Adapters/Pi.purs streamOf format-pinning test: the raw pi event stream of docs/06 §5
-intent-walk packages/handlers/test/Test/Handlers/Shock.purs roundKinds the test's own label per kind of Intent; a label is not a walk of an Intent's references
 intent-walk packages/strategy/src/Strategy/Interpret.purs zeroQuantity one rule per kind of Intent (a ChangeRule has no quantity), not a walk of its references
 alias packages/views/src/Views/Common.purs quantity a cell's display kind by name: every view cell names its kind (docs/02 §9.1)
 alias packages/views/src/Views/Common.purs price a cell's display kind by name: every view cell names its kind (docs/02 §9.1)

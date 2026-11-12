@@ -20,6 +20,7 @@ import Data.Foldable (for_)
 import Data.Either (Either(..), either, isRight)
 import Data.String (Pattern(..), contains)
 import Data.Maybe (Maybe(..), maybe)
+import Assembly.Types (PreparedRun)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -32,9 +33,8 @@ import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore, runObserve, startRun)
 import Handlers.Simulate (simulate)
 import Handlers.Seats (seatEnv)
-import Testkit.Meridian (orThrow, presetSeats)
+import Testkit.Run (orThrow, pacificParts, presetSeats)
 import Test.Adapters.Files (createStoreAtVersion, removeFile, setRawSpec)
-import Test.Adapters.Capstone as CapstoneTests
 import Test.Adapters.Pi as PiTests
 import Test.Adapters.Primitives as PrimitiveTests
 import Test.Spec (describe, it)
@@ -45,12 +45,15 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 -- | The initial manifest of the reference premise, for runs created by hand.
 manifestOf :: Aff Manifest
 manifestOf = do
-  g <- presetSeats [] "Passive" Nothing
+  g <- presetSeats' [] "FreeTrade" Nothing
   pure g.manifest
+
+-- | The named seats of Pacific playing one preset, the rest silent.
+presetSeats' :: Array String -> String -> Maybe Int -> Aff PreparedRun
+presetSeats' ids preset rounds = pacificParts >>= \p -> presetSeats p ids preset rounds
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  CapstoneTests.spec
   PiTests.spec
   PrimitiveTests.spec
   describe "the table descriptions" do
@@ -61,7 +64,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         sort reported `shouldEqual` sort t.columns
   describe "Run Store" do
     it "a run id already in the store is a usable error, not a constraint failure" do
-      g <- presetSeats [ "US" ] "Passive" Nothing
+      g <- presetSeats' [ "US", "CN", "US-firm", "CN-firm" ] "FreeTrade" Nothing
       db <- liftEffect (open ":memory:")
       let
         port = storeOver db
@@ -72,17 +75,17 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       second `shouldEqual` Left "a run named session-1 already exists; choose another --id"
 
     it "13 Persistence: save, reload byte-identically, and replay from stored records" do
-      g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "RandomValid" Nothing
+      g <- presetSeats' [ "US", "CN", "US-firm", "CN-firm" ] "Hawk" Nothing
       let
         seed = Seed 7
       db <- liftEffect (open ":memory:")
       let port = storeOver db
-      stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "RandomValid" }, manifest: g.manifest })
+      stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "run-1", name: "persistence", created: "2026-01-01T00:00:00Z", spec: emptySpec { preset = Just "Hawk" }, manifest: g.manifest })
       _ <- orThrow stored
       runs <- liftEffect (runObserve port listRuns)
       map _.status runs `shouldEqual` [ Completed ]
       rows <- liftEffect (runObserve port (readRounds "run-1"))
-      length rows `shouldEqual` 5
+      length rows `shouldEqual` 6
       -- the stored records and snapshots read back typed, as the run wrote them
       records <- orThrow (traverse _.record rows)
       snapshots <- orThrow (traverse _.snapshot rows)
@@ -90,7 +93,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure' <- orThrow (simulate seed g)
       snapshots `shouldEqual` map _.world pure'.records
       map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
-      case runReplay (seatEnv seed g) 5 records g of
+      case runReplay (seatEnv seed g) 6 records g of
         Left e -> fail e
         Right out -> map _.world out.records `shouldEqual` snapshots
       manifest <- liftEffect (runObserve port (readManifest "run-1"))
@@ -130,10 +133,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (db.close *> removeFile path)
 
     it "a round's transcripts are stored with the round; a round saved without them stores none" do
-      g <- presetSeats [ "US", "DE" ] "Passive" (Just 2)
+      g <- presetSeats' [ "US", "CN", "US-firm", "CN-firm" ] "FreeTrade" (Just 2)
       let
         seed = Seed 3
-        said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+        said = [ { seat: Id "US", text: "I will ban industrial inputs from China" } ]
       db <- liftEffect (open ":memory:")
       let port = storeOver db
       played <- orThrow (simulate seed g)
@@ -153,7 +156,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       liftEffect (removeFile path)
 
     it "archive is idempotent; delete removes a run with its rounds and metrics, and leaves the run that cites it" do
-      g <- presetSeats [ "US", "DE", "SA", "JP", "SME" ] "Conservative" (Just 2)
+      g <- presetSeats' [ "US", "CN", "US-firm", "CN-firm" ] "Hedger" (Just 2)
       let
         seed = Seed 1
       db <- liftEffect (open ":memory:")

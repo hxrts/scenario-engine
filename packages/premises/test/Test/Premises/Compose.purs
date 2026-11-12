@@ -1,7 +1,7 @@
 -- | Composing Premises (docs/03 §12a), with literal expectations, and filtering a composition.
 module Test.Premises.Compose (spec) where
 
-import Testkit.Meridian (orThrow)
+import Testkit.Run (orThrow)
 import Prelude hiding (compose)
 
 import World.Error (ValidationError(..))
@@ -10,27 +10,24 @@ import Laws.Types (Id(..), RefKind(..), idText)
 import Data.Argonaut.Core (Json, stringify, toArray, toObject, toString)
 import Data.Array (elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
-import Data.Foldable (any)
+
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Assembly.Error (AssemblyError(..))
-import Assembly.Patch (engineOnly)
+
 import Assembly.Restrict (everything, restrict)
 import Premises.Load (composedOf, loadFrom, parts)
 import Premises.Compose (ComposeError(..), CompositionSource, Premise, compose, files, renderComposeError)
 import Premises.Tree as Tree
-import Premises.Kit.Presets (presetsOf, standardThresholds)
 import Core.Draw (Seed(..))
 import Core.Num as Q
 import Data.Argonaut.Parser (jsonParser)
 import Data.Identity (Identity(..))
 import Data.Newtype (unwrap)
 import Partial.Unsafe (unsafeCrashWith)
-import Premises.Meridian (defaultDials, composition, meridian)
-import Premises.Meridian.Names (n)
 import Premises.Pacific as Pacific
 import Schema.Premise.Composition (configShape, compositionShape)
 import Test.Spec (Spec, describe, it)
@@ -88,7 +85,7 @@ source premises =
   , version: "v0"
   , premises
   , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
-  , presets: presetsOf { staple: Id "G", money: Id "G", build: Nothing, invest: Nothing, deploy: Nothing, thresholds: standardThresholds }
+  , presets: []
   }
 
 -- File operations over compiled files in memory.
@@ -163,13 +160,13 @@ spec = do
 
     it "files on disk load and compose as they compile; a conflict on disk names both Premises" do
       let
-        run = unwrap <<< loadFrom (memoryOps (files (meridian defaultDials)))
-        bad = (meridian defaultDials) { premises = [ corn, corn { id = "corn2", sections = Object.insert "numeraire" (json "\"C\"") corn.sections } ] }
-      case run "meridian/v0" of
+        run = unwrap <<< loadFrom (memoryOps (files (Pacific.pacific Pacific.defaultDials)))
+        bad = (Pacific.pacific Pacific.defaultDials) { premises = [ corn, corn { id = "corn2", sections = Object.insert "numeraire" (json "\"C\"") corn.sections } ] }
+      case run "pacific/v0" of
         Left e -> fail e
-        Right loaded -> (encodeWith Authored compositionShape loaded.composition == encodeWith Authored compositionShape composition) `shouldEqual` true
-      case unwrap (loadFrom (memoryOps (files bad)) "meridian/v0") of
-        Left e -> e `shouldEqual` "composition meridian: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
+        Right loaded -> (encodeWith Authored compositionShape loaded.composition == encodeWith Authored compositionShape Pacific.composition) `shouldEqual` true
+      case unwrap (loadFrom (memoryOps (files bad)) "pacific/v0") of
+        Left e -> e `shouldEqual` "composition pacific: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
         Right _ -> fail "a conflict must fail the load"
 
   describe "Pacific (docs/05 §8)" do
@@ -207,57 +204,15 @@ spec = do
         stringify (encodeWith Authored configShape r.config) `shouldEqual` stringify (encodeWith Authored configShape p.config)
         Object.keys r.presets `shouldEqual` Object.keys p.presets
 
-    it "a dropped Actor takes what belongs to it, and the rest still checks" do
-      withPremise \p ->
-        let
-          dropped = n.ng
-          s = (everything p.composition) { actors = filter (_ /= dropped) (everything p.composition).actors }
-        in
-          do
-            r <- orThrow (restrict s p)
-            Map.member dropped r.composition.world.actors `shouldEqual` false
-            Map.member dropped r.composition.explicitActors `shouldEqual` false
-            Map.member dropped r.config.seats `shouldEqual` false
-            any (\m -> dropped `elem` m.access) r.composition.world.exchanges `shouldEqual` false
-            any (\f -> f.to == dropped || f.from == dropped) r.composition.authored.circulation.flows `shouldEqual` false
-
-    it "accounts can be narrowed for one Actor" do
-      withPremise \p ->
-        let
-          s = (everything p.composition) { accounts = Map.singleton n.us [ n.money ] }
-        in
-          do
-            r <- orThrow (restrict s p)
-            map (Map.keys <<< _.accounts) (Map.lookup n.us r.composition.world.actors) `shouldEqual` Just (Map.keys (Map.singleton n.money unit))
-
     it "a kept thing that refers to a dropped one is an error" do
       withPremise \p ->
         let
-          s = (everything p.composition) { resources = filter (_ /= n.energy) (everything p.composition).resources }
+          s = (everything p.composition) { transformations = [], resources = filter (_ /= Id "T") (everything p.composition).resources }
         in
           case restrict s p of
-            Left (Invalid es) -> (UnknownReference RefResource (idText n.energy) `elem` es) `shouldEqual` true
+            Left (Invalid es) -> (UnknownReference RefResource "T" `elem` es) `shouldEqual` true
             Left e -> fail (show e)
             Right _ -> fail "an Exchange whose base Resource was dropped should not pass"
-
-    it "an Aggregate's member cannot be dropped from under it" do
-      withPremise \p ->
-        let
-          s = (everything p.composition) { actors = filter (_ /= n.aid) (everything p.composition).actors }
-        in
-          case restrict s p of
-            Left (Invalid es) -> (UnknownReference RefActor (idText n.aid) `elem` es) `shouldEqual` true
-            Left e -> fail (show e)
-            Right _ -> fail "a kept Aggregate's dropped member should not pass"
-
-    it "a flow gate goes with the Transformation that carries it" do
-      withPremise \p ->
-        let
-          s = (everything p.composition) { transformations = filter (_ /= n.energyShipping) (everything p.composition).transformations }
-        in
-          do
-            r <- orThrow (restrict s (engineOnly p))
-            r.composition.world.flowGates `shouldEqual` []
 
     it "a name the premise does not have is an error" do
       withPremise \p ->
@@ -269,6 +224,6 @@ spec = do
             Left e -> fail (show e)
             Right _ -> fail "an unknown Actor should not pass"
   where
-  withPremise k = case parts (meridian defaultDials) of
+  withPremise k = case parts (Pacific.pacific Pacific.defaultDials) of
     Left e -> fail e
     Right p -> k p

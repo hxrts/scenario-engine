@@ -73,7 +73,7 @@ type PremiseComposition =
   , parameters :: Object Q -- named premise parameters read by Strategies
   , horizon :: Int -- years
   , rounds :: { min :: Int, max :: Int } -- the supported round counts (docs/03_premise.md §4)
-  , label :: Maybe String -- the test-instance label, which names the game (docs/06_meridian.md §14)
+  , label :: Maybe String -- the test-instance label, which names the game (docs/04 §2)
   , strategies :: Map StrategyId StrategyRules
   }
 
@@ -158,7 +158,7 @@ type InitialWorld = { world :: WorldState, manifest :: Manifest }
 
 -- | The outcome of an objective or a criterion. A run with no rounds, or a criterion with no series,
 -- | is not evaluated: it is neither a pass nor a failure. The premise spells the outcomes "met",
--- | "notMet" and "notEvaluated" (the capstone's expectations, `Premises.Meridian.Capstone`).
+-- | "notMet" and "notEvaluated".
 data Outcome = Met | NotMet | NotEvaluated
 
 derive instance Eq Outcome

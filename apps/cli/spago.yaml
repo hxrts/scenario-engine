@@ -26,8 +26,6 @@ package:
     - sp-views
     - sp-flags
     - aff
-    - refs
-    - exceptions
   test:
     main: Test.Cli.Main
     dependencies:

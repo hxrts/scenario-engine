@@ -219,7 +219,7 @@ mkPrepare = component "Prepare" \_ -> React.do
             [ Layout.panel
                 { span: 6
                 , title: "Options"
-                , purpose: "Each option's default is shown beside it. Only Preset and Composition are required."
+                , purpose: "Each option's default is shown beside it."
                 , children:
                     [ loaded (chosenComposition <$> compositionLoad.value) (launchFields <<< view) ]
                 }

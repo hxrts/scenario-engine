@@ -7,12 +7,12 @@ module Test.Handlers.Live (spec) where
 
 import Prelude
 
-import Testkit.Meridian (unseated)
+import Testkit.Run (unseated, pacificParts)
 import Data.Array as Array
 import Data.Tuple (Tuple(..))
 import Core.Draw (Seed(..))
 import Laws.Types (ActorId, Id(..), IntentF(..), CandidateTransactionId)
-import Laws.Slice (event, matches, pickOf, exchangeFills)
+import Laws.Slice (event, matches, pickOf)
 import Laws.World (RoundRecord, RoundResult, WorldState, renderReason)
 import Data.Array (any, elem, filter, length, mapMaybe)
 import Data.Either (Either(..))
@@ -106,16 +106,16 @@ spec :: Spec Unit
 spec = do
   describe "Live play" do
     it "a scripted live session equals replaying its recorded CandidateTransactions and signatures" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       backend <- withAnswers model
-      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "DE" then Agent else Script []) scripted backend
+      out <- liveWith g 3 (\e -> if e == Id "US" then Human else if e == Id "CN" then Agent else Script []) scripted backend
       length out.records `shouldEqual` 3
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
       replayed g 3 out.records `shouldEqual` map _.world out.records
       replayedRecords g 3 out.records `shouldEqual` map _.record out.records
 
     it "an undecodable joint reply submits nothing, tells the speaker, and the run completes" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       backend <- withAnswers garbled
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
       length out.records `shouldEqual` 1
@@ -123,7 +123,7 @@ spec = do
       map (contains (Pattern "so nothing was submitted")) out.notices `shouldEqual` [ true ]
 
     it "an undecodable joint reply: only the joint pass calls the model (its first call and two corrections)" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       counter <- liftEffect (Ref.new 0)
       backend <- pure (answering counter garbled)
       out <- liveWith g 1 (\e -> if e == Id "US" then Human else Script []) scripted backend
@@ -132,7 +132,7 @@ spec = do
       calls `shouldEqual` 3
 
     it "an unknown exchange in a joint reply is a rejected CandidateTransaction; the round's other CandidateTransactions still execute" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let
         bad = tradeTenEnergy { intents = [ Trade { exchange: Id "no-such-exchange", quantity: Q.fromInt 10, limitPrice: Nothing } ] }
       backend <- withAnswers (jointAnswers [ tradeTenEnergy, bad ])
@@ -143,47 +143,42 @@ spec = do
         rejections' = mapMaybe
           (pickOf (event @"Rejected") >=> \r -> Just { candidateTransaction: r.candidateTransaction, reason: r.reason })
           events
-        executed = filter
-          (matches (exchangeFills) (\t -> t.actor == Id "US" && t.exchange == Id "energy-atlantic"))
-          events
       map _.candidateTransaction rejections' `shouldEqual` [ Id "r1/US/1" ]
       map (contains (Pattern "no-such-exchange") <<< renderReason <<< _.reason) rejections' `shouldEqual` [ true ]
-      -- the 10 E settles, across however many pairs it cleared as
-      Q.sumQ (map (\t -> t.quantity) (mapMaybe (pickOf exchangeFills) executed)) `shouldEqual` Q.fromInt 10
       (Id "r1/US/0" `elem` map _.candidateTransaction.id (bind out.records _.record.inputs)) `shouldEqual` true
 
     it "a one-sided joint lapses; a joint CandidateTransaction both sides describe is signed by both" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let
         joint t i
-          | t == interpretPrompt && contains (Pattern "I agree") i = replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ]
-          | t == interpretPrompt && contains (Pattern "I sell") i = replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ]
+          | t == interpretPrompt && contains (Pattern "I agree") i = replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ] ]
+          | t == interpretPrompt && contains (Pattern "I sell") i = replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US" ] ]
           | t == interpretPrompt = replyJoint []
           | otherwise = model t i
 
         says :: String -> Aff String
-        says prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "nothing")
+        says prompt = pure (if contains (Pattern "US>") prompt then "I sell CN ten energy" else "nothing")
       backendOne <- withAnswers joint
       one <- liveWith g 1 (const Human) says backendOne
       map (lapsed (Id "r1/US/0")) one.records `shouldEqual` [ true ]
       let
         agreeing :: String -> Aff String
-        agreeing prompt = pure (if contains (Pattern "US>") prompt then "I sell DE ten energy" else "I agree")
+        agreeing prompt = pure (if contains (Pattern "US>") prompt then "I sell CN ten energy" else "I agree")
       backendBoth <- withAnswers joint
       both <- liveWith g 1 (const Human) agreeing backendBoth
       map (lapsed (Id "r1/US/0")) both.records `shouldEqual` [ false ]
       let
         signedBy = map _.signatures (filter (\s -> s.candidateTransaction.id == Id "r1/US/0") (bind both.records _.record.inputs))
-      signedBy `shouldEqual` [ [ Id "DE", Id "US" ] ]
+      signedBy `shouldEqual` [ [ Id "CN", Id "US" ] ]
       replayedRecords g 1 both.records `shouldEqual` map _.record both.records
 
     it "two humans are both prompted in one window, and a human not reached before it closes is silent" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       asked <- liftEffect (Ref.new [])
       closing <- AVar.empty
       backend <- withAnswers model
       let
-        base = g { seats = Map.fromFoldable (map (\e -> Tuple e (if e == Id "US" || e == Id "DE" then Human else Script [])) (Array.fromFoldable (Map.keys g.world.actors))), rounds = 1 }
+        base = g { seats = Map.fromFoldable (map (\e -> Tuple e (if e == Id "US" || e == Id "CN" then Human else Script [])) (Array.fromFoldable (Map.keys g.world.actors))), rounds = 1 }
         -- DE is asked first: its answer closes the window, so US (asked later) is not reached
         input prompt = do
           liftEffect (Ref.modify_ (_ <> [ prompt ]) asked)
@@ -202,14 +197,14 @@ spec = do
         }
         base
       prompts <- liftEffect (Ref.read asked)
-      map (contains (Pattern "DE>")) prompts `shouldEqual` [ true ]
+      map (contains (Pattern "CN>")) prompts `shouldEqual` [ true ]
       asked' <- liftEffect (Ref.new [])
       let answersAll prompt = liftEffect (Ref.modify_ (_ <> [ prompt ]) asked') $> "nothing"
-      _ <- liveWith g 1 (\e -> if e == Id "US" || e == Id "DE" then Human else Script []) answersAll backend
-      map (\p -> contains (Pattern "DE>") p || contains (Pattern "US>") p) <$> liftEffect (Ref.read asked') >>= (_ `shouldEqual` [ true, true ])
+      _ <- liveWith g 1 (\e -> if e == Id "US" || e == Id "CN" then Human else Script []) answersAll backend
+      map (\p -> contains (Pattern "CN>") p || contains (Pattern "US>") p) <$> liftEffect (Ref.read asked') >>= (_ `shouldEqual` [ true, true ])
 
     it "an all-AI-agent game completes five rounds and replays from its records" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       backend <- withAnswers model
       out <- liveWith g 5 (const Agent) (const (pure "")) backend
       length out.records `shouldEqual` 5

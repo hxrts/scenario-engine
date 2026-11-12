@@ -1,6 +1,6 @@
--- | The variant experiments of docs/07_simulator.md §11 on Meridian,
+-- | The variant experiments of docs/07_simulator.md §11 on Pacific,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
--- | every invariant; the printed table is the balancing evidence for docs/06 §28–§29.
+-- | every invariant; the printed table is balancing evidence (docs/05 §9.4).
 module Test.Experiments.Experiments (spec) where
 
 import Schema.Build.Quantity (q)
@@ -8,8 +8,7 @@ import Prelude
 
 import Core.Map (values)
 
-import Premises.Meridian.Actors.Seats (playableActors)
-import Testkit.Meridian (orThrow, run)
+import Testkit.Run (orThrow, run)
 import Checks.Objectives (evaluateObjectives)
 import Schema.Composition (Outcome(..))
 
@@ -17,9 +16,9 @@ import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
 import Laws.Query (priceOf)
 import Core.Num as Q
-import Laws.Types (Id(..))
+import Laws.Types (ActorId, Id(..))
 import Laws.Slice (event, matches, exchangeFills, transformationFills)
-import Data.Array (concatMap, elem, filter, last, length, range)
+import Data.Array (concatMap, filter, last, length, range)
 import Data.Foldable (for_, maximum)
 import Data.Map as Map
 import Data.Maybe (fromMaybe, maybe)
@@ -39,6 +38,10 @@ import Assembly.Composition (CompositionParts, Origin(..))
 import Assembly.Types (PreparedRun)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
+
+-- | Pacific's four seats.
+playableActors :: Array ActorId
+playableActors = map Id [ "US", "CN", "US-firm", "CN-firm" ]
 
 -- | A variant: each seat's preset by name, the overrides, and the player seed.
 type Variant = { preset :: String -> String, overrides :: Array Override, seed :: Int }
@@ -79,15 +82,15 @@ indicators ctx r = { row, failures }
     , show (candidateTransactions - rejected - lapsed) <> "/" <> show candidateTransactions
     , show rejected
     , show lapsed
-    , price final "energy-atlantic"
-    , price final "energy-asia"
+    , price final "technology-world"
+    , price final "industry-world"
     , share r.manifest.initial <> "→" <> share final
-    , show met <> "/16"
+    , show met <> "/4"
     , show failures
     ]
 
 header :: String
-header = "variant | activity | executed/proposed | rejected | lapsed | P atlantic | P asia | top Money share | objectives met | invariant failures"
+header = "variant | activity | executed/proposed | rejected | lapsed | P technology | P industry | top Money share | objectives met | invariant failures"
 
 millis :: Aff Number
 millis = liftEffect (unwrap <<< unInstant <$> now)
@@ -97,19 +100,17 @@ spec context = describe "Experiments (§11) and performance" do
   it "variant experiments keep every invariant (report printed)" do
     ctx <- context
     let
-      conservative = const "Conservative"
+      free = const "FreeTrade"
+      firms f s = if s == "US-firm" || s == "CN-firm" then f else "FreeTrade"
       variants =
-        [ Tuple "baseline, all Conservative" (spec' conservative [] 1)
-        , Tuple "all Aggressive" (spec' (const "Aggressive") [] 1)
-        , Tuple "governments Aggressive, corporations Investor" (spec' (\s -> if s `elem` [ "ENCO", "CHIP", "SHIP", "DEF" ] then "Investor" else if s `elem` [ "LABOR", "SME", "AID" ] then "Conservative" else "Aggressive") [] 1)
-        , Tuple "one Opportunistic deviator among Cooperative" (spec' (\s -> if s == "US" then "Opportunistic" else "Cooperative") [] 1)
-        , Tuple "all RandomValid" (spec' (const "RandomValid") [] 1)
-        ] <> map (\x -> Tuple ("SME shrinkage " <> x) (spec' conservative [ Shrinkage "sme-energy-sample" (q x) ] 1)) [ "0", "0.1", "0.25", "0.5" ]
-          <> map (\x -> Tuple ("major-action threshold " <> x) (spec' (const "Aggressive") [ Parameter "major-action-threshold" (q x) ] 1)) [ "6", "12", "24" ]
-          <> map (\x -> Tuple ("disruption cut atlantic " <> x) (spec' conservative [ Parameter "disruption-cut-atlantic" (q x) ] 1)) [ "0", "12", "24" ]
-          <> map (\x -> Tuple ("supplier offer atlantic " <> x) (spec' conservative [ Parameter "supplier-offer-atlantic" (q x) ] 1)) [ "12", "24", "36" ]
-          <> map (\x -> Tuple ("EU matching tariff " <> x) (spec' (const "Aggressive") [ Parameter "eu-matching-tariff" (q x) ] 1)) [ "0", "0.5", "1" ]
-          <> map (\x -> Tuple ("game seed " <> show x) (spec' (const "RandomValid") [ GameSeed x ] 1)) [ 1, 2, 3 ]
+        [ Tuple "baseline, all FreeTrade" (spec' free [] 1)
+        , Tuple "all Hawk" (spec' (const "Hawk") [] 1)
+        , Tuple "US Hawk, China Reformer" (spec' (\s -> if s == "US" then "Hawk" else if s == "CN" then "Reformer" else "FreeTrade") [] 1)
+        , Tuple "firms Hedger" (spec' (firms "Hedger") [] 1)
+        , Tuple "firms Builder" (spec' (firms "Builder") [] 1)
+        ] <> map (\x -> Tuple ("tariff rate " <> x) (spec' (const "Tariff") [ Parameter "tariff-rate" (q x) ] 1)) [ "0", "1", "2" ]
+          <> map (\x -> Tuple ("input share " <> x) (spec' (const "Restrict") [ Parameter "input-share" (q x) ] 1)) [ "0", "0.5", "1" ]
+          <> map (\x -> Tuple ("game seed " <> show x) (spec' (const "Hawk") [ GameSeed x ] 1)) [ 1, 2, 3 ]
     log header
     for_ variants \(Tuple name s) -> do
       r <- play ctx s
@@ -118,17 +119,17 @@ spec context = describe "Experiments (§11) and performance" do
       i.failures `shouldEqual` 0
   it "agency: every seat has a measurable effect, or the gap is a balancing finding" do
     ctx <- context
-    for_ [ "Conservative", "RandomValid" ] \baseline -> do
+    for_ [ "FreeTrade", "Hawk" ] \baseline -> do
       g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Aggressive" playableActors)
-      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/15; not measurable: " <> joinWith ", " (map (show <<< _.explicitActor) (filter (not <<< _.measurable) ps)))
-      length ps `shouldEqual` 15
-  it "a 5-round game and a 100-player-seed batch finish in generous wall-clock bounds" do
+      ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Restrict" playableActors)
+      log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/4; not measurable: " <> joinWith ", " (map (show <<< _.explicitActor) (filter (not <<< _.measurable) ps)))
+      length ps `shouldEqual` 4
+  it "a 6-round game and a 100-player-seed batch finish in generous wall-clock bounds" do
     ctx <- context
     t0 <- millis
-    _ <- play ctx (spec' (const "RandomValid") [] 1)
+    _ <- play ctx (spec' (const "Hawk") [] 1)
     t1 <- millis
-    for_ (range 1 100) \seed -> void (play ctx (spec' (const "RandomValid") [] seed))
+    for_ (range 1 100) \seed -> void (play ctx (spec' (const "Hawk") [] seed))
     t2 <- millis
     log ("one game " <> show (t1 - t0) <> " ms; 100 seeds " <> show (t2 - t1) <> " ms")
     -- the targets are 1 s and 1 min (docs/07); a loaded CI machine must not fail the gate, so the

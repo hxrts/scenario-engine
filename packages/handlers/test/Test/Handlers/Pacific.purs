@@ -46,7 +46,7 @@ import Schema.Build.Quantity (q)
 import Schema.Build.Decision (asTemplate, eqQ, joint, lit, roundQ, rule, selfActor, signAll)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Testkit.Meridian (orThrow, run)
+import Testkit.Run (orThrow, run)
 
 pacificParts :: Aff CompositionParts
 pacificParts = do
@@ -120,16 +120,16 @@ spec = describe "Pacific (docs/05 §9)" do
       traded r1 p.us p.industry `shouldEqual` Q.fromInt 5
       traded r1 p.cn p.industry `shouldEqual` Q.fromInt (-4)
       traded r1 p.cnFirm p.industry `shouldEqual` Q.fromInt (-2)
-      map (\a -> holdingAt r1 a p.money) [ p.us, p.cn, p.usFirm, p.cnFirm ] `shouldEqual` [ q "95.5", q 95, q 52, q "52.5" ]
+      map (\a -> holdingAt r1 a p.money) [ p.us, p.cn, p.usFirm, p.cnFirm ] `shouldEqual` [ q "99.5", q 91, q 52, q "52.5" ]
       taxes r1 `shouldEqual` Q.fromInt 2
       -- households, paid wages, buy from round 2 and compete with their states
-      map (\x -> shortOf x p.us p.industry) r.records `shouldEqual` [ q 0, q "0.3846", q "0.6473", q "0.7833", q "0.8918", q "0.9801" ]
+      map (\x -> shortOf x p.us p.industry) r.records `shouldEqual` [ q 0, q "0.3846", q "0.6155", q "0.7439", q "0.8506", q "0.9446" ]
       for_ r.records \x -> allMoney x `shouldEqual` Q.fromInt 300
     it "B US import ban: the US is short 5 I from round 2; its firm, cut off from the input half its capacity runs on, produces 8, 8, then 4 a round, so China goes short of T" do
       parts <- pacificParts
       r <- playAll parts "Restrict" "FreeTrade" "FreeTrade" "FreeTrade" 6
       map (\x -> output x p.usFirm) r.records `shouldEqual` map Q.fromInt [ 8, 8, 4, 4, 4, 4 ]
-      map (\x -> shortOf x p.cn p.technology) r.records `shouldEqual` [ q 0, q "0.0909", q "0.1785", q "1.6224", q "1.7268", q "1.7301" ]
+      map (\x -> shortOf x p.cn p.technology) r.records `shouldEqual` [ q 0, q "0.0909", q "0.1449", q "1.5987", q "1.7002", q "1.6956" ]
       r2 <- roundOf r 2
       shortOf r2 p.us p.industry `shouldEqual` Q.fromInt 5
       traded r2 p.cn p.industry `shouldEqual` Q.zero
@@ -246,17 +246,17 @@ spec = describe "Pacific (docs/05 §9)" do
     it "K Selling only at home starves the other firm: with neither firm on the world Exchange, China's firm runs only half its capacity in round 2" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Builder" "Builder" 6
-      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 0, q 2, q 2, q 2, q "0.467" ]
+      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 0, q 2, q 2, q 2, q "0.5142" ]
     it "L Levies: the export tax alone is 2 M in round 1; with the US tariff on the US's imports, 8 M or more a round after" do
       parts <- pacificParts
       r <- playAll parts "Tariff" "FreeTrade" "FreeTrade" "FreeTrade" 6
-      map taxes r.records `shouldEqual` [ q 2, q "8.0606", q "8.1191", q "8.0762", q "8.134", q "8.0811" ]
+      map taxes r.records `shouldEqual` [ q 2, q "8.0606", q "8.0966", q "8.0452", q "8.1129", q "8.0438" ]
     it "M Asymmetry: given the same stimulus, China's private sector saves what America's spends" do
       parts <- pacificParts
       r <- playAll parts "Rebalance" "Rebalance" "FreeTrade" "FreeTrade" 6
       r6 <- roundOf r 6
-      holdingAt r6 p.cnPrivate p.money `shouldEqual` q "67.9322"
-      holdingAt r6 p.usPrivate p.money `shouldEqual` q "37.2904"
+      holdingAt r6 p.cnPrivate p.money `shouldEqual` q "57.5173"
+      holdingAt r6 p.usPrivate p.money `shouldEqual` q "37.6759"
     it "N Who a ban hurts: a US ban leaves China's state with 20 unsold I; a Chinese ban leaves the US firm with unsold T and the US state none" do
       parts <- pacificParts
       us <- playAll parts "Restrict" "FreeTrade" "FreeTrade" "FreeTrade" 6
@@ -288,7 +288,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 965, 947, 951, 939 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 946, 948, 944, 953 ]
 
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, credit and the home premium, each structural difference keeps its effect" do

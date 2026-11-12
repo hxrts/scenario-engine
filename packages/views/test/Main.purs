@@ -1,13 +1,11 @@
--- | The views suites: the dashboard view models over the capstone run, the dashboard statistics,
--- | and the capstone's view checks. Pure projections only; the experiments suite holds the runs that
--- | vary the composition. The shared capstone run comes from `testkit`.
+-- | The views suites: the dashboard view models and statistics over Pacific runs, and the Dependence view.
+-- | Pure projections only; the experiments suite holds the runs that vary the composition.
 module Test.Views.Main where
 
 import Prelude
 
 import Effect (Effect)
-import Testkit.Meridian (meridianParts)
-import Test.Views.Capstone as CapstoneTests
+import Testkit.Run (pacificParts)
 import Test.Views.Statistics as StatTests
 import Test.Views.Views as ViewTests
 import Test.Views.Dependence as DependenceTests
@@ -16,7 +14,6 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
-  ViewTests.spec meridianParts
-  StatTests.spec meridianParts
-  CapstoneTests.spec meridianParts
+  ViewTests.spec pacificParts
+  StatTests.spec pacificParts
   DependenceTests.spec

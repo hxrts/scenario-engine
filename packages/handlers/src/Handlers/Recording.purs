@@ -1,7 +1,6 @@
 -- | The recording of typed model turns. `Handlers.Llm.*` reports each call
 -- | that completes as an `Turn`: its effect, its typed request as JSON, and its typed reply as
--- | JSON. The capstone generator (`apps/cli`, `Transcript`, run by `just _premises`) keeps them and
--- | writes them as the recording file. Reading the file back and replaying it are test support.
+-- | JSON. A recording keeps them, and reading it back and replaying it are test support.
 module Handlers.Recording
   ( Turn
   , Recording

@@ -1,26 +1,22 @@
 module Test.Handlers.Main where
 
-import Testkit.Meridian (orThrow, unseated, price)
-import Schema.Build.Decision (asTemplate, eqQ, joint, lit, passive, roundQ, rule, selfTransform, signAll, signProcedures)
-import Schema.Build.Quantity (q)
-import Prelude
+import Testkit.Run (orThrow, pacificParts, unseated)
+import Schema.Build.Decision (asTemplate, eqQ, lit, passive, roundQ, rule, selfTransform)
 
-import Testkit.Edit (onExchange)
+import Prelude
 
 import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
 import Premises.Layout (compositionsDir, presetsFile)
-import Premises.Meridian.Names (meridianDir)
-import Premises.Meridian.Actors.Seats (playableActors)
 
 import Core.Draw (Seed(..))
 import Checks.Run (checkRun)
-import Core.Num as Q
+
 import Laws.Types (ActorId, Id(..))
-import Laws.Slice (event, matches, transformationFills, transfers)
+
 import Laws.World (RoundResult)
-import Data.Array (all, any, concatMap, filter, index, length, range)
+import Data.Array (all, concatMap, filter, length, range)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -34,7 +30,6 @@ import Foreign.Object as Object
 import Handlers.Seats (playPure, seatEnv)
 import Assembly.Types (PreparedRun)
 import Test.Handlers.Live as Live
-import Test.Handlers.Capstone as CapstoneTests
 import Test.Handlers.Llm as LlmTests
 import Test.Handlers.Route as RouteTests
 import Test.Handlers.Simulate as SimulateTests
@@ -92,10 +87,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   LlmTests.spec
   RouteTests.spec
   Live.spec
-  CapstoneTests.spec
   describe "Recorder (RECORD over a store backend, no database)" do
     it "hands each round to the backend with its transcripts and its metrics" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       records <- play g 2 Map.empty
       saved <- liftEffect (Ref.new [])
       let said = [ { seat: Id "US", text: "I will buy ten energy" } ]
@@ -110,9 +104,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "Replay (Handlers.Replay over recorded rounds)" do
     it "a round with eleven candidateTransactions by one author replays into the same ids and order as recorded" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let
-        eleven = { rules: [ rule [ eqQ roundQ (lit 1) ] (map (\i -> asTemplate (selfTransform { transformation: "major-military-action", quantity: lit (i + 20) })) (range 1 11)) ], sign: [] }
+        eleven = { rules: [ rule [ eqQ roundQ (lit 1) ] (map (\i -> asTemplate (selfTransform { transformation: "us-technology-production", quantity: lit i })) (range 1 11)) ], sign: [] }
       records <- play g 1 (Map.singleton (Id "US") eleven)
       case runReplay (seatEnv (Seed 1) g) 1 (map _.record records) g of
         Left e -> fail e
@@ -123,54 +117,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           map (\r -> stringify (encodeJson r.record.inputs)) out.records `shouldEqual` map (\r -> stringify (encodeJson r.record.inputs)) records
 
   describe "Round runner and Test handler" do
-    it "plays five rounds with every seat Conservative and with every seat Passive" do
-      g <- unseated
-      presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps (compositionsDir <> "/" <> meridianDir <> "/" <> presetsFile)))
+    it "plays five rounds with every seat FreeTrade and with every seat Hawk" do
+      g <- pacificParts >>= unseated
+      presets <- liftEffect (map (_ >>= loadPresets) (readRootFile fileOps (compositionsDir <> "/pacific/v0/" <> presetsFile)))
       case presets of
         Left e -> fail e
-        Right ps -> for_ [ "Conservative", "Passive" ] \name -> do
+        Right ps -> for_ [ "FreeTrade", "Hawk" ] \name -> do
           let p = fromMaybe passive (Object.lookup name ps)
-          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple s p) playableActors))
+          records <- play g 5 (Map.fromFoldable (map (\s -> Tuple (Id s) p) [ "US", "CN", "US-firm", "CN-firm" ]))
           length records `shouldEqual` 5
-
-    it "Fixture D end to end: China procures after the recorded US deployment" do
-      g <- unseated
-      records <- play g 3 (Map.singleton (Id "US") (({ rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfTransform { transformation: "major-military-action", quantity: lit 12 }) ] ], sign: [] })))
-      let cn r e = fromMaybe Q.zero (Map.lookup (Id "CN") r.world.actors >>= \x -> Map.lookup (Id e) x.accounts)
-      case index records 0, index records 1, index records 2 of
-        Just r1, Just r2, Just r3 -> do
-          (fromMaybe Q.zero (Map.lookup (Id "US") r1.world.actors >>= \x -> Map.lookup (Id "Mil") x.accounts)) `shouldEqual` Q.fromInt 92
-          any
-            (matches (transformationFills) (\t -> t.by == Id "CN" && t.transformation == Id "defense-procurement-cn" && t.quantity == Q.fromInt 4))
-            r2.record.events `shouldEqual` true
-          cn r2 "Mil" `shouldEqual` Q.fromInt 88 -- ordered in round 2, delivered at round 3's Prepare
-          cn r3 "Mil" `shouldEqual` Q.fromInt 92
-        _, _, _ -> fail "expected three rounds"
-
-    it "Fixture E: the Round 3 disruption raises the Atlantic price" do
-      g <- unseated
-      records <- play g 3 Map.empty
-      case index records 1, index records 2 of
-        Just r2, Just r3 -> (price r3 "energy-atlantic" > price r2 "energy-atlantic") `shouldEqual` true
-        _, _ -> fail "expected three rounds"
-
-    it "a seat and an NonPlayableActor sign each other's CandidateTransactions in the same round" do
-      g0 <- unseated
-      let
-        g = g0
-          { world = onExchange (Id "energy-atlantic") (\m -> m { position = Q.fromInt 60 }) g0.world
-          , inWorld = g0.inWorld { strategyRules = Map.insert (Id "china-strategic-v0") (({ rules: [], sign: [ signAll ] })) g0.inWorld.strategyRules }
-          }
-      records <- play g 1
-        ( Map.fromFoldable
-            [ Tuple (Id "DE") (({ rules: [], sign: [ signProcedures [ "eu-solidarity" ] ] }))
-            , Tuple (Id "SA") (({ rules: [ rule [] [ joint { signers: [ Id "CN" ], transfers: [ { from: Id "self", to: Id "CN", resource: Id "E", quantity: lit 10 }, { from: Id "CN", to: Id "self", resource: Id "M", quantity: lit 25 } ], transforms: [] } ] ], sign: [] }))
-            ]
-        )
-      let events = concatMap (_.record.events) records
-      any
-        (matches (event @"ProcedureOutcome") (\o -> o.executed && o.support == q "0.6"))
-        events `shouldEqual` true
-      any
-        (matches (transfers) (\t -> t.from == Id "CN" && t.to == Id "SA" && t.quantity == Q.fromInt 25))
-        events `shouldEqual` true

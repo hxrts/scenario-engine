@@ -25,6 +25,7 @@ import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, St
 import Server.Cache (cached, cachedAgency)
 import Core.Draw (Seed(..))
 import Laws.Types (Id(..))
+import Assembly.Composition (presetNames, presetOr)
 import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip, zipWith)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
@@ -37,7 +38,6 @@ import Server.Rows (READS)
 import Experiments.Agency (agency)
 import Assembly.Assemble (assemblePreset, configuredSeats)
 import Server.Compositions (Compositions, chosen, ofRun, ofSpec)
-import Premises.Presets (defaultPresets)
 import Views.Actions as Actions
 import Views.Agency (AgencyProfile, agencyCriteria, agencyProfiles, agencyTable)
 import Effects.Api (AgencyQuery)
@@ -241,4 +241,10 @@ agencyReply :: forall r a. String -> (Array AgencyProfile -> a) -> Compositions 
 agencyReply kind reply compositions { composition, playerSeed, preset, alternative } = case chosen compositions composition, Int.fromString (fromMaybe "1" playerSeed) of
   Left e, _ -> badRequest e
   _, Nothing -> badRequest "playerSeed must be an integer"
-  Right ctx, Just s -> map reply <$> cachedAgency (joinWith "|" [ kind, ctx.composition.id, show s, fromMaybe defaultPresets.agencyBaseline preset, fromMaybe defaultPresets.agencyAlternative alternative ]) (either (badRequest <<< show) ok (assemblePreset ctx (fromMaybe defaultPresets.agencyBaseline preset) [] Nothing >>= \game -> agency ctx.composition ctx.presets (Seed s) game (fromMaybe defaultPresets.agencyAlternative alternative) (configuredSeats ctx.config)))
+  Right ctx, Just s ->
+    let
+      -- the composition's default against the first other preset it offers, unless named
+      baseline = presetOr (fromMaybe "" preset) ctx
+      other = fromMaybe (fromMaybe baseline (find (_ /= baseline) (presetNames ctx))) alternative
+    in
+      map reply <$> cachedAgency (joinWith "|" [ kind, ctx.composition.id, show s, baseline, other ]) (either (badRequest <<< show) ok (assemblePreset ctx baseline [] Nothing >>= \game -> agency ctx.composition ctx.presets (Seed s) game other (configuredSeats ctx.config)))

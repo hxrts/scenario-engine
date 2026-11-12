@@ -2,7 +2,7 @@
 -- | decay, and a wage, compiled over `Settled`, against hand-computed values.
 module Test.Premises.Flows (spec) where
 
-import Testkit.Meridian (orThrow)
+import Testkit.Run (orThrow)
 import Prelude
 
 import Core.Draw (Seed(..))

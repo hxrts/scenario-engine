@@ -1,4 +1,4 @@
--- | `session`: the facilitator console for a live game (docs/06_meridian.md §19). Human seats type one
+-- | `session`: the facilitator console for a live game (docs/07_simulator.md §7). Human seats type one
 -- | transcript per round; every other seat is an AI agent. Each round reads all transcripts in one joint pass,
 -- | then shows the balance sheets. The session's run is saved to the Run Store; a failure
 -- | (a language-model backend, input ending early, a store fault) marks the run failed with its cause.

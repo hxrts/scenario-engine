@@ -22,7 +22,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Test.QuickCheck (Result, (<?>))
 import Test.QuickCheck.Gen (Gen, elements, oneOf)
 import Test.Spec.QuickCheck (quickCheck)
-import Testkit.Meridian (unseated)
+import Testkit.Run (pacificParts, unseated)
 import Data.Either (either, isLeft)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe', maybe)
@@ -244,12 +244,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
   describe "One validity rule" do
     it "over generated Intents, the interpreter drafts exactly those that screening does not refuse for a static reason" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let
         w = (prepareRound g.world)
           { rules = Map.fromFoldable
               [ Tuple (Id "r-tariff") (tariffR { jurisdiction: Id "US", origin: Id "CN", rate: Q.fromInt 1 })
-              , Tuple (Id "r-held") (holdR { capacity: Id "semiconductors", units: Q.fromInt 1 })
+              , Tuple (Id "r-held") (holdR { capacity: Id "K_T", units: Q.fromInt 1 })
               ]
           }
       quickCheck (agreement w)

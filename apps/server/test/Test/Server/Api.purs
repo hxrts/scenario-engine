@@ -47,7 +47,7 @@ import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, meridianParts)
+import Testkit.Run (anyRounds, pacificParts)
 
 inCache :: ServerCache -> Run (CACHE StoredRun Profiles + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
@@ -62,7 +62,7 @@ type Env =
 
 setup :: Aff Env
 setup = do
-  ctx <- anyRounds <$> meridianParts
+  ctx <- anyRounds <$> pacificParts
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let
@@ -71,13 +71,13 @@ setup = do
   pure { api, store, db, cache, ctx }
 
 launch :: Env -> Int -> Aff Unit
-launch env rounds = void (env.api "POST" "/api/runs" ("{\"name\":\"r\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":" <> show rounds <> "}"))
+launch env rounds = void (env.api "POST" "/api/runs" ("{\"name\":\"r\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":" <> show rounds <> "}"))
 
 spec :: Spec Unit
 spec = describe "API status rules, startup and cache" do
   it "a run id the server mints passes the run-id rule; one that could escape runs/ does not" do
     env <- setup
-    launched <- env.api "POST" "/api/runs" "{\"name\":\"r\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
+    launched <- env.api "POST" "/api/runs" "{\"name\":\"r\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
     launched.status `shouldEqual` 200
     launched.body `shouldSatisfy` contains (Pattern "\"run-1\"")
     validRunId "../etc" `shouldEqual` false
@@ -181,7 +181,7 @@ spec = describe "API status rules, startup and cache" do
 
   it "a single-parameter experiment saves one run per value and one named set, each reproducible" do
     env <- setup
-    let body = "{\"name\":\"sweep\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2,\"experiment\":{\"type\":\"parameters\",\"axes\":[{\"name\":\"eu-matching-tariff\",\"values\":[\"1\",\"2\",\"3\"]}]}}"
+    let body = "{\"name\":\"sweep\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2,\"experiment\":{\"type\":\"parameters\",\"axes\":[{\"name\":\"tariff-rate\",\"values\":[\"1\",\"2\",\"3\"]}]}}"
     out <- env.api "POST" "/api/experiments" body
     out.status `shouldEqual` 200
     out.body `shouldEqual` "{\"set\":\"sweep\",\"runs\":[\"run-1\",\"run-2\",\"run-3\"]}"
@@ -231,15 +231,15 @@ spec = describe "API status rules, startup and cache" do
     list.body `shouldSatisfy` contains (Pattern "unreadable")
   it "a default-rounds run stores the resolved round count, and its overview shows it as the target" do
     env <- setup
-    _ <- env.api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":null}"
+    _ <- env.api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":null}"
     stored <- liftEffect (runObserve env.store (readManifest "run-1"))
     case stored of
       Just m -> case m.spec of
-        Right s -> s.rounds `shouldEqual` Just 5
+        Right s -> s.rounds `shouldEqual` Just 6
         Left why -> fail why
       Nothing -> fail "no stored spec"
     overview <- env.api "GET" "/api/runs/run-1/overview" ""
-    overview.body `shouldSatisfy` contains (Pattern "\"target\":5")
+    overview.body `shouldSatisfy` contains (Pattern "\"target\":6")
   it "startup fails the server's leftover runs, fails a run whose process has gone, and leaves a live process's run running" do
     env <- setup
     launch env 2
@@ -280,11 +280,11 @@ spec = describe "API status rules, startup and cache" do
     count >>= (_ `shouldEqual` 4)
   it "the comparison categorises configuration rows, marks cells server-side, and lists a skipped run" do
     env <- setup
-    _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Conservative\",\"playerSeed\":1,\"rounds\":2}"
-    _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Aggressive\",\"playerSeed\":2,\"rounds\":2}"
+    _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
+    _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Hawk\",\"playerSeed\":2,\"rounds\":2}"
     r <- liftEffect (route (implement [ env.ctx ] env.store env.cache (testHost env.store)) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
     r.status `shouldEqual` 200
-    r.body `shouldSatisfy` contains (Pattern "[\"seat Strategy\",\"preset\",\"Conservative\",\"Aggressive\"]")
+    r.body `shouldSatisfy` contains (Pattern "[\"seat Strategy\",\"preset\",\"FreeTrade\",\"Hawk\"]")
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")
     r.body `shouldSatisfy` contains (Pattern "\"marked\":[[false,false,false,true]")
     r.body `shouldSatisfy` contains (Pattern "\"skipped\":[\"run-9: not found\"]")
@@ -305,7 +305,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
-    let written = encodeSpec { gameId: "meridian/meridian-test-01", composition: "meridian@v0", premises: "meridian-energy@v0,meridian-shipping@v0,meridian-defence@v0,meridian-soft-power@v0,meridian-actors@v0", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    let written = encodeSpec { gameId: "pacific/pacific-01", composition: "pacific@v0", premises: "bilateral-economy@v0,strategic-dependence@v0,private-sector@v0", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
     liftEffect do
       runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
       for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of
@@ -318,7 +318,7 @@ spec = describe "API status rules, startup and cache" do
     rerun <- deriveWith "{\"kind\":\"rerun\"}"
     rerun.status `shouldEqual` 201
     rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-    variant <- deriveWith "{\"kind\":\"variant\",\"preset\":\"Passive\"}"
+    variant <- deriveWith "{\"kind\":\"variant\",\"preset\":\"Restrict\"}"
     variant.status `shouldEqual` 400
     counterfactual <- deriveWith "{\"kind\":\"counterfactual\",\"overrides\":[]}"
     counterfactual.status `shouldEqual` 400

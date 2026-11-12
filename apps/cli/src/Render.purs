@@ -38,7 +38,7 @@ compile = do
 checked :: CompositionSource -> Either String Unit
 checked = void <<< parts
 
--- | One composition's files alone, for a production build: no other composition, no fixtures, no capstone.
+-- | One composition's files alone, for a production build: no other composition and no fixtures.
 compileOnly :: String -> Either String (Array Output)
 compileOnly id = case find (\c -> c.id == id) compositions of
   Nothing -> Left ("no composition named " <> id)

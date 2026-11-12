@@ -120,7 +120,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `adapters` | `handlers` (the device types of the SQL handler only) | Raw devices, and every FFI module outside the apps | Runs, prompts, Premises, any handler function |
 | `views` | `core`, `laws`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `assembly`, `experiments` or `premises` imports; objective evaluation of their own |
 | `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
-| `testkit` | `core`, `laws`, `schema`, `premises`, `assembly`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and capstone run for test suites | Anything a `src` module imports |
+| `testkit` | `core`, `laws`, `schema`, `premises`, `assembly`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and composition loading for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays Runs and compiles PremiseCompositions; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
@@ -203,7 +203,7 @@ Checks run under `just check`, and each fails the build on a violation. Each che
 - **Concept rules.** Rules that imports cannot express: foreign code (`.js`) lives only in adapters and apps; `core` names no authored vocabulary; only `Core.Kernel.Post` writes the ledger or builds a settled Flow.
 - **Impurity.** Only composition roots import adapters, and adapters use no domain words or domain imports.
 - **Derived rule.** Flags hand-written projections, codecs, event matches and repeated names where one description should generate them. Each exception is listed with its reason.
-- **Docs tables.** The marked tables in [06](06_meridian.md) match the compiled composition.
+- **Docs vocabulary.** The docs keep the anchors of [01](01_overview.md) and no retired word (`scripts/check/docs.js`).
 - **Invariants.** Per-round checks are pure predicates shared by the tests, the simulator and live play. Which assertions exist is in [07 §7.1](07_simulator.md#71-required-assertions).
 
 Tests live in each package's own test directory and in the apps' suites. The `core` suite covers the kernel only; the vocabulary's tests are in `packages/laws/test`. The mandatory tests are in [07 §14](07_simulator.md#14-mandatory-tests).

@@ -40,7 +40,7 @@ import Handlers.Llm.Wire (decodeJoint, decodeText)
 import Handlers.Llm.Call (interpretCall, speakCall)
 import Handlers.Llm.Prompt (interpretPrompt, speakPrompt)
 import Handlers.Recording (encodeRecording)
-import Testkit.Meridian (unseated)
+import Testkit.Run (unseated, pacificParts)
 import Assembly.Types (PreparedRun)
 import Test.Handlers.Stub (answering, backendOf, decodeRecording, jointOf, replayCall, replyJoint, replyText, tradeTenEnergy)
 import Test.Spec (Spec, describe, it)
@@ -75,10 +75,10 @@ stringField key text = do
 
 -- | The Intent the joint prompt renders as its example.
 example :: Intent
-example = Transfer { from: Id "US", to: Id "DE", resource: Id "M", quantity: Q.fromInt 10 }
+example = Transfer { from: Id "US", to: Id "CN", resource: Id "M", quantity: Q.fromInt 10 }
 
 sample :: ProposedJoint
-sample = { author: Id "US", intents: [], signers: [ Id "DE" ], agreed: [ Id "US" ] }
+sample = { author: Id "US", intents: [], signers: [ Id "CN" ], agreed: [ Id "US" ] }
 
 -- | How many ids in a description do not say what they name.
 plainIds :: Desc -> Int
@@ -123,7 +123,7 @@ spec = do
       case decodeJoint ("{\"candidateTransactions\":[" <> stringify (encodeWith Snapshot proposedJointShape sample) <> "]}") of
         Right [ d ] -> do
           d.author `shouldEqual` Id "US"
-          d.signers `shouldEqual` [ Id "DE" ]
+          d.signers `shouldEqual` [ Id "CN" ]
           d.agreed `shouldEqual` [ Id "US" ]
         _ -> fail "one CandidateTransaction should decode"
 
@@ -135,32 +135,32 @@ spec = do
       sort (kindsNamed interpretCall.wire.desc) `shouldEqual` [ "actor", "exchange", "resource", "rule kind", "template", "transformation" ]
 
     it "the payload names every kind a reply can hold, from the World played" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let request = jointRequest g.world 1 []
       sort (Object.keys request.names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
       Object.lookup "resource" request.names `shouldEqual` Just (map idText (fromFoldable (Map.keys g.world.resources)))
 
     it "a reply naming what the World lacks gets a correction, and the corrected reply stands" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       calls <- liftEffect (Ref.new 0)
       let
-        wrong = (jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]) { intents = [ Transfer { from: Id "US", to: Id "DE", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
-        right = jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]
+        wrong = (jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ]) { intents = [ Transfer { from: Id "US", to: Id "CN", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
+        right = jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ]
         answer _ input = if contains (Pattern "unknown resource Energy; use one of") input then replyJoint [ right ] else replyJoint [ wrong ]
-      j <- single =<< jointWith g (answering calls answer) [ tr "US" "I give DE ten Energy", tr "DE" "I take ten Energy" ]
+      j <- single =<< jointWith g (answering calls answer) [ tr "US" "I give CN ten Energy", tr "CN" "I take ten Energy" ]
       j.draft.intents `shouldEqual` right.intents
       liftEffect (Ref.read calls) >>= (_ `shouldEqual` 2)
 
     it "a reply still naming what the World lacks after its corrections stands, for the engine to refuse" do
-      g <- unseated
-      let wrong = (jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ]) { intents = [ Transfer { from: Id "US", to: Id "DE", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
+      g <- pacificParts >>= unseated
+      let wrong = (jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ]) { intents = [ Transfer { from: Id "US", to: Id "CN", resource: Id "Energy", quantity: Q.fromInt 10 } ] }
       backend <- answerWith (replyJoint [ wrong ])
-      j <- single =<< jointWith g backend [ tr "US" "I give DE ten Energy", tr "DE" "I take ten Energy" ]
+      j <- single =<< jointWith g backend [ tr "US" "I give CN ten Energy", tr "CN" "I take ten Energy" ]
       j.draft.intents `shouldEqual` wrong.intents
 
     it "a joint reply can enter an agreement the transcripts describe" do
       let
-        entering = Enter { template: "loan", args: [ { name: "principal", value: Q.fromInt 10 } ], parties: [ { role: "lender", actor: Id "US" }, { role: "borrower", actor: Id "DE" } ] }
+        entering = Enter { template: "loan", args: [ { name: "principal", value: Q.fromInt 10 } ], parties: [ { role: "lender", actor: Id "US" }, { role: "borrower", actor: Id "CN" } ] }
         proposed = sample { intents = [ entering ] }
       case decodeJoint ("{\"candidateTransactions\":[" <> stringify (encodeWith Snapshot proposedJointShape proposed) <> "]}") of
         Right [ d ] -> d.intents `shouldEqual` [ entering ]
@@ -188,34 +188,34 @@ spec = do
 
   describe "Joint pass (§7.4)" do
     it "two transcripts describing one joint CandidateTransaction reconcile into one CandidateTransaction with both as signers" do
-      g <- unseated
-      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ])
-      j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
+      g <- pacificParts >>= unseated
+      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ] ])
+      j <- single =<< jointWith g backend [ tr "US" "I sell CN ten energy", tr "CN" "I buy ten energy from the US" ]
       j.author `shouldEqual` Id "US"
-      j.signed `shouldEqual` [ Id "US", Id "DE" ]
+      j.signed `shouldEqual` [ Id "US", Id "CN" ]
 
     it "a one-sided description keeps only its author as signer" do
-      g <- unseated
-      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ])
-      j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "nothing" ]
+      g <- pacificParts >>= unseated
+      backend <- answerWith (replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US" ] ])
+      j <- single =<< jointWith g backend [ tr "US" "I sell CN ten energy", tr "CN" "nothing" ]
       j.signed `shouldEqual` [ Id "US" ]
 
     it "a reply that does not decode is a Left, which the caller turns into an empty submission" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       backend <- answerWith "not a CandidateTransaction list"
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
 
     it "a joint reply that does not decode is corrected: the second call carries the request, the previous reply and the decode error, and its valid reply is the result" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       calls <- liftEffect (Ref.new [])
       let
         backend = backendOf \system input -> do
           liftEffect (Ref.modify_ (_ <> [ { system, input } ]) calls)
           n <- liftEffect (Ref.read calls)
-          pure { text: if length n == 1 then "not json" else replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US", Id "DE" ] ], raw: "" }
-      j <- single =<< jointWith g backend [ tr "US" "I sell DE ten energy", tr "DE" "I buy ten energy from the US" ]
-      j.signed `shouldEqual` [ Id "US", Id "DE" ]
+          pure { text: if length n == 1 then "not json" else replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US", Id "CN" ] ], raw: "" }
+      j <- single =<< jointWith g backend [ tr "US" "I sell CN ten energy", tr "CN" "I buy ten energy from the US" ]
+      j.signed `shouldEqual` [ Id "US", Id "CN" ]
       seen <- liftEffect (Ref.read calls)
       map _.system seen `shouldEqual` [ interpretPrompt, interpretPrompt ]
       case decodeJoint "not json" of
@@ -228,7 +228,7 @@ spec = do
         Right _ -> fail "a reply of plain text should not decode"
 
     it "a joint reply that still does not decode after two corrections is three calls, then a Left" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       counter <- liftEffect (Ref.new 0)
       out <- jointWith g (answering counter (\_ _ -> "not json")) [ tr "US" "buy ten energy" ]
       isLeft out `shouldEqual` true
@@ -236,30 +236,30 @@ spec = do
       calls `shouldEqual` 3
 
     it "a valid first reply makes exactly one call, with no correction" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       counter <- liftEffect (Ref.new 0)
-      _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ jointOf (Id "US") [ Id "DE" ] [ Id "US" ] ])) [ tr "US" "I sell DE ten energy" ]
+      _ <- single =<< jointWith g (answering counter (\_ _ -> replyJoint [ jointOf (Id "US") [ Id "CN" ] [ Id "US" ] ])) [ tr "US" "I sell CN ten energy" ]
       calls <- liftEffect (Ref.read counter)
       calls `shouldEqual` 1
 
     it "an author who did not speak is dropped" do
-      g <- unseated
-      backend <- answerWith (replyJoint [ jointOf (Id "SA") [ Id "DE" ] [ Id "SA" ] ])
-      out <- jointWith g backend [ tr "US" "I sell DE ten energy" ]
+      g <- pacificParts >>= unseated
+      backend <- answerWith (replyJoint [ jointOf (Id "CN-firm") [ Id "CN" ] [ Id "CN-firm" ] ])
+      out <- jointWith g backend [ tr "US" "I sell CN ten energy" ]
       out `shouldEqual` Right []
 
     it "an empty Intent list, and a signer that is not an Actor, are dropped from the CandidateTransaction" do
-      g <- unseated
-      let bare = (jointOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ]) { intents = [] }
+      g <- pacificParts >>= unseated
+      let bare = (jointOf (Id "US") [ Id "NOBODY", Id "CN" ] [ Id "US" ]) { intents = [] }
       empty <- answerWith (replyJoint [ bare ])
       out <- jointWith g empty [ tr "US" "nothing" ]
       out `shouldEqual` Right []
-      named <- answerWith (replyJoint [ jointOf (Id "US") [ Id "NOBODY", Id "DE" ] [ Id "US" ] ])
-      j <- single =<< jointWith g named [ tr "US" "I sell DE ten energy" ]
-      j.draft.signers `shouldEqual` [ Id "DE" ]
+      named <- answerWith (replyJoint [ jointOf (Id "US") [ Id "NOBODY", Id "CN" ] [ Id "US" ] ])
+      j <- single =<< jointWith g named [ tr "US" "I sell CN ten energy" ]
+      j.draft.signers `shouldEqual` [ Id "CN" ]
 
     it "a backend failure is fatal to the call: the error propagates with its cause" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let broken = backendOf (\_ _ -> throwError (error "language model backend failed (broken): spawn pi ENOENT"))
       out <- attempt (jointWith g broken [ tr "US" "buy ten energy" ])
       case out of
@@ -268,7 +268,7 @@ spec = do
 
   describe "Evidence and recording" do
     it "each call leaves its evidence: the effect, the model, digests of the template and payload, the raw stream by path, and the decode" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       evidence <- liftEffect (Ref.new [])
       let
         backend = (backendOf \_ _ -> pure { text: replyJoint [], raw: "raw/1.jsonl" }) { model = "fake/model", evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
@@ -280,7 +280,7 @@ spec = do
         `shouldEqual` [ { m: "fake/model", raw: "raw/1.jsonl", template: 16, input: 16 } ]
 
     it "a reply that does not decode is a Left, and each attempt's evidence says so" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       evidence <- liftEffect (Ref.new [])
       let backend = (backendOf \_ _ -> pure { text: "not json", raw: "" }) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       out <- jointWith g backend [ tr "US" "buy ten energy" ]
@@ -289,7 +289,7 @@ spec = do
       map (\e -> contains (Pattern "error: ") e.decoded) evs `shouldEqual` [ true, true, true ]
 
     it "a recorded turn replays: the recording file reads back, and the replayed CandidateTransaction equals the live one" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       turns <- liftEffect (Ref.new [])
       let
         live = (backendOf \_ _ -> pure { text: replyJoint [ tradeTenEnergy ], raw: "" }) { turn = \x -> Ref.modify_ (_ <> [ x ]) turns }
@@ -303,7 +303,7 @@ spec = do
       j2.author `shouldEqual` j1.author
 
     it "a failed call leaves evidence naming why, and rethrows" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       evidence <- liftEffect (Ref.new [])
       let failing = (backendOf \_ _ -> throwError (error "down")) { evidence = \e -> Ref.modify_ (_ <> [ e ]) evidence }
       out <- attempt (jointWith g failing [ tr "US" "buy ten energy" ])
@@ -312,13 +312,13 @@ spec = do
       map _.decoded evs `shouldEqual` [ "error: the call failed: down" ]
 
     it "a model call that never returns fails at the backend's timeout" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       let hung = (backendOf \_ _ -> makeAff \_ -> pure nonCanceler) { timeoutMs = 5 }
       out <- attempt (jointWith g hung [ tr "US" "buy ten energy" ])
       either (contains (Pattern "timed out") <<< message) (const false) out `shouldEqual` true
 
     it "a failed call is not recorded" do
-      g <- unseated
+      g <- pacificParts >>= unseated
       turns <- liftEffect (Ref.new [])
       let
         failing = (backendOf \_ _ -> throwError (error "down")) { turn = \x -> Ref.modify_ (_ <> [ x ]) turns }
@@ -328,13 +328,13 @@ spec = do
 
   describe "AI-agent seats" do
     it "a seat speaks its reply text; a reply that does not decode is an empty transcript" do
-      g <- unseated
-      view <- case Map.lookup (Id "DE") g.world.actors of
+      g <- pacificParts >>= unseated
+      view <- case Map.lookup (Id "CN") g.world.actors of
         Just de -> pure (observe g.world de)
         Nothing -> fail "Germany should be an Actor" *> throwError (error "actor")
       spoken <- answerWith (replyText "I will buy ten energy")
-      said <- speak spoken (const "Secure energy.") (Id "DE") view
+      said <- speak spoken (const "Secure energy.") (Id "CN") view
       said `shouldEqual` "I will buy ten energy"
       silent <- answerWith "not json"
-      none <- speak silent (const "Secure energy.") (Id "DE") view
+      none <- speak silent (const "Secure energy.") (Id "CN") view
       none `shouldEqual` ""

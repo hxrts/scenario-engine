@@ -62,7 +62,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "run options" do
     it "defaults when no flag is given" do
       map _.rounds (parseWith runFlags []) `shouldEqual` Right Nothing
-      map _.preset (parseWith runFlags []) `shouldEqual` Right "Passive"
+      map _.preset (parseWith runFlags []) `shouldEqual` Right ""
       map _.seed (parseWith runFlags []) `shouldEqual` Right Nothing
     it "reads a negative seed: the seed is any whole number" do
       map _.seed (parseWith runFlags [ "--seed", "-3" ]) `shouldEqual` Right (Just (Seed (-3)))
@@ -76,10 +76,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map _.window (parseWith (sessionFlags "m") [ "--window", "-1" ]) `shouldEqual` Left "--window must be a whole number of at least 0, got -1"
   describe "session options" do
     it "reads its flags and defaults the rest" do
-      let o = parseWith (sessionFlags "meridian") [ "--humans", "US,DE", "--window", "30" ]
-      map _.composition o `shouldEqual` Right "meridian"
-      map _.humans o `shouldEqual` Right "US,DE"
+      let o = parseWith (sessionFlags "pacific") [ "--humans", "US,CN", "--window", "30" ]
+      map _.composition o `shouldEqual` Right "pacific"
+      map _.humans o `shouldEqual` Right "US,CN"
       map _.window o `shouldEqual` Right 30
       map _.id o `shouldEqual` Right "session-1"
     it "rejects an id that is not a valid run id" do
-      map _.id (parseWith (sessionFlags "meridian") [ "--id", "../x" ]) `shouldEqual` Left "--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got ../x"
+      map _.id (parseWith (sessionFlags "pacific") [ "--id", "../x" ]) `shouldEqual` Left "--id must be 1 to 64 letters, digits, '-' or '_', starting with a letter or digit, got ../x"

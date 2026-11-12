@@ -39,7 +39,7 @@ type FileOps m =
   , read :: String -> m (Either { path :: String, reason :: String } String)
   }
 
--- | A composition directory (`meridian/v0`, under the compositions root). A failure names the path that could
+-- | A composition directory (`pacific/v0`, under the compositions root). A failure names the path that could
 -- | not be read.
 readComposition :: forall m. Monad m => FileOps m -> String -> m (Either String CompositionFiles)
 readComposition ops dir = do
@@ -50,7 +50,7 @@ readComposition ops dir = do
   p <- readSection ops path presetsFile
   pure ({ composition: _, instantiation: _, presets: _ } <$> c <*> i <*> p)
 
--- | A Premise's file (`premises/meridian-energy/v0.json`), by id and version.
+-- | A Premise's file (`premises/bilateral-economy/v0.json`), by id and version.
 readPremiseFile :: forall m. Monad m => FileOps m -> { id :: String, version :: String } -> m (Either String Section)
 readPremiseFile ops r = do
   root <- premiseRoot ops
@@ -79,7 +79,7 @@ compositionDirs ops = do
     Right names | elem compositionFile names -> Just (id <> "/" <> version)
     _ -> Nothing
 
--- | A file's text at a path under the root (`fixtures/C5.json`, `capstone/transcript.json`). A failure names
+-- | A file's text at a path under the root (`fixtures/P-A.json`). A failure names
 -- | the full path.
 readRootFile :: forall m. Monad m => FileOps m -> String -> m (Either String String)
 readRootFile ops rel = do

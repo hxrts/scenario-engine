@@ -49,15 +49,15 @@ _derived:
     node scripts/check/derived.js --samples
     node scripts/check/derived.js
 
-# Compile the premise DSL to JSON, then generate the capstone recording (no model call)
+# Compile the premise DSL to JSON, then write the external services' OpenAPI documents
 _premises:
+    rm -rf packages/premises/compositions packages/premises/premises packages/premises/fixtures
     spago run -p sp-cli --main Compile
-    spago run -p sp-cli --main Transcript
     spago run -p sp-server --main OpenApi
 
 # One PremiseComposition's OpenAPI documents: its references list the names the composed World has (--server url, --out dir)
 [positional-arguments]
-openapi composition="meridian" *args:
+openapi composition="pacific" *args:
     @just _premises
     p="$1"; shift; spago run -p sp-server --main OpenApi -- --composition "$p" "$@"
 
@@ -144,7 +144,7 @@ serve *args:
     spago run -p sp-server -- "$@"
 
 # A production build of one composition: only its compiled files, under build/premises/<id>, with no
-# fixtures and no capstone. Serve it with SETTINGS_DIR=build/premises/<id> (docs/07 §8.1).
+# fixtures. Serve it with SETTINGS_DIR=build/premises/<id> (docs/07 §8.1).
 [positional-arguments]
 build-prod composition: _ui _dashboard
     rm -rf build/premises/{{composition}}

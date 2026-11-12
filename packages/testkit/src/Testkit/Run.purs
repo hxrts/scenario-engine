@@ -1,6 +1,7 @@
--- | The Meridian composition the views, experiments and simulator test suites share, and the fifteen seats every test
--- | plays. Test support only; no suite's source depends on it.
-module Testkit.Meridian (silent, price, everySeat, run, valid, initialOf, meridianParts, anyRounds, unseated, presetGame, presetSeats, orThrow) where
+-- | What the test suites share to load a compiled composition and play it: its parts, its seats bound silent
+-- | or to a preset, a run under a player seed, and the run's invariants. Test support only; no suite's source
+-- | depends on it. `pacificParts` is the reference composition every suite plays.
+module Testkit.Run (silent, price, everySeat, run, valid, initialOf, partsOf, pacificParts, anyRounds, unseated, presetGame, presetSeats, orThrow) where
 
 import Prelude
 
@@ -27,38 +28,38 @@ import Assembly.Override (Override)
 import Assembly.Composition (CompositionParts, Origin(..))
 import Assembly.Types (Bindings, PreparedRun, SeatBinding(..))
 import Premises.Load (loadFrom)
-import Premises.Meridian.Names (meridianDir)
 
 -- | Every configured seat bound to the empty script: it submits and signs nothing.
 silent :: CompositionParts -> Bindings
 silent p = Map.fromFoldable (map (\e -> Tuple e (Script [])) (configuredSeats p.config))
 
--- | The Meridian composition: its composition, configuration and presets, checked.
-meridianParts :: Aff CompositionParts
-meridianParts = do
-  loaded <- liftEffect (loadFrom fileOps meridianDir)
+-- | A compiled composition by its directory under the compositions root (`pacific/v0`), checked.
+partsOf :: String -> Aff CompositionParts
+partsOf dir = do
+  loaded <- liftEffect (loadFrom fileOps dir)
   orThrow loaded
 
--- | The Meridian game with every seat bound to an empty script (silent).
-unseated :: Aff PreparedRun
-unseated = do
-  p <- meridianParts
-  orThrow (assemble (FromComposition p) (silent p) [])
+-- | The Pacific composition (docs/05_pacific.md).
+pacificParts :: Aff CompositionParts
+pacificParts = partsOf "pacific/v0"
 
--- | The composition with its supported round counts opened up, for suites that play a game shorter than the
--- | composition allows and read something else from it.
+-- | A composition's game with every seat bound to an empty script (silent).
+unseated :: CompositionParts -> Aff PreparedRun
+unseated p = orThrow (assemble (FromComposition p) (silent p) [])
+
+-- | The composition with its supported round counts opened up, for suites that play a game shorter or longer
+-- | than the composition allows and read something else from it.
 anyRounds :: CompositionParts -> CompositionParts
 anyRounds p = p { composition = p.composition { rounds = { min: 1, max: 8 } } }
 
--- | The Meridian composition assembled with every configured seat bound to one preset (see `assemblePreset`).
+-- | The composition assembled with every configured seat bound to one preset (see `assemblePreset`).
 presetGame :: CompositionParts -> String -> Array Override -> Maybe Int -> Aff PreparedRun
 presetGame p preset overrides rounds = orThrow (assemblePreset p preset overrides rounds)
 
--- | The Meridian game with the named seats playing one preset, and the round count (or the configuration's).
--- | Unlike `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
-presetSeats :: Array String -> String -> Maybe Int -> Aff PreparedRun
-presetSeats ids preset rounds = do
-  p <- meridianParts
+-- | The game with the named seats playing one preset, and the round count (or the configuration's). Unlike
+-- | `presetGame`, only the listed seats play; the rest are silent (`assemble` requires every seat bound).
+presetSeats :: CompositionParts -> Array String -> String -> Maybe Int -> Aff PreparedRun
+presetSeats p ids preset rounds = do
   listed <- orThrow (presetBindings p.presets (const preset) (map Id ids))
   g <- orThrow (assemble (FromComposition p) (Map.union listed (silent p)) [])
   pure (withRounds rounds g)

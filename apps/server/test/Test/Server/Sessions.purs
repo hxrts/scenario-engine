@@ -14,14 +14,14 @@ import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Testkit.Meridian (anyRounds, meridianParts)
+import Testkit.Run (anyRounds, pacificParts)
 import Testkit.Store (open, storeOver)
 
 type Api = String -> String -> String -> Aff Reply
 
 setup :: Aff Api
 setup = do
-  ctx <- anyRounds <$> meridianParts
+  ctx <- anyRounds <$> pacificParts
   db <- liftEffect (open ":memory:")
   cache <- liftEffect newServerCache
   let
@@ -53,7 +53,7 @@ spec = describe "A live session over the API" do
     waitFor api "\"awaiting\":[\"US\"]"
     status <- api "GET" "/api/sessions/run-1" ""
     status.body `shouldSatisfy` contains (Pattern "\"status\":\"running\"")
-    (_.status <$> say api "DE" 1) >>= (_ `shouldEqual` 400)
+    (_.status <$> say api "CN" 1) >>= (_ `shouldEqual` 400)
     (_.status <$> say api "US" 9) >>= (_ `shouldEqual` 409)
     (_.status <$> say api "US" 1) >>= (_ `shouldEqual` 200)
     (_.status <$> say api "US" 1) >>= (_ `shouldEqual` 409)

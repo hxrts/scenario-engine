@@ -88,7 +88,7 @@ checkSeats seats bindings = do
   traverse_ (\e -> if Map.member e bindings then Right unit else Left (UnboundSeat e)) seats
 
 -- | Every StrategyRules bound to a seat names only what the premise has. A catalog Strategy or preset was
--- | checked at load; a StrategyRules bound directly (the capstone's, an `assemble` caller's) is checked here.
+-- | checked at load; a StrategyRules bound directly (an `assemble` caller's) is checked here.
 checkStrategyRulesRules :: forall m r t k. Names m r t k -> Bindings -> Either AssemblyError Unit
 checkStrategyRulesRules names bindings = traverse_ check (entries bindings)
   where

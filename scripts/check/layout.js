@@ -34,18 +34,18 @@ const rules = [
   },
   {
     name: "a fixture's world is a restrict of its premise plus named patches: no fixture module builds an Actor, Exchange, Transformation, or World",
-    files: (f) => f.startsWith("packages/premises/src/Premises/Meridian/Fixtures"),
+    files: (f) => /^packages\/premises\/src\/Premises\/(?!Kit\/)[^/]+\/Fixtures/.test(f),
     bad: (line) => /\b(noActor|noExchange|noTransformation|emptyWorld|byKey|actorsOf|pickAccounts|Map\.(union|fromFoldable))\b/.test(line),
   },
   {
     name: "the server loads what the premise root contains: it imports no premise, Kit, or Catalog",
     files: (f) => f.startsWith("apps/server/src/"),
-    bad: (line) => /^import Premises\.(Meridian|Kit|Catalog)\b/.test(line),
+    bad: (line) => /^import Premises\.(Pacific|Kit|Catalog)\b/.test(line),
   },
   {
-    name: "Premises.Kit is generic: it imports no premise (Premises.Meridian)",
+    name: "Premises.Kit is generic: it imports no premise (Premises.Pacific)",
     files: (f) => f.startsWith("packages/premises/src/Premises/Kit"),
-    bad: (line) => /^import Premises\.Meridian\b/.test(line),
+    bad: (line) => /^import Premises\.Pacific\b/.test(line),
   },
   {
     name: "effects declare operations only: no interpret, on, or handler definition",
@@ -139,10 +139,7 @@ for (const rule of rules) {
 // A module beside a directory of its name is a choice: a catalog, or an app's entry point. Anything else is a
 // module that should be the directory's parts. A directory holding one module is that module with a longer name.
 const moduleDirs = {
-  "packages/premises/src/Premises/Meridian": "a catalog: it builds the PremiseComposition's world and its Premises from the tables beneath it",
-  "packages/premises/src/Premises/Meridian/Actors": "a catalog: it lists the Actors defined beneath it",
-  "packages/premises/src/Premises/Pacific": "a catalog: it builds the PremiseComposition's world and its two Premises from the names and Strategies beneath it",
-  "packages/premises/src/Premises/Meridian/Fixtures": "a catalog: it lists the fixtures defined beneath it",
+  "packages/premises/src/Premises/Pacific": "a catalog: it builds the PremiseComposition's world and its three Premises from the names and Strategies beneath it",
   "apps/server/src/Server": "the app's entry point; the directory holds its parts",
 };
 for (const d of packageDirs().flatMap((p) => walkDirs(path.join(p, "src")))) {

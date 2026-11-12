@@ -5,8 +5,6 @@ module Test.Adapters.Primitives (spec) where
 
 import Prelude
 
-import Premises.Meridian.Names (meridianDir)
-
 import Adapters.Clock (nowIso)
 import Adapters.Console (closeInput, readLine)
 import Adapters.Filesystem (fileOps)
@@ -39,7 +37,7 @@ spec = describe "Primitives: seed, clock, premise reads" do
     contains (Pattern "Z") t `shouldEqual` true
 
   it "a composition directory reads its files" do
-    s <- liftEffect (readComposition fileOps meridianDir)
+    s <- liftEffect (readComposition fileOps "pacific/v0")
     case s of
       Right sc -> do
         sc.composition.name `shouldEqual` "composition.json"
@@ -54,7 +52,7 @@ spec = describe "Primitives: seed, clock, premise reads" do
       Right _ -> fail "a missing directory must not read"
 
   it "readText reads a file under the premise root; a missing file names its path" do
-    ok <- liftEffect (readRootFile fileOps (compositionsDir <> "/" <> meridianDir <> "/presets.json"))
+    ok <- liftEffect (readRootFile fileOps (compositionsDir <> "/pacific/v0/presets.json"))
     case ok of
       Right _ -> pure unit
       Left e -> fail e

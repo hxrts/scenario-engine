@@ -18,7 +18,6 @@ package:
   test:
     main: Test.Views.Main
     dependencies:
-      - argonaut-codecs
       - aff
       - effect
       - sp-testkit

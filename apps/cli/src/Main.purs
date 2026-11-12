@@ -1,6 +1,6 @@
 -- | The CLI's composition root. `run <composition> [--preset <name>] [--rounds <n>] [--seed <n>]` plays a game with every
 -- | seat bound to one preset and prints a per-round summary; `session` runs a live game. Unknown options and bad
--- | values are usage errors (exit status 1). `presets` prints the shipped preset names, one per line.
+-- | values are usage errors (exit status 1). `presets <composition>` prints its preset names, one per line.
 module Main (main) where
 
 import Prelude
@@ -28,10 +28,10 @@ main = do
       Just { head: composition, tail: flags } -> case parseWith runFlags flags of
         Left e -> usage e
         Right o -> launchAff_ (runSystem (simulation { composition, preset: o.preset, rounds: o.rounds, seed: o.seed }) >>= orFail)
-      Nothing -> usage "run needs a composition, e.g. run meridian"
+      Nothing -> usage "run needs a composition, e.g. run pacific"
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: composition, tail: flags } -> either usage (launchAff_ <<< live) (parseWith (sessionFlags composition) flags)
-      Nothing -> usage "session needs a composition, e.g. session meridian"
+      Nothing -> usage "session needs a composition, e.g. session pacific"
     Just { head: "experiment", tail: rest } -> case uncons rest of
       Just { head: composition, tail: flags } -> case parseWith (experimentFlags composition) flags >>= experimentOf of
         Left e -> usage e
@@ -40,9 +40,9 @@ main = do
               Left e -> liftEffect (fail e)
               Right parts -> runLaunches o.db (experiment o.request parts) >>= orFail
           )
-      Nothing -> usage "experiment needs a composition, e.g. experiment meridian"
-    Just { head: "presets" } -> launchAff_ (runSystem presets)
-    _ -> usage "expected a command: run, session, experiment or presets"
+      Nothing -> usage "experiment needs a composition, e.g. experiment pacific"
+    Just { head: "presets", tail: [ composition ] } -> launchAff_ (runSystem (presets composition) >>= orFail)
+    _ -> usage "expected a command: run, session, experiment or presets <composition>"
 
 live :: Options -> Aff Unit
 live o = runSystem (prepare o) >>= case _ of
@@ -57,6 +57,7 @@ usage = usageError
   [ "usage: run <composition> " <> usageOf runFlags
   , "       session <composition> " <> usageOf (sessionFlags "")
   , "       experiment <composition> " <> usageOf (experimentFlags "")
-  , "  e.g. just sim meridian --preset Conservative --rounds 5"
-  , "       just session meridian --humans US --rounds 3"
+  , "       presets <composition>"
+  , "  e.g. just sim pacific --preset Restrict --rounds 6"
+  , "       just session pacific --humans US --rounds 3"
   ]

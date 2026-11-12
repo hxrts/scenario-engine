@@ -4,7 +4,7 @@
 
 The kernel says what any World can be made of: Stocks, Flows, Laws over them, and Transactions of conditional Obligations ([§3](#3-the-kernel)). A PremiseComposition describes a set of possible Worlds in those terms ([03](03_premise.md)), and a Run realizes one of them ([04](04_run.md)). This document specifies the kernel and the economic types every PremiseComposition shares. The kernel decides no trade, signature, procedure or schedule: those are vocabulary a PremiseComposition authors, and they compile to kernel values ([03 §14](03_premise.md#14-compilation-to-the-kernel)). Explicit Actors, Aggregates and implicit populations act through the same kernel in one deterministic economy. The engine is pure: every impure act is a named effect ([§8.4](#84-effects-and-handlers)).
 
-The anchors are defined in [01 Terms](01_overview.md#terms). The reference PremiseComposition is in [06](06_meridian.md), and the simulator in [07](07_simulator.md).
+The anchors are defined in [01 Terms](01_overview.md#terms). The reference PremiseComposition is in [05](05_pacific.md), and the simulator in [07](07_simulator.md).
 
 ## 2. Core Ontology
 
@@ -14,7 +14,7 @@ The sections below specify the anchors and the types built on them: Actor and it
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Meridian's are in [06 §9](06_meridian.md#9-actor-catalog) and [§10](06_meridian.md#10-aggregate-catalog).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced.Pacific's are in [05 §2](05_pacific.md#2-seats).
 
 ### 2.2 Three projections of an Actor
 
