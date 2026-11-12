@@ -7,12 +7,8 @@ module Handlers.Api.Contract
   ( Op
   , Operations
   , AnyRefusal
-  , Derived
   , SessionState
   , SessionStarted
-  , Resumed
-  , Archived
-  , Deleted
   , Created
   , Entry
   , class EntryOf
@@ -39,18 +35,17 @@ import Core.Shape (class Exhausts, class Inject, Desc, Format(..), class Payload
 import Data.Argonaut.Core (Json)
 import Data.Either (Either, either)
 import Data.Generic.Rep (class Generic, Constructor(..), Sum(..), from, to)
-import Data.Maybe (Maybe)
+
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Variant (Variant)
 import Data.Variant as V
 import Effects.Api (ApiRequest, Reply)
-import Effects.Launch (Launched)
-import Effects.Signatures (RunSet)
+
 import Handlers.Api.Route (failWith, replyIn)
 import Prim.Row as Row
 import Prim.RowList as RL
 import Record as Record
-import Schema.Run (DeriveKind, RunStatus)
+import Schema.Run (RunStatus)
 import Type.Proxy (Proxy(..))
 import Views.Actor (ActorList, History)
 import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
@@ -86,26 +81,15 @@ instance ViewShape a => EntryOf (Created a e) a e where
 -- | The refusals of an operation nobody outside this repository depends on.
 type AnyRefusal = (badRequest :: String, notFound :: String, conflict :: String, internal :: String)
 
--- | The reply to a derive; `recordsMatch` only for a rerun.
-type Derived = { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean }
-
 type SessionState = { round :: Int, status :: RunStatus, window :: Int, submitted :: Array String, awaiting :: Array String }
 
 type SessionStarted = { id :: String, balanceSheets :: Array BalanceSheetLink }
-
-type Resumed = { id :: String, rounds :: Int }
-
-type Archived = { id :: String, archived :: Boolean }
-
-type Deleted = { deleted :: String }
 
 -- | Every operation's entry, by constructor name: the one statement of its reply type and refusals.
 type Operations =
   ( "ListRuns" :: Op RunList AnyRefusal
   , "Premise" :: Op (Array CompositionInfo) AnyRefusal
   , "Glossary" :: Op Glossary AnyRefusal
-  , "LaunchRun" :: Op Launched AnyRefusal
-  , "LaunchBatch" :: Op (Array { composition :: String, id :: String, playerSeed :: Int }) AnyRefusal
   , "Actors" :: Op ActorList AnyRefusal
   , "Actor" :: Op History AnyRefusal
   , "BalanceSheetLinks" :: Op (Array BalanceSheetLink) AnyRefusal
@@ -117,21 +101,9 @@ type Operations =
   , "Compare" :: Op CompareView AnyRefusal
   , "Agency" :: Op Table AnyRefusal
   , "AgencyDetail" :: Op { criteria :: Table, profile :: Table } AnyRefusal
-  , "Derive" :: Created Derived AnyRefusal
-  , "Resume" :: Op Resumed AnyRefusal
-  , "Step" :: Op Resumed AnyRefusal
-  , "RunExperiment" :: Op { set :: String, runs :: Array String } AnyRefusal
-  , "ListRunSets" :: Op { sets :: Array RunSet } AnyRefusal
-  , "SetSummary" :: Op Table AnyRefusal
-  , "SaveRunSet" :: Op RunSet AnyRefusal
-  , "RenameRunSet" :: Op { name :: String } AnyRefusal
-  , "DeleteRunSet" :: Op { name :: String } AnyRefusal
   , "StartSession" :: Op SessionStarted AnyRefusal
   , "GetSession" :: Op SessionState (notFound :: String)
   , "SubmitTranscript" :: Op SessionState (badRequest :: String, notFound :: String, conflict :: String)
-  , "Archive" :: Op Archived AnyRefusal
-  , "Unarchive" :: Op Archived AnyRefusal
-  , "Delete" :: Op Deleted AnyRefusal
   )
 
 -- | The status of a refusal, by its label: the one place a status is written. Each carries the message.

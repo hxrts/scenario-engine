@@ -5,6 +5,8 @@ module Test.Server.Compositions (spec) where
 
 import Prelude
 
+import Test.Server.Seed (serve)
+
 import Core.Shape (kindsNamed)
 import Data.Array (fromFoldable, sort)
 import Data.Map as Map
@@ -23,7 +25,7 @@ import Data.String (Pattern(..), contains, joinWith)
 import Data.Tuple (Tuple(..), fst, snd)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
-import Handlers.Api.Route (route)
+
 import Premises.Compose (CompositionSource, premiseOf)
 import Premises.Kit.Seats (Cover(..), seat)
 import Premises.Kit.Holdings (HoldingTable)
@@ -36,7 +38,7 @@ import Schema.Build.Base (holdingOf, keyed, mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (atLeast, byKey, emptyCirculation, emptyWorld, actorsOf, finishes, noResource, resourcesOf)
 import Server.OpenApi (documentsOf)
-import Server.Stack (implement, newServerCache)
+import Server.Stack (newServerCache)
 import Data.Argonaut.Core (stringify)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
@@ -130,7 +132,7 @@ spec = describe "A second Premise" do
       Right pc -> do
         db <- liftEffect (open ":memory:")
         cache <- liftEffect newServerCache
-        let api method path query body = liftEffect (route (implement [ pc ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
+        let api method path query body = liftEffect (serve [ pc ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
         -- every preset the composition authors, in name order
         list.body `shouldSatisfy` contains (Pattern ("\"presets\":[" <> joinWith "," (map (\n -> "\"" <> n <> "\"") (sort (fromFoldable (Object.keys pc.presets)))) <> "]"))
@@ -153,14 +155,14 @@ spec = describe "A second Premise" do
         sort (Object.keys names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
         Object.lookup "resource" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.resources)))
         Object.lookup "actor" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.actors)))
-  it "is played and viewed, and compared with Pacific as a batch; each run records its Premise" do
+  it "is played and viewed, and compared with a Pacific run; each run records its Premise" do
     pacificP <- pacificParts
     case parts harbor of
       Left e -> fail e
       Right h -> do
         db <- liftEffect (open ":memory:")
         cache <- liftEffect newServerCache
-        let api method path query body = liftEffect (route (implement [ pacificP, h ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
+        let api method path query body = liftEffect (serve [ pacificP, h ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
         list.body `shouldSatisfy` contains (Pattern "\"harbor\"")
         launched <- api "POST" "/api/runs" [] "{\"composition\":\"harbor\",\"name\":\"h\",\"preset\":\"Trade\",\"playerSeed\":1,\"rounds\":3}"
@@ -169,13 +171,8 @@ spec = describe "A second Premise" do
         charts.body `shouldSatisfy` contains (Pattern "Corn reserves")
         objectives <- api "GET" "/api/runs/run-1/objectives" [] ""
         objectives.status `shouldEqual` 200
-        rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
-        rerun.status `shouldEqual` 201
-        rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-        batch <- api "POST" "/api/batch" [] "{\"preset\":\"FreeTrade\",\"playerSeed\":1}"
-        batch.status `shouldEqual` 200
-        batch.body `shouldSatisfy` contains (Pattern "\"composition\":\"pacific\"")
-        batch.body `shouldSatisfy` contains (Pattern "\"composition\":\"harbor\"")
-        compared <- api "GET" "/api/compare" [ Tuple "runs" "run-3,run-4" ] ""
+        other <- api "POST" "/api/runs" [] "{\"composition\":\"pacific\",\"name\":\"p\",\"preset\":\"FreeTrade\",\"playerSeed\":1}"
+        other.status `shouldEqual` 200
+        compared <- api "GET" "/api/compare" [ Tuple "runs" "run-1,run-2" ] ""
         compared.status `shouldEqual` 200
         compared.body `shouldSatisfy` contains (Pattern "\"skipped\":[]")

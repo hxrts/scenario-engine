@@ -3,9 +3,9 @@ module Probe.Writes where
 
 import Prelude
 
-import Effects.Store (setArchived)
+import Effects.Store (deleteRun)
 import Run (Run)
 import Server.Rows (READS)
 
 probe :: forall r. Run (READS r) Unit
-probe = setArchived "x" true
+probe = void (deleteRun "x")

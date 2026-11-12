@@ -10,23 +10,21 @@ const COLUMNS_JSON = JSON.parse(readFileSync(["e2e/generated/columns.json", "app
 export const COLUMNS = COLUMNS_JSON;
 
 // The run list as the server answers it: the table, and the typed flags of each run in the same order.
-// The default list omits archived runs; `?archived=true` lists every run, archived or not.
+// Each run is simulated or interactive (its Class column); `?class=` lists one class.
 export const listed = (rows) => ({
   title: "Simulation runs",
   columns: COLUMNS,
   rows,
-  runs: rows.map((r) => ({ id: r[0], archived: r[9] === "yes", readable: r[6] !== "unreadable", source: r[10] ? r[10] : null })),
+  runs: rows.map((r) => ({ id: r[0], runClass: r[9] === "interactive" ? "interactive" : "simulated", readable: r[6] !== "unreadable" })),
 });
-export const ACTIVE = ["run-1", "base", "pacific@v0", "1949", "1", "3", "completed", "0", "", "no", ""];
-export const ARCHIVED = ["run-9", "old", "pacific@v0", "1949", "4", "3", "completed", "0", "", "yes", "run-1"];
+export const ACTIVE = ["run-1", "base", "pacific@v0", "1949", "1", "3", "completed", "0", "", "simulated", ""];
+export const LIVE = ["run-9", "rehearsal", "pacific@v0", "1949", "4", "3", "completed", "0", "", "interactive", "mock"];
 
-// A run's overview: three rounds completed, of a target of `target`. Resume is offered only for a completed
-// run (the server's `resumable`). The header facts are the server's.
+// A run's overview: three rounds completed, of a target of `target`. The header facts are the server's.
 export const overview = (target, { id = "run-1", status = "completed" } = {}) => ({
   id,
   rounds: 3,
   target,
-  resumable: status === "completed",
   facts: [
     { label: "Name", value: "base" },
     { label: "Preset", value: "FreeTrade" },
@@ -39,12 +37,10 @@ export const overview = (target, { id = "run-1", status = "completed" } = {}) =>
 
 export const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
 export const isPath = (path) => (url) => url.pathname === path;
-export const archivedQuery = (url) => url.pathname === "/api/runs" && url.searchParams.get("archived") === "true";
 
-// The read side of the pages under test: the run list (with and without archived runs) and run-1's overview.
-// `active` is the list of rows for the default list (run-1 by default).
-export async function mockReads(page, { target = 3, status = "completed", archived = [], active = [ACTIVE] } = {}) {
+// The read side of the pages under test: the run list and run-1's overview. `active` is the list's rows
+// (run-1 by default).
+export async function mockReads(page, { target = 3, status = "completed", active = [ACTIVE] } = {}) {
   await page.route(isPath("/api/runs"), (route) => route.fulfill(json(listed(active))));
-  await page.route(archivedQuery, (route) => route.fulfill(json(listed([...active, ...archived]))));
   await page.route(isPath("/api/runs/run-1/overview"), (route) => route.fulfill(json(overview(target, { status }))));
 }

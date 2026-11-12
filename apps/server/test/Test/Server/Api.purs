@@ -4,7 +4,7 @@ module Test.Server.Api (spec) where
 
 import Prelude
 
-import Data.Map as Map
+import Test.Server.Seed (serve)
 
 import Test.Server.Host (testHost)
 
@@ -23,28 +23,27 @@ import Handlers.Cache (interpretCache)
 import Run (EFFECT, Run, interpret, on, runBaseEffect, send)
 import Views.Common (StoredRun)
 import Type.Row (type (+))
-import Core.Draw (Seed(..))
+
 import Data.Either (Either(..), either)
 import Data.Array (length)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), contains, joinWith)
-import Premises.Pacific as Pacific
+import Data.String (Pattern(..), contains)
+
 import Effect.Aff (Aff)
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Ref as Ref
-import Effects.Observe (listRuns, readManifest, readRounds)
-import Effects.Store (validRunId, createRun, failRun, setStatus, setSpec)
+import Effects.Observe (listRuns, readManifest)
+import Effects.Store (createRun, validRunId)
 import Foreign.Object as Object
 import Assembly.Composition (CompositionParts)
-import Assembly.Recipe (encodeSpec)
-import Handlers.Api.Route (route)
+
 import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
 import Server.Cache (Profiles, cached, cachedAgency)
-import Server.Stack (ServerCache, implement, newServerCache, runServer, systemDevices)
+import Server.Stack (ServerCache, newServerCache, runServer, systemDevices)
 import Server.Launch (startup)
 import Server.Read (loadRun)
 import Test.Server.Http (rawExec)
@@ -70,7 +69,7 @@ setup = do
   cache <- liftEffect newServerCache
   let
     store = storeOver db
-    api method path body = liftEffect (route (implement [ ctx ] store cache (testHost store)) { method, path, query: Object.empty, body })
+    api method path body = liftEffect (serve [ ctx ] store cache (testHost store) { method, path, query: Object.empty, body })
   pure { api, store, db, cache, ctx }
 
 launch :: Env -> Int -> Aff Unit
@@ -84,6 +83,18 @@ spec = describe "API status rules, startup and cache" do
     launched.status `shouldEqual` 200
     launched.body `shouldSatisfy` contains (Pattern "\"run-1\"")
     validRunId "../etc" `shouldEqual` false
+  it "a comparison with no run named compares every simulated run, and the list filters by class" do
+    env <- setup
+    launch env 2
+    launch env 2
+    cmp <- env.api "GET" "/api/compare" ""
+    cmp.status `shouldEqual` 200
+    cmp.body `shouldSatisfy` contains (Pattern "run-2")
+    cmp.body `shouldSatisfy` contains (Pattern "\"skipped\":[]")
+    live <- liftEffect (serve [ env.ctx ] env.store env.cache (testHost env.store) { method: "GET", path: "/api/runs", query: Object.singleton "class" "interactive", body: "" })
+    live.body `shouldSatisfy` (not <<< contains (Pattern "run-1"))
+    simulated <- liftEffect (serve [ env.ctx ] env.store env.cache (testHost env.store) { method: "GET", path: "/api/runs", query: Object.singleton "class" "simulated", body: "" })
+    simulated.body `shouldSatisfy` contains (Pattern "run-2")
   it "every view of a run answers 200" do
     env <- setup
     launch env 3
@@ -138,90 +149,7 @@ spec = describe "API status rules, startup and cache" do
     spaced <- env.api "GET" "/api/runs/a%20b/overview" ""
     spaced.status `shouldEqual` 404
     spaced.body `shouldSatisfy` contains (Pattern "no run a b")
-  it "a derive body that is not a derive request is a 400 from the route" do
-    env <- setup
-    launch env 2
-    notJson <- env.api "POST" "/api/runs/run-1/derive" "not json"
-    notJson.status `shouldEqual` 400
-    notObject <- env.api "POST" "/api/runs/run-1/derive" "[1]"
-    notObject.status `shouldEqual` 400
-    noKind <- env.api "POST" "/api/runs/run-1/derive" "{\"name\":\"x\"}"
-    noKind.status `shouldEqual` 400
-    badSeed <- env.api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"playerSeed\":\"one\"}"
-    badSeed.status `shouldEqual` 400
-  it "a named set holds run ids only, opens the same comparison, and a run in a set cannot be deleted" do
-    env <- setup
-    launch env 2
-    launch env 2
-    (_.status <$> env.api "GET" "/api/runs/run-1/balancesheets" "") >>= (_ `shouldEqual` 200)
-    (_.status <$> env.api "GET" "/api/runs/run-1/balancesheet/nope" "") >>= (_ `shouldEqual` 404)
-    report <- env.api "GET" "/api/runs/run-1/rounds/1/report" ""
-    report.status `shouldEqual` 200
-    (env.api "GET" "/api/runs/run-1/rounds/99/report" "" <#> _.status) >>= (_ `shouldEqual` 404)
-    (env.api "GET" "/api/runs/run-1/rounds/x/report" "" <#> _.status) >>= (_ `shouldEqual` 404)
-    saved <- env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-2\",\"runs\":[\"run-1\",\"run-2\"]}"
-    saved.status `shouldEqual` 200
-    rows <- liftEffect (env.db.query "select * from run_sets" [] :: Effect (Array { name :: String, baseline :: String, runs :: String }))
-    rows `shouldEqual` [ { name: "pair", baseline: "run-2", runs: "[\"run-1\",\"run-2\"]" } ]
-    (env.api "POST" "/api/sets" "{\"name\":\"pair\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 409)
-    (env.api "POST" "/api/sets" "{\"name\":\"x\",\"baseline\":\"run-9\",\"runs\":[\"run-1\"]}" <#> _.status) >>= (_ `shouldEqual` 400)
-    (env.api "POST" "/api/sets" "{\"name\":\"x\",\"baseline\":\"run-9\",\"runs\":[\"run-9\"]}" <#> _.status) >>= (_ `shouldEqual` 400)
-    refused <- env.api "DELETE" "/api/runs/run-1" ""
-    refused.status `shouldEqual` 400
-    (env.api "POST" "/api/sets/pair/rename" "{\"name\":\"couple\"}" <#> _.status) >>= (_ `shouldEqual` 200)
-    listed <- env.api "GET" "/api/sets" ""
-    listed.body `shouldSatisfy` contains (Pattern "couple")
-    (env.api "DELETE" "/api/sets/nope" "" <#> _.status) >>= (_ `shouldEqual` 404)
-    (env.api "DELETE" "/api/sets/couple" "" <#> _.status) >>= (_ `shouldEqual` 200)
 
-  it "deleting a run a set names is refused, and says which set" do
-    env <- setup
-    launch env 2
-    _ <- env.api "POST" "/api/sets" "{\"name\":\"solo\",\"baseline\":\"run-1\",\"runs\":[\"run-1\"]}"
-    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache (testHost env.store)) { method: "DELETE", path: "/api/runs/run-1", query: Object.singleton "confirm" "run-1", body: "" })
-    r.status `shouldEqual` 409
-    r.body `shouldSatisfy` contains (Pattern "solo")
-
-  it "a single-parameter experiment saves one run per value and one named set, each reproducible" do
-    env <- setup
-    let body = "{\"name\":\"sweep\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2,\"experiment\":{\"type\":\"parameters\",\"axes\":[{\"name\":\"tariff-rate\",\"values\":[\"1\",\"2\",\"3\"]}]}}"
-    out <- env.api "POST" "/api/experiments" body
-    out.status `shouldEqual` 200
-    out.body `shouldEqual` "{\"set\":\"sweep\",\"runs\":[\"run-1\",\"run-2\",\"run-3\"]}"
-    sets <- env.api "GET" "/api/sets" ""
-    sets.body `shouldSatisfy` contains (Pattern "\"baseline\":\"run-1\"")
-    rerun <- env.api "POST" "/api/runs/run-2/derive" "{\"kind\":\"rerun\"}"
-    rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-    (env.api "POST" "/api/experiments" body <#> _.status) >>= (_ `shouldEqual` 400)
-
-  it "a step plays one round of a run short of its target, the same round extend plays; a run at its target is refused" do
-    env <- setup
-    launch env 3
-    launch env 3
-    stored <- liftEffect (runObserve env.store (readManifest "run-1"))
-    case stored of
-      Just { spec: Right written } -> liftEffect (runStore env.store (setSpec "run-1" written { rounds = Just 5 }))
-      _ -> liftEffect (throw "no stored spec")
-    stepped <- env.api "POST" "/api/runs/run-1/step" ""
-    stepped.status `shouldEqual` 200
-    stepped.body `shouldSatisfy` contains (Pattern "\"rounds\":4")
-    (env.api "POST" "/api/runs/run-2/resume" "{\"rounds\":4}" <#> _.status) >>= (_ `shouldEqual` 200)
-    one <- liftEffect (runObserve env.store (readRounds "run-1"))
-    other <- liftEffect (runObserve env.store (readRounds "run-2"))
-    map _.record one `shouldEqual` map _.record other
-    map _.snapshot one `shouldEqual` map _.snapshot other
-    refused <- env.api "POST" "/api/runs/run-2/step" ""
-    refused.status `shouldEqual` 400
-    refused.body `shouldSatisfy` contains (Pattern "has played all 4")
-  it "resume of a run that is not completed is a 400, and a rerun of one is a 409" do
-    env <- setup
-    launch env 2
-    liftEffect (runStore env.store (failRun "run-1" "boom"))
-    resumed <- env.api "POST" "/api/runs/run-1/resume" "{\"rounds\":3}"
-    resumed.status `shouldEqual` 400
-    resumed.body `shouldSatisfy` contains (Pattern "only a completed run")
-    rerun <- env.api "POST" "/api/runs/run-1/derive" "{\"kind\":\"rerun\"}"
-    rerun.status `shouldEqual` 409
   it "the run list marks an unreadable run and keeps the others" do
     env <- setup
     launch env 2
@@ -285,47 +213,12 @@ spec = describe "API status rules, startup and cache" do
     env <- setup
     _ <- env.api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
     _ <- env.api "POST" "/api/runs" "{\"name\":\"b\",\"preset\":\"Hawk\",\"playerSeed\":2,\"rounds\":2}"
-    r <- liftEffect (route (implement [ env.ctx ] env.store env.cache (testHost env.store)) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
+    r <- liftEffect (serve [ env.ctx ] env.store env.cache (testHost env.store) { method: "GET", path: "/api/compare", query: Object.singleton "runs" "run-1,run-2,run-9", body: "" })
     r.status `shouldEqual` 200
     r.body `shouldSatisfy` contains (Pattern "[\"seat Strategy\",\"preset\",\"FreeTrade\",\"Hawk\"]")
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")
     r.body `shouldSatisfy` contains (Pattern "\"marked\":[[false,false,false,true]")
     r.body `shouldSatisfy` contains (Pattern "\"skipped\":[\"run-9: not found\"]")
-  it "the overview says whether a run can be resumed: completed, not failed" do
-    env <- setup
-    launch env 2
-    done <- env.api "GET" "/api/runs/run-1/overview" ""
-    done.body `shouldSatisfy` contains (Pattern "\"resumable\":true")
-    liftEffect (runStore env.store (failRun "run-1" "boom"))
-    liftEffect (inCache env.cache forgetRuns)
-    failed <- env.api "GET" "/api/runs/run-1/overview" ""
-    failed.body `shouldSatisfy` contains (Pattern "\"resumable\":false")
-  it "a session has no preset: duplicate and rerun replay it, variant and counterfactual and resume are refused" do
-    env <- setup
-    launch env 2
-    run1 <- liftEffect (runObserve env.store (readManifest "run-1"))
-    manifest <- case run1 of
-      Just { manifest: Right m } -> pure m
-      _ -> liftEffect (throw "no stored manifest")
-    rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
-    let written = encodeSpec { cast: Map.empty, gameId: "pacific/pacific-01", composition: "pacific@v0", premises: joinWith "," (map (\x -> x.id <> "@" <> x.version) (Pacific.pacific Pacific.defaultDials).premises), playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
-    liftEffect do
-      runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
-      for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of
-        Right record, Right snapshot, Right assertions, Right transcripts -> env.store.appendRound { run: "session-1", round: r.round, record, snapshot, assertions, transcripts, metrics: [] }
-        _, _, _, _ -> throw "an unreadable stored round"
-      runStore env.store (setStatus "session-1" Completed Nothing)
-    let deriveWith body = env.api "POST" "/api/runs/session-1/derive" body
-    duplicated <- deriveWith "{\"kind\":\"duplicate\"}"
-    duplicated.status `shouldEqual` 201
-    rerun <- deriveWith "{\"kind\":\"rerun\"}"
-    rerun.status `shouldEqual` 201
-    rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-    variant <- deriveWith "{\"kind\":\"variant\",\"preset\":\"Restrict\"}"
-    variant.status `shouldEqual` 400
-    counterfactual <- deriveWith "{\"kind\":\"counterfactual\",\"overrides\":[]}"
-    counterfactual.status `shouldEqual` 400
-    (env.api "POST" "/api/runs/session-1/resume" "{\"rounds\":3}" <#> _.status) >>= (_ `shouldEqual` 400)
   it "the agency cache keeps a success and not a failure" do
     c <- liftEffect newServerCache
     loads <- liftEffect (Ref.new 0)

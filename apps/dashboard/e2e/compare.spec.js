@@ -166,20 +166,3 @@ test("the net-worth plot overlays one line per run for the chosen player", async
   await netWorth.getByRole("combobox").selectOption({ index: 1 });
   await expect(plot.locator(".recharts-line")).toHaveCount(2);
 });
-
-test("a named set opens its runs with its baseline first, and the ticked runs can be saved as one", async ({ page }) => {
-  const set = { name: "pair", baseline: "run-2", runs: ["run-1", "run-2"] };
-  let posted = null;
-  await page.route(isSets, (route) => {
-    if (route.request().method() === "POST") { posted = route.request().postDataJSON(); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(posted) }); }
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ sets: [set] }) });
-  });
-  await page.goto("/admin/#/compare/run-1/run-2");
-  await page.getByRole("textbox", { name: "Save the ticked runs as", exact: true }).fill("saved");
-  await page.getByRole("button", { name: "Save set", exact: true }).click();
-  await expect.poll(() => posted).toEqual({ name: "saved", baseline: "run-1", runs: ["run-1", "run-2"] });
-  await page.getByRole("button", { name: "Open pair", exact: true }).click();
-  await expect(page).toHaveURL(/#\/compare\/run-2\/run-1$/);
-});
-
-const isSets = (url) => url.pathname === "/api/sets";

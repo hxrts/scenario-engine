@@ -9,7 +9,7 @@ hand-instance packages/laws/src/Laws/Engine/Commit.purs instance-Show-EngineErro
 hand-instance packages/laws/src/Laws/Invariants.purs instance-Show-Invariant the text is the spec's id (INV-01), which a constructor cannot spell
 hand-instance packages/core/src/Core/Num.purs instance-Show-Q the text is the exact decimal form (Q.format)
 hand-instance packages/schema/src/Schema/Run.purs instance-Show-RunStatus the text is the status as stored
-hand-instance packages/schema/src/Schema/Run.purs instance-Show-DeriveKind the text is the kind as stored
+hand-instance packages/schema/src/Schema/Run.purs instance-Show-RunClass the text is the class as stored
 hand-instance packages/core/src/Core/Shape.purs instance-Show-TagForm the text is the prose name a prompt shows
 hand-instance packages/core/src/Core/Types.purs instance-Show-Id the text is the id itself, used wherever an id is displayed
 hand-instance packages/laws/src/Laws/Types.purs instance-Show-RefKind the text is the lower-case name error messages use

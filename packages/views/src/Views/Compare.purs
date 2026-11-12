@@ -228,7 +228,7 @@ sameSpecification runs = case uncons runs of
   Just { head: first } -> filter (\r -> specOf r == specOf first) runs
   where
   specOf :: StoredRun -> Spec
-  specOf r = r.spec { playerSeed = Nothing, source = Nothing, kind = Nothing }
+  specOf r = r.spec { playerSeed = Nothing }
 
 -- | A run's column header: its name and id, or the id alone when the run has no other name.
 runHeader :: StoredRun -> String

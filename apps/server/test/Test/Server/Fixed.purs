@@ -1,4 +1,4 @@
--- | A launch, derive and resume under fixed clock, entropy and process devices: everything they record is
+-- | A stored run under fixed clock, entropy and process devices: everything they record is
 -- | determined by the requests, so two independent stores end up with identical rows.
 module Test.Server.Fixed (spec) where
 
@@ -9,7 +9,7 @@ import Test.Server.Host (testHost)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
-import Handlers.Api.Route (route)
+
 import Handlers.Store (runObserve)
 import Effects.Observe (listSummaries, readManifest, readRounds)
 import Data.Argonaut.Core (stringify)
@@ -17,7 +17,8 @@ import Core.Shape (Format(..), encodeWith, arrayOf)
 import Data.Either (either)
 import Data.Traversable (traverse)
 import Laws.World (roundRecordShape, worldStateShape)
-import Server.Stack (implementOn, localStore, newServerCache, openDatabase)
+import Test.Server.Seed (serveOn)
+import Server.Stack (localStore, newServerCache, openDatabase)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Data.String (Pattern(..), contains)
@@ -32,13 +33,11 @@ session = do
   cache <- liftEffect newServerCache
   let
     store = localStore db
-    api method path body = liftEffect (route (implementOn { system: fixedSystem, sessions: testHost store, store, cache } [ ctx ]) { method, path, query: Object.empty, body })
+    api method path body = liftEffect (serveOn { system: fixedSystem, sessions: testHost store, store, cache } [ ctx ] { method, path, query: Object.empty, body })
   -- no player seed given: it comes from the entropy device
   launched <- api "POST" "/api/runs" "{\"name\":\"a\",\"preset\":\"Hawk\",\"rounds\":2}"
   launched.status `shouldEqual` 200
   launched.body `shouldSatisfy` contains (Pattern "\"playerSeed\":42")
-  (api "POST" "/api/runs/run-1/derive" "{\"kind\":\"rerun\"}" <#> _.status) >>= (_ `shouldEqual` 201)
-  (api "POST" "/api/runs/run-1/resume" "{\"rounds\":3}" <#> _.status) >>= (_ `shouldEqual` 200)
   liftEffect do
     runs <- runObserve store listSummaries
     stored <- traverse (\r -> { m: _, rounds: _ } <$> runObserve store (readManifest r.id) <*> runObserve store (readRounds r.id)) runs
@@ -46,7 +45,7 @@ session = do
 
 spec :: Spec Unit
 spec = describe "programs under fixed devices" do
-  it "launch, derive and resume reproduce their stored rows, and an absent seed comes from the device" do
+  it "a stored run reproduces its rows, and an absent seed comes from the device" do
     first <- session
     second <- session
     first `shouldEqual` second

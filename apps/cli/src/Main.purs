@@ -8,8 +8,7 @@ import Prelude
 import Adapters.Exit (fail, usageError)
 import Cli.Session (Options, prepare, session)
 import Cli.Simulate (presets, simulation)
-import Cli.Experiment (experiment, loadComposition)
-import Cli.Stack (runLaunches, runSession, runSystem)
+import Cli.Stack (runSession, runSystem)
 import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
@@ -18,7 +17,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Flags (parseWith, usageOf)
 import Node.Process (argv)
-import Options (experimentFlags, experimentOf, runFlags, sessionFlags)
+import Options (runFlags, sessionFlags)
 
 main :: Effect Unit
 main = do
@@ -32,17 +31,8 @@ main = do
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: composition, tail: flags } -> either usage (launchAff_ <<< live) (parseWith (sessionFlags composition) flags)
       Nothing -> usage "session needs a composition, e.g. session pacific"
-    Just { head: "experiment", tail: rest } -> case uncons rest of
-      Just { head: composition, tail: flags } -> case parseWith (experimentFlags composition) flags >>= experimentOf of
-        Left e -> usage e
-        Right o -> launchAff_
-          ( runSystem (loadComposition o.composition) >>= case _ of
-              Left e -> liftEffect (fail e)
-              Right parts -> runLaunches o.db (experiment o.request parts) >>= orFail
-          )
-      Nothing -> usage "experiment needs a composition, e.g. experiment pacific"
     Just { head: "presets", tail: [ composition ] } -> launchAff_ (runSystem (presets composition) >>= orFail)
-    _ -> usage "expected a command: run, session, experiment or presets <composition>"
+    _ -> usage "expected a command: run, session or presets <composition>"
 
 live :: Options -> Aff Unit
 live o = runSystem (prepare o) >>= case _ of
@@ -56,7 +46,6 @@ usage :: String -> Effect Unit
 usage = usageError
   [ "usage: run <composition> " <> usageOf runFlags
   , "       session <composition> " <> usageOf (sessionFlags "")
-  , "       experiment <composition> " <> usageOf (experimentFlags "")
   , "       presets <composition>"
   , "  e.g. just sim pacific --preset Restrict --rounds 6"
   , "       just session pacific --humans US --rounds 3"

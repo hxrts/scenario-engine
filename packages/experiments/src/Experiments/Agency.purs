@@ -1,4 +1,4 @@
--- | Counterfactuals, player-seed runs and agency (docs/07_simulator.md §10.4–§11, §10.5). Every
+-- | Counterfactuals, player-seed runs and agency (docs/07_simulator.md §10.3, §11). Every
 -- | experiment composes the pure `simulate`; none has its own run loop. The views present the results.
 module Experiments.Agency
   ( difference
@@ -43,7 +43,7 @@ difference base other = case finalWorld base, finalWorld other of
   Just a, Just b -> differenceOfWorlds a b
   _, _ -> { holdings: [], prices: [] }
 
--- | Change exactly one thing and replay with both seeds fixed (§10.4).
+-- | Change exactly one thing and replay with both seeds fixed (§10.3).
 counterfactual :: Seed -> PreparedRun -> (PreparedRun -> PreparedRun) -> Either AssemblyError { base :: SimRun, variant :: SimRun, difference :: Difference }
 counterfactual seed game change = do
   base <- simulate seed game

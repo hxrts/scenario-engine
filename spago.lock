@@ -60,7 +60,6 @@
             "sp-schema",
             "sp-strategy",
             "sp-world",
-            "strings",
             "tuples"
           ]
         },

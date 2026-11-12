@@ -3,14 +3,16 @@ module Test.Server.Sessions (spec) where
 
 import Prelude
 
+import Test.Server.Seed (serve)
+
 import Data.String (Pattern(..), contains)
 import Data.Time.Duration (Milliseconds(..))
 import Effect.Aff (Aff, delay)
 import Effect.Class (liftEffect)
 import Effects.Api (Reply)
 import Foreign.Object as Object
-import Handlers.Api.Route (route)
-import Server.Stack (implement, newServerCache)
+
+import Server.Stack (newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -27,7 +29,7 @@ setup = do
   let
     store = storeOver db
     host = testHost store
-  pure \method path body -> liftEffect (route (implement [ ctx ] store cache host) { method, path, query: Object.empty, body })
+  pure \method path body -> liftEffect (serve [ ctx ] store cache host { method, path, query: Object.empty, body })
 
 say :: Api -> String -> Int -> Aff Reply
 say api seat round = api "POST" "/api/sessions/run-1/transcripts" ("{\"seat\":\"" <> seat <> "\",\"round\":" <> show round <> ",\"text\":\"nothing\"}")
@@ -44,7 +46,7 @@ waitFor api text = go 200
 
 spec :: Spec Unit
 spec = describe "A live session over the API" do
-  it "starts, takes one text per seat per round, refuses the rest, finishes, and replays" do
+  it "starts, takes one text per seat per round, refuses the rest, finishes, and stores its rounds" do
     api <- setup
     started <- api "POST" "/api/sessions" "{\"humans\":[\"US\"],\"rounds\":4,\"playerSeed\":1}"
     started.status `shouldEqual` 200
@@ -65,8 +67,9 @@ spec = describe "A live session over the API" do
     (_.status <$> say api "US" 4) >>= (_ `shouldEqual` 200)
     waitFor api "\"status\":\"completed\""
     (_.status <$> say api "US" 4) >>= (_ `shouldEqual` 409)
-    rerun <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"rerun\"}"
-    rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
+    -- the session's rounds are stored and readable like any run's
+    overview <- api "GET" "/api/runs/run-1/overview" ""
+    overview.body `shouldSatisfy` contains (Pattern "\"rounds\":4")
   it "a round closes at its deadline, for a seat that never speaks" do
     api <- setup
     _ <- api "POST" "/api/sessions" "{\"humans\":[\"US\"],\"rounds\":4,\"window\":1,\"playerSeed\":1}"

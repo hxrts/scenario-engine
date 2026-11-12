@@ -7,15 +7,13 @@ import Core.Num (Kind(..))
 import Core.Num as Q
 import Dashboard.Chart (chartRows, shownKey)
 import Dashboard.DataTable (compareCells, nextSort, sortRows)
-import Dashboard.Launch (emptyForm, roundChoices, roundValue, summary, validate)
 import Views.Composition (RoundRange, CompositionInfo)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
-import Dashboard.RunForms (deriveRequest, rounds)
-import Schema.Run (DeriveKind(..))
-import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
-import Effects.Api as Api
-import Handlers.Api.Route (wire)
+
+import Dashboard.Runs (flagsOf, latestReadable, ofClass, readableIds)
+import Schema.Run (RunClass(..))
+
 import Data.Argonaut.Core (toNumber, toString)
 import Core.Shape (Format(Snapshot))
 import Core.Shape as Shape
@@ -38,15 +36,12 @@ import Test.Spec.Runner.Node (runSpecAndExitProcess)
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Dashboard routes" do
-    it "round-trip /runs, /prepare, /runs/:id, /compare/:ids" do
-      for_ [ Runs, Prepare, Run "run-1", Compare [ "run-1", "run-2" ], Compare [ "run-1" ], Compare [] ] \r ->
+    it "round-trip /runs, /runs/:id, /compare/:ids" do
+      for_ [ Runs, Run "run-1", Compare [ "run-1", "run-2" ], Compare [ "run-1" ], Compare [] ] \r ->
         parse route (print route r) `shouldEqual` Right r
     it "the home page is /runs, and the run list's page is that same route" do
       print route Runs `shouldEqual` "/runs"
       parse route "/runs" `shouldEqual` Right Runs
-    it "Prepare round-trips as /prepare" do
-      print route Prepare `shouldEqual` "/prepare"
-      parse route "/prepare" `shouldEqual` Right Prepare
     it "Run round-trips as /runs/:id, the selected run on the Runs page" do
       print route (Run "run-1") `shouldEqual` "/runs/run-1"
       parse route "/runs/run-1" `shouldEqual` Right (Run "run-1")
@@ -56,15 +51,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a run id with reserved characters is one segment, encoded and decoded intact" do
       parse route (print route (Run "a/b c")) `shouldEqual` Right (Run "a/b c")
       parse route (print route (Compare [ "a,b", "c/d" ])) `shouldEqual` Right (Compare [ "a,b", "c/d" ])
-  describe "Derive form" do
-    let blank = { kind: Duplicate, name: "", preset: "", seed: "", rounds: "", overrides: "" }
-    it "reads only the fields of its kind, and a blank field stays absent" do
-      map _.rounds (deriveRequest blank { rounds = "9" }) `shouldEqual` Right Nothing
-      map _.rounds (deriveRequest blank { kind = Variant, rounds = "6" }) `shouldEqual` Right (Just 6)
-      map _.playerSeed (deriveRequest blank { kind = Variant }) `shouldEqual` Right Nothing
-    it "refuses what it cannot send" do
-      map _.rounds (deriveRequest blank { kind = Variant, rounds = "x" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
-      map _.kind (deriveRequest blank { kind = Counterfactual, overrides = "not json" }) `shouldEqual` Left "Overrides must be a JSON array."
   describe "Compare choices" do
     it "every readable run is a choice, and an unreadable run is not" do
       readableIds (listOf [ flag "run-1" false true, flag "run-2" false false, flag "run-3" false true ]) `shouldEqual` [ "run-1", "run-3" ]
@@ -100,62 +86,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Quantity series) `shouldEqual` [ Just "12.12", Just "<0.01" ]
       map (\row -> Object.lookup (shownKey "a") row >>= toString) (chartRows Ratio series) `shouldEqual` [ Just "12.12", Just "0.00" ]
       map (\row -> Object.lookup "a" row >>= toNumber) (chartRows Price series) `shouldEqual` [ Just 12.125, Just 0.0001 ]
-  describe "Launch form: defaults" do
-    it "the empty form is a valid request: the default name, Conservative, a drawn seed, the composition's rounds" do
-      validate composition emptyForm `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-    it "a blank or spaced name is the default name; a typed name is trimmed" do
-      validate composition (emptyForm { name = "  " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-      validate composition (emptyForm { name = " copy " }) `shouldEqual` Right { composition: Just composition.name, name: "copy", preset: "Conservative", playerSeed: Nothing, rounds: Nothing }
-    it "the round count shown is the composition's default when blank, and the typed count otherwise" do
-      roundValue premiseRounds "" `shouldEqual` 5
-      roundValue premiseRounds " 7 " `shouldEqual` 7
-      roundChoices premiseRounds `shouldEqual` [ 4, 5, 6, 7, 8 ]
-    it "the summary line says what the run will play, with the defaults filled in" do
-      summary composition emptyForm `shouldEqual` "This run: Conservative, 5 rounds, seed drawn at launch."
-      summary composition (emptyForm { preset = "Trader", rounds = "6", playerSeed = " 9 " }) `shouldEqual` "This run: Trader, 6 rounds, player seed 9."
-  describe "Launch form: validation" do
-    it "rounds, when given, must be a whole number; the composition's range is the server's" do
-      validate composition (emptyForm { rounds = " 6 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 6 }
-      validate composition (emptyForm { rounds = "4" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 4 }
-      validate composition (emptyForm { rounds = "8" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 8 }
-      validate composition (emptyForm { rounds = "3" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Nothing, rounds: Just 3 }
-      validate composition (emptyForm { rounds = "two" }) `shouldEqual` Left "Rounds must be a whole number of at least 1."
-    it "a preset must be one the composition offers; Trader is accepted" do
-      validate composition (emptyForm { preset = "Nope" }) `shouldEqual` Left "Preset is unknown: Nope."
-      validate composition (emptyForm { preset = "Trader" }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Trader", playerSeed: Nothing, rounds: Nothing }
-    it "a blank player seed is null (drawn by the server); a given one must be a whole number" do
-      validate composition (emptyForm { playerSeed = " 7 " }) `shouldEqual` Right { composition: Just composition.name, name: "run-3", preset: "Conservative", playerSeed: Just 7, rounds: Nothing }
-      validate composition (emptyForm { playerSeed = "x" }) `shouldEqual` Left "Player seed must be a whole number. Leave it blank to draw one."
   describe "Premise reply" do
     it "the composition's name, round range, game seed, default name, presets and default preset are decoded from GET /api/premise" do
       decodePremise "{\"name\":\"example\",\"premises\":[\"example-economy@v0\"],\"version\":\"v0\",\"rounds\":{\"min\":4,\"max\":8,\"default\":5},\"gameSeed\":26021,\"defaultName\":\"run-3\",\"presets\":[\"Passive\",\"Conservative\",\"Trader\"],\"defaultPreset\":\"Conservative\"}"
         `shouldEqual` Right composition
       decodePremise "{\"name\":\"example\"}" `shouldSatisfy` isLeft
-  describe "Round count rule" do
-    it "the launch form and the resume form apply one rule: a whole number of at least one" do
-      rounds " 6 " `shouldEqual` Right 6
-      rounds "12" `shouldEqual` Right 12
-      rounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
   describe "Compare labels" do
     it "the baseline label follows CompareView.baseline, not the order ticked" do
       runLabel "run-2" "run-2" `shouldEqual` "run-2 (baseline)"
       runLabel "run-2" "run-1" `shouldEqual` "run-1"
-  describe "Run actions: form rules" do
-    it "resume rounds are a whole number of at least 1" do
-      rounds "" `shouldEqual` Left "Rounds must be a whole number of at least 1."
-      rounds "0" `shouldEqual` Left "Rounds must be a whole number of at least 1."
-      rounds " 5 " `shouldEqual` Right 5
-  describe "Run actions: request bodies" do
-    it "a resume body is the rounds" do
-      (wire (Api.Resume { id: "run-1", rounds: 4 })).body `shouldEqual` "{\"rounds\":4}"
   describe "Run list reads" do
-    it "a run's archived and readable flags are typed, and the list keeps the run order" do
+    it "a run's class and readable flags are typed, and the list keeps the run order" do
       flagsOf runList "run-3" `shouldEqual` Just (flag "run-3" true true)
       flagsOf runList "nope" `shouldEqual` Nothing
-    it "archived runs are hidden unless asked for, with their rows" do
-      map _.id (shownRuns false runList).runs `shouldEqual` [ "run-1", "run-2" ]
-      map _.id (shownRuns true runList).runs `shouldEqual` [ "run-1", "run-2", "run-3" ]
-      (shownRuns false runList).rows `shouldEqual` [ row1, row2 ]
+    it "the runs of one class, with their rows" do
+      map _.id (ofClass Simulated runList).runs `shouldEqual` [ "run-1", "run-2" ]
+      map _.id (ofClass Interactive runList).runs `shouldEqual` [ "run-3" ]
+      (ofClass Simulated runList).rows `shouldEqual` [ row1, row2 ]
     it "the latest readable run is the last one in the list that can be read" do
       latestReadable runList `shouldEqual` Just "run-3"
       latestReadable (listOf [ flag "run-1" false true, flag "run-2" false false ]) `shouldEqual` Just "run-1"
@@ -164,19 +111,19 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (Shape.parse Snapshot (Keys.viewShape :: Shape.Shape RunList) runListJson) `shouldEqual` false
       isLeft (Shape.parse Snapshot (Keys.viewKey @"Overview").shape overviewJson) `shouldEqual` false
   where
-  row1 = [ "run-1", "base", "no" ]
-  row2 = [ "run-2", "seed", "no" ]
-  row3 = [ "run-3", "old", "yes" ]
+  row1 = [ "run-1", "base", "simulated" ]
+  row2 = [ "run-2", "seed", "simulated" ]
+  row3 = [ "run-3", "old", "interactive" ]
 
   flag :: String -> Boolean -> Boolean -> RunFlags
-  flag id archived readable = { id, archived, readable, source: Nothing }
+  flag id live readable = { id, runClass: if live then Interactive else Simulated, readable }
 
   -- a run list whose rows are one row per run, in the order given
   listOf :: Array RunFlags -> RunList
-  listOf fs = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: map (\f -> [ f.id, f.id, if f.archived then "yes" else "no" ]) fs, runs: fs }
+  listOf fs = { title: "Simulation runs", columns: [ "Run", "Name", "Class" ], rows: map (\f -> [ f.id, f.id, show f.runClass ]) fs, runs: fs }
 
   runList :: RunList
-  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Archived" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
+  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Class" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
 
   -- an example composition's round range: 4 to 8, with 5 by default
   premiseRounds :: RoundRange

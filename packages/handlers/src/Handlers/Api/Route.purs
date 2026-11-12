@@ -29,19 +29,20 @@ module Handlers.Api.Route
 import Prelude
 
 import Laws.Types (RefKind(RefActor))
-import Core.Shape (Desc, class Payload, Format(..), Shape, refersTo, arrayOf, decodeJsonWith, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, prim, recordOf, stringShape, toPayload)
+import Core.Shape (class Payload, Desc, Shape, arrayOf, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, recordOf, refersTo, stringShape, toPayload, decodeJsonWith)
 
 import Control.Alt ((<|>))
-import Schema.Run (deriveKindShape)
+
 import Schema.View (View, parseView, viewName)
 import Core.Shape as Shape
-import Data.Argonaut.Core (Json, fromNumber, isNull, jsonNull, stringify)
+import Data.Argonaut.Core (fromString, stringify, toString)
+import Data.Argonaut.Decode.Error (printJsonDecodeError)
+import Schema.Run (runClassShape)
 import Data.Array (catMaybes, filter, findMap, length, zipWith, find)
 import Data.Either (Either(..), either)
-import Data.Bifunctor (lmap)
-import Data.Int (toNumber)
+
 import Data.Int as Int
-import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe, isJust)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Generic.Rep (class Generic, Constructor(..), Sum(..), from, to)
 import Data.String (Pattern(..), joinWith, split, stripPrefix)
 import Data.Foldable (lookup)
@@ -52,9 +53,8 @@ import Prim.Row as Row
 import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
-import Effects.Signatures (RunSet)
-import Assembly.Experiment (experimentRequestShape)
-import Effects.Api (AgencyQuery, ApiRequest, DeriveRequest, Launch, LaunchBatch, Reply, StartSession, Submission)
+
+import Effects.Api (AgencyQuery, ApiRequest, Reply, StartSession, Submission)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -167,19 +167,13 @@ optionalIntParam key get = Part
   , doc: noDoc
   }
 
--- | A query value that is empty when it is missing, and always sent.
-param :: forall a. String -> (a -> String) -> Part a String
-param key get = Part
-  { read: \i -> Right (fromMaybe "" (Object.lookup key i.query))
-  , write: \a -> nothing { query = [ Tuple key (enc (get a)) ] }
-  , doc: noDoc
-  }
-
--- | A query flag: on when its value is `true`, and sent only when on.
-flag :: forall a. String -> (a -> Boolean) -> Part a Boolean
-flag key get = Part
-  { read: \i -> Right (Object.lookup key i.query == Just "true")
-  , write: \a -> nothing { query = if get a then [ Tuple key "true" ] else [] }
+-- | An optional query value read through a shape whose form is a string (a name); any other text is a 400 naming it.
+optionalNamedParam :: forall a b. Shape b -> String -> (a -> Maybe b) -> Part a (Maybe b)
+optionalNamedParam s key get = Part
+  { read: \i -> case Object.lookup key i.query of
+      Nothing -> Right Nothing
+      Just v -> either (\e -> Left (failWith 400 (key <> ": " <> printJsonDecodeError e))) (Right <<< Just) (decodeJsonWith Shape.Snapshot s (fromString v))
+  , write: \a -> nothing { query = maybe [] (\v -> [ Tuple key (enc (fromMaybe "" (toString (encodeWith Shape.Snapshot s v)))) ]) (get a) }
   , doc: noDoc
   }
 
@@ -302,11 +296,9 @@ table r = { rows: rowsOf (Proxy :: Proxy rep) r to, write: sentOf r <<< from }
 -- | Rows are tried in the order of the type, so `/Actors` and `/Actor/:Actor` come before `/:view`.
 endpoints :: Table
 endpoints = table
-  { "ListRuns": get "/api/runs" ((\archived -> { archived }) <$> flag "archived" _.archived)
+  { "ListRuns": get "/api/runs" ((\runClass -> { runClass }) <$> optionalNamedParam runClassShape "class" _.runClass)
   , "Premise": get "/api/premise" (pure unit)
   , "Glossary": get "/api/glossary" (pure unit)
-  , "LaunchRun": post "/api/runs" (bodyOf launchShape identity)
-  , "LaunchBatch": post "/api/batch" (bodyOf batchShape identity)
   , "Actors": get "/api/runs/:id/actors" (capture "id" identity)
   , "Actor": get "/api/runs/:id/actor/:actor" (Tuple <$> capture "id" fst <*> capture "actor" snd)
   , "RunView": get "/api/runs/:id/:view"
@@ -326,21 +318,9 @@ endpoints = table
         in { runs, exchange }
   , "Agency": get "/api/agency" agencyQuery
   , "AgencyDetail": get "/api/agency/detail" agencyQuery
-  , "RunExperiment": post "/api/experiments" (bodyOf experimentRequestShape identity)
-  , "ListRunSets": get "/api/sets" (pure unit)
-  , "SetSummary": get "/api/sets/:name/summary" (capture "name" identity)
-  , "SaveRunSet": post "/api/sets" (bodyOf runSetShape identity)
-  , "RenameRunSet": post "/api/sets/:name/rename" ((\name b -> { name, to: b.name }) <$> capture "name" _.name <*> bodyOf renameShape (\r -> { name: r.to }))
-  , "DeleteRunSet": endpoint "DELETE" "/api/sets/:name" (capture "name" identity)
-  , "Derive": post "/api/runs/:id/derive" ((\id body -> { id, body }) <$> capture "id" _.id <*> bodyOf deriveShape _.body)
-  , "Step": post "/api/runs/:id/step" (capture "id" identity)
-  , "Resume": post "/api/runs/:id/resume" ((\id b -> { id, rounds: b.rounds }) <$> capture "id" _.id <*> bodyOf resumeShape (\r -> { rounds: r.rounds }))
   , "StartSession": post "/api/sessions" (bodyOf startSessionShape identity)
   , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open (Just { service: Transcription, summary: "The round a session is on, and which seats have spoken." }) }
   , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open (Just { service: Transcription, summary: "Submit one seat's text for the round that is open." }) }
-  , "Archive": post "/api/runs/:id/archive" (capture "id" identity)
-  , "Unarchive": post "/api/runs/:id/unarchive" (capture "id" identity)
-  , "Delete": endpoint "DELETE" "/api/runs/:id" ((\id confirm -> { id, confirm }) <$> capture "id" _.id <*> param "confirm" _.confirm)
   }
   where
   agencyQuery :: Part AgencyQuery AgencyQuery
@@ -419,60 +399,3 @@ submissionShape = object "Submission" ado
   round <- fieldOf "round" "the round it is for" intShape _.round
   text <- fieldOf "text" "what the seat said" stringShape _.text
   in { seat, round, text }
-
--- | The body of `POST /api/runs`.
-launchShape :: Shape Launch
-launchShape = object "Launch" ado
-  composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
-  name <- fieldOf "name" "the new run's name" stringShape _.name
-  preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
-  playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one" (optionalOf intShape) _.playerSeed
-  rounds <- fieldOf "rounds" "the round count; absent keeps the configuration's" (optionalOf intShape) _.rounds
-  in { composition, name, preset, playerSeed, rounds }
-
--- | The body of `POST /api/batch`.
-batchShape :: Shape LaunchBatch
-batchShape = object "LaunchBatch" ado
-  compositions <- fieldOf "compositions" "the Compositions to play; absent is every loaded one" (optionalOf (arrayOf stringShape)) _.compositions
-  preset <- fieldOf "preset" "the preset every seat plays" stringShape _.preset
-  playerSeed <- fieldOf "playerSeed" "the player seed; absent or null draws one per run" (optionalOf intShape) _.playerSeed
-  rounds <- fieldOf "rounds" "the round count; absent keeps each Composition's" (optionalOf intShape) _.rounds
-  in { compositions, preset, playerSeed, rounds }
-
--- | The body of `POST /api/runs/:id/resume`.
-resumeShape :: Shape { rounds :: Int }
-resumeShape = recordOf "Resume"
-  ( field @"rounds" "the new total round count" intShape
-  )
-
--- | `playerSeed` in a derive body: absent keeps the source's seed, null draws a new one, a number names one.
-seedChoiceShape :: Shape (Maybe (Maybe Int))
-seedChoiceShape = (prim "seed" encode decode) { absent = isNothing, missing = Just Nothing }
-  where
-  encode = maybe jsonNull (maybe jsonNull (fromNumber <<< toNumber))
-  decode j
-    | isNull j = Right (Just Nothing)
-    | otherwise = lmap (const "playerSeed must be an integer or null") (decodeJsonWith Snapshot intShape j) <#> (Just <<< Just)
-
--- | The body of `POST /api/runs/:id/derive`. Absent fields keep the source's values (`Assembly.Recipe`).
-runSetShape :: Shape RunSet
-runSetShape = object "RunSet" ado
-  name <- fieldOf "name" "the set's name" stringShape _.name
-  baseline <- fieldOf "baseline" "the id of the run the others are compared with" stringShape _.baseline
-  runs <- fieldOf "runs" "the ids of the set's runs" (arrayOf stringShape) _.runs
-  in { name, baseline, runs }
-
-renameShape :: Shape { name :: String }
-renameShape = recordOf "RenameSet"
-  ( field @"name" "the set's new name" stringShape
-  )
-
-deriveShape :: Shape DeriveRequest
-deriveShape = object "DeriveRequest" ado
-  kind <- fieldOf "kind" "how the run is derived" deriveKindShape _.kind
-  name <- fieldOf "name" "the new run's name" (optionalOf stringShape) _.name
-  preset <- fieldOf "preset" "a variant's preset" (optionalOf stringShape) _.preset
-  playerSeed <- fieldOf "playerSeed" "a variant's player seed" seedChoiceShape _.playerSeed
-  rounds <- fieldOf "rounds" "a variant's round count" (optionalOf intShape) _.rounds
-  overrides <- fieldOf "overrides" "a counterfactual's overrides" (optionalOf (prim "overrides" identity (Right :: Json -> Either String Json))) _.overrides
-  in { kind, name, preset, playerSeed, rounds, overrides }

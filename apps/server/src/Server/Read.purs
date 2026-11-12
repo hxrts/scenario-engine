@@ -20,13 +20,13 @@ import Prelude
 
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Schema.View (View)
-import Schema.Run (Spec)
+import Schema.Run (RunClass(..))
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
 import Server.Cache (cached, cachedAgency)
 import Core.Draw (Seed(..))
 import Laws.Types (Id(..))
 import Assembly.Composition (presetNames, presetOr)
-import Data.Array (catMaybes, concat, filter, find, length, notElem, uncons, zip, zipWith)
+import Data.Array (catMaybes, concat, filter, find, length, uncons, zip, zipWith, null)
 import Data.Either (Either(..), either, hush)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -68,25 +68,23 @@ import Handlers.Api.Contract (AnyRefusal)
 import Views.Actor (ActorList, History)
 import Views.Compare (CompareView)
 
--- | The run list: one summary per stored run, read without records or snapshots. Archived runs
--- | are left out unless `withArchived`. A run that cannot be decoded is listed as unreadable, with
--- | the reason; the others stay visible.
-runSummaries :: forall r. Boolean -> Run (READS r) (Array (Either Overview.Unreadable Overview.ListedRun))
-runSummaries withArchived = do
+-- | The run list: one summary per stored run, read without records or snapshots, of the class asked for (every
+-- | run when Nothing). A run that cannot be decoded is listed as unreadable, with the reason; the others stay
+-- | visible, and an unreadable run is listed whatever class is asked for.
+runSummaries :: forall r. Maybe RunClass -> Run (READS r) (Array (Either Overview.Unreadable Overview.ListedRun))
+runSummaries wanted = do
   rows <- listSummaries
-  let ids = map _.id rows
-  pure (map (summarize ids) (filter (\r -> withArchived || not r.archived) rows))
+  pure (filter (either (const true) (\s -> maybe true (_ == s.runClass) wanted)) (map summarize rows))
   where
-  summarize ids row = case decodeSummary ids row of
+  summarize row = case decodeSummary row of
     Left why -> Left { id: row.id, name: row.name, reason: why }
     Right s -> Right s
 
-decodeSummary :: Array String -> RunSummary -> Either String Overview.ListedRun
-decodeSummary ids row = do
+decodeSummary :: RunSummary -> Either String Overview.ListedRun
+decodeSummary row = do
   man <- row.manifest
   s <- row.spec
   assertions <- sequence row.assertions
-  let f = specFields ids s
   pure
     { id: row.id
     , name: row.name
@@ -94,18 +92,12 @@ decodeSummary ids row = do
     , reason: row.reason
     , composition: man.composition
     , gameSeed: show man.initial.seed
-    , playerSeed: f.playerSeed
+    , playerSeed: maybe "" show s.playerSeed
     , rounds: length row.assertions
     , assertionsFailing: length (concat assertions)
-    , archived: row.archived
-    , source: f.source
-    , sourceDeleted: f.sourceDeleted
+    , runClass: fromMaybe Simulated s.runClass
+    , tag: s.tag
     }
-
--- | What a run's list row and its full read take from the stored spec: the player seed, the source
--- | it was derived from, and whether the store still holds that source.
-specFields :: Array String -> Spec -> { playerSeed :: String, source :: Maybe String, sourceDeleted :: Boolean }
-specFields ids s = { playerSeed: maybe "" show s.playerSeed, source: s.source, sourceDeleted: maybe false (\src -> notElem src ids) s.source }
 
 -- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
 -- | assertion set. Any stored text that fails to decode makes the whole run unreadable. A finished
@@ -115,28 +107,25 @@ loadRun id = cached id do
   runs <- listRuns
   m <- (readManifest id)
   rows <- (readRounds id)
-  let ids = map _.id runs
   pure case find (\r -> r.id == id) runs, m of
     Nothing, _ -> Left Missing
     Just _, Nothing -> Left (Unreadable "the run has no manifest")
-    Just i, Just stored -> either (Left <<< Unreadable) Right (decodeRun ids i stored rows)
+    Just i, Just stored -> either (Left <<< Unreadable) Right (decodeRun i stored rows)
   where
-  decodeRun :: Array String -> RunInfo -> StoredManifest -> Array StoredRound -> Either String StoredRun
-  decodeRun ids i stored rows = do
+  decodeRun :: RunInfo -> StoredManifest -> Array StoredRound -> Either String StoredRun
+  decodeRun i stored rows = do
     man <- stored.manifest
     s <- stored.spec
     records <- traverse _.record rows
     snapshots <- traverse _.snapshot rows
     assertions <- traverse _.assertions rows
-    let f = specFields ids s
     pure $ storedRun
       { id: i.id
       , name: i.name
       , status: i.status
       , manifest: man
-      , playerSeed: f.playerSeed
+      , playerSeed: maybe "" show s.playerSeed
       , spec: s
-      , sourceDeleted: f.sourceDeleted
       }
       (zipWith (\record world -> { record, world }) records snapshots)
       assertions
@@ -210,7 +199,9 @@ actorView id actor = withRun id (\r -> viewOr (Actor.actorHistory r (Id actor)))
 -- | `GET /api/compare?runs=a,b&exchange=m`: the runs that load, compared; the ones that do not are
 -- | listed as skipped. The first valid run is the baseline.
 compareView :: forall r. Compositions -> { runs :: Array String, exchange :: Maybe String } -> Run (READS r) (Answer AnyRefusal CompareView)
-compareView compositions { runs: ids, exchange } = do
+compareView compositions { runs: asked, exchange } = do
+  -- no run named compares every simulated run, in list order
+  ids <- if null asked then map _.id <<< filter (\s -> s.runClass == Simulated) <<< catMaybes <<< map hush <$> runSummaries (Just Simulated) else pure asked
   loaded <- traverse loadRun ids
   let
     good = catMaybes (map hush loaded)

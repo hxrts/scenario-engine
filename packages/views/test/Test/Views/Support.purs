@@ -22,7 +22,6 @@ toStoredWith spec id r = storedRun
   , playerSeed: case r.playerSeed of
       Seed n -> show n
   , spec
-  , sourceDeleted: false
   }
   r.records
   (map (const []) r.records)

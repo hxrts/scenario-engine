@@ -26,7 +26,6 @@ module Effects.Signatures
   , RunSummary
   , StoredManifest
   , StoredRound
-  , RunSet
   , CLOCK
   , ClockF(..)
   , _clock
@@ -125,7 +124,7 @@ type NewRun =
 type RunInfo = { id :: String, name :: String, status :: RunStatus, created :: String, reason :: Maybe String }
 
 -- | A run's list row: its stored manifest and specification, and the assertion sets of its rounds.
--- | No records or snapshots. `source` is the run it was derived from, if any.
+-- | No records or snapshots.
 type RunSummary =
   { id :: String
   , name :: String
@@ -134,8 +133,6 @@ type RunSummary =
   , reason :: Maybe String
   , spec :: Stored Spec
   , manifest :: Stored Manifest
-  , archived :: Boolean
-  , source :: Maybe String
   , assertions :: Array (Stored (Array Failure))
   }
 
@@ -151,9 +148,6 @@ type StoredRound =
   , transcripts :: Stored (Array Transcript)
   }
 
--- | A named set of runs to compare: their ids and which is the baseline. It never holds run data.
-type RunSet = { name :: String, baseline :: String, runs :: Array String }
-
 -- | The Run Store's writes (docs/07_simulator.md §8): the run lifecycle the server, the CLI, and `finish`
 -- | make. Each round's own write is `RECORD`. Each write is one dbDbTransaction.
 data StoreF a
@@ -161,11 +155,7 @@ data StoreF a
   | SetStatus String RunStatus (Maybe String) (Unit -> a) -- the run, its new status, and why it failed if it did
   | FailRunning { role :: String, reason :: String } (Int -> a)
   | SetSpec String Spec (Unit -> a)
-  | SetArchived String Boolean (Unit -> a)
   | DeleteRun String (Int -> a)
-  | CreateSet RunSet (Unit -> a)
-  | RenameSet String String (Int -> a) -- the set, its new name; how many sets were renamed
-  | DeleteSet String (Int -> a)
 
 derive instance Functor StoreF
 
@@ -179,7 +169,6 @@ data ObserveF a
   | ListSummaries (Array RunSummary -> a)
   | ReadManifest String (Maybe StoredManifest -> a)
   | ReadRounds String (Array StoredRound -> a)
-  | ListSets (Array RunSet -> a)
 
 derive instance Functor ObserveF
 

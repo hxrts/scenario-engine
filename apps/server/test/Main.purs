@@ -3,6 +3,8 @@ module Test.Server.Main where
 
 import Prelude
 
+import Test.Server.Seed (serve)
+
 import Test.Server.Host (testHost)
 
 import Testkit.Store (open, storeOver)
@@ -16,7 +18,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
 import Effect (Effect)
-import Effect.Aff (Aff)
+
 import Effect.Class (liftEffect)
 import Foreign.Object as Object
 import Data.Tuple as Data.Tuple
@@ -25,23 +27,19 @@ import Laws.Types (Id(..))
 
 import Laws.World (Event(..), RoundRecord)
 import Effects.Launch (Launched)
-import Handlers.Api.Route (route)
-import Server.Stack (implement, newServerCache)
+
+import Server.Stack (newServerCache)
 import Test.Server.Api as Api
 import Test.Server.Gate as Gate
 import Test.Server.OpenApi as OpenApi
 import Test.Server.Sessions as Sessions
 import Test.Server.Http as HttpDevice
-import Schema.Run (DeriveKind(Counterfactual))
 import Test.Server.Compositions as Compositions
 import Test.Server.Fixed as Fixed
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner.Node (runSpecAndExitProcess)
-
--- | The reply of a derive: the new run, its source, and its kind.
-type Derived = { id :: String, source :: String, kind :: String }
 
 main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
@@ -64,35 +62,12 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       ([ r1, r2 ] == [ r1 ]) `shouldEqual` false
       ([ r1 ] == [ r1, r2 ]) `shouldEqual` false
   describe "Read API" do
-    it "a launch or a variant outside the composition's rounds is refused; the configured count applies when none is given; resume is not bounded" do
-      -- the composition's range narrowed to 4 to 8, around its configured 6
-      map (\p -> Right p { composition = p.composition { rounds = { min: 4, max: 8 } } }) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.empty, body })
-          short <- api "POST" "/api/runs" "{\"name\":\"s\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":3}"
-          short.status `shouldEqual` 400
-          short.body `shouldSatisfy` contains (Pattern "from 4 to 8")
-          long <- api "POST" "/api/runs" "{\"name\":\"l\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":9}"
-          long.status `shouldEqual` 400
-          fine <- api "POST" "/api/runs" "{\"name\":\"f\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":4}"
-          fine.status `shouldEqual` 200
-          variant <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"variant\",\"rounds\":3}"
-          variant.status `shouldEqual` 400
-          variant.body `shouldSatisfy` contains (Pattern "from 4 to 8")
-          -- a resume past the composition's maximum is allowed (docs/07 §8.1), and a duplicate of it replays its inputs
-          resumed <- api "POST" "/api/runs/run-1/resume" "{\"rounds\":9}"
-          resumed.status `shouldEqual` 200
-          duplicate <- api "POST" "/api/runs/run-1/derive" "{\"kind\":\"duplicate\"}"
-          duplicate.status `shouldEqual` 201
-        Left (_ :: String) -> fail "unreachable"
     it "a comparison has a trajectory only when an Exchange is asked for, and an unknown Exchange is a client error" do
       map Right pacificParts >>= case _ of
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"a\",\"preset\":\"Restrict\",\"playerSeed\":1,\"rounds\":4}"
           _ <- api "POST" "/api/runs" [] "{\"name\":\"b\",\"preset\":\"Restrict\",\"playerSeed\":2,\"rounds\":4}"
           plain <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" } ] ""
@@ -110,7 +85,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
           let
-            api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+            api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
             launch name seed = api "POST" "/api/runs" [] (stringify (encodeJson { name, preset: "FreeTrade", playerSeed: seed, rounds: Just 3 }))
           a <- launch "a" (Just 1)
           a.body `shouldEqual` "{\"playerSeed\":1,\"id\":\"run-1\"}"
@@ -177,7 +152,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
           let
-            api method path body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.empty, body })
+            api method path body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.empty, body })
             launch name seed = api "POST" "/api/runs" (stringify (encodeJson { name, preset: "FreeTrade", playerSeed: seed, rounds: Just 3 }))
           -- an absent seed is drawn once at launch; the reply names the seed used
           drawn <- api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"FreeTrade\",\"rounds\":3}"
@@ -211,7 +186,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           _ <- api "POST" "/api/runs" [] "{\"name\":\"g\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
           stored <- liftEffect (runObserve (storeOver db) (readManifest "run-1"))
           case stored of
@@ -227,7 +202,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/premise" [] ""
           scen.status `shouldEqual` 200
           scen.body `shouldSatisfy` contains (Pattern "\"default\":6")
@@ -243,7 +218,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right ctx -> do
           db <- liftEffect (open ":memory:")
           cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
+          let api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/premise" [] ""
           scen.body `shouldSatisfy` contains (Pattern "\"defaultName\":\"run-1\"")
           scen.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Ban\",\"Builder\"")
@@ -263,184 +238,3 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           glossary <- api "GET" "/api/glossary" [] ""
           glossary.body `shouldSatisfy` contains (Pattern "\"Game ID\"")
         Left e -> fail e
-    it "the run list has archived and source columns after the existing ones" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          list <- api "GET" "/api/runs" [] ""
-          list.body `shouldSatisfy` contains (Pattern "\"Reason\",\"Archived\",\"Source\"")
-        Left e -> fail e
-    it "derive: duplicate, rerun, variant and counterfactual link to their source; bad requests are refused" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          dup <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"duplicate\",\"name\":\"copy\"}"
-          dup.status `shouldEqual` 201
-          dupReply <- decodeOr dup.body
-          dupReply.source `shouldEqual` "run-1"
-          dupReply.kind `shouldEqual` "duplicate"
-          -- a rerun reproduces the source's records exactly
-          rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
-          rerun.status `shouldEqual` 201
-          rerunReply <- decodeOr rerun.body
-          rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-          dup.body `shouldSatisfy` (not <<< contains (Pattern "recordsMatch"))
-          let store = storeOver db
-          sourceRows <- liftEffect (runObserve store (readRounds "run-1"))
-          rerunRows <- liftEffect (runObserve store (readRounds rerunReply.id))
-          map _.record rerunRows `shouldEqual` map _.record sourceRows
-          rerunMan <- liftEffect (runObserve store (readManifest rerunReply.id))
-          case rerunMan of
-            Just m -> case m.spec of
-              Right s -> s.source `shouldEqual` Just "run-1"
-              Left why -> fail ("the stored spec should read back: " <> why)
-            Nothing -> fail "the rerun has no stored spec"
-          -- a variant replaces the preset; a counterfactual adds an override
-          variant <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"variant\",\"preset\":\"Hawk\",\"rounds\":2}"
-          variant.status `shouldEqual` 201
-          counter <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"counterfactual\",\"overrides\":[{\"type\":\"gameSeed\",\"seed\":7}]}"
-          counter.status `shouldEqual` 201
-          counterReply <- decodeOr counter.body
-          counterMan <- liftEffect (runObserve store (readManifest counterReply.id))
-          case counterMan of
-            Just m -> case m.spec of
-              Right s -> s.kind `shouldEqual` Just Counterfactual
-              Left why -> fail ("the stored spec should read back: " <> why)
-            Nothing -> fail "the counterfactual has no stored spec"
-          -- the counterfactual's override is in its manifest: the game seed changed
-          case counterMan of
-            Just m -> case m.manifest of
-              Right man -> contains (Pattern "\"seed\":7") (stringify (encodeJson man)) `shouldEqual` true
-              Left why -> fail ("the stored manifest should read back: " <> why)
-            Nothing -> fail "the counterfactual has no manifest"
-          -- its overrides are stored in its spec, so a duplicate of it keeps them
-          copied <- api "POST" ("/api/runs/" <> counterReply.id <> "/derive") [] "{\"kind\":\"duplicate\"}"
-          copiedReply <- decodeOr copied.body
-          copiedMan <- liftEffect (runObserve store (readManifest copiedReply.id))
-          case copiedMan of
-            Just m -> case m.manifest of
-              Right man -> contains (Pattern "\"seed\":7") (stringify (encodeJson man)) `shouldEqual` true
-              Left why -> fail ("the stored manifest should read back: " <> why)
-            Nothing -> fail "the duplicate has no manifest"
-          -- refusals: unknown source, bad kind, bad preset, bad override, fields a kind does not take
-          noSource <- api "POST" "/api/runs/run-99/derive" [] "{\"kind\":\"duplicate\"}"
-          noSource.status `shouldEqual` 404
-          badKind <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"fork\"}"
-          badKind.status `shouldEqual` 400
-          badPreset <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"variant\",\"preset\":\"NoSuchPreset\"}"
-          badPreset.status `shouldEqual` 400
-          badOverride <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"counterfactual\",\"overrides\":[{\"type\":\"parameter\",\"name\":\"no-such\",\"value\":\"1\"}]}"
-          badOverride.status `shouldEqual` 400
-          badOverrideType <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"counterfactual\",\"overrides\":[{\"type\":\"teleport\"}]}"
-          badOverrideType.status `shouldEqual` 400
-          wrongField <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"duplicate\",\"rounds\":3}"
-          wrongField.status `shouldEqual` 400
-          overridesOnVariant <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"variant\",\"overrides\":[]}"
-          overridesOnVariant.status `shouldEqual` 400
-        Left e -> fail e
-    it "resume extends a completed run in place, and matches a run played to that length from the start" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"three\",\"preset\":\"FreeTrade\",\"playerSeed\":3,\"rounds\":3}"
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"five\",\"preset\":\"FreeTrade\",\"playerSeed\":3,\"rounds\":5}"
-          resumed <- api "POST" "/api/runs/run-1/resume" [] "{\"rounds\":5}"
-          resumed.status `shouldEqual` 200
-          resumed.body `shouldSatisfy` contains (Pattern "\"rounds\":5")
-          resumed.body `shouldSatisfy` contains (Pattern "\"id\":\"run-1\"")
-          let store = storeOver db
-          extended <- liftEffect (runObserve store (readRounds "run-1"))
-          fresh <- liftEffect (runObserve store (readRounds "run-2"))
-          map _.record extended `shouldEqual` map _.record fresh
-          map _.snapshot extended `shouldEqual` map _.snapshot fresh
-          map _.assertions extended `shouldEqual` map _.assertions fresh
-          -- not greater than the current count is a bad request; the run keeps its id
-          again <- api "POST" "/api/runs/run-1/resume" [] "{\"rounds\":5}"
-          again.status `shouldEqual` 400
-          missingRun <- api "POST" "/api/runs/run-9/resume" [] "{\"rounds\":5}"
-          missingRun.status `shouldEqual` 404
-        Left e -> fail e
-    it "archive hides a run from the default list until it is asked for; delete needs its id as confirm" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"other\",\"preset\":\"FreeTrade\",\"playerSeed\":2,\"rounds\":2}"
-          a1 <- api "POST" "/api/runs/run-1/archive" [] ""
-          a1.status `shouldEqual` 200
-          a2 <- api "POST" "/api/runs/run-1/archive" [] ""
-          a2.status `shouldEqual` 200
-          hidden <- api "GET" "/api/runs" [] ""
-          hidden.body `shouldSatisfy` (not <<< contains (Pattern "\"run-1\""))
-          shown <- api "GET" "/api/runs" [ { k: "archived", v: "true" } ] ""
-          shown.body `shouldSatisfy` contains (Pattern "\"run-1\"")
-          shown.body `shouldSatisfy` contains (Pattern "\"yes\"")
-          _ <- api "POST" "/api/runs/run-1/unarchive" [] ""
-          back <- api "GET" "/api/runs" [] ""
-          back.body `shouldSatisfy` contains (Pattern "\"run-1\"")
-          -- a derived run cites run-2; deleting run-2 keeps the derived run and shows its source as deleted
-          derived <- api "POST" "/api/runs/run-2/derive" [] "{\"kind\":\"duplicate\"}"
-          derived.status `shouldEqual` 201
-          refused <- api "DELETE" "/api/runs/run-2" [] ""
-          refused.status `shouldEqual` 400
-          wrongConfirm <- api "DELETE" "/api/runs/run-2" [ { k: "confirm", v: "run-1" } ] ""
-          wrongConfirm.status `shouldEqual` 400
-          deleted <- api "DELETE" "/api/runs/run-2" [ { k: "confirm", v: "run-2" } ] ""
-          deleted.status `shouldEqual` 200
-          deleted.body `shouldEqual` "{\"deleted\":\"run-2\"}"
-          gone <- api "GET" "/api/runs/run-2/overview" [] ""
-          gone.status `shouldEqual` 404
-          afterDelete <- api "GET" "/api/runs" [] ""
-          afterDelete.body `shouldSatisfy` contains (Pattern "run-2 (deleted)")
-          derivedView <- api "GET" "/api/runs/run-3/overview" [] ""
-          derivedView.status `shouldEqual` 200
-        Left e -> fail e
-    it "a rerun reports recordsMatch true for a completed run; a missing or unreadable source is 404 or 409" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"Hawk\",\"playerSeed\":5,\"rounds\":3}"
-          rerun <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"rerun\"}"
-          rerun.status `shouldEqual` 201
-          rerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-          -- a counterfactual's overrides are replayed from its stored spec, so its rerun matches too
-          counter <- api "POST" "/api/runs/run-1/derive" [] "{\"kind\":\"counterfactual\",\"overrides\":[{\"type\":\"gameSeed\",\"seed\":7}]}"
-          counterReply <- decodeOr counter.body
-          counterRerun <- api "POST" ("/api/runs/" <> counterReply.id <> "/derive") [] "{\"kind\":\"rerun\"}"
-          counterRerun.body `shouldSatisfy` contains (Pattern "\"recordsMatch\":true")
-          noSource <- api "POST" "/api/runs/run-99/derive" [] "{\"kind\":\"rerun\"}"
-          noSource.status `shouldEqual` 404
-          listed <- api "GET" "/api/runs" [] ""
-          listed.body `shouldSatisfy` (not <<< contains (Pattern "\"run-5\""))
-        Left e -> fail e
-    it "a derive or resume after a delete never reuses an id that a run still cites" do
-      map (Right <<< anyRounds) pacificParts >>= case _ of
-        Right ctx -> do
-          db <- liftEffect (open ":memory:")
-          cache <- liftEffect newServerCache
-          let api method path query body = liftEffect (route (implement [ ctx ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"base\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          _ <- api "POST" "/api/runs" [] "{\"name\":\"next\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          _ <- api "POST" "/api/runs/run-2/derive" [] "{\"kind\":\"duplicate\"}"
-          _ <- api "DELETE" "/api/runs/run-2" [ { k: "confirm", v: "run-2" } ] ""
-          fresh <- api "POST" "/api/runs" [] "{\"name\":\"fresh\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":2}"
-          -- run-2 is gone but run-3 still cites it, so the next id is run-4
-          fresh.body `shouldSatisfy` contains (Pattern "\"id\":\"run-4\"")
-        Left e -> fail e
-  where
-  decodeOr :: String -> Aff Derived
-  decodeOr body = case decodeError (fromJsonString body) of
-    Right d -> pure d
-    Left e -> fail ("unreadable reply " <> body <> ": " <> e) *> pure { id: "", source: "", kind: "" }

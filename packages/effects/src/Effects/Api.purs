@@ -8,9 +8,6 @@
 module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
-  , Launch
-  , LaunchBatch
-  , DeriveRequest
   , StartSession
   , Submission
   , AgencyQuery
@@ -22,38 +19,14 @@ module Effects.Api
 
 import Prelude
 
-import Schema.Run (DeriveKind)
-import Assembly.Experiment (ExperimentRequest)
-import Effects.Signatures (RunSet)
 import Schema.View (View)
+import Schema.Run (RunClass)
 import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
-import Data.Argonaut.Core (Json)
+
 import Data.Maybe (Maybe)
-
--- | `POST /api/runs` body: every seat plays one preset. An absent or null `playerSeed` is drawn once
--- | at launch; the reply carries the seed used either way. `composition` names one of `GET /api/premise`; absent
--- | is the first.
-type Launch = { composition :: Maybe String, name :: String, preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
-
--- | `POST /api/batch` body: one run of one preset on every seat of each named Composition, or of every loaded
--- | one when none is named, so their results can be compared.
-type LaunchBatch = { compositions :: Maybe (Array String), preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int }
-
--- | `POST /api/runs/:id/derive` body: the kind, the new run's name, and what the kind may change. A
--- | field left absent keeps the source's value. `playerSeed` is doubly optional: absent keeps the
--- | source's seed, and an explicit null draws a new one. `overrides` stays JSON because the override
--- | shape belongs to `game`, which this package may not import; `Assembly.Recipe` decodes it.
-type DeriveRequest =
-  { kind :: DeriveKind
-  , name :: Maybe String
-  , preset :: Maybe String
-  , playerSeed :: Maybe (Maybe Int)
-  , rounds :: Maybe Int
-  , overrides :: Maybe Json
-  }
 
 -- | Which agency analysis: the composition, the player seed, and the two presets. An absent one takes its default.
 type AgencyQuery = { composition :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
@@ -71,11 +44,9 @@ type StartSession = { composition :: Maybe String, humans :: Array String, round
 type Submission = { seat :: String, round :: Int, text :: String }
 
 data ApiRequest
-  = ListRuns { archived :: Boolean }
+  = ListRuns { runClass :: Maybe RunClass }
   | Premise
   | Glossary
-  | LaunchRun Launch
-  | LaunchBatch LaunchBatch
   | Actors String
   | Actor String String
   | BalanceSheetLinks String
@@ -86,21 +57,9 @@ data ApiRequest
   | Compare { runs :: Array String, exchange :: Maybe String }
   | Agency AgencyQuery
   | AgencyDetail AgencyQuery
-  | Derive { id :: String, body :: DeriveRequest }
-  | Resume { id :: String, rounds :: Int }
-  | Step String
-  | RunExperiment ExperimentRequest
-  | ListRunSets
-  | SetSummary String
-  | SaveRunSet RunSet
-  | RenameRunSet { name :: String, to :: String }
-  | DeleteRunSet String
   | StartSession StartSession
   | GetSession String
   | SubmitTranscript { id :: String, submission :: Submission }
-  | Archive String
-  | Unarchive String
-  | Delete { id :: String, confirm :: String }
 
 derive instance Eq ApiRequest
 derive instance Generic ApiRequest _

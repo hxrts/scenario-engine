@@ -48,7 +48,7 @@ startSession compositions s = case chosen compositions s.composition of
           owner <- ownerOf serverRole
           id <- nextRunId
           let
-            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just defaultModel, humans: Just (joinWith "," s.humans), cast: liveCast humans parts }
+            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just defaultModel, humans: Just (joinWith "," s.humans), cast: liveCast humans parts }
             briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
           startRun { id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
             Left why -> badRequest why

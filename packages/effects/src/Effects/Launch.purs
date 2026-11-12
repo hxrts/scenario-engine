@@ -7,29 +7,26 @@ module Effects.Launch
   , start
   , freshRunId
   , nextRunId
-  , runExperiment
   ) where
 
 import Prelude
 
-import Control.Alt ((<|>))
 import Core.Draw (Seed(..))
-import Data.Array (any, concatMap, foldl, mapMaybe, null, uncons)
+import Data.Array (foldl, mapMaybe)
 import Data.Either (Either(..))
-import Data.Foldable (foldM, traverse_)
+
 import Data.Int as Int
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.String (Pattern(..), stripPrefix)
-import Effects.Observe (listSets, listSummaries)
+import Effects.Observe (listSummaries)
 import Effects.Play (playRun)
-import Effects.Signatures (CLOCK, ENTROPY, OBSERVE, PLAY, PROCESS, PlayRequest(..), STORE)
-import Effects.Store (checkRunId, createSet)
+import Effects.Signatures (CLOCK, ENTROPY, OBSERVE, PLAY, PROCESS, PlayRequest(..))
+import Effects.Store (checkRunId)
 import Effects.System (now, ownerOf, resolveSeed)
-import Assembly.Assemble (assemblePreset, checkRounds, defaultCast)
-import Assembly.Experiment (ExperimentRequest, variants)
+import Assembly.Assemble (assemblePreset, defaultCast)
 import Assembly.Override (Override)
-import Assembly.Recipe (Derivation, encodeSpec)
+import Assembly.Recipe (encodeSpec)
 import Assembly.Composition (CompositionParts)
 import Run (Run)
 import Schema.Composition (compositionRef, gameIdOf, premisesText)
@@ -47,7 +44,6 @@ type Start =
   , playerSeed :: Maybe Int
   , rounds :: Maybe Int
   , overrides :: Array Override
-  , derivation :: Maybe Derivation
   }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
@@ -70,50 +66,17 @@ startAs role id p l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: Just l.preset, cast: defaultCast p l.preset, rounds: Just game.rounds, overrides: l.overrides, derivation: l.derivation, model: Nothing, humans: Nothing }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: Just l.preset, cast: defaultCast p l.preset, rounds: Just game.rounds, overrides: l.overrides, model: Nothing, humans: Nothing }
       created <- now
       owner <- ownerOf role
       attempt <- playRun (Simulated { seed, game, run: { id, name: l.name, created, spec, manifest: game.manifest, owner } })
       pure (attempt $> { id, playerSeed: unwrap seed })
 
--- | The next run id. Ids are never reused while a run cites them as its source, so a derived run's
--- | link cannot come to resolve to a different run.
+-- | The next run id: one past the highest stored.
 nextRunId :: forall r. Run (LAUNCHES r) String
 nextRunId = do
   rows <- listSummaries
   let
-    cited = concatMap (\r -> [ r.id ] <> maybe [] pure r.source) rows
+    cited = map _.id rows
     n = foldl max 0 (mapMaybe (\i -> stripPrefix (Pattern "run-") i >>= Int.fromString) cited)
   pure ("run-" <> show (n + 1))
-
--- | Run every game an experiment generates and save the runs as one named Run set, the first as its baseline. Every
--- | run uses the one player seed, drawn once if none was given. The first game that does not start stops the
--- | experiment; the runs before it stay, as any launched run does.
-runExperiment :: forall r. String -> CompositionParts -> ExperimentRequest -> Run (LAUNCHES + STORE + r) (Either String { set :: String, runs :: Array String })
-runExperiment role p req = do
-  existing <- listSets
-  case unit of
-    _ | any (\s -> s.name == req.name) existing -> pure (Left ("a scenario set named " <> req.name <> " already exists"))
-    _ | null generated -> pure (Left "the experiment generates no runs")
-    _ | Left e <- traverse_ (checkRounds p.composition) req.rounds -> pure (Left (show e))
-    _ -> do
-      seed <- resolveSeed (Seed <$> req.playerSeed)
-      foldM (step seed) (Right []) generated >>= case _ of
-        Left e -> pure (Left e)
-        Right runs -> case uncons runs of
-          Nothing -> pure (Left "the experiment generates no runs")
-          Just { head } -> do
-            createSet { name: req.name, baseline: head, runs }
-            pure (Right { set: req.name, runs })
-  where
-  generated = variants req.experiment
-  step _ (Left e) _ = pure (Left e)
-  step seed (Right done) v =
-    start role p
-      { name: req.name <> " (" <> v.label <> ")"
-      , preset: req.preset
-      , playerSeed: v.playerSeed <|> Just (unwrap seed)
-      , rounds: req.rounds
-      , overrides: v.overrides
-      , derivation: Nothing
-      } <#> map (\l -> done <> [ l.id ])

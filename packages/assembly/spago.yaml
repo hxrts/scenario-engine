@@ -15,7 +15,6 @@ package:
     - maybe
     - ordered-collections
     - newtype
-    - strings
     - tuples
   test:
     main: Test.Assembly.Main

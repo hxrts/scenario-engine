@@ -64,7 +64,7 @@ session o { parts, game } = do
   created <- now
   owner <- ownerOf "session"
   let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], derivation: Nothing, model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts }
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts }
   startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do

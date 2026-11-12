@@ -8,7 +8,7 @@
 
 The simulator plays complete Runs automatically and deterministically. Developers use it to check implementation correctness and to improve gameplay through repeated experiments. It is a development component. It adds no economic model of its own: it runs the kernel, PremiseComposition, and Run machinery. Invariants are cited by ID ([02 §9](02_kernel.md#9-architectural-invariants-and-numerics)).
 
-A developer configures a Run, binds a seat Strategy to every seat, plays it, saves it, inspects it, compares it with other runs (including controlled counterfactuals), and varies parameters to study correctness, balance, and player agency.
+A developer configures a Run, binds a seat Strategy to every seat, plays it, saves it, inspects it, compares it with other runs, and varies parameters to study correctness, balance, and player agency.
 
 A failed invariant is reported on the run and never compensated for ([§7](#7-run-assertions)).
 
@@ -37,7 +37,7 @@ The engine owns all economic behaviour ([02 §8.1](02_kernel.md#81-canonical-res
 
 A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([08 §4](08_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
 
-The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the cast ([04 §2](04_run.md#2-instantiation-configuration)), and, for a derived run, its `source` and `kind`. A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
+The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the cast ([04 §2](04_run.md#2-instantiation-configuration)), and its class (simulated or interactive). A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
 
 ### 3.1 Configuration inheritance
 
@@ -47,7 +47,7 @@ Each run stores its overrides in its spec and its initial World in its manifest,
 
 ## 4. Seat Strategies
 
-The engine accepts only Intents ([03 §10.4](03_premise.md#104-available-actions)). In simulation each seat is bound, at assembly, to a seat Strategy ([04 §3.1](04_run.md#31-selection-and-control)). Swapping a seat's Strategy never changes the Actor's definition and never turns a seat into a non-playable Actor ([INV-30](02_kernel.md#inv-30)).
+The engine accepts only Intents ([03 §10.3](03_premise.md#104-available-actions)). In simulation each seat is bound, at assembly, to a seat Strategy ([04 §3.1](04_run.md#31-selection-and-control)). Swapping a seat's Strategy never changes the Actor's definition and never turns a seat into a non-playable Actor ([INV-30](02_kernel.md#inv-30)).
 
 The simulator runs two machine bindings: a preset strategy and a script of literal candidate Transactions and signatures per round. A replay answers a live session's seats from such a script. Agent and human seats are answered only in live play, where each is briefed with its Actor's description and objective (for Pacific, [05 §8](05_pacific.md#8-objectives-and-reporting)). Presets run on the shared decision-language interpreter that non-playable Actor and Aggregate Strategies use ([03 §8.1](03_premise.md#81-shared-interpreter), [INV-29](02_kernel.md#inv-29)). A seat whose Actor has a routine plays it after any of these bindings except a script ([04 §6](04_run.md#6-strategy-initialization)).
 
@@ -146,7 +146,7 @@ A failed assertion records its invariant ID and message with its round. The run 
 These tests transform a configuration in a controlled way. Those marked with a test number are implemented.
 
 - Reorder submissions ([INV-11](02_kernel.md#inv-11)) and replay with the same seeds ([INV-13](02_kernel.md#inv-13)): tests 3 and 2. Withholding one signature ([INV-10](02_kernel.md#inv-10)) and changing explicitness (§7.3) have no Pacific case.
-- Change one seat Strategy or one Exchange parameter: the `variant` and `counterfactual` derivations (§10.3).
+- Change one seat Strategy or one Exchange parameter: the agency runs of the suite (§10.3).
 - Remove all representative observations: Aggregates follow their baselines ([INV-09](02_kernel.md#inv-09)). An unnumbered test in §14.
 
 ### 7.3 Resolution-consistency test
@@ -176,7 +176,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 **Source of truth ([INV-31](02_kernel.md#inv-31)).** The manifest, round records, and round-end Worlds are authoritative. Metrics are reproducible projections of them: when a metric definition changes, its values are recomputed and the records stay untouched. Round-end Worlds support fast inspection, and records explain outcomes. Neither replaces the other.
 
-**Mutability.** Completed runs are immutable, and a changed configuration always gets a new run ID. Round records, round-end Worlds, and metrics are never edited. A run's status, failure reason, archive flag, and spec change only through the operations in §8.1. Resume is the only one that adds rounds, and it keeps every existing round record. Delete removes a run with its rounds and metrics.
+**Mutability.** Completed runs are immutable, and a changed configuration always gets a new run ID. Round records, round-end Worlds, and metrics are never edited. A run's status and failure reason change only as it plays. The suite deletes a simulated run that has left the suite, with its rounds and metrics.
 
 **Evidence.** A live session also keeps evidence of each language-model call: the effect, the model ID, template and input hashes, a pointer to the raw output, and the decoded result. It lives beside the run, outside the round records. Replay never re-invokes the model; the canonical candidate Transactions and signatures in the round records are enough.
 
@@ -188,7 +188,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 | Table | Columns | Key |
 |---|---|---|
-| `runs` | `id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `archived` (default 0; 1 hides the run from the default list), `source` (the run it was derived from), `owner` (role, process id, start time) | `id` |
+| `runs` | `id`, `name`, `status`, `spec`, `manifest`, `created`, `reason`, `owner` (role, process id, start time) | `id` |
 | `rounds` | `run`, `round`, `record`, `snapshot`, `assertions`, `transcripts` (JSON, the round's seat transcripts) | `run`, `round` |
 | `metrics` | `run`, `metric`, `version`, `round`, `value` | `run`, `metric`, `version`, `round` |
 
@@ -205,42 +205,21 @@ The server serves JSON through the `API` operations. Each operation below is one
 | Operation | Purpose | Replies |
 |---|---|---|
 | `GET /api/runs/:id/balancesheets` | Every Actor's name, kind, and balance sheet path, for the admin page. | 200. 404 for an unknown run |
-| `GET /api/runs/:id/balancesheet/:token` | Open. One Actor's balance sheet page ([§9.5](#95-balancesheet-pages)). | 200. 404 for an unknown run or token |
+| `GET /api/runs/:id/balancesheet/:token` | Open. One Actor's balance sheet page ([§9.4](#94-balancesheet-pages)). | 200. 404 for an unknown run or token |
 | `GET /api/runs/:id/rounds/:round/report` | Open. What one round produced (§8.2). | 200. 404 for an unknown run or a round not played |
 | `POST /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions/:id/transcripts` | Start a hosted live session (admin); read its state and submit a seat's text (open). See §8.2. | See §8.2 |
 | `GET /api/openapi/:service` | Open. The OpenAPI document of `transcription.json` or `narrative.json` (§8.2). | 200. 404 for any other name |
 | `GET /api/premise` | The launch form's PremiseCompositions: name, version, its Premises with their versions, round range, default rounds, game seed, `defaultName` (the next run ID), and the seat presets in order. | 200 |
-| `GET /api/runs` | The run list, one row per run, with its id, archived, readable, and source flags. Archived runs are left out unless `archived=true`. | 200 |
-| `POST /api/runs` | Launch a run of one preset on every seat: `composition`, name, preset, player seed (null draws), rounds (null for the default). | 200 with the new id and seed used. 400 for a bad or refused launch, including rounds outside the range |
-| `POST /api/batch` | One run of one preset on each named PremiseComposition (every loaded one by default), so they can be read through Compare. Each run records its own PremiseComposition. The batch gives no score of how well a PremiseComposition plays. | 200 with a list of runs. 400 for a bad body or a PremiseComposition that cannot start |
+| `GET /api/runs` | The run list, one row per run, with its id, class (`simulated` or `interactive`) and readable flag. `class=` lists one class. | 200. 400 for an unknown class |
 | `GET /api/runs/:id/:view` | One of 21 views: `overview`, `objectives`, `balances`, `exchanges`, `transformations`, `economy`, `representation`, `procedures`, `assertions`, `wholeeconomy`, `events`, `standings`, `networth`, `actions`, `drivers`, `balance`, `dependence`, `finance`, `indicators`, `regimes`, `clearing`. `round` applies to `balances` (default: the final round) and `events` (default 1). | 200. 400 for a bad round. 404 for an unknown run or view. 409 when the view needs a PremiseComposition that is not loaded. 500 for an unreadable run |
 | `GET /api/runs/:id/actors` | The run's Actors, each marked as a seat or not, and the default Actor. | 200. 404. 500 |
 | `GET /api/runs/:id/actor/:actor` | One Actor's balance sheet after every round, with a chart and its net worth. | 200. 400 for an Actor the run does not have, listing the valid names. 404. 500 |
-| `POST /api/runs/:id/derive` | Derive a run of kind `duplicate`, `rerun`, `variant`, or `counterfactual`, with optional name, preset, player seed, rounds, and overrides. | 201 with the new id, source, and kind (plus `recordsMatch` for a rerun). 400 for a bad kind, field, preset, or override. 404 for an unknown source. 409 when the source cannot be compared or replayed. 500 |
-| `POST /api/runs/:id/resume` | Extend a completed run to a total round count. | 200 with id and rounds. 400 when the run is not completed, is a live session, or the count is not above its completed rounds. 404. 500 |
-| `POST /api/runs/:id/step` | Play one round of a completed run short of its target. | 200 with id and rounds. 400 when the run is not completed, is a live session, or has played all its rounds. 404 for an unknown id. |
-| `POST /api/runs/:id/archive`, `…/unarchive` | Set or clear the archive flag. Idempotent. | 200 with id and archived. 404 |
-| `DELETE /api/runs/:id?confirm=:id` | Delete the run with its rounds and metrics. `confirm` must name the run. | 200. 400 without a matching `confirm`. 404 |
-| `GET /api/compare?runs=a,b[&exchange=m]` | Compare a Run set. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `exchange` is unknown |
+| `GET /api/compare?runs=a,b[&exchange=m]` | Compare a Run set; with no `runs`, every simulated run. The first valid run is the baseline. Each table marks the cells that differ from the baseline. | 200. 400 when no run is valid or `exchange` is unknown |
 | `GET /api/glossary` | The definitions and reasons the dashboard shows, generated from the columns the views use. Served whole, so the dashboard holds no glossary text. | 200 |
-| `GET /api/agency` | Agency analysis of a PremiseComposition (§10.4): every seat plays `preset`, then each Playable Actor in turn plays `alternative`. | 200. 400 for an unknown PremiseComposition, a bad seed, or an unknown preset |
+| `GET /api/agency` | Agency analysis of a PremiseComposition (§10.3): every seat plays `preset`, then each Playable Actor in turn plays `alternative`. | 200. 400 for an unknown PremiseComposition, a bad seed, or an unknown preset |
 | `GET /api/agency/detail` | The same analysis, beyond its table: each Playable Actor's objective criteria under the baseline and the alternative. | 200 with the view model. 400 for a bad query. |
-| `POST /api/experiments` | Run a Variant Experiment (§11) and save its runs as a named set. | 200 with the set and its run IDs. 400 for a name in use, an empty experiment, a bad round count, or a game that does not start. |
-| `GET /api/sets` | The named Run sets. | 200 with the sets. |
-| `GET /api/sets/:name/summary` | The final measures across a set's runs (§11). | 200 with the table. 404 for an unknown set. 500 when one of its runs cannot be read. |
-| `POST /api/sets` | Save a set: `name`, `baseline`, `runs`. | 200 with the set. 400 for a blank name, no runs, a baseline outside the runs, or an unknown run. 409 for a name in use. |
-| `POST /api/sets/:name/rename` | Rename a set: `name`. | 200 with the new name. 400 for a blank name. 404 for an unknown set. 409 for a name in use. |
-| `DELETE /api/sets/:name` | Delete a set. Its runs are untouched. | 200 with the name. 404 for an unknown set. |
 
-Operation rules:
-
-- **Derive.** A derived Run starts from a stored one. `duplicate` and `rerun` take no spec fields beyond the name. A `variant` replaces the preset, the player seed, or the rounds, and takes no overrides. A `counterfactual` requires at least one override, which it adds to the source's, and takes no preset, seed, or rounds. The default name is `<source name> (<kind>)`. Every derived run stores `source` and `kind` in its spec, and `source` in its own column.
-- **Rerun.** `recordsMatch` is `true` when the rerun's round records equal the source's. It is `false` for nondeterminism, a stored-versus-live mismatch, or an unrecorded seed, and that is a finding about reproducibility, not a reply error. A source that is not completed, or has no stored records, is refused with 409 and nothing is created.
-- **Sessions.** A live session stores no preset, so `variant` and `counterfactual` from one are refused, and so is `resume`. `duplicate` and `rerun` replay it without a model call ([04 §11.1](04_run.md#111-round-record)).
-- **Resume.** Starts from the round-end World after the run's last completed round and updates the stored round count. The run keeps its ID.
-- **Deleted sources.** A derived run whose source was deleted keeps its `source`, which then shows as deleted.
-
-Dashboard controls exist for launch, resume, archive, delete, and the four derivations (duplicate, rerun, variant, and counterfactual). The store interface supports save, retrieve, list, full round histories, resume, and archive or delete.
+Runs are not launched, derived, resumed, archived or deleted through the API. Simulated runs are played by the static suite (§3), and interactive runs by the live routes (§8.2). The store interface supports save, retrieve, list, full round histories, and delete, which the suite uses to drop a run that has left it.
 
 ### 8.2 External services
 
@@ -298,7 +277,7 @@ Everything that shows more than one Actor's data sits behind a password.
 | Surface | Access |
 |---|---|
 | `/` | Public. The landing page, a page of the dashboard app with its nav bar and themes, with no run data and a link to `/admin`. |
-| `/balancesheet/:run/:token` | Public. One Actor's own page ([§9.5](#95-balancesheet-pages)). |
+| `/balancesheet/:run/:token` | Public. One Actor's own page ([§9.4](#94-balancesheet-pages)). |
 | `/admin` | The login page, and the dashboard once logged in. Its hashed assets under `/admin/assets` are public because the balance sheet page loads them, and they hold no data. |
 | `/api` | Private by default ([§8.1](#81-read-api-and-run-operations)). |
 
@@ -312,11 +291,11 @@ Everything that shows more than one Actor's data sits behind a password.
 
 ## 9. Pages
 
-The Dashboard is served at `/admin`, behind the password (§8.3). It has four pages, each with its own hash route and a top bar that links to them from every page: Runs (`#/runs`, the home page, and `#/runs/:id` with that run selected), Prepare (`#/prepare`), Compare (`#/compare`, and `#/compare/:ids` with the ticked runs), and BalanceSheets (`#/balancesheets`, [§9.5](#95-balancesheet-pages)). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
+The Dashboard is served at `/admin`, behind the password (§8.3). It has three pages, each with its own hash route and a top bar that links to them from every page: Runs (`#/runs`, the home page, and `#/runs/:id` with that run selected), Compare (`#/compare`, and `#/compare/:ids` with the ticked runs), and BalanceSheets (`#/balancesheets`, [§9.4](#94-balancesheet-pages)). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1).
 
 ### 9.1 Simulation Runs
 
-The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, archive flag, and source. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. A Show archived runs toggle adds archived runs. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown. Resume appears only for a completed run that has a preset, and never for a failed or interrupted run. Archive, Unarchive, and Delete (which requires the run's id to be confirmed) are under "Manage this run" on the run page.
+The run list is a sortable table, one row per stored run, in creation order. It shows the run's name, PremiseComposition, seeds, completed rounds, status, failing assertions, reason for a failure, class (simulated or interactive), and, for an interactive run, its tag. A run that cannot be decoded shows status `unreadable` and its reason, and the other runs stay visible. Selecting a row, or opening `#/runs/:id`, shows that run's results beside the list; with no selection, the latest readable run is shown.
 
 ### 9.2 Run Details
 
@@ -328,15 +307,11 @@ Standings rank 1 is the highest net worth, and equal net worths share a rank. Ag
 
 The run page shows the representation and procedure records. The round-by-round action counts, the Exchange, Transformation, and economy views, and the raw event log are served by the API only. Representation records span two rounds: the observation, the estimate, and the Aggregate's purchase that applies the stored factor, from which the influence ratio is derived: the next-round Aggregate change attributable to a represented Actor, divided by that Actor's executed purchase. The event inspector lists one round's events in engine order, with a text filter.
 
-### 9.3 Prepare
-
-Prepare launches a run of a PremiseComposition. Its fields are a name (default: the next run id), the PremiseComposition (shown only when the server offers more than one; default: the first the server lists, which is the first of the compiled order, `compositions/order.json`, written from `Premises.Catalog`: Pacific), a preset (the Strategy every seat plays; default: the PremiseComposition's own default preset, which `GET /api/premise` reports as `defaultPreset`, and choosing another PremiseComposition returns it to that one's default), the rounds (default: the PremiseComposition's default, within its range), and a player seed (blank draws one at launch, and a whole number fixes it). The game seed is shown read-only, because the server takes no game seed at launch. A summary line states what will be played. An accepted launch opens the new run; a refused one shows the server's message.
-
-### 9.4 Compare
+### 9.3 Compare
 
 The Compare page lists every readable run as a tick box. The ticked runs, in the order ticked, form the Run set, and the first is the baseline. The page shows prices by Exchange, net worth over time, final standings, the spread and Gini, a key-values table, and detail tabs (final state, baseline difference, configuration, compatibility, seed variation, and agency, §10.5). Unreadable runs are listed as skipped, with their reasons. Every statistic is computed in the views, not in the browser.
 
-### 9.5 BalanceSheet pages
+### 9.4 BalanceSheet pages
 
 At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/sessions` and the CLI's `session` command report each Actor's path at the start, and the admin BalanceSheets page lists every path for a selected Run, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
 
@@ -366,31 +341,17 @@ The Dashboard names each difference between runs that are not directly comparabl
 - **Key values:** besides net worth, rank, actions, the balance measures, objectives and prices, each Actor's receipts from its Exchange sales over the run, the final coverage of each fixed requirement by the Actor's own capacity, each requirement's shortfall over the run, each seller's sales over the run to Actors of its own group (at home) and to the rest (abroad), and how many of its orders a Rule blocked. Between a run and its counterfactual without a restriction, the shortfall row is the restriction's realized effect.
 - **Configuration difference:** parameter differences, one row each, categorised as version, seat Strategy, seed, or other. The other category holds deliberate changes such as overrides, so they are distinguished from the rest.
 
-### 10.3 Counterfactual experiments
-
-A rerun is the zero-change case: it reproduces the source's configuration and both seeds, so `recordsMatch: true` confirms that the source is reproducible (§8.1).
-
-A counterfactual is the intervention case. It duplicates a run's resolved configuration and both seeds, changes exactly one thing by `overrides` (such as one seat's signature or one deployment), and stores the result as an ordinary immutable run linked to its source. The Compare page then sets the original as the baseline. A `variant` replaces the preset on every seat instead. Changing one seat's Strategy alone is a pure analysis that stores no run.
-
-With both seeds and every draw key fixed, the difference is the intervention's total modelled effect, including downstream consequences.
-
-### 10.4 Agency analysis
+### 10.3 Agency analysis
 
 For each Playable Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria. An unknown preset name is an error, never a silent baseline.
 
 The Compare page's Agency (fixed baseline) tab shows one row per Playable Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Playable Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Playable Actor: its measures under the alternative, and its criteria met either way.
-
-### 10.5 Saved comparisons
-
-The comparison's runs and baseline are carried in the route. A named Run set stores a name, the IDs of immutable runs, and the baseline, and never copies run data. Deleting a run a set names is refused with a 409 naming the set. The Compare page opens, saves, renames, and deletes sets.
 
 ---
 
 # Part V: Experimentation
 
 ## 11. Experiments
-
-A Variant Experiment generates one specification for each declared parameter value, runs and saves every resulting Run, and opens the runs as a named Run set (`POST /api/experiments`, and `experiment <premise>` with `--parameter name --values a,b`, `--combine a=1,2;b=3,4`, `--seat id --alternatives A,B`, `--player-seeds 1,2`, or `--game-seeds 1,2` in the CLI). Every run uses one player seed, drawn once if none is given. Analysis functions also compose the simulation directly, scoring results with the checks and presenting them through the views, and `POST /api/batch` plays one run per PremiseComposition. A Variant Experiment's kinds are single-parameter (one parameter over a list of values), multi-parameter (every combination of the values given), seat-Strategy (parameters fixed, one deviating seat among otherwise identical seats), and player-seed and game-seed batches (§5). A set's batch summary gives the final measures across its runs: the mean, the spread, and how many runs met each explicit Actor's objective (`GET /api/sets/:name/summary`, and a control on the Compare page). The Seed variation tab separates what depends on the seed from what depends on the specification.
 
 **Whole-economy measures.** The `wholeeconomy` view gives these by round and Exchange, and the run page shows them:
 
@@ -423,11 +384,11 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 4 | Engine fixtures | [05 §10.6](05_pacific.md#106-engine-fixtures) P-A to P-F through `resolveRound` alone, the currency dealer and a foreign loan under the asset fee among them, and the order independence of P-A, P-H and P-C ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05), [INV-11](02_kernel.md#inv-11)). |
 | 5 | Counterfactual pair | Free trade against the same run with China's export control from round 1: China's state sells industrial inputs after round 1 in the first, and none to America in the second. |
 | 6 | Persistence | Save a run to the Run Store, reload it, compare its stored records and round-end Worlds with the pure run, and replay from the stored records. The run is identical ([INV-31](02_kernel.md#inv-31)). |
-| 7 | Agency | [§10.4](#104-agency-analysis) across every seat of the reference PremiseComposition, `FreeTrade` against `Hawk`: every Playable Actor has a measurable effect and its objective criteria are reported. |
+| 7 | Agency | [§10.3](#103-agency-analysis) across every seat of the reference PremiseComposition, `FreeTrade` against `Hawk`: every Playable Actor has a measurable effect and its objective criteria are reported. |
 | 8 | Pacific golden scenarios | [05 §10.1](05_pacific.md#101-trade-barriers-and-substitution) A to H: free trade in two currencies, each export control, substitution held back by competence, a tariff its importer pays, a barrier met by substitution in both directions, and the invariants, replay, submission order, each currency's total, repeated enactment and the controls that cannot be bypassed ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05), [INV-07](02_kernel.md#inv-07), [INV-11](02_kernel.md#inv-11), [INV-13](02_kernel.md#inv-13)). |
 | 9 | Routine beside a player | [05 §10.1](05_pacific.md#101-trade-barriers-and-substitution) Routine: a human seat composed with its routine, whose commerce reads what the human's speech put forward. |
 | 10 | Sensitivity | [05 §12](05_pacific.md#12-sensitivity): each structural difference between the countries keeps its effect over each dial changed alone. |
-| 11 | Pacific firms, money and balance | [05 §10.2](05_pacific.md#102-firms-loans-and-the-households) I to O: China's loans at the repression setting's rate, dividends, a firm selling only at home, the levies, how differently the two countries save and bear an export control, a stockpile against one; [05 §10.3](05_pacific.md#103-money-between-the-countries), the dollar moving with trade, reserves and the asset fee; and [05 §10.4](05_pacific.md#104-balance), each seat's score over sampled settings of every tool, with every external account balancing in each ([INV-04](02_kernel.md#inv-04), [INV-11](02_kernel.md#inv-11), [INV-13](02_kernel.md#inv-13)). |
+| 11 | Pacific firms, money and balance | [05 §10.2](05_pacific.md#102-firms-loans-and-the-households) I to O: China's loans at the repression setting's rate, dividends, a firm selling only at home, the levies, how differently the two countries save and bear an export control, a stockpile against one; [05 §10.3](05_pacific.md#103-money-between-the-countries), the dollar moving with trade, reserves and the asset fee; and [05 §10.3](05_pacific.md#104-balance), each seat's score over sampled settings of every tool, with every external account balancing in each ([INV-04](02_kernel.md#inv-04), [INV-11](02_kernel.md#inv-11), [INV-13](02_kernel.md#inv-13)). |
 | 12 | Circuits, accounting and loops | [05 §10.5](05_pacific.md#105-circuits-accounting-and-loops): every leg of the four circular flows carries a flow; every open bond is one claim and one liability; every external account balances in every preset; the repression transfer; and each feedback loop F1 to F12 under the conditions [05 §6](05_pacific.md#6-how-the-objects-interact) states, with its counter-case ([INV-05](02_kernel.md#inv-05)). |
 | 13 | Experiments | [05 §11](05_pacific.md#11-experiments): the political trap, the dollar trap, lost knowledge, international leverage, mutually reinforcing dependence, and the status quo against rebalancing. |
 | 14 | Derived indicators | [05 §10.5](05_pacific.md#105-circuits-accounting-and-loops) Indicators: the substitute gap, net external position, debt service and viability margin of a Pacific run, as literals; and INV-38 tripped by a tampered run. |

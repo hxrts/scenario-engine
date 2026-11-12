@@ -11,44 +11,40 @@ import Dashboard.BalanceSheet (mkBalanceSheet, mkBalanceSheets)
 import Web.HTML.Location (pathname)
 import Web.HTML.Window (location, document)
 import Data.String (Pattern(..), split)
-import Data.Array (elem, filter, find, findIndex, index, length, null)
+import Data.Array (elem, filter, find, index, length, null)
 
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (diffTable, errorBlock, fetched, groupedBars, labelled, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf, textInput)
+import Dashboard.Components (diffTable, fetched, groupedBars, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf)
 import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
-import Dashboard.Launch (LaunchForm, emptyForm, presetOf, roundChoices, roundValue, selected, summary, validate)
 import Dashboard.Layout as Layout
-import Dashboard.Sets (mkSets)
 import Dashboard.Palette (runSwatch)
 import Dashboard.Results (mkRunResults)
 import Dashboard.Route (Route(..), href, navigate, route)
-import Dashboard.RunActions as Actions
-import Dashboard.Runs (flagsOf, latestReadable, readableIds, shownRuns)
+import Dashboard.Runs (latestReadable, readableIds)
 import Dashboard.Theme (pageMarker, themeToggle)
 import Dashboard.Public (mkLanding, mkLogin)
 import Dashboard.UI as UI
-import Data.Either (Either(..), note)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String as String
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple)
 import Effect (Effect)
 
-import Effect.Aff (Aff, launchAff_)
-import Effect.Class (liftEffect)
+import Effect.Aff (Aff)
+
 import Effect.Exception (throw)
 import Effect.Uncurried (mkEffectFn1)
 import Views.Balance (giniStat, spreadStat)
 import Views.Compare (CompareView, compatibilityPurpose)
-import Views.Overview (RunList, RunOverview)
-import Views.Composition (CompositionInfo)
-import Effects.Api (Launch)
+import Views.Overview (RunList)
+
 import React.Basic.DOM as D
 import React.Basic.DOM.Client (createRoot, renderRoot)
-import React.Basic.Events (handler_)
-import React.Basic.Hooks (Component, Hook, JSX, component, element, provider, useEffect, useEffectOnce, useState, useState', (/\))
+
+import React.Basic.Hooks (Component, Hook, JSX, component, element, provider, useEffectOnce, useState', (/\))
 import React.Basic.Hooks.Aff (UseAff)
 import React.Basic.Hooks as React
 import Routing.Duplex (parse)
@@ -65,24 +61,14 @@ type Fetch = { key :: String, load :: Aff (Either String JSX) } -> JSX
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | The run list, every run (`?archived=true`), in creation order. The page filters out the archived runs itself.
+-- | The run list, every run, in creation order.
 listRuns :: Aff (Either String RunList)
 listRuns = Client.runs
 
--- | The run list, loaded for a key: a new key (an archive, a delete, a resume) reloads it. The previous list
+-- | The run list, loaded for a key: a new key reloads it. The previous list
 -- | stays on screen, dimmed, until the new one arrives. Every page that lists runs uses this hook.
 useRunList :: Int -> Hook (UseAff Int (Tuple Int (Either String RunList))) (Loaded (Either String RunList))
 useRunList version = useLoad version listRuns
-
--- | A Source cell links to the source run when the list has it.
-runLinks :: RunList -> Int -> Array String -> Maybe String
-runLinks t i row
-  | Just i == findIndex (_ == "Source") t.columns = do
-      -- the source the run names, when the run is listed: a deleted source has no link
-      id <- index row runKeyColumn
-      s <- flagsOf t id >>= _.source
-      if elem s (map _.id t.runs) then Just (href (Run s)) else Nothing
-  | otherwise = Nothing
 
 -- | The run list as a table. A row click selects that run; the selected row is highlighted.
 runTable :: DataTable -> RunList -> { selected :: String, select :: String -> Effect Unit } -> JSX
@@ -91,161 +77,23 @@ runTable grid t s = D.div
   , children:
       [ grid
           ( (defaults t)
-              { link = runLinks t
-              , onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
+              { onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
               , activeRow = \row -> index row runKeyColumn == Just s.selected
               }
           )
       ]
   }
 
--- | The launch form's view: the form, the composition it launches, the failure message, and the Run action.
-type LaunchView =
-  { form :: LaunchForm
-  , setForm :: (LaunchForm -> LaunchForm) -> Effect Unit
-  , composition :: CompositionInfo
-  , compositions :: Array CompositionInfo
-  , defaultName :: String
-  , failure :: Maybe String
-  , launch :: Effect Unit
-  }
-
--- | The launch action: what Run will play, any error, and the Run button. It sits in its own column.
-launchAction :: LaunchView -> JSX
-launchAction v = D.div
-  { className: "flex flex-col gap-stack"
-  , children:
-      [ D.p { className: "text-sm font-medium", children: [ D.text (summary v.composition v.form) ] }
-      , errorBlock v.failure
-      , element UI.button { onClick: handler_ v.launch, children: [ D.text "Run" ] }
-      , Layout.purpose (if length v.compositions > 1 then "Required: Preset and Composition. Every other field has a default, so Run needs no edits." else "Required: Preset. Every other field has a default, so Run needs no edits.")
-      ]
-  }
-
--- | The launch form's fields, each with its default. A required field's label carries an asterisk and the
--- | word `required`; an optional one says `optional` and its default. The round choices and the game seed
--- | come from the composition.
-launchFields :: LaunchView -> JSX
-launchFields v = D.div
-  { className: "flex flex-col gap-stack"
-  , children:
-      picker <>
-        [ textField { label: "Name", required: false, note: "optional, defaults to " <> v.defaultName <> ", the next run id" } v.form.name (\x f -> f { name = x })
-        , selectField { label: "Preset", required: true, note: "required, " <> v.composition.defaultPreset <> " by default: every seat plays this preset" } (presetOf v.composition v.form) v.composition.presets (\x f -> f { preset = x })
-        , selectField
-            { label: "Rounds", required: false, note: "optional, defaults to " <> show v.composition.rounds.default <> " rounds; allowed " <> show v.composition.rounds.min <> " to " <> show v.composition.rounds.max }
-            (show (roundValue v.composition.rounds v.form.rounds))
-            (map show (roundChoices v.composition.rounds))
-            (\x f -> f { rounds = x })
-        , textField { label: "Player seed", required: false, note: "optional, blank draws a seed once at launch and stores it with the run" } v.form.playerSeed (\x f -> f { playerSeed = x })
-        , D.div
-            { className: "flex flex-col gap-1 text-sm"
-            , children:
-                [ fieldHeading { label: "Game seed", required: false, note: "default: the composition's seed. Read-only, because the server takes no game seed at launch" }
-                , D.span { className: "font-mono", children: [ D.text (show v.composition.gameSeed) ] }
-                ]
-            }
-        ]
-  }
-  where
-  -- the picker appears only when there is a choice; a build with one composition has none
-  picker = if length v.compositions > 1 then [ selectField { label: "Composition", required: true, note: "required: which composition to play" } v.composition.name (map _.name v.compositions) (\x f -> f { composition = x, preset = "" }) ] else []
-  -- a composition's presets are its own, so choosing another composition returns the preset to its default
-  textField f value set = labelled (fieldHeading f) $ textInput
-    { value, required: f.required, onChange: \x -> v.setForm (set x) }
-  -- a select; `set` receives the chosen value
-  selectField f value options set = labelled (fieldHeading f) $ selectInput { value, options, onChange: \x -> v.setForm (set (fromMaybe value x)) }
-  fieldHeading f = D.span
-    { className: "flex flex-col"
-    , children:
-        [ D.span { className: "font-medium", children: [ D.text f.label, D.span { className: "text-destructive", children: [ D.text (if f.required then " *" else "") ] } ] }
-        , D.span { className: "text-xs text-muted-foreground", children: [ D.text f.note ] }
-        ]
-    }
-
--- | Prepare: launch a run of the composition. The form starts with its defaults (the composition's next run name,
--- | the preset Conservative, the composition's round count, a drawn player seed), so Run needs no edits. A
--- | launch the server accepts opens the new run.
-mkPrepare :: Component Unit
-mkPrepare = component "Prepare" \_ -> React.do
-  form /\ setForm <- useState emptyForm
-  failure /\ setFailure <- useState' (Nothing :: Maybe String)
-  compositionLoad <- useLoad unit Client.composition
-  let
-    compositions = case compositionLoad.value of
-      Just (Right ps) -> ps
-      _ -> []
-    composition = selected form compositions
-    -- the default name is known once the composition is; until then it is "run"
-    loadedName = maybe "" _.defaultName composition
-    defaultName = if loadedName == "" then "run" else loadedName
-
-    chosenComposition = (_ >>= note "The server offers no composition." <<< selected form)
-    view s = { form, setForm, composition: s, compositions, defaultName, failure, launch }
-
-    -- a bad form is reported without a request; a launch that the server accepts opens the new run
-    launch = case composition of
-      Just s -> case validate s form of
-        Left e -> setFailure (Just e)
-        Right req -> setFailure Nothing *> launchAff_ (submit req)
-      Nothing -> setFailure (Just "The composition has not loaded, so the run cannot be launched.")
-
-    submit :: Launch -> Aff Unit
-    submit req = do
-      reply <- Client.launch req
-      liftEffect case reply of
-        Left e -> setFailure (Just e)
-        Right r -> navigate (Run r.id)
-  -- the name field shows the default once it is known; a name the user has typed is kept
-  useEffect loadedName do
-    if loadedName == "" then pure unit else setForm (\f -> if f.name == "" then f { name = loadedName } else f)
-    pure (pure unit)
-  pure $ Layout.page
-    { title: "Prepare a run"
-    , purpose: "Launch a run of the composition from a preset. Every field has a default, so Run needs no edits."
-    , children:
-        [ Layout.grid
-            [ Layout.panel
-                { span: 6
-                , title: "Options"
-                , purpose: "Each option's default is shown beside it."
-                , children:
-                    [ loaded (chosenComposition <$> compositionLoad.value) (launchFields <<< view) ]
-                }
-            , Layout.panel
-                { span: 6
-                , title: "Launch"
-                , purpose: "The summary says what Run will play. Run opens the new run when the server accepts it."
-                , children:
-                    [ loaded (chosenComposition <$> compositionLoad.value) (launchAction <<< view) ]
-                }
-            ]
-        ]
-    }
-
--- | The run page: the selected run's overview, fetched once, and the two things that use it: the results
--- | and the manage panel (archive, resume, delete). Each action refreshes the page through `onChanged`.
-mkRunPage :: DataTable -> Component { id :: String, archived :: Boolean, version :: Int, onChanged :: Effect Unit }
+-- | The run page: the selected run's overview, fetched once, and its results.
+mkRunPage :: DataTable -> Component { id :: String }
 mkRunPage grid = do
   results <- mkRunResults grid
-  actions <- Actions.mkRunActions
   component "RunPage" \p -> React.do
-    -- the overview reloads when the run changes or an action on it has been taken (the version)
-    overview <- useLoad (Tuple p.id p.version) (Client.overview p.id)
+    overview <- useLoad p.id (Client.overview p.id)
     pure $ D.div
       { className: "col-span-12 flex min-w-0 flex-col gap-gutter lg:col-span-8"
-      , children:
-          [ results { id: p.id, version: p.version, overview }
-          , Layout.panel
-              { span: 12
-              , title: "Manage this run"
-              , purpose: "Resume, archive or delete this run."
-              , children: [ manage actions p overview.value ]
-              }
-          ]
+      , children: [ results { id: p.id, version: 0, overview } ]
       }
-  where
-  manage actions p o = loaded o \(v :: RunOverview) -> actions { id: p.id, archived: p.archived, resumable: v.resumable, steppable: v.resumable && v.rounds < v.target, onChanged: p.onChanged }
 
 -- | Runs: the run list beside the selected run, which is the route's run (`#/runs/:id`) or, with no
 -- | selection, the latest readable run. The selected run's results come first; its manage
@@ -256,16 +104,14 @@ mkRuns :: DataTable -> Component { selected :: Maybe String }
 mkRuns grid = do
   runPage <- mkRunPage grid
   component "Runs" \p -> React.do
-    archived /\ setArchived <- useState' false
-    version /\ setVersion <- useState' 0
-    everyRun <- useRunList version
+    everyRun <- useRunList 0
     pure $ Layout.page
       { title: "Runs"
-      , purpose: "Every stored run, with the selected run's results and actions beside the list. With no run selected, the latest readable run is shown."
+      , purpose: "Every stored run, with the selected run's results beside the list. With no run selected, the latest readable run is shown."
       , children:
           [ loaded everyRun.value \all ->
               let
-                t = shownRuns archived all
+                t = all
                 current = fromMaybe "" (p.selected <|> latestReadable t)
               in
                 Layout.grid
@@ -274,20 +120,16 @@ mkRuns grid = do
                       , title: "Runs"
                       , purpose: "Every stored run in the order they were created. Click a run to show its results."
                       , children:
-                          [ D.label
-                              { className: "flex items-center gap-2 text-sm"
-                              , children: [ element UI.checkbox { checked: archived, onCheckedChange: mkEffectFn1 setArchived }, D.text "Show archived runs" ]
-                              }
-                          , runTable grid t { selected: current, select: \id -> navigate (Run id) }
+                          [ runTable grid t { selected: current, select: \id -> navigate (Run id) }
                           ]
                       }
                   , if current == "" then Layout.panel
                       { span: 8
                       , title: "Selected run"
                       , purpose: "The selected run's results appear here."
-                      , children: [ Layout.purpose "No run yet. Prepare a run to see its results here." ]
+                      , children: [ Layout.purpose "No run yet." ]
                       }
-                    else runPage { id: current, archived: maybe false _.archived (flagsOf all current), version, onChanged: setVersion (version + 1) }
+                    else runPage { id: current }
                   ]
           ]
       }
@@ -300,7 +142,6 @@ mkCompare :: DataTable -> Component (Array String)
 mkCompare grid = do
   fetch <- fetched
   comparison <- mkComparison grid fetch
-  sets <- mkSets grid
   component "Compare" \ids -> React.do
     everyRun <- useRunList 0
     let chooser baseline = loaded everyRun.value \t -> choices t ids baseline
@@ -310,7 +151,6 @@ mkCompare grid = do
       , children:
           [ if null ids then React.fragment [ chooser Nothing, plots grid fetch [] Nothing Nothing (\_ -> pure unit) ]
             else comparison { ids, chooser }
-          , sets ids
           ]
       }
 
@@ -480,8 +320,7 @@ shell current compareSet themeButton page = D.div
           { brand: "Scenario Engine"
           , home: href Runs
           , nav:
-              [ navLink "Prepare" Prepare (current == Prepare)
-              , navLink "Runs" Runs (isRuns current)
+              [ navLink "Runs" Runs (isRuns current)
               , navLink "Balance sheets" BalanceSheets (current == BalanceSheets)
               , navLink (if compareSet == [] then "Compare" else "Compare (" <> show (length compareSet) <> ")") (Compare compareSet) (isCompare current)
               ]
@@ -515,7 +354,6 @@ mkApp :: Component Unit
 mkApp = do
   grid <- mkDataTable
   runsPage <- mkRuns grid
-  prepare <- mkPrepare
   compare <- mkCompare grid
   balanceSheets <- mkBalanceSheets
   toggle <- themeToggle
@@ -532,7 +370,6 @@ mkApp = do
       page = case current of
         Runs -> runsPage { selected: Nothing }
         Run id -> runsPage { selected: Just id }
-        Prepare -> prepare unit
         Compare ids -> compare ids
         BalanceSheets -> balanceSheets unit
     pure $ loaded glossary.value \g -> provider glossaryContext (Just g) [ shell current compareSet (toggle unit) page ]

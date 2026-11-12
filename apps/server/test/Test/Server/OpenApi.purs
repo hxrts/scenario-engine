@@ -5,7 +5,9 @@ module Test.Server.OpenApi (spec) where
 
 import Prelude
 
-import Handlers.Api.Route (Service(..), submissionShape, endpointAccess, isOpen, route, wire)
+import Test.Server.Seed (serve)
+
+import Handlers.Api.Route (Service(..), endpointAccess, isOpen, submissionShape, wire)
 
 import Data.Array (find, elem, filter, all, any, length, sort, zipWith)
 
@@ -27,7 +29,7 @@ import Effect.Class (liftEffect)
 import Effects.Api (ApiRequest(..), Reply)
 import Foreign.Object as Object
 import Server.OpenApi (documentsOf, document, published, services)
-import Server.Stack (implement, newServerCache)
+import Server.Stack (newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -91,7 +93,7 @@ api = do
   let
     store = storeOver db
     host = testHost store
-  pure \method path body -> liftEffect (route (implement [ ctx ] store cache host) { method, path, query: Object.empty, body })
+  pure \method path body -> liftEffect (serve [ ctx ] store cache host { method, path, query: Object.empty, body })
 
 waitFor :: (String -> String -> String -> Aff Reply) -> String -> Aff Unit
 waitFor call text = go 200

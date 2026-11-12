@@ -119,7 +119,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `handlers` | `core`, `laws`, `schema`, `world`, `strategy`, `assembly`, `effects`, `views` (`Handlers.Api.Contract` only) | The interpreters of the operations: seats, live play, model calls, the Run Store, recording, replay, the API's contract, routing and client, and the pure simulation fold | Adapter imports; `experiments` or `premises` imports; the API's operation semantics; a browser-facing client importing a Node module |
 | `adapters` | `handlers` (the device types of the SQL handler only) | Raw devices, and every FFI module outside the apps | Runs, prompts, Premises, any handler function |
 | `views` | `core`, `laws`, `schema`, `checks` | Pure projections of a stored run to generic tables, charts and statistics | Effects; `handlers`, `assembly`, `experiments` or `premises` imports; objective evaluation of their own |
-| `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Counterfactuals, agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
+| `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
 | `testkit` | `core`, `laws`, `schema`, `premises`, `assembly`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and composition loading for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
 | `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays Runs and compiles PremiseCompositions; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
@@ -270,8 +270,6 @@ Most of what a person or a program touches in this system is produced from a sma
  ONE RUN RECIPE
 
  composition, overrides ── resolve ──────────► variant composition
- stored Run           ── deriveRecipe ───────► derived Run
- Experiment           ── variants ───────────► Run set
 
  ONE RECORD OF A ROUND
 
@@ -317,7 +315,7 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **Strategies are a language with several readers.** `StrategyRules` is a value, not code. The interpreter runs it through `propose` and `sign`, a query reads every name it refers to for the load-time check, and a Shape stores it. A preset is one shared set of rules that each Premise binds to its own names and thresholds, so results stay comparable across Premises.
 
-**Runs are reshaped as compositions are.** Overrides change values within a composition's structure, a derived Run starts from the recipe a stored Run keeps, and an Experiment expands parameter values or seeds into a Run set. Each works on recorded data, so what produced a Run can always be read back.
+**Runs are reshaped as compositions are.** Overrides change values within a composition's structure. Each Run records its recipe, so what produced it can always be read back.
 
 **Fixtures and tests get their own authoring language.** A fixture is not a hand-built World. It is a filter of the PremiseComposition it tests, plus what each seat does and what should happen. It plays through `simulate` as a `PreparedRun` like any other, so its expectations are checked against the records the engine writes. `RoundF f p` is one record type filled in three ways, so what a fixture may assert is exactly what a round can produce. A new field fails to compile until the checker compares it.
 
@@ -329,4 +327,4 @@ Typed names make a builder accept only the right kind of id, so naming an Exchan
 
 **Clients come from the operations.** `ApiRequest` is the list of operations. The endpoint table has one row per constructor, so a missing route fails to compile. The server parses with that table and the browser client writes with it, so client and server cannot disagree about a path, a method or a body. `Handlers.Api.Contract` has one entry per constructor, stating its reply Shape and refusals, read by the server's `dispatch`, the client's `send`, and the OpenAPI documents for the external services ([07 §8.2](07_simulator.md#82-external-services)), which take their paths and methods from the table and their statuses by reflecting the entry's row of refusals. An entry's reply Shape is found from its reply type (`Views.Keys.ViewShape`); `Created` states a 201 in the Authored format. `Views.Keys.ViewReplies` does the same per View: one label per `View` constructor, read by the server's `answerView` and the client's `viewKey`. Only an open route can be published (`Access`).
 
-**A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([07 §9.5](07_simulator.md#95-balancesheet-pages)).
+**A balance sheet is scoped by construction.** `Views.BalanceSheet` is a pure projection of a stored Run for one Actor, and names another Actor only where this one was party to a Transaction with it ([07 §9.4](07_simulator.md#94-balancesheet-pages)).

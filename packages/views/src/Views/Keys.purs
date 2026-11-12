@@ -17,7 +17,7 @@ module Views.Keys
 
 import Prelude
 
-import Schema.Run (RunStatus, runStatusShape, DeriveKind, deriveKindShape)
+import Schema.Run (RunClass, RunStatus, runClassShape, runStatusShape)
 
 import Core.Num (Kind, kindShape)
 import Core.Shape (class Exhausts, class Inject, Format(..), RecF, Shape, boolShape, encodeWith, fieldOf, inject, intShape, jsonShape, listOf, object, objectValuesOf, optionalOf, stringShape)
@@ -68,8 +68,8 @@ instance ViewShape Kind where
 instance ViewShape RunStatus where
   viewShape = runStatusShape
 
-instance ViewShape DeriveKind where
-  viewShape = deriveKindShape
+instance ViewShape RunClass where
+  viewShape = runClassShape
 
 instance ViewShape a => ViewShape (Array a) where
   viewShape = listOf viewShape

@@ -181,7 +181,6 @@ type RunHeaderRow r =
     ( manifest :: Manifest
     , playerSeed :: String
     , spec :: Spec
-    , sourceDeleted :: Boolean -- the run it was derived from is no longer in the store
     | r
     )
 

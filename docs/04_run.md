@@ -172,7 +172,7 @@ The Run manifest is the immutable record of the resolved configuration and initi
 
 It does not hold the Strategies, the round count, or the player seed. The run's spec holds those ([07 §3](07_simulator.md#3-simulation-specification)). Premises change during play only through supported mechanisms, never by editing the manifest.
 
-A run starts only after instantiation succeeds. A failed instantiation leaves no state ([§10](#10-initialization-pipeline)). Run states and archiving are in [07 §6](07_simulator.md#6-lifecycle-and-execution).
+A run starts only after instantiation succeeds. A failed instantiation leaves no state ([§10](#10-initialization-pipeline)). Run states are in [07 §6](07_simulator.md#6-lifecycle-and-execution).
 
 ## 10. Initialization Pipeline
 

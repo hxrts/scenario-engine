@@ -27,7 +27,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message, try)
 import Handlers.Replay (runReplay)
-import Effects.Store (createRun, deleteRun, failRun, failRunning, setArchived, setSpec)
+import Effects.Store (createRun, deleteRun, failRun, failRunning, setSpec)
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Views.Metrics (roundMetrics)
 import Handlers.Store (recorder, runStore, runObserve, startRun)
@@ -106,7 +106,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open path)
       let port = storeOver db
       version <- liftEffect (schemaVersion db)
-      version `shouldEqual` 11
+      version `shouldEqual` 12
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "migrated", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       liftEffect (runStore port (failRun "run-1" "boom"))
       runs <- liftEffect (runObserve port listRuns)
@@ -164,13 +164,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       stored <- liftEffect $ playStored port seed g ({ owner: "server:1:0", id: "run-1", name: "base", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest: g.manifest })
       _ <- orThrow stored
       manifest <- manifestOf
-      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x", source = Just "run-1" }, manifest })
-      liftEffect (runStore port (setArchived "run-2" true))
-      liftEffect (runStore port (setArchived "run-2" true))
+      liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-2", name: "dup", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
       sums <- liftEffect (runObserve port listSummaries)
-      map (\r -> { id: r.id, archived: r.archived, source: r.source }) sums
-        `shouldEqual` [ { id: "run-1", archived: false, source: Nothing }, { id: "run-2", archived: true, source: Just "run-1" } ]
-      liftEffect (runStore port (setArchived "run-2" false))
+      map _.id sums
+        `shouldEqual` [ "run-1", "run-2" ]
       before <- liftEffect (runObserve port (readRounds "run-1"))
       length before `shouldEqual` 2
       removed <- liftEffect (runStore port (deleteRun "run-1"))
@@ -178,7 +175,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       after <- liftEffect (runObserve port (readRounds "run-1"))
       after `shouldEqual` []
       left <- liftEffect (runObserve port listSummaries)
-      map (\r -> { id: r.id, source: r.source }) left `shouldEqual` [ { id: "run-2", source: Just "run-1" } ]
+      map _.id left `shouldEqual` [ "run-2" ]
       again <- liftEffect (runStore port (deleteRun "run-1"))
       again `shouldEqual` 0
 

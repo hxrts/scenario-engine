@@ -4,8 +4,8 @@
 module Schema.Run
   ( RunStatus(..)
   , runStatusShape
-  , DeriveKind(..)
-  , deriveKindShape
+  , RunClass(..)
+  , runClassShape
   , Spec
   , emptySpec
   , specShape
@@ -41,19 +41,19 @@ instance Show RunStatus where
 runStatusShape :: Shape RunStatus
 runStatusShape = closedName "status"
 
--- | How a run is derived from another.
-data DeriveKind = Duplicate | Rerun | Variant | Counterfactual
+-- | Which kind of run: a simulated run of the static suite, or an interactive (live) run.
+data RunClass = Simulated | Interactive
 
-derive instance Eq DeriveKind
+derive instance Eq RunClass
 
-derive instance Generic DeriveKind _
+derive instance Generic RunClass _
 
--- | Written as its name, in requests and stored specs: renaming a constructor changes stored text.
-instance Show DeriveKind where
+-- | Written as its name, in the store and the views.
+instance Show RunClass where
   show = lowerName
 
-deriveKindShape :: Shape DeriveKind
-deriveKindShape = closedName "kind"
+runClassShape :: Shape RunClass
+runClassShape = closedName "class"
 
 -- | A run's stored specification: what it was played from and where it came from. `overrides` is the
 -- | JSON text of the overrides (`Assembly.Override`). A run stored without a field reads as Nothing.
@@ -65,16 +65,18 @@ type Spec =
   , playerSeed :: Maybe Int
   , overrides :: Maybe String
   , rounds :: Maybe Int
-  , source :: Maybe String
-  , kind :: Maybe DeriveKind
   , model :: Maybe String
   , humans :: Maybe String
   , cast :: Maybe String -- the cast, as JSON text (`Schema.Cast`); absent is every seat on `preset`
+  , runClass :: Maybe RunClass -- simulated or interactive; absent reads as simulated
+  , cacheKey :: Maybe String -- a simulated run's suite cache key
+  , tag :: Maybe String -- an interactive run's tag: mock or production
+  , metadata :: Maybe String -- an interactive run's metadata, as JSON text
   }
 
 -- | A specification with no field recorded.
 emptySpec :: Spec
-emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, source: Nothing, kind: Nothing, model: Nothing, humans: Nothing, cast: Nothing }
+emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, model: Nothing, humans: Nothing, cast: Nothing, runClass: Nothing, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
 
 -- | A whole number stored as text, an absent key being Nothing.
 storedInt :: String -> Shape (Maybe Int)
@@ -85,8 +87,8 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
     Just text -> Just <$> note ("the stored spec's " <> what <> " is not an integer: " <> text) (Int.fromString text)
 
 -- | The keys of a stored specification, in one place.
-specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, source :: String, kind :: String, model :: String, humans :: String, cast :: String }
-specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", source: "source", kind: "kind", model: "model", humans: "humans", cast: "cast" }
+specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, model :: String, humans :: String, cast :: String, runClass :: String, cacheKey :: String, tag :: String, metadata :: String }
+specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", model: "model", humans: "humans", cast: "cast", runClass: "class", cacheKey: "cacheKey", tag: "runTag", metadata: "metadata" }
 
 -- | The stored specification. Every value is stored as text, in the premise
 -- | format, so an absent field is not written.
@@ -99,12 +101,14 @@ specShape = object "Spec" ado
   playerSeed <- fieldOf specKey.playerSeed "the player seed the run was resolved to" (storedInt "player seed") _.playerSeed
   overrides <- fieldOf specKey.overrides "the overrides, as JSON text" (optionalOf stringShape) _.overrides
   rounds <- fieldOf specKey.rounds "the round count; absent is the configuration's" (storedInt "rounds") _.rounds
-  source <- fieldOf specKey.source "the run this one was derived from" (optionalOf stringShape) _.source
-  kind <- fieldOf specKey.kind "how it was derived" (optionalOf deriveKindShape) _.kind
   model <- fieldOf specKey.model "a live session's model" (optionalOf stringShape) _.model
   humans <- fieldOf specKey.humans "a live session's human seats" (optionalOf stringShape) _.humans
   cast <- fieldOf specKey.cast "the cast: each castable Actor's role, as JSON text" (optionalOf stringShape) _.cast
-  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, source, kind, model, humans, cast }
+  runClass <- fieldOf specKey.runClass "simulated or interactive; absent is simulated" (optionalOf runClassShape) _.runClass
+  cacheKey <- fieldOf specKey.cacheKey "a simulated run's suite cache key" (optionalOf stringShape) _.cacheKey
+  tag <- fieldOf specKey.tag "an interactive run's tag: mock or production" (optionalOf stringShape) _.tag
+  metadata <- fieldOf specKey.metadata "an interactive run's metadata, as JSON text" (optionalOf stringShape) _.metadata
+  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, model, humans, cast, runClass, cacheKey, tag, metadata }
 
 -- | The recorded fields of a specification as key and text pairs, in the shape's order, for a
 -- | configuration diff.

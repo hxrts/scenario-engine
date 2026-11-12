@@ -11,7 +11,7 @@ module Handlers.SqlStore
 import Prelude
 
 import Laws.Invariants (failureShape)
-import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse, stringShape)
+import Core.Shape (Format(..), Shape, arrayOf, decodeJsonWith, encodeWith, parse)
 import Laws.World (manifestShape, roundRecordShape, worldStateShape)
 import Data.Argonaut.Core (fromString, stringify)
 import Data.Argonaut.Decode.Error (printJsonDecodeError)
@@ -20,14 +20,14 @@ import Data.Either (either)
 import Data.Foldable (foldl, for_)
 import Data.Int as Int
 import Data.Maybe (fromMaybe, maybe)
-import Data.Nullable (Nullable, toMaybe, toNullable)
+import Data.Nullable (Nullable, toMaybe)
 import Data.String (Pattern(..), joinWith, split)
 import Data.String.CodeUnits as String
 import Data.Symbol (class IsSymbol, reflectSymbol)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Exception (catchException, throw, throwException)
-import Effects.Signatures (RunInfo, RunSummary, RunSet, Stored, StoredManifest, StoredRound)
+import Effects.Signatures (RunInfo, RunSummary, Stored, StoredManifest, StoredRound)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Handlers.Sql (SqlDevice, SqlValue(..))
@@ -47,8 +47,6 @@ schema =
      id text primary key, name text not null, status text not null,
      spec text not null, manifest text not null, created text not null,
      reason text,
-     archived integer not null default 0, -- 1 hides a run from the default list
-     source text, -- the run this one was derived from (docs/07_simulator.md §10.4)
      owner text not null); -- the process that created the run (role:pid:start time)
    create table rounds (
      run text not null, round integer not null, record text not null, snapshot text not null,
@@ -59,13 +57,8 @@ schema =
      run text not null, metric text not null, version text not null, round integer not null,
      value text not null, primary key (run, metric, version, round));"""
 
--- | The named sets of runs. Added after version 1 and only additive, so it is made wherever it is absent and a
--- | store keeps its version. A set holds run ids, as JSON text, and never run data.
-setsTable :: String
-setsTable = "create table if not exists run_sets (name text primary key, baseline text not null, runs text not null)"
-
 schemaVersionCurrent :: Int
-schemaVersionCurrent = 11
+schemaVersionCurrent = 12
 
 -- | The store's schema version.
 schemaVersion :: SqlDevice -> Effect Int
@@ -87,7 +80,6 @@ openStore open path = do
       d.dbDbTransaction do
         d.script schema
         d.script ("pragma user_version = " <> show schemaVersionCurrent)
-    d.script setsTable
   refused v = "run store " <> path <> " has schema version " <> show v <> "; this build reads only version " <> show schemaVersionCurrent <> ". Move the file aside and start a new store; its runs can be launched again from their seeds."
 
 type RunColumns =
@@ -98,8 +90,6 @@ type RunColumns =
   , manifest :: String
   , created :: String
   , reason :: Nullable String
-  , archived :: Int
-  , source :: Nullable String
   , owner :: String
   )
 
@@ -114,11 +104,9 @@ type RoundColumns =
 
 type MetricColumns = (run :: String, metric :: String, version :: String, round :: Int, value :: String)
 
-type SetColumns = (name :: String, baseline :: String, runs :: String)
-
 type RunInfoRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String }
 
-type RunSummaryRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String, spec :: String, manifest :: String, archived :: Int, source :: Nullable String }
+type RunSummaryRow = { id :: String, name :: String, status :: String, created :: String, reason :: Nullable String, spec :: String, manifest :: String }
 
 type ManifestRow = { spec :: String, manifest :: String }
 
@@ -133,9 +121,6 @@ runsTable = Table "runs"
 
 roundsTable :: Table RoundColumns
 roundsTable = Table "rounds"
-
-setsOf :: Table SetColumns
-setsOf = Table "run_sets"
 
 metricsTable :: Table MetricColumns
 metricsTable = Table "metrics"
@@ -157,7 +142,6 @@ describedTables =
   [ describe runsTable
   , describe roundsTable
   , describe metricsTable
-  , describe setsOf
   ]
   where
   describe :: forall r rl. RL.RowToList r rl => Columns rl => Table r -> { table :: String, columns :: Array String }
@@ -196,7 +180,7 @@ statusOf id text = either (\e -> throw ("run " <> id <> ": " <> printJsonDecodeE
 -- | running by a process that has gone is failed at startup.
 sqlStore :: SqlDevice -> (Int -> Effect Boolean) -> StoreBackend
 sqlStore d alive =
-  { createRun: \r -> insert d runsTable { id: r.id, name: r.name, status: show Running, spec: specText r.spec, manifest: shapeText manifestShape r.manifest, created: r.created, source: toNullable r.spec.source, owner: r.owner }
+  { createRun: \r -> insert d runsTable { id: r.id, name: r.name, status: show Running, spec: specText r.spec, manifest: shapeText manifestShape r.manifest, created: r.created, owner: r.owner }
   , appendRound: \r -> d.dbDbTransaction do
       insert d roundsTable { run: r.run, round: r.round, record: shapeText roundRecordShape r.record, snapshot: shapeText worldStateShape r.snapshot, assertions: shapeText (arrayOf failureShape) r.assertions, transcripts: shapeText (arrayOf transcriptShape) r.transcripts }
       for_ r.metrics \m -> insert d metricsTable { run: r.run, metric: m.metric, version: m.version, round: r.round, value: m.value }
@@ -207,15 +191,10 @@ sqlStore d alive =
       for_ left \run -> d.execute "update runs set status = 'failed', reason = ? where id = ?" [ SqlText r.reason, SqlText run.id ]
       pure (length left)
   , setSpec: \id spec -> void (d.execute "update runs set spec = ? where id = ?" [ SqlText (specText spec), SqlText id ])
-  , setArchived: \id archived -> void (d.execute "update runs set archived = ? where id = ?" [ SqlInt (if archived then 1 else 0), SqlText id ])
   , deleteRun: \id -> d.dbDbTransaction do
       void (d.execute "delete from metrics where run = ?" [ SqlText id ])
       void (d.execute "delete from rounds where run = ?" [ SqlText id ])
       d.execute "delete from runs where id = ?" [ SqlText id ]
-  , createSet: \set -> insert d setsOf { name: set.name, baseline: set.baseline, runs: shapeText (arrayOf stringShape) set.runs }
-  , renameSet: \name to -> d.execute "update run_sets set name = ? where name = ?" [ SqlText to, SqlText name ]
-  , deleteSet: \name -> d.execute "delete from run_sets where name = ?" [ SqlText name ]
-  , listSets: select d setsOf "order by rowid" [] >>= traverse setOf
   , listRuns: select d runsTable "order by rowid" [] >>= traverse runInfo
   , listSummaries: do
       rows <- select d runsTable "order by rowid" []
@@ -238,9 +217,6 @@ sqlStore d alive =
     rows <- select d roundsTable "order by run, round" [] :: Effect (Array { run :: String, assertions :: String })
     pure (foldl (\byRun r -> Object.insert r.run (fromMaybe [] (Object.lookup r.run byRun) <> [ r.assertions ]) byRun) Object.empty rows)
 
-  setOf :: Record SetColumns -> Effect RunSet
-  setOf r = either throw (\runs -> pure { name: r.name, baseline: r.baseline, runs }) (fromShape (arrayOf stringShape) ("set " <> r.name) r.runs)
-
   runInfo :: RunInfoRow -> Effect RunInfo
   runInfo r = statusOf r.id r.status <#> \status -> { id: r.id, name: r.name, status, created: r.created, reason: toMaybe r.reason }
 
@@ -253,8 +229,6 @@ sqlStore d alive =
     , reason: toMaybe r.reason
     , spec: specOf r.spec
     , manifest: fromShape manifestShape "manifest" r.manifest
-    , archived: r.archived == 1
-    , source: toMaybe r.source
     , assertions: map (fromShape (arrayOf failureShape) "assertions") (fromMaybe [] (Object.lookup r.id byRun))
     }
 

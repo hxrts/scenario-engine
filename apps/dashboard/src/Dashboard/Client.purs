@@ -3,7 +3,6 @@
 -- | decodes the reply as the operation's entry of the contract states (`Handlers.Api.Contract`). The paths are `Handlers.Api.Route`'s.
 module Dashboard.Client
   ( runs
-  , launch
   , composition
   , glossary
   , overview
@@ -15,25 +14,13 @@ module Dashboard.Client
   , compare
   , agency
   , agencyDetail
-  , archive
-  , resume
-  , deriveRun
-  , sets
-  , saveSet
-  , setSummary
-  , renameSet
-  , deleteSet
-  , step
-  , delete
   ) where
 
 import Prelude
 
 import Dashboard.Api (fetch)
 import Core.Shape (Format(Snapshot), decodeJsonWith)
-import Effects.Api (DeriveRequest, Launch)
-import Schema.Run (DeriveKind)
-import Effects.Signatures (RunSet)
+
 import Handlers.Api.Client (send)
 import Schema.Decode (decodeError)
 import Views.Common (Table)
@@ -50,33 +37,9 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 
--- | The run list: every run, archived or not, in creation order (`?archived=true`).
+-- | The run list: every run, in creation order.
 runs :: Aff (Either String RunList)
-runs = send @"ListRuns" fetch { archived: true }
-
--- | Derive a run (`POST /api/runs/:id/derive`); the reply names the new run and, for a rerun, whether its records match.
-deriveRun :: String -> DeriveRequest -> Aff (Either String { id :: String, source :: String, kind :: DeriveKind, recordsMatch :: Maybe Boolean })
-deriveRun id body = send @"Derive" fetch { id, body }
-
--- | The named Run sets.
-sets :: Aff (Either String { sets :: Array RunSet })
-sets = send @"ListRunSets" fetch unit
-
-setSummary :: String -> Aff (Either String Table)
-setSummary = send @"SetSummary" fetch
-
-saveSet :: RunSet -> Aff (Either String RunSet)
-saveSet = send @"SaveRunSet" fetch
-
-renameSet :: String -> String -> Aff (Either String Unit)
-renameSet name to = void <$> send @"RenameRunSet" fetch { name, to }
-
-deleteSet :: String -> Aff (Either String Unit)
-deleteSet name = void <$> send @"DeleteRunSet" fetch name
-
--- | Launch a run (`POST /api/runs`); the reply names the new run.
-launch :: Launch -> Aff (Either String { id :: String, playerSeed :: Int })
-launch = send @"LaunchRun" fetch
+runs = send @"ListRuns" fetch { runClass: Nothing }
 
 -- | The compositions the launch form offers, each with its rounds, seed, default run name and presets.
 composition :: Aff (Either String (Array CompositionInfo))
@@ -121,19 +84,3 @@ agencyDetail = send @"AgencyDetail" fetch { composition: Nothing, playerSeed: No
 -- | The agency analysis against the fixed baseline.
 agency :: Aff (Either String Table)
 agency = send @"Agency" fetch { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
-
--- | Archive a run, or unarchive it.
-archive :: String -> Boolean -> Aff (Either String Unit)
-archive id archived = void <$> (if archived then send @"Unarchive" fetch id else send @"Archive" fetch id)
-
--- | Resume a run to a round count.
-resume :: String -> Int -> Aff (Either String Unit)
-resume id rounds = void <$> send @"Resume" fetch { id, rounds }
-
--- | Play one more round of a run short of its target.
-step :: String -> Aff (Either String Unit)
-step id = void <$> send @"Step" fetch id
-
--- | Delete a run; the request names the run it deletes.
-delete :: String -> Aff (Either String Unit)
-delete id = void <$> send @"Delete" fetch { id, confirm: id }

@@ -251,7 +251,7 @@ indicatorsSpec = describe "Derived indicators (docs/05 §8.2)" do
     source <- pacificParts
     r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
     let
-      s = storedRun { id: "indicators", name: "indicators", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records)
+      s = storedRun { id: "indicators", name: "indicators", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec } r.records (map (const []) r.records)
       cs = filter (\x -> x.round == 6) (countryIndicators s)
       ss = filter (\x -> x.round == 6) (seatIndicators source.composition s)
     map (\c -> Tuple c.country c.netExternal) cs `shouldEqual` [ Tuple p.cn (q "30.9835"), Tuple p.row (q "79.8735"), Tuple p.us (q "-38.7715") ]

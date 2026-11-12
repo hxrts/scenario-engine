@@ -26,7 +26,7 @@ These 17 anchors are the project's vocabulary, and this is the one place they ar
 Launching and playing:
 
 - **Premise.** An authored, composable description of part of an economy, such as an energy shock or a set of Actors. A PremiseComposition is an ordered list of Premises that together describe a set of possible Worlds and is what a Run is launched from, such as *Pacific*.
-- **Run.** One realization of a PremiseComposition, played Round by Round and recorded. A derived Run starts from a stored one, and a Run set is several Runs compared together.
+- **Run.** One realization of a PremiseComposition, played Round by Round and recorded. A simulated Run is played by the static suite and an interactive Run is played live, and a Run set is several Runs compared together.
 - **Round.** One step of a Run, in which every decision is made on the same opening World and all of them resolve as one update.
 - **World.** The complete economic state at a Round boundary, including the pending Obligations, the Laws in force and the seed. A possible World is one a PremiseComposition allows, a realized World is one a Run produced, a round-end World is what a Round ends with, and world laws are the Laws in force.
 

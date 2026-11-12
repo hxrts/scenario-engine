@@ -8,14 +8,10 @@ module Effects.Store
   , finish
   , failRunning
   , setSpec
-  , setArchived
   , deleteRun
   , startRun
   , validRunId
   , checkRunId
-  , createSet
-  , renameSet
-  , deleteSet
   ) where
 
 import Prelude
@@ -26,7 +22,7 @@ import Data.String.CodeUnits (toCharArray)
 import Data.Either (Either(..), either)
 import Effects.Observe (listRuns)
 import Data.Maybe (Maybe(..))
-import Effects.Signatures (NewRun, OBSERVE, STORE, RunSet, StoreF(..), _store)
+import Effects.Signatures (NewRun, OBSERVE, STORE, StoreF(..), _store)
 import Run (Run, lift)
 import Type.Row (type (+))
 
@@ -55,9 +51,6 @@ failRunning r = lift _store (FailRunning r identity)
 setSpec :: forall r. String -> Spec -> Run (STORE + r) Unit
 setSpec id spec = lift _store (SetSpec id spec identity)
 
-setArchived :: forall r. String -> Boolean -> Run (STORE + r) Unit
-setArchived id archived = lift _store (SetArchived id archived identity)
-
 -- | Remove a run with its rounds and metrics; returns how many runs were removed (0 or 1).
 deleteRun :: forall r. String -> Run (STORE + r) Int
 deleteRun id = lift _store (DeleteRun id identity)
@@ -68,15 +61,6 @@ startRun n = do
   existing <- listRuns
   if any (\r -> r.id == n.id) existing then pure (Left ("a run named " <> n.id <> " already exists; choose another --id"))
   else Right <$> createRun n
-
-createSet :: forall r. RunSet -> Run (STORE + r) Unit
-createSet s = lift _store (CreateSet s identity)
-
-renameSet :: forall r. String -> String -> Run (STORE + r) Int
-renameSet name to = lift _store (RenameSet name to identity)
-
-deleteSet :: forall r. String -> Run (STORE + r) Int
-deleteSet name = lift _store (DeleteSet name identity)
 
 -- | A run id names a directory under runs/ and a row in the Run Store: 1 to 64 letters, digits,
 -- | '-' or '_', starting with a letter or digit. Anything else could escape the directory.
