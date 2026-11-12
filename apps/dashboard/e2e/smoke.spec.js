@@ -210,9 +210,11 @@ test("incompatible runs are flagged", async ({ page }) => {
 });
 
 test("every visible table column has a definition on hover", async ({ page }) => {
-  await page.goto("/admin/#/runs/run-1");
   await page.goto("/admin/#/runs");
-  await expect(page.getByRole("columnheader", { name: "Run", exact: true })).toBeVisible();
+  // the run list and the latest run's results load separately: count the columns once every table has loaded
+  await expect(page.getByRole("columnheader", { name: "Run", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Seat scorecards", exact: true })).toBeVisible();
+  await expect(page.getByText("Loading…")).toHaveCount(0);
   const headers = page.locator("th:visible");
   const count = await headers.count();
   expect(count).toBeGreaterThan(5);

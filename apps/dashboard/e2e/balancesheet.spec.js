@@ -17,7 +17,9 @@ test("an Actor's balance sheet shows its plots and tables, without an admin sess
 
 test("the admin page links to each Actor's balance sheet", async ({ page }) => {
   await page.goto("/admin/#/balancesheets");
-  const open = page.getByRole("link", { name: "Open", exact: true }).first();
+  const open = page.getByRole("link", { name: /\/balancesheet\// }).first();
   await expect(open).toBeVisible();
-  expect(await open.getAttribute("href")).toMatch(/^\/balancesheet\//);
+  const href = await open.getAttribute("href");
+  expect(href).toMatch(/^https?:\/\/[^/]+\/balancesheet\//);
+  await expect(open).toHaveText(href);
 });

@@ -18,6 +18,9 @@ import React.Basic.Hooks (Component, component, useState', (/\))
 import React.Basic.Hooks as React
 import Views.Common (Table)
 import Views.BalanceSheet (BalanceSheet)
+import Web.HTML (window)
+import Web.HTML.Location (origin)
+import Web.HTML.Window (location)
 
 -- | The page an Actor is given: what it has done, has available, and can do.
 mkBalanceSheet :: DataTable -> Component { run :: String, token :: String }
@@ -81,8 +84,9 @@ mkBalanceSheets = do
           ]
       }
 
+-- | Each Actor's page, shown as its whole address, so it can be copied and sent to the player.
 mkLinks :: Component String
-mkLinks = component "BalanceSheetLinks" \id -> React.do
+mkLinks = (origin =<< location =<< window) >>= \here -> component "BalanceSheetLinks" \id -> React.do
   links <- useLoad id (Client.balanceSheetLinks id)
   pure $ loaded links.value \ls -> D.div
     { className: "overflow-x-auto rounded-md border"
@@ -94,7 +98,7 @@ mkLinks = component "BalanceSheetLinks" \id -> React.do
                     { className: "border-b bg-muted/50 text-left text-muted-foreground"
                     , children: [ D.tr_ (map (\h -> D.th { className: "px-3 py-2 font-medium", children: [ D.text h ] }) [ "Actor", "Kind", "Page" ]) ]
                     }
-                , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: x.path, className: "font-medium underline-offset-4 hover:underline", children: [ D.text "Open" ] } ] ] }) ls)
+                , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: here <> x.path, className: "break-all font-mono text-xs underline-offset-4 hover:underline", children: [ D.text (here <> x.path) ] } ] ] }) ls)
                 ]
             }
         ]
