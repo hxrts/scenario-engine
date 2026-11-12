@@ -169,7 +169,7 @@ spec = do
         Left e -> e `shouldEqual` "composition pacific: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
         Right _ -> fail "a conflict must fail the load"
 
-  describe "Pacific (docs/05 §8)" do
+  describe "Pacific (docs/05 §9)" do
     let pacific = Pacific.pacific Pacific.defaultDials
     let
       only ids = pacific.premises # filter (\x -> x.id `elem` ids)

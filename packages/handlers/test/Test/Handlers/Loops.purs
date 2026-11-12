@@ -89,7 +89,7 @@ variant :: (Pacific.Dials -> Pacific.Dials) -> Aff CompositionParts
 variant f = orThrow (parts (Pacific.pacific (f Pacific.defaultDials)))
 
 spec :: Spec Unit
-spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
+spec = describe "Pacific's circuits and loops (docs/05 §6, §10.5)" do
   describe "Circular flows" do
     it "every leg of the domestic, savings, external and world-savings circuits carries a flow" do
       source <- pacificParts
@@ -241,9 +241,9 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
     InExchange _ -> true
     _ -> false
 
--- | The derived indicators on Pacific runs (docs/05 §4.4).
+-- | The derived indicators on Pacific runs (docs/05 §8.2).
 indicatorsSpec :: Spec Unit
-indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
+indicatorsSpec = describe "Derived indicators (docs/05 §8.2)" do
   it "each indicator on a Pacific run: the status quo's net external positions, domestic absorption, the firms' debt service, the states' viability margins and each country's substitute gap" do
     source <- pacificParts
     r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
@@ -259,9 +259,9 @@ indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
     -- the strong dollar leaves America's substitute dearer than importing, so it stands idle; China's runs
     map (\c -> Tuple c.country (map (\g -> Tuple g.good g.gap) c.gaps)) cs `shouldEqual` [ Tuple p.cn [ Tuple p.technology (q "-0.0964") ], Tuple p.row [], Tuple p.us [ Tuple p.industry (q "0.087") ] ]
 
--- | The experiments (docs/05 §10).
+-- | The experiments (docs/05 §11).
 experiments :: Spec Unit
-experiments = describe "Experiments (docs/05 §10)" do
+experiments = describe "Experiments (docs/05 §11)" do
   it "Political trap: rebalancing costs China no industrial output; a US export control cuts it to 9 a round, still above its floor of 8; its households gain the interest repression took" do
     source <- pacificParts
     let arm cn us = { us, cn, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }

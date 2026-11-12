@@ -96,7 +96,7 @@ clearing d = emptyParts
 market :: Array ActorId -> ResourceId -> ResourceId -> Q -> Exchange
 market access base quote price = exchange { base, quote, cost: { intercept: price, slope: q 0, domain: { lo: q 0, hi: q 1000000 } }, reserves: Map.empty } access
 
--- | The currency Exchange (docs/05 §3.4): a dealer in USD for RMB, holding reserves of both, whose price, RMB per
+-- | The currency Exchange (docs/05 §4.2): a dealer in USD for RMB, holding reserves of both, whose price, RMB per
 -- | USD, rises after net buying of USD and falls after net selling (docs/02 §5.1).
 currencyExchange :: Dials -> Array ActorId -> Exchange
 currencyExchange d = exchange

@@ -1,4 +1,4 @@
--- | External accounts (docs/02 §9, INV-38; docs/05 §4.2): the bonds open in a World, and each country's account in
+-- | External accounts (docs/02 §9, INV-38; docs/05 §4.4): the bonds open in a World, and each country's account in
 -- | each currency for a round, which balances when every flow across its border is goods, a currency trade, a levy
 -- | or interest. Generic: it reads the world's agreements, Exchanges, groups and settled Flows, and names nothing of a
 -- | composition's. The invariant checks it every round, and the Finance view shows it.

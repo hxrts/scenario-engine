@@ -1,4 +1,4 @@
--- | What one of Pacific's economic objects contributes to the World (docs/05 §8): a regime or the clearing system is a
+-- | What one of Pacific's economic objects contributes to the World (docs/05 §9): a regime or the clearing system is a
 -- | `Parts`, and the composition is their union. Parts hold only engine values; they add no state of their own.
 module Premises.Pacific.Parts
   ( Parts

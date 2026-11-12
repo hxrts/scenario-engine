@@ -1,4 +1,4 @@
--- | The Dependence view over a Pacific run (docs/05 §9.1): China under the US export control on technology.
+-- | The Dependence view over a Pacific run (docs/05 §10.1): China under the US export control on technology.
 -- | Pins: literal values from docs/05.
 module Test.Views.Dependence (spec) where
 

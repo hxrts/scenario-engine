@@ -80,7 +80,7 @@ defaultPrivate =
   , privateMoney: { us: q 10, cn: q 10 }
   }
 
--- | The money between the countries (docs/05 §3.4, §5.5): the interest on US bonds; financial repression's three
+-- | The money between the countries (docs/05 §3.4, §4): the interest on US bonds; financial repression's three
 -- | settings (the rate China pays its households, the rate it charges its firm, and the share of its RMB it lends
 -- | the firm each round); the US asset fee per USD a foreigner lends; the USD China buys as reserves each round;
 -- | and the rest of the world's savings, the share of its RMB it turns into USD each round, the share of its USD it

@@ -1,6 +1,6 @@
 -- | The variant experiments of docs/07_simulator.md §11 on Pacific,
 -- | reported with the §12 indicators, plus the performance targets. Every variant must keep
--- | every invariant; the printed table is balancing evidence (docs/05 §9.4).
+-- | every invariant; the printed table is balancing evidence (docs/05 §10.4).
 module Test.Experiments.Experiments (spec) where
 
 import Schema.Build.Quantity (q)
