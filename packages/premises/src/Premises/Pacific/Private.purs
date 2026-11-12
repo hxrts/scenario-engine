@@ -15,14 +15,9 @@ module Premises.Pacific.Private
   , countries
   , countryOf
   , level
-  , levelName
   , demandStrategies
   , worldStrategy
   , parameters
-  , homeShareParam
-  , abroadShareParam
-  , tariffedShareParam
-  , priceParam
   , releaseParam
   , payParam
   , stockpileParam
@@ -30,11 +25,9 @@ module Premises.Pacific.Private
   , feeParam
   , reserveParam
   , loanShareParam
-  , lendParam
   , usBond
   , deposit
   , loan
-  , toForeign
   , ofForeign
   , lendTo
   , neg
@@ -45,7 +38,6 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (find)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
@@ -134,16 +126,17 @@ type Country =
   }
 
 countries :: Array Country
-countries =
-  [ { state: p.us, private: p.usPrivate, firm: p.usFirm, other: p.cn, demand: p.usPrivateDemand, good: p.technology, foreign: p.industry, home: p.technologyUs, ownWorld: p.technologyWorld, world: p.industryWorld, tariff: p.usImportTariff, control: p.usExportControl, otherControl: p.cnExportControl, money: p.usd, foreignMoney: p.rmb }
-  , { state: p.cn, private: p.cnPrivate, firm: p.cnFirm, other: p.us, demand: p.cnPrivateDemand, good: p.industry, foreign: p.technology, home: p.industryCn, ownWorld: p.industryWorld, world: p.technologyWorld, tariff: p.cnImportTariff, control: p.cnExportControl, otherControl: p.usExportControl, money: p.rmb, foreignMoney: p.usd }
-  ]
+countries = [ america, china ]
+
+america :: Country
+america = { state: p.us, private: p.usPrivate, firm: p.usFirm, other: p.cn, demand: p.usPrivateDemand, good: p.technology, foreign: p.industry, home: p.technologyUs, ownWorld: p.technologyWorld, world: p.industryWorld, tariff: p.usImportTariff, control: p.usExportControl, otherControl: p.cnExportControl, money: p.usd, foreignMoney: p.rmb }
+
+china :: Country
+china = { state: p.cn, private: p.cnPrivate, firm: p.cnFirm, other: p.us, demand: p.cnPrivateDemand, good: p.industry, foreign: p.technology, home: p.industryCn, ownWorld: p.industryWorld, world: p.technologyWorld, tariff: p.cnImportTariff, control: p.cnExportControl, otherControl: p.usExportControl, money: p.rmb, foreignMoney: p.usd }
 
 -- | The country an Actor belongs to: its state, firm or private sector.
 countryOf :: ActorId -> Country
-countryOf a = fromMaybe us (find (\c -> a == c.state || a == c.firm || a == c.private) countries)
-  where
-  us = { state: p.us, private: p.usPrivate, firm: p.usFirm, other: p.cn, demand: p.usPrivateDemand, good: p.technology, foreign: p.industry, home: p.technologyUs, ownWorld: p.technologyWorld, world: p.industryWorld, tariff: p.usImportTariff, control: p.usExportControl, otherControl: p.cnExportControl, money: p.usd, foreignMoney: p.rmb }
+countryOf a = if a == china.state || a == china.firm || a == china.private then china else america
 
 -- | A tool's setting as a word: 0 off, 1 low, 2 high.
 levelName :: Int -> String

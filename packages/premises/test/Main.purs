@@ -109,7 +109,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         [ SignProcedures ids ] -> ids `shouldEqual` [ Id "council" ]
         _ -> fail "expected one procedures sign rule"
     it "every capability the DSL writes is a tag the PremiseComposition decoder reads" do
-      for_ [ mayTrade "technology-world", mayTransfer "M", mayTransform "us-firm-investment" ] \c ->
+      for_ [ mayTrade "technology-world", mayTransfer "USD", mayTransform "us-firm-investment" ] \c ->
         case toString (encodeWith Authored capabilityShape c) of
           Nothing -> fail "a capability is not a string"
           Just _ -> isRight (decodeJsonWith Authored capabilityShape (encodeWith Authored capabilityShape c)) `shouldEqual` true
@@ -126,7 +126,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       namesOf RefResource refs `shouldEqual` [ "T" ]
       namesOf RefActor refs `shouldEqual` [ "CN", "CN" ]
     it "a bound given as a metric is the metric object itself" do
-      let m = own "CN" (holdingOf "M")
+      let m = own "CN" (holdingOf "RMB")
       stringify (encodeWith Authored boundShape (matching m)) `shouldEqual` stringify (encodeWith Authored metricShape m)
 
   describe "Premise round trips" do
@@ -204,7 +204,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (\g c -> Tuple (onExplicitActor (Id "US-firm") (\d -> d { objective = Nothing }) g) c)
       (MissingObjective (Id "US-firm"))
     rejects "NegativeHolding: an Actor opening below zero"
-      (editWorld \w -> w { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "M") (Q.fromInt (-1)) a.accounts }) (Id "US-firm") w.actors })
+      (editWorld \w -> w { actors = Map.update (Just <<< \a -> a { accounts = Map.insert (Id "USD") (Q.fromInt (-1)) a.accounts }) (Id "US-firm") w.actors })
       (NegativeHolding (Id "US-firm"))
     rejects "InfeasibleExchange: a position outside its cost domain"
       (editWorld \w -> w { exchanges = Map.update (Just <<< _ { position = Q.fromInt 10000000 }) (Id "technology-world") w.exchanges })
@@ -271,7 +271,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       checkLiteral asserted `shouldEqual` []
     it "an asserted balance the engine does not produce fails" do
       f <- fixture "P-A"
-      let asserted = f { rounds = map (\r -> r { expect = r.expect { accounts = Map.singleton (Id "US") (Map.singleton (Id "M") (Just (Q.fromInt 12345))) } }) f.rounds }
+      let asserted = f { rounds = map (\r -> r { expect = r.expect { accounts = Map.singleton (Id "US") (Map.singleton (Id "USD") (Just (Q.fromInt 12345))) } }) f.rounds }
       any isBalanceMismatch (checkLiteral asserted) `shouldEqual` true
   where
   isDeliveryMismatch = case _ of
@@ -283,10 +283,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the validation tests add (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "us-import-tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "I" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
+tariffR r = FlowRule { kind: Id "us-import-tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "I" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "USD", to: LevyToDestination, payer: PaidBySender } }
 
 banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "us-import-ban", scope: { governor: r.jurisdiction, counterparty: r.target, direction: Inbound, over: [ Id "I" ] }, effect: Block }
+banR r = FlowRule { kind: Id "us-export-control", scope: { governor: r.jurisdiction, counterparty: r.target, direction: Outbound, over: [ Id "T" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
-holdR r = HoldingRule { kind: Id "us-import-ban", resource: r.capacity, reduce: r.units }
+holdR r = HoldingRule { kind: Id "us-export-control", resource: r.capacity, reduce: r.units }

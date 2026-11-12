@@ -11,8 +11,6 @@ module Premises.Pacific.Strategies
   , presetId
   , presets
   , controlRule
-  , tariffRule
-  , feeRules
   , inputParam
   , inputShare
   , outputParam
