@@ -119,6 +119,7 @@ data Measure
   | ShortfallOf ResourceId
   | ShortfallRounds ResourceId
   | PayeeReceipts
+  | Spending -- the Money an Actor paid for what it bought on the Exchanges
   | VolumeOf TransformationId
 
 derive instance Generic Measure _

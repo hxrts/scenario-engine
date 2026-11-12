@@ -149,12 +149,14 @@ procedureIntentsShape = iso Array.catMaybes (map Just) (arrayOf procedureIntent)
     , embedded intentTemplateShape identity Just
     ]
 
--- | Whether a joint candidate Transaction's Intents are its transfers, then its transforms, all run by the acting Actor.
+-- | Whether a joint candidate Transaction's Intents are its transfers, then its transforms, all run by the acting Actor,
+-- | then the agreements it enters.
 jointShaped :: Array IntentTemplate -> Boolean
-jointShaped xs = Array.all jointIntent xs && Array.all isSelfTransform fs && xs == ts <> fs
+jointShaped xs = Array.all jointIntent xs && Array.all isSelfTransform fs && xs == ts <> fs <> es
   where
   ts = Array.filter isTransfer xs
   fs = Array.filter isTransform xs
+  es = Array.filter (isJust <<< ctor @"Enter") xs
   isTransfer = isJust <<< ctor @"Transfer"
   isTransform = isJust <<< ctor @"Transform"
   isSelfTransform = maybe false (\r -> r.by == selfId) <<< ctor @"Transform"
@@ -180,7 +182,7 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
           _ -> Nothing
       )
       Mirror
-  , oneKey "joint" "a CandidateTransaction with no procedure: its transfers, then its transforms" jointBody
+  , oneKey "joint" "a CandidateTransaction with no procedure: its transfers, then its transforms, then the agreements it enters" jointBody
       jointOf
       (\r -> CandidateTransactionT { signers: r.signers, intents: r.intents, procedure: Nothing })
   , oneKey "procedure" "a Procedure's CandidateTransaction, under its collective procedure" procedureBody
@@ -201,12 +203,13 @@ templateShape = recursive "Template" \t -> premiseSum "Template"
     CandidateTransactionT p | Nothing <- p.procedure, jointShaped p.intents -> Just { signers: p.signers, intents: p.intents }
     _ -> Nothing
   jointBody = object "Joint"
-    ( mk3 <$> fieldOf "signers" "the Actors asked to sign" (arrayOf idShape) _.signers
+    ( mk4 <$> fieldOf "signers" "the Actors asked to sign" (arrayOf idShape) _.signers
         <*> fieldOf "transfers" "the Transfers" (omittedWhen (const false) (arrayOf transferObject)) (\r -> transfersOf r.intents)
         <*> fieldOf "transforms" "the Transforms, if any" (omittedWhen Array.null (arrayOf transformObject)) (\r -> map (\x -> { transformation: x.transformation, quantity: x.quantity }) (transformsOf r.intents))
+        <*> fieldOf "enters" "the agreements it enters, if any" (omittedWhen Array.null (arrayOf (enterBody exprShape))) (\r -> Array.mapMaybe (ctor @"Enter") r.intents)
     )
     where
-    mk3 s ts fs = { signers: s, intents: map Transfer ts <> map (\r -> Transform { by: selfId, transformation: r.transformation, quantity: r.quantity }) fs }
+    mk4 s ts fs es = { signers: s, intents: map Transfer ts <> map (\r -> Transform { by: selfId, transformation: r.transformation, quantity: r.quantity }) fs <> map Enter es }
 
   procedureOf :: Template -> Maybe { id :: CollectiveProcedureId, signers :: Array ActorId, intents :: Array IntentTemplate }
   procedureOf = case _ of

@@ -19,6 +19,9 @@ module Premises.Pacific.Private
   , stockpileParam
   , subsidyParam
   , tariffRate
+  , lendParam
+  , bondIssue
+  , bond
   ) where
 
 import Prelude
@@ -29,8 +32,8 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
-import Laws.StrategyRules (StrategyRules)
-import Laws.Types (ActorId, ExchangeId, ResourceId, RuleKindId, StrategyId, idText)
+import Laws.StrategyRules (StrategyRules, Template(..))
+import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, RuleKindId, StrategyId, idText)
 import Premises.Pacific.Names (p)
 import Schema.Build.Decision (holding, mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce)
 import Schema.Build.Quantity (q)
@@ -46,6 +49,8 @@ type PrivateDials =
   , release :: Level2
   , pay :: Level2
   , stockpile :: Level2
+  , lend :: { us :: Q, cn :: Q }
+  , interest :: Q
   , firmMoney :: { us :: Q, cn :: Q }
   }
 
@@ -55,6 +60,9 @@ defaultPrivate =
   , release: { low: q "0.05", high: q "0.15" }
   , pay: { low: q "0.05", high: q "0.15" }
   , stockpile: { low: q 1, high: q 2 }
+  -- the share of its Money a private sector lends its state each round, and the interest on it
+  , lend: { us: q "0.1", cn: q "0.4" }
+  , interest: q "0.05"
   , firmMoney: { us: q 50, cn: q 50 }
   }
 
@@ -101,6 +109,17 @@ stockpileParam level = "stockpile-" <> level
 subsidyParam :: String -> String
 subsidyParam level = "subsidy-" <> level
 
+-- | The share of its Money a private sector lends its state each round.
+lendParam :: ActorId -> String
+lendParam private = idText private <> "-lend-share"
+
+-- | The templates of a household bond: its issue, which advances the principal, and the bond, repaid with interest.
+bondIssue :: String
+bondIssue = "bond-issue"
+
+bond :: String
+bond = "bond"
+
 -- | The rate of either country's import tariff, per unit of the foreign good.
 tariffRate :: String
 tariffRate = "tariff-rate"
@@ -108,7 +127,7 @@ tariffRate = "tariff-rate"
 -- | The parameters the private sector's and the seats' Strategies read.
 parameters :: PrivateDials -> { technologyPrice :: Q, industryPrice :: Q, tariff :: Q, subsidy :: Level2 } -> Object Q
 parameters d prices = Object.fromFoldable
-  ( [ Tuple tariffRate prices.tariff ]
+  ( [ Tuple tariffRate prices.tariff, Tuple (lendParam p.usPrivate) d.lend.us, Tuple (lendParam p.cnPrivate) d.lend.cn ]
       <> levels releaseParam d.release
       <> levels payParam d.pay
       <> levels stockpileParam d.stockpile
@@ -129,8 +148,10 @@ parameters d prices = Object.fromFoldable
 -- | its Money times the good's rate, at the Exchange's price; under its own country's tariff it buys the foreign good
 -- | at the tariffed rate. What it buys it consumes.
 demandStrategies :: Array (Tuple StrategyId StrategyRules)
-demandStrategies = map (\c -> Tuple c.demand { rules: [ buy c.home (rateParam c.private c.good) [], abroad c false, abroad c true ], sign: [] }) countries
+demandStrategies = map (\c -> Tuple c.demand { rules: [ buy c.home (rateParam c.private c.good) [], abroad c false, abroad c true, lend c ], sign: [] }) countries
   where
+  -- lend a share of its savings to its own state, as a bond the state signs (docs/05 §5.4)
+  lend c = rule [] [ CandidateTransactionT { signers: [ c.state ], procedure: Nothing, intents: [ Enter { template: bondIssue, args: [ { name: "principal", value: mulQ (param (lendParam c.private)) (holding p.money) } ], parties: [ { role: "lender", actor: c.private }, { role: "borrower", actor: c.state } ] } ] } ]
   buy x rate conds = rule conds [ orderAt (named x) (mulQ (holding p.money) (param rate)) (Just (priceAt (named x))) ]
   abroad c tariffed =
     let

@@ -38,6 +38,9 @@ shortfallRoundsTag = "shortfallRounds"
 payeeReceiptsTag :: String
 payeeReceiptsTag = "payeeReceipts"
 
+spendingTag :: String
+spendingTag = "spending"
+
 volumeTag :: String
 volumeTag = "volume"
 
@@ -105,6 +108,7 @@ measureShape = genericPremiseSum "Measure"
   , "ShortfallOf": atKindArg { tag: shortfallTag, desc: "the shortfall of a Resource in a round" } idShape
   , "ShortfallRounds": atKindArg { tag: shortfallRoundsTag, desc: "the rounds the Actor was short of a Resource" } idShape
   , "PayeeReceipts": atBare { tag: payeeReceiptsTag, desc: "Money received as a transformation payee" }
+  , "Spending": atBare { tag: spendingTag, desc: "Money paid for what the Actor bought on the Exchanges" }
   , "VolumeOf": atKindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
   }
 

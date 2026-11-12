@@ -68,41 +68,52 @@ mkRunActions = component "RunActions" \p -> React.do
     delete = submit (Right unit) (\_ -> Client.delete p.id) \_ ->
       p.onChanged *> navigate Runs
 
-  pure $ D.div_
-    [ D.div
-        { className: "flex flex-col gap-6"
-        , children:
-            [ if p.resumable then element UI.region
-                { "aria-label": "Resume"
-                , className: "flex flex-col gap-2"
-                , children:
-                    [ D.div { className: "font-medium", children: [ D.text "Resume" ] }
-                    , labelled (D.text "Length to run to") (textInput { value: resumeRounds, required: false, onChange: setResumeRounds })
-                    , element UI.button { onClick: handler_ resume, children: [ D.text "Resume" ] }
+  let
+    card label title blurb children = element UI.region
+      { "aria-label": label
+      , className: "flex min-w-0 flex-col gap-3 rounded-lg border p-4"
+      , children:
+          [ D.div
+              { className: "flex flex-col gap-0.5"
+              , children: [ D.div { className: "text-sm font-medium", children: [ D.text title ] }, D.p { className: "text-sm text-muted-foreground", children: [ D.text blurb ] } ]
+              }
+          ] <> children
+      }
+    actionRow children = D.div { className: "flex justify-end", children }
+  pure $ D.div
+    { className: "flex flex-col gap-4"
+    , children:
+        [ D.div
+            { className: "grid gap-4 md:grid-cols-2"
+            , children:
+                [ if p.resumable then card "Resume" "Resume" "Play this run on to a longer length."
+                    [ labelled (D.text "Length to run to") (textInput { value: resumeRounds, required: false, onChange: setResumeRounds })
+                    , actionRow [ element UI.button { onClick: handler_ resume, children: [ D.text "Resume" ] } ]
                     ]
-                }
-              else D.span_ []
-            , element UI.region
-                { "aria-label": "Derive"
-                , className: "flex flex-col gap-2"
-                , children:
-                    [ D.div { className: "font-medium", children: [ D.text "Derive" ] }
-                    , labelled (D.text "Derive kind") (selectInput { value: show kind, options: map show deriveKinds, onChange: \v -> setKind (fromMaybe kind (v >>= \t -> find (\k -> show k == t) deriveKinds)) })
-                    , field "New run name" name setName
-                    ]
-                      <> (if kind == Variant then [ field "Preset" preset setPreset, field "Player seed" seed setSeed, field "Rounds" length setLength ] else [])
-                      <> (if kind == Counterfactual then [ field "Overrides (JSON)" overrides setOverrides ] else [])
-                      <> [ element UI.button { onClick: handler_ deriveAction, children: [ D.text "Derive run" ] }, maybe (D.span_ []) note created ]
-                }
-            , D.div
-                { className: "flex flex-wrap gap-2"
-                , children:
-                    [ if p.steppable then element UI.button { onClick: handler_ stepOne, children: [ D.text "Step one round" ] } else D.span_ []
-                    , element UI.button { onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
-                    , element UI.button { onClick: handler_ delete, children: [ D.text "Delete run" ] }
-                    ]
-                }
-            , errorBlock failure
-            ]
-        }
-    ]
+                  else D.span_ []
+                , card "Derive" "Derive" "Start a new run from this one."
+                    ( [ D.div
+                          { className: "grid gap-3 sm:grid-cols-2"
+                          , children:
+                              [ labelled (D.text "Derive kind") (selectInput { value: show kind, options: map show deriveKinds, onChange: \v -> setKind (fromMaybe kind (v >>= \t -> find (\k -> show k == t) deriveKinds)) })
+                              , field "New run name" name setName
+                              ]
+                                <> (if kind == Variant then [ field "Preset" preset setPreset, field "Player seed" seed setSeed, field "Rounds" length setLength ] else [])
+                          }
+                      ]
+                        <> (if kind == Counterfactual then [ field "Overrides (JSON)" overrides setOverrides ] else [])
+                        <> [ actionRow [ element UI.button { onClick: handler_ deriveAction, children: [ D.text "Derive run" ] } ], maybe (D.span_ []) note created ]
+                    )
+                ]
+            }
+        , D.div
+            { className: "flex flex-wrap items-center justify-end gap-2 border-t pt-4"
+            , children:
+                [ if p.steppable then element UI.button { variant: "outline", onClick: handler_ stepOne, children: [ D.text "Step one round" ] } else D.span_ []
+                , element UI.button { variant: "outline", onClick: handler_ archive, children: [ D.text (if p.archived then "Unarchive" else "Archive") ] }
+                , element UI.button { variant: "destructive", onClick: handler_ delete, children: [ D.text "Delete run" ] }
+                ]
+            }
+        , errorBlock failure
+        ]
+    }

@@ -12,6 +12,8 @@ module Premises.Pacific.Strategies
   , tariffRule
   , investmentAt
   , inputParam
+  , inputShare
+  , unitsPerMoney
   , outputParam
   ) where
 
@@ -58,8 +60,17 @@ investmentAt = case _ of
 -- | inputs the Strategy's earlier clauses committed, and buy what the requirement needs beyond what is held.
 -- | Both at the market's price. It is written once for both countries: each reads its own requirement.
 commerceRules :: Array Clause
-commerceRules = [ technology.sell, technology.buy, industry.sell, industry.buy ]
+commerceRules = [ technology.sell, technology.buy, industry.sell, industry.buy ] <> concatMap produce [ p.us, p.cn ]
   where
+  -- the state's own production: each capacity runs as far as the wages it can pay allow, technology first
+  produce a =
+    let
+      t = if a == p.us then p.usTechnologyProduction else p.cnTechnologyProduction
+      i = if a == p.us then p.usIndustryProduction else p.cnIndustryProduction
+      budget = mulQ (holding p.money) (param unitsPerMoney)
+      tq = minQ (holding p.technologyCapacity) budget
+    in
+      [ rule [ acting a ] [ asTemplate (selfTransform { transformation: t, quantity: tq }), asTemplate (selfTransform { transformation: i, quantity: minQ (holding p.industryCapacity) (subQ budget tq) }) ] ]
   technology = good p.technology p.technologyWorld
   industry = good p.industry p.industryWorld
 
@@ -76,15 +87,32 @@ supplyRules = concatMap one countries
   where
   one c =
     let
-      f = if c.firm == p.usFirm then { capacity: p.technologyCapacity, production: p.usFirmProduction } else { capacity: p.industryCapacity, production: p.cnFirmProduction }
+      f = if c.firm == p.usFirm then { capacity: p.technologyCapacity, production: p.usFirmProduction, base: p.usFirmBaseProduction } else { capacity: p.industryCapacity, production: p.cnFirmProduction, base: p.cnFirmBaseProduction }
+      -- the capacity that runs on the foreign input, and the rest
+      dependent = mulQ (holding f.capacity) (param inputShare)
+      independent = subQ (holding f.capacity) dependent
       -- the input one round at full capacity uses
-      need = mulQ (holding f.capacity) (param (inputParam c.firm))
-      -- capacity, or what the input held allows, whichever is less
-      runs = subQ (holding f.capacity) (max' (lit 0) (subQ (holding f.capacity) (mulQ (holding c.foreign) (param (outputParam c.firm)))))
+      need = mulQ dependent (param (inputParam c.firm))
+      -- the units the firm can pay wages for
+      budget = mulQ (holding p.money) (param unitsPerMoney)
+      base = minQ independent budget
+      runs = minQ (minQ dependent (mulQ (holding c.foreign) (param (outputParam c.firm)))) (subQ budget base)
     in
-      [ rule [ acting c.firm ] [ asTemplate (selfTransform { transformation: f.production, quantity: runs }) ]
+      [ rule [ acting c.firm ] [ asTemplate (selfTransform { transformation: f.base, quantity: base }), asTemplate (selfTransform { transformation: f.production, quantity: runs }) ]
       , rule [ acting c.firm ] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) (Just (priceAt (named c.world))) ]
       ]
+
+-- | The lesser of two quantities, never below zero.
+minQ :: Expr -> Expr -> Expr
+minQ a b = max' (lit 0) (subQ a (max' (lit 0) (subQ a b)))
+
+-- | The share of a firm's capacity that runs on its foreign input.
+inputShare :: String
+inputShare = "input-share"
+
+-- | The units of production a unit of Money pays wages for: one over the wage.
+unitsPerMoney :: String
+unitsPerMoney = "units-per-money"
 
 -- | The foreign input a firm's production uses per unit of output.
 inputParam :: ActorId -> String

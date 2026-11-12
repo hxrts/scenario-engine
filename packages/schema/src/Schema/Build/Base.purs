@@ -17,6 +17,7 @@ module Schema.Build.Base
   , shortfallRounds
   , payeeReceipts
   , volumeOf
+  , spending
   , final
   , everyRound
   , cumulative
@@ -85,6 +86,10 @@ shortfallRounds r = ShortfallRounds (named r)
 
 payeeReceipts :: Measure
 payeeReceipts = PayeeReceipts
+
+-- | The Money an Actor paid for what it bought on the Exchanges.
+spending :: Measure
+spending = Spending
 
 volumeOf :: forall a. Named a TransformationTag => a -> Measure
 volumeOf t = VolumeOf (named t)

@@ -104,7 +104,7 @@ textInput p = element UI.input
 selectInput :: { value :: String, options :: Array String, onChange :: Maybe String -> Effect Unit } -> JSX
 selectInput p = D.select
   { value: p.value
-  , className: "h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+  , className: "app-select h-9 w-full rounded-md border border-input bg-transparent pl-3 pr-9 text-sm"
   , onChange: handler targetValue p.onChange
   , children: p.options <#> \o -> D.option { key: o, value: o, children: [ D.text o ] }
   }

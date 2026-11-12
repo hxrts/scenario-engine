@@ -33,17 +33,17 @@ playing us cn = do
 
 spec :: Spec Unit
 spec = describe "Dependence" do
-  it "against the run without the ban, China's own import ban costs it 15 T of shortfall against 0, and the US firm its sales abroad" do
+  it "against the run without the ban, China's own import ban costs it 15 T of shortfall against 1.52, and the US firm its sales abroad" do
     banned <- playing "FreeTrade" "Restrict"
     free <- playing "FreeTrade" "FreeTrade"
     let
       t = keyValues (const Nothing) [ banned, free ]
       rowOf label = filter (\x -> index x 0 == Just label) t.rows
-    map (drop 2) (rowOf "Shortfall over the run, CN T") `shouldEqual` [ [ "15", "0" ] ]
-    map (drop 2) (rowOf "Receipts from sales, US-firm") `shouldEqual` [ [ "28", "48" ] ]
-    -- the US firm sells 4 a round to its own state either way; the ban cuts its sales abroad to round 1's
-    map (drop 2) (rowOf "Sales at home over the run, US-firm") `shouldEqual` [ [ "24", "24" ] ]
-    map (drop 2) (rowOf "Sales abroad over the run, US-firm") `shouldEqual` [ [ "4", "24" ] ]
+    map (drop 2) (rowOf "Shortfall over the run, CN T") `shouldEqual` [ [ "15", "1.52" ] ]
+    map (drop 2) (rowOf "Receipts from sales, US-firm") `shouldEqual` [ [ "27.88", "47.03" ] ]
+    -- the ban cuts the US firm's sales abroad to round 1's
+    map (drop 2) (rowOf "Sales at home over the run, US-firm") `shouldEqual` [ [ "23.88", "21.97" ] ]
+    map (drop 2) (rowOf "Sales abroad over the run, US-firm") `shouldEqual` [ [ "4", "25.06" ] ]
     map (drop 2) (rowOf "Orders blocked over the run, US-firm") `shouldEqual` [ [ "5", "0" ] ]
     map (drop 2) (rowOf "Final coverage, CN T") `shouldEqual` [ [ "0.00", "0.00" ] ]
 
@@ -52,9 +52,9 @@ spec = describe "Dependence" do
     let
       t = dependence r
       row round actor resource = filter (\x -> index x 0 == Just round && index x 1 == Just actor && index x 2 == Just resource) t.rows
-    row "2" "CN-private" "T" `shouldEqual` [ [ "2", "CN-private", "T", "1.04", "0", "n/a", "n/a", "1.04", "0", "0", "0", "0", "0", "0" ] ]
+    row "2" "CN-private" "T" `shouldEqual` [ [ "2", "CN-private", "T", "1.35", "0", "n/a", "n/a", "1.35", "0", "0", "0", "0", "0", "0" ] ]
     let kv = keyValues (const Nothing) [ r ]
-    map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) `shouldEqual` [ [ "10.1" ] ]
+    map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) `shouldEqual` [ [ "12.11" ] ]
 
   it "China under its own import ban: exposure 3 and short 3 every round, while its industrial inputs sell" do
     loaded <- liftEffect (loadFrom fileOps "pacific/v0")

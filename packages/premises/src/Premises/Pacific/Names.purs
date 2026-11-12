@@ -45,6 +45,12 @@ type Names =
   , cnFirmInvestmentHigh :: TransformationId
   , supply :: StrategyId
   , usFirmProduction :: TransformationId
+  , usFirmBaseProduction :: TransformationId
+  , cnFirmBaseProduction :: TransformationId
+  , usTechnologyProduction :: TransformationId
+  , usIndustryProduction :: TransformationId
+  , cnTechnologyProduction :: TransformationId
+  , cnIndustryProduction :: TransformationId
   , cnFirmProduction :: TransformationId
   , commerce :: StrategyId
   , usPrivate :: ActorId
@@ -82,6 +88,12 @@ p =
   , cnFirmInvestmentHigh: Id "cn-firm-investment-high"
   , supply: Id "pacific-supply-v0"
   , usFirmProduction: Id "us-firm-production"
+  , usFirmBaseProduction: Id "us-firm-base-production"
+  , cnFirmBaseProduction: Id "cn-firm-base-production"
+  , usTechnologyProduction: Id "us-technology-production"
+  , usIndustryProduction: Id "us-industry-production"
+  , cnTechnologyProduction: Id "cn-technology-production"
+  , cnIndustryProduction: Id "cn-industry-production"
   , cnFirmProduction: Id "cn-firm-production"
   , commerce: Id "pacific-commerce-v0"
   , usPrivate: Id "US-private"

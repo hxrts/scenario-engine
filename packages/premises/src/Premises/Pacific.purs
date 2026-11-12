@@ -25,7 +25,7 @@ import Core.Shape (Format(..), Shape, arrayOf, encodeWith, objectValuesOf, recor
 import Data.Argonaut.Core (toObject)
 import Data.Array (concatMap, difference)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -36,9 +36,13 @@ import Premises.Kit.Holdings (HoldingTable)
 import Premises.Kit.Resources (capacity)
 import Premises.Kit.Seats (Cover(..), aggregateActor, seat)
 import Premises.Pacific.Names (bilateralId, p, pacificId, pacificVersion, privateId, strategicId)
-import Premises.Pacific.Private (Level2, PrivateDials, countries, defaultPrivate, demandStrategies, parameters, tariffRate)
-import Premises.Pacific.Strategies (commerceRules, inputParam, outputParam, presetId, presets, supplyRules)
-import Schema.Build.Base (holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, shortfallOf, cumulative, final, volumeOf, (:=))
+import Premises.Pacific.Private (bond, bondIssue, Level2, PrivateDials, countries, defaultPrivate, demandStrategies, parameters, tariffRate)
+import Premises.Pacific.Strategies (commerceRules, inputParam, inputShare, outputParam, presetId, presets, supplyRules, unitsPerMoney)
+import Schema.Build.Agreement (agreement, clause, guard, onAction, spawn, step)
+import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Party(..), Short(..), noNext)
+import Laws.World (AuthoredLaw, WorldTemplate)
+import Laws.StrategyRules (SignRule(..))
+import Schema.Build.Base (holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, shortfallOf, cumulative, final, spending, volumeOf, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (actorsOf, aggregate, atLeast, byKey, criterion, emptyWorld, finishes, fromHolder, metric, noResource, noTransformation, resourcesOf)
 import Schema.Composition (Bound(..), Criterion, InstantiationConfig, PremiseComposition)
@@ -70,6 +74,8 @@ type Dials =
   , creditFee :: Level2
   , subsidy :: Level2
   , inputPerUnit :: { usFirm :: Q, cnFirm :: Q }
+  , inputShare :: Q
+  , wage :: Q
   , tariffRate :: Q
   , taxRate :: Q
   , private :: PrivateDials
@@ -96,7 +102,7 @@ defaultDials =
   { technologyPrice: q 1
   , industryPrice: q 2
   , homePremium: q "1.25"
-  , money: { us: q 120, cn: q 80 }
+  , money: { us: q 108, cn: q 92 }
   , technologyCapacity: { us: q 2, usFirm: q 8 }
   , industryCapacity: { cn: q 8, cnFirm: q 2 }
   , technologyNeed: { us: q 6, cn: q 3 }
@@ -108,18 +114,21 @@ defaultDials =
   , credit: q 2
   , creditFee: { low: q 1, high: q 2 }
   , subsidy: { low: q 1, high: q 2 }
-  -- the foreign input a firm's production uses per unit of output: each firm's capacity uses one unit a round
-  , inputPerUnit: { usFirm: q "0.125", cnFirm: q "0.5" }
+  -- half of a firm's capacity runs on the foreign input, at this much per unit: each firm's uses one unit a round
+  , inputPerUnit: { usFirm: q "0.25", cnFirm: q 1 }
+  , inputShare: q "0.5"
+  -- the wage every unit produced pays the producer's private sector
+  , wage: q "0.25"
   , tariffRate: q 1
   , taxRate: q "0.5"
   , private: defaultPrivate
   , objectives:
-      { security: { us: q 14, cn: q 14 }
-      , prosperity: { us: q 10, cn: q 20 }
+      { security: { us: q 26, cn: q 14 }
+      , prosperity: { us: q 20, cn: q 4 }
       , industry: { us: q 9, cn: q 3 }
-      , wealth: { us: q 45, cn: q 30 }
-      , output: { us: q 24, cn: q "3.5" }
-      , market: { us: q 10, cn: q 20 }
+      , wealth: { us: q 42, cn: q 30 }
+      , output: { us: q 12, cn: q 2 }
+      , market: { us: q 20, cn: q 4 }
       }
   }
 
@@ -137,8 +146,8 @@ table d =
   [ Tuple p.us [ p.money := d.money.us, p.technology := d.technologyCapacity.us, p.industry := 0, p.technologyCapacity := d.technologyCapacity.us, p.industryCapacity := 0 ]
   , Tuple p.cn [ p.money := d.money.cn, p.technology := 0, p.industry := d.industryCapacity.cn, p.technologyCapacity := 0, p.industryCapacity := d.industryCapacity.cn, p.credit := d.credit ]
   -- each firm opens with one round's foreign input
-  , Tuple p.usFirm [ p.money := d.private.firmMoney.us, p.technology := d.technologyCapacity.usFirm, p.industry := Q.mul d.technologyCapacity.usFirm d.inputPerUnit.usFirm, p.technologyCapacity := d.technologyCapacity.usFirm ]
-  , Tuple p.cnFirm [ p.money := d.private.firmMoney.cn, p.technology := Q.mul d.industryCapacity.cnFirm d.inputPerUnit.cnFirm, p.industry := d.industryCapacity.cnFirm, p.industryCapacity := d.industryCapacity.cnFirm ]
+  , Tuple p.usFirm [ p.money := d.private.firmMoney.us, p.technology := d.technologyCapacity.usFirm, p.industry := Q.mul (Q.mul d.technologyCapacity.usFirm d.inputShare) d.inputPerUnit.usFirm, p.technologyCapacity := d.technologyCapacity.usFirm ]
+  , Tuple p.cnFirm [ p.money := d.private.firmMoney.cn, p.technology := Q.mul (Q.mul d.industryCapacity.cnFirm d.inputShare) d.inputPerUnit.cnFirm, p.industry := d.industryCapacity.cnFirm, p.industryCapacity := d.industryCapacity.cnFirm ]
   , Tuple p.usPrivate [ p.money := 0, p.technology := 0, p.industry := 0 ]
   , Tuple p.cnPrivate [ p.money := 0, p.technology := 0, p.industry := 0 ]
   ]
@@ -150,12 +159,8 @@ market access base price = exchange { base, quote: p.money, cost: { intercept: p
 
 circulation :: Layer -> Dials -> Circulation
 circulation layer d =
-  { production:
-      [ { actor: p.us, resource: p.technology, capacity: p.technologyCapacity }
-      , { actor: p.us, resource: p.industry, capacity: p.industryCapacity }
-      , { actor: p.cn, resource: p.technology, capacity: p.technologyCapacity }
-      , { actor: p.cn, resource: p.industry, capacity: p.industryCapacity }
-      ]
+  -- all production runs through Transformations, which pay wages (§3.2)
+  { production: []
   , flows: []
   , shares: []
   , requirements:
@@ -172,7 +177,7 @@ circulation layer d =
 
 -- | What a state may do at each layer: trade and move goods; then its barrier (tariff or ban) and investment.
 stateCapabilities :: Layer -> ActorId -> Array Capability
-stateCapabilities layer a = trading a <> (if layer >= Strategic then strategic else [])
+stateCapabilities layer a = trading a <> map mayTransform (if a == p.us then [ p.usTechnologyProduction, p.usIndustryProduction ] else [ p.cnTechnologyProduction, p.cnIndustryProduction ]) <> (if layer >= Strategic then strategic else [])
   where
   strategic
     | a == p.us = [ mayEnact p.usImportTariff, mayEnact p.usImportBan, mayTransform p.usIndustrialInvestment ]
@@ -200,9 +205,9 @@ worldOf layer d =
   , horizon: 6
   , rounds: { min: 1, max: 12 }
   , label: Just "pacific-01"
-  , parameters: Object.union (Object.fromFoldable [ Tuple (inputParam p.usFirm) d.inputPerUnit.usFirm, Tuple (inputParam p.cnFirm) d.inputPerUnit.cnFirm, Tuple (outputParam p.usFirm) (perInput d.inputPerUnit.usFirm), Tuple (outputParam p.cnFirm) (perInput d.inputPerUnit.cnFirm) ]) $ Object.union (if layer >= Strategic then Object.singleton tariffRate d.tariffRate else Object.empty) (if private then parameters d.private { technologyPrice: d.technologyPrice, industryPrice: d.industryPrice, tariff: d.tariffRate, subsidy: d.subsidy } else Object.empty)
+  , parameters: Object.union (Object.fromFoldable [ Tuple (inputParam p.usFirm) d.inputPerUnit.usFirm, Tuple (inputParam p.cnFirm) d.inputPerUnit.cnFirm, Tuple (outputParam p.usFirm) (perInput d.inputPerUnit.usFirm), Tuple (outputParam p.cnFirm) (perInput d.inputPerUnit.cnFirm), Tuple inputShare d.inputShare, Tuple unitsPerMoney (perInput d.wage) ]) $ Object.union (if layer >= Strategic then Object.singleton tariffRate d.tariffRate else Object.empty) (if private then parameters d.private { technologyPrice: d.technologyPrice, industryPrice: d.industryPrice, tariff: d.tariffRate, subsidy: d.subsidy } else Object.empty)
   , schemes: []
-  , strategies: keyed ([ Tuple p.commerce { rules: commerceRules, sign: [] }, Tuple p.supply { rules: supplyRules, sign: [] } ] <> (if private then demandStrategies else []))
+  , strategies: keyed ([ Tuple p.commerce { rules: commerceRules, sign: if private then [ SignAgreements [ bondIssue ] ] else [] }, Tuple p.supply { rules: supplyRules, sign: [] } ] <> (if private then demandStrategies else []))
   -- commerce runs beside whoever plays each state, and supply beside whoever plays each firm (docs/04 §6)
   , explicitActors: keyed (map (\(Tuple k (Tuple _ def)) -> Tuple k (def { routine = Just (if k == p.us || k == p.cn then p.commerce else p.supply) })) seats)
   , authored: { circulation: circulation layer d, reservable: [ p.technologyCapacity, p.industryCapacity ], decays: [] }
@@ -223,13 +228,17 @@ worldOf layer d =
           , Tuple p.technologyUs (market ([ p.us, p.usFirm ] <> (if private then [ p.usPrivate ] else [])) p.technology (Q.mul d.homePremium d.technologyPrice))
           , Tuple p.industryCn (market ([ p.cn, p.cnFirm ] <> (if private then [ p.cnPrivate ] else [])) p.industry (Q.mul d.homePremium d.industryPrice))
           ]
-      , transformations = byKey ([ Tuple p.usFirmProduction (production p.industry p.technology p.technologyCapacity d.inputPerUnit.usFirm), Tuple p.cnFirmProduction (production p.technology p.industry p.industryCapacity d.inputPerUnit.cnFirm), Tuple p.usFirmInvestment usFirmInvestment, Tuple p.cnFirmInvestment (cnFirmInvestment Nothing), Tuple p.cnFirmInvestmentLow (cnFirmInvestment (Just d.creditFee.low)), Tuple p.cnFirmInvestmentHigh (cnFirmInvestment (Just d.creditFee.high)) ] <> (if layer >= Strategic then stateInvestments else []))
-      , ruleKinds = keyed (if layer >= Strategic then ruleKinds else [])
+      , transformations = byKey ([ Tuple p.usFirmProduction (production (Just (Tuple p.industry d.inputPerUnit.usFirm)) p.technology p.technologyCapacity), Tuple p.cnFirmProduction (production (Just (Tuple p.technology d.inputPerUnit.cnFirm)) p.industry p.industryCapacity), Tuple p.usFirmBaseProduction (production Nothing p.technology p.technologyCapacity), Tuple p.cnFirmBaseProduction (production Nothing p.industry p.industryCapacity), Tuple p.usTechnologyProduction (production Nothing p.technology p.technologyCapacity), Tuple p.usIndustryProduction (production Nothing p.industry p.industryCapacity), Tuple p.cnTechnologyProduction (production Nothing p.technology p.technologyCapacity), Tuple p.cnIndustryProduction (production Nothing p.industry p.industryCapacity), Tuple p.usFirmInvestment usFirmInvestment, Tuple p.cnFirmInvestment (cnFirmInvestment Nothing), Tuple p.cnFirmInvestmentLow (cnFirmInvestment (Just d.creditFee.low)), Tuple p.cnFirmInvestmentHigh (cnFirmInvestment (Just d.creditFee.high)) ] <> (if layer >= Strategic then stateInvestments else []))
+      -- the wage is a levy on production, declared with the economy so that every layer can name it
+      , ruleKinds = keyed ([ Tuple (Id "wage") { form: LevyFlows GovernedBySource, text: "{governor} pays wages of {amount} per unit produced" } ] <> (if layer >= Strategic then ruleKinds else []))
       , rules = if layer >= Strategic then Map.singleton (Id "us-export-tax") (exportTax d) else Map.empty
       -- each firm, and each private sector, counts as its country for Rules, so bans and levies bind them
       , groups = keyed ([ Tuple p.usFirm p.us, Tuple p.cnFirm p.cn ] <> (if private then [ Tuple p.usPrivate p.us, Tuple p.cnPrivate p.cn ] else []))
       , actors = actorsOf (map (\(Tuple k (Tuple a _)) -> Tuple k a) seats <> (if private then aggregates else []))
       , recurring = compileIn p.money (circulation layer d) []
+      -- every unit produced pays its wage to the producer's private sector
+      , laws = if private then wages d else []
+      , templates = if private then bonds d else Map.empty
       }
   }
   where
@@ -257,7 +266,7 @@ worldOf layer d =
     , dependency: if a == p.us then "Industrial inputs above its own capacity, imported from China; technology bought from the US firm; tax on US exports" else "Technology above its own capacity, imported from the US, and foreign demand for its industrial inputs"
     }
   firmSpec c =
-    { capabilities: trading c.firm <> (if c.state == p.us then map mayTransform [ p.usFirmProduction, p.usFirmInvestment ] else map mayTransform [ p.cnFirmProduction, p.cnFirmInvestment, p.cnFirmInvestmentLow, p.cnFirmInvestmentHigh ])
+    { capabilities: trading c.firm <> (if c.state == p.us then map mayTransform [ p.usFirmProduction, p.usFirmBaseProduction, p.usFirmInvestment ] else map mayTransform [ p.cnFirmProduction, p.cnFirmBaseProduction, p.cnFirmInvestment, p.cnFirmInvestmentLow, p.cnFirmInvestmentHigh ])
     , required: true
     , cover: Unassigned
     , goal: "Earn, grow, keep production supplied, and keep a home market"
@@ -267,8 +276,8 @@ worldOf layer d =
         , criterion { metric: metric { actors: [ c.firm ], measure: volumeOf (if c.state == p.us then p.usFirmProduction else p.cnFirmProduction), negated: false }, over: cumulative, atLeast: atLeast (by c.state d.objectives.output) }
         ] <> (if private then privateCriteria d c.firm else [])
     , description:
-        if c.state == p.us then "The US firm. It owns most of America's technology capacity, and its production runs on Chinese industrial inputs, a unit a round at full capacity, bought by itself: without them it produces only what its inventory allows. You have four tools, each off, low or high. Abroad: your world-market share, how much technology you offer on the world Exchange (exposed to China's barrier and the US export tax) rather than at home, and an inventory of industrial inputs against a Chinese ban. At home: capital investment in capacity (the US state may subsidise it), and wages and dividends to US households, whose spending is your home market."
-        else "The Chinese firm. It owns a little of China's industrial capacity, and its production runs on US technology, a unit a round at full capacity, bought by itself: without it, it produces only what its inventory allows. You have four tools, each off, low or high. Abroad: your world-market share, how much you offer on the world Exchange (exposed to the US barrier) rather than at home, and an inventory of technology against a US ban. At home: capital investment in capacity, on state credit at the lending rate the state sets, and wages and dividends to Chinese households, who save most of what they get."
+        if c.state == p.us then "The US firm. It owns most of America's technology capacity, and half its production runs on Chinese industrial inputs, a unit a round at full capacity, bought by itself: without them that half stops once its inventory is used. Every unit it produces pays a wage to US households. You have four tools, each off, low or high. Abroad: your world-market share, how much technology you offer on the world Exchange (exposed to China's barrier and the US export tax) rather than at home, and an inventory of industrial inputs against a Chinese ban. At home: capital investment in capacity (the US state may subsidise it), and dividends to US households, on top of their wages, whose spending is your home market."
+        else "The Chinese firm. It owns a little of China's industrial capacity, and half its production runs on US technology, a unit a round at full capacity, bought by itself: without it that half stops once its inventory is used. Every unit it produces pays a wage to Chinese households. You have four tools, each off, low or high. Abroad: your world-market share, how much you offer on the world Exchange (exposed to the US barrier) rather than at home, and an inventory of technology against a US ban. At home: capital investment in capacity, on state credit at the lending rate the state sets, and dividends to Chinese households, on top of their wages; they save most of what they get."
     , dependency: if c.state == p.us then "Chinese industrial inputs, without which it cannot produce; foreign demand for technology; the US private sector's demand at home" else "US technology, without which it cannot produce; state credit to expand; foreign demand for industrial inputs; China's private sector's demand at home"
     }
   by a o = if a == p.us then o.us else o.cn
@@ -294,7 +303,7 @@ worldOf layer d =
     }
   -- a firm's production: each unit uses a unit of its capacity for the round and its share of the foreign input,
   -- and delivers a unit of its good the next round
-  production input good cap perUnit = noTransformation { inputs = keyed [ input := perUnit ], draws = [ { resource: cap, from: Executor, perUnit: Q.one } ], delay = 1, effects = [ { resource: good, holder: Nothing, perUnit: Q.one, rounds: Nothing } ] }
+  production input good cap = noTransformation { inputs = keyed (maybe [] (\(Tuple i perUnit) -> [ i := perUnit ]) input), draws = [ { resource: cap, from: Executor, perUnit: Q.one } ], delay = 1, effects = [ { resource: good, holder: Nothing, perUnit: Q.one, rounds: Nothing } ] }
   perInput x = fromMaybe Q.zero (Q.divMaybe Q.one x)
   investment input output i = noTransformation { inputs = keyed [ input := i.cost ], delay = i.delay, maximum = Just (q 2), effects = [ { resource: output, holder: Nothing, perUnit: i.yield, rounds: Nothing } ] }
   ruleKinds =
@@ -315,11 +324,52 @@ composition = compositionWith defaultDials
 -- | The criteria the private-sector Premise adds to each seat's objective: its country's private sector ends the
 -- | run with Money to spend.
 privateCriteria :: Dials -> ActorId -> Array Criterion
-privateCriteria d a
-  | a == p.us = [ finishes p.usPrivate (holdingOf p.money) (atLeast d.objectives.prosperity.us) ]
-  | a == p.cn = [ finishes p.cnPrivate (holdingOf p.money) (atLeast d.objectives.prosperity.cn) ]
-  | a == p.usFirm = [ finishes p.usPrivate (holdingOf p.money) (atLeast d.objectives.market.us) ]
-  | otherwise = [ finishes p.cnPrivate (holdingOf p.money) (atLeast d.objectives.market.cn) ]
+privateCriteria d a =
+  let
+    -- what the private sector bought over the run, in Money: its consumption
+    spent who bar = criterion { metric: metric { actors: [ who ], measure: spending, negated: false }, over: cumulative, atLeast: atLeast bar }
+  in
+    if a == p.us then [ spent p.usPrivate d.objectives.prosperity.us ]
+    else if a == p.cn then [ spent p.cnPrivate d.objectives.prosperity.cn ]
+    else if a == p.usFirm then [ spent p.usPrivate d.objectives.market.us ]
+    else [ spent p.cnPrivate d.objectives.market.cn ]
+
+-- | The household bond (§5.4): its issue advances the principal from the private sector to its state, and the bond
+-- | falls due the next round with interest. What the state cannot pay carries, with interest again; if it holds
+-- | nothing, the bond lapses and the lender loses what is owed.
+bonds :: Dials -> Map.Map String WorldTemplate
+bonds d = Map.fromFoldable
+  [ step bondIssue [ "principal" ] [ "lender", "borrower" ]
+      ( agreement (Id "bond") []
+          [ clause "advance" lender { from: HeldBy lender, to: HeldBy borrower, resource: p.money, owed: Arg "principal" } Cap []
+              (noNext { performed = [ spawn bond 1 [ Tuple "balance" (Times { ratio: grow, amount: Moved }) ] both ] })
+          ]
+      )
+  , step bond [ "balance" ] [ "lender", "borrower" ]
+      ( agreement (Id "bond") []
+          [ clause "repay" borrower { from: HeldBy borrower, to: HeldBy lender, resource: p.money, owed: Arg "balance" } Cap [ guard (StockAtLeast { stock: { at: HeldBy borrower, resource: p.money }, amount: Exactly Q.one }) ]
+              (noNext { short = [ spawn bond 1 [ Tuple "balance" (Times { ratio: grow, amount: Remainder }) ] both ] })
+          ]
+      )
+  ]
+  where
+  lender = Bound "lender"
+  borrower = Bound "borrower"
+  both = [ Tuple "lender" lender, Tuple "borrower" borrower ]
+  grow = Q.add Q.one d.private.interest
+
+-- | The wage laws (§3.2): each production Transformation pays its producer's private sector a wage per unit run.
+wages :: Dials -> Array AuthoredLaw
+wages d = map (\(Tuple t to) -> onAction (Id "wage") (idText t) (HeldBy (Named to)) p.money d.wage)
+  [ Tuple p.usFirmProduction p.usPrivate
+  , Tuple p.usFirmBaseProduction p.usPrivate
+  , Tuple p.usTechnologyProduction p.usPrivate
+  , Tuple p.usIndustryProduction p.usPrivate
+  , Tuple p.cnFirmProduction p.cnPrivate
+  , Tuple p.cnFirmBaseProduction p.cnPrivate
+  , Tuple p.cnTechnologyProduction p.cnPrivate
+  , Tuple p.cnIndustryProduction p.cnPrivate
+  ]
 
 -- The Premises -----------------------------------------------------------------------------
 
@@ -333,7 +383,7 @@ premisesOf d =
   , withExtends (map (\a -> Tuple a { capabilities: stateCapabilities Strategic a `difference` stateCapabilities Bilateral a, criteria: [] }) [ p.us, p.cn ]) []
       (pick { id: strategicId, version: pacificVersion } (encoded Strategic) [ "ruleKinds", "rules" ] [ Tuple "transformations" (map idText [ p.usIndustrialInvestment, p.cnTechnologyInvestment ]), Tuple "parameters" [ tariffRate ] ])
   , withExtends (map (\a -> Tuple a { capabilities: [], criteria: privateCriteria d a }) [ p.us, p.cn, p.usFirm, p.cnFirm ]) [ Tuple p.technologyWorld [ p.cnPrivate, p.usPrivate ], Tuple p.industryWorld [ p.cnPrivate, p.usPrivate ], Tuple p.technologyUs [ p.usPrivate ], Tuple p.industryCn [ p.cnPrivate ] ]
-      (pick { id: privateId, version: pacificVersion } whole [ "parameters", "circulation", "groups" ] [ Tuple "actors" (map idText [ p.usPrivate, p.cnPrivate ]), Tuple "strategies" (map (idText <<< _.demand) countries) ])
+      (pick { id: privateId, version: pacificVersion } whole [ "parameters", "circulation", "groups", "laws", "templates" ] [ Tuple "actors" (map idText [ p.usPrivate, p.cnPrivate ]), Tuple "strategies" (map (idText <<< _.demand) countries) ])
   ]
   where
   encoded layer = fromMaybe Object.empty (toObject (encodeWith Authored compositionShape (worldOf layer d)))

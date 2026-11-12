@@ -9,14 +9,14 @@ import Prelude
 import Core.Num (Q)
 import Core.Map (values)
 import Core.Num as Q
-import Data.Array (concatMap, elem, filter, find, length, mapMaybe, zip)
+import Data.Array (any, concatMap, elem, filter, find, length, mapMaybe, nub, zip)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
 import Data.Tuple (Tuple(..))
 import Laws.Engine.Compile (deliveredOf)
-import Laws.Query (holding, tradesOf)
+import Laws.Query (capabilitiesOf, holding, tradesOf)
 import Laws.Slice (event, exchangeFills, select, shortfalls, trades)
-import Laws.Types (ActorId, FlowEffect(..), ResourceId, RuleF(..))
+import Laws.Types (ActorId, Capability(..), DrawSource(..), FlowEffect(..), ResourceId, RuleF(..))
 import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RejectReason(..), RoundRecord, WorldState)
 import Schema.Recurring (kinds)
 import Views.Common (Column, StoredRun, Table, col, column, final, names, quantity, ratio, records, snapshots)
@@ -135,10 +135,15 @@ demandsOf w = mapMaybe one w.recurring
     FromActor a, Measured _ | x.kind == kinds.requirement -> Just { actor: a, resource: x.resource }
     _, _ -> Nothing
 
--- | The capacities whose production delivers a Resource to an Actor.
+-- | The capacities whose production delivers a Resource to an Actor: a production entry of the recurring cycle, or
+-- | a Transformation the Actor may run that holds a capacity for the round and delivers the Resource to it.
 capacitiesOf :: WorldState -> ActorId -> ResourceId -> Array ResourceId
-capacitiesOf w a g = mapMaybe one w.recurring
+capacitiesOf w a g = nub (mapMaybe one w.recurring <> concatMap run (values w.transformations))
   where
+  run t
+    | any (\e -> e.resource == g && isNothing e.holder) t.effects && mayTransform t.id = map _.resource (filter (\d -> d.from == Executor) t.draws)
+    | otherwise = []
+  mayTransform tid = MayTransform tid `elem` capabilitiesOf w a
   one x = case x.destination, x.amount of
     ToActor to, HeldAmount cap | x.kind == kinds.production && to == a && x.resource == g -> Just cap
     _, _ -> Nothing
