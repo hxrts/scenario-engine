@@ -2,7 +2,7 @@
 -- | flow; the bonds and the external accounts balance; and each feedback loop shows its sign under the conditions
 -- | docs/05 states, with the counter-case where a countervailing force undoes it. Expected values are literals from
 -- | docs/05.
-module Test.Handlers.Loops (spec, experiments) where
+module Test.Handlers.Loops (spec, experiments, indicatorsSpec) where
 
 import Prelude
 
@@ -26,7 +26,12 @@ import Laws.Types (ActorId, ExchangeId, ResourceId)
 import Laws.World (Cause(..))
 import Premises.Load (parts)
 import Premises.Pacific as Pacific
+import Premises.Pacific.Country (america, china)
+import Premises.Pacific.Indicators (substituteGap)
 import Premises.Pacific.Names (p)
+import Schema.Run (RunStatus(..), emptySpec)
+import Views.Common (storedRun)
+import Views.Indicators (countryIndicators, seatIndicators)
 import Premises.Pacific.Private (deposit, firmBond, loan, usBond)
 import Premises.Pacific.Strategies (Levels, controlRule, firmPolicy, statePolicy)
 import Schema.Build.Decision (acting, asTemplate, ge, lit, roundQ, rule, selfEnact)
@@ -237,6 +242,25 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
     Held _ -> true
     InExchange _ -> true
     _ -> false
+
+-- | The derived indicators on Pacific runs (docs/05 §4.4).
+indicatorsSpec :: Spec Unit
+indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
+  it "each indicator on a Pacific run: the status quo's net external positions, domestic absorption, the firms' debt service, the states' viability margins and each country's substitute gap" do
+    source <- pacificParts
+    r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
+    r6 <- roundOf r 6
+    let
+      s = storedRun { id: "indicators", name: "indicators", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records)
+      cs = filter (\x -> x.round == 6) (countryIndicators s)
+      ss = filter (\x -> x.round == 6) (seatIndicators source.composition s)
+    map (\c -> Tuple c.country c.netExternal) cs `shouldEqual` [ Tuple p.cn (q "30.9835"), Tuple p.row (q "79.8735"), Tuple p.us (q "-38.7715") ]
+    -- every firm offers all it makes abroad, so neither country's households buy any of its output
+    map (\c -> Tuple c.country (map (\a -> Tuple a.good a.share) c.absorption)) cs `shouldEqual` [ Tuple p.cn [ Tuple p.industry (Just Q.zero) ], Tuple p.row [], Tuple p.us [ Tuple p.technology (Just Q.zero) ] ]
+    -- China's firm owes 4.6 times what it sells; the US state, selling nothing, has no ratio, and its viability failed
+    map (\x -> Tuple x.actor (Tuple x.debtService x.margins)) ss `shouldEqual` [ Tuple p.cn (Tuple (Just (q "0.5678")) [ q "1.7748" ]), Tuple p.cnFirm (Tuple (Just (q "4.6215")) []), Tuple p.us (Tuple Nothing [ q "-0.6" ]), Tuple p.usFirm (Tuple (Just (q "0.0955")) []) ]
+    -- the strong dollar leaves America's substitute dearer than importing, so it stands idle; China's runs
+    map (\c -> substituteGap Pacific.defaultDials r6.world c) [ america, china ] `shouldEqual` [ q "0.0937", q "-0.1074" ]
 
 -- | The experiments (docs/05 §10).
 experiments :: Spec Unit

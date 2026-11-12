@@ -87,6 +87,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PacificTests.spec
   Loops.spec
   Loops.experiments
+  Loops.indicatorsSpec
   LlmTests.spec
   RouteTests.spec
   Live.spec

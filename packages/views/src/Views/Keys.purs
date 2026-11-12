@@ -128,6 +128,7 @@ type ViewReplies =
   , "Balance" :: BalanceView
   , "Events" :: Table
   , "Dependence" :: Table
+  , "Indicators" :: { countries :: Table, seats :: Table }
   , "Finance" :: { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
   )
 

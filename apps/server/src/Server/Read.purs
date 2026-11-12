@@ -58,6 +58,7 @@ import Views.Representation as Representation
 import Views.Standings as Standings
 import Views.Dependence as Dependence
 import Views.Finance as Finance
+import Views.Indicators as Indicators
 import Views.WholeEconomy as WholeEconomy
 import Server.Errors (Answer, badRequest, conflict, describe, notFound, ok, replyOr, viewOr)
 import Data.Argonaut.Core (Json)
@@ -168,6 +169,7 @@ getView compositions { id, view, round } = withRun id \r -> answerView
   , "Events": \s -> viewOr (Balances.events s (fromMaybe 1 round))
   , "Dependence": ok <<< Dependence.dependence
   , "Finance": ok <<< Finance.finance
+  , "Indicators": \s -> onBoard s \gb -> ok (Indicators.indicators gb s)
   }
   r
   view

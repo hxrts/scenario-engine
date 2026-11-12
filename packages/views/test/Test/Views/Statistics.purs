@@ -15,7 +15,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Laws.Types (ActorId, Id(..), IntentF(..), ResourceId)
 import Laws.World (Cause(..), Endpoint(..), Mechanism(..), RejectReason(..), RoundRecord, WorldState, settledEvent, rejection)
-import Data.Array (find, index, length, take)
+import Data.Array (filter, find, index, length, take)
 import Data.Foldable (foldl)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -28,6 +28,7 @@ import Views.Balance (gini, seedVariation, spread)
 import Views.Common (StoredRun, Table, players)
 import Schema.Run (emptySpec)
 import Views.Compare (sameSpecification)
+import Views.Indicators (countryIndicators)
 import Views.Standings (netWorth, standings)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
@@ -93,6 +94,20 @@ spec context = describe "Dashboard statistics on hand-built runs" do
       let w = setHolding (blank base.manifest.initial) us energy (Q.fromInt 10)
       -- T trades on the world Exchange at 1 and at home at 1.25, so the mean is 1.125 and 10 T is 11.25 M
       Q.format (netWorth w us) `shouldEqual` "11.2500"
+  describe "Indicators" do
+    it "net external position counts a country's foreign currency and not its own: China holding 10 USD is 10 abroad, America holding 10 USD nothing" do
+      ctx <- context
+      base <- baseRun ctx
+      let
+        start = blank base.manifest.initial
+        final = setHolding (setHolding start de money (Q.fromInt 10)) us money (Q.fromInt 10)
+        positions = map (\c -> Tuple c.country (Q.format c.netExternal)) (countryIndicators (runWith base start final))
+      filter (\(Tuple c _) -> c == de || c == us) positions `shouldEqual` [ Tuple de "10.0000", Tuple us "0.0000" ]
+    it "with nothing made, a country absorbs no good, and with no agreements a seat owes nothing" do
+      ctx <- context
+      base <- baseRun ctx
+      let start = blank base.manifest.initial
+      map _.absorption (countryIndicators (runWith base start start)) `shouldEqual` map (const []) (countryIndicators (runWith base start start))
   describe "Gini and spread" do
     it "equal wealth has a Gini of 0" do
       fmt (gini [ Q.fromInt 4, Q.fromInt 4, Q.fromInt 4, Q.fromInt 4 ]) `shouldEqual` Just "0.0000"

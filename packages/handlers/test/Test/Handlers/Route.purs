@@ -119,7 +119,7 @@ spec = describe "Handlers.Api.Route's endpoint table" do
     Array.filter (\(Tuple r _) -> parse (delivered (wire r)) /= Right r) examples # noneLeft
   it "the views and every view's URL read back" do
     let requests = map (\v -> RunView { id: "r", view: v, round: Nothing }) allViews
-    Array.length allViews `shouldEqual` 18
+    Array.length allViews `shouldEqual` 19
     Array.filter (\r -> parse (delivered (wire r)) /= Right r) requests # noneLeft
     map viewName [ Overview, NetWorth ] `shouldEqual` [ "overview", "networth" ]
   it "the examples cover every endpoint of the table" do

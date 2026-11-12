@@ -37,6 +37,7 @@ data View
   | Events
   | Dependence
   | Finance
+  | Indicators
 
 derive instance Eq View
 derive instance Generic View _
