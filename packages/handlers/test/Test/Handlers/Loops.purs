@@ -10,6 +10,8 @@ import Assembly.Assemble (assemble, withRounds)
 import Assembly.Bindings (strategyRulesBindings)
 import Assembly.Composition (CompositionParts, Origin(..))
 import Checks.Run (checkRun)
+import Checks.Objectives (evaluateObjectives)
+import Schema.Composition (Outcome(..))
 import Core.Draw (Seed(..))
 import Core.Kernel.Types (Endpoint(..))
 import Core.Num (Q)
@@ -90,6 +92,7 @@ variant f = orThrow (parts (Pacific.pacific (f Pacific.defaultDials)))
 
 spec :: Spec Unit
 spec = describe "Pacific's circuits and loops (docs/05 §6, §10.5)" do
+  arrearsSpec
   describe "Circular flows" do
     it "every leg of the domestic, savings, external and world-savings circuits carries a flow" do
       source <- pacificParts
@@ -363,3 +366,21 @@ experiments = describe "Experiments (docs/05 §11)" do
     g <- orThrow (assemble (FromComposition source) bindings [])
     run (Seed 1) (withRounds (Just 8) g)
   boughtBy' x a = Q.sumQ (map _.quantity (filter (\f -> f.actor == a && f.quantity > Q.zero && (f.resource == p.technology || f.resource == p.industry)) (select exchangeFills x.record.events)))
+
+-- | China's firm in arrears (docs/05 §8.1, §10.5): opening with no money, investing high and paying high dividends
+-- | under China's own export control, it cannot repay what falls due from round 4. China's viability reads its output,
+-- | which clears its floor of 8 every round, and the further condition that its firm owes nothing in arrears, which
+-- | does not: the criterion fails on the arrears alone.
+arrearsSpec :: Spec Unit
+arrearsSpec = it "Arrears: a Chinese firm that cannot repay fails China's viability, though its output clears the floor every round" do
+  poor <- variant (\d -> d { private = d.private { firmMoney = { us: q 0, cn: q 0 } } })
+  b <- playLevels poor { us: lv 0 0 0 0, cn: lv 2 0 0 0, usFirm: lv 2 0 2 2, cnFirm: lv 0 0 2 2 } 8
+  let isAgreement c = case c of
+        OfAgreement _ -> true
+        _ -> false
+  let unpaid who r = map (\x -> Q.sumQ (map (\l -> Q.sub l.owed l.moved) (filter (\l -> l.from == Held who && isAgreement l.cause) (select legs x.record.events)))) r.records
+  let viability = concatMap (\o -> take 1 (drop 2 o.criteria)) (filter (\o -> o.explicitActor == p.cn) (evaluateObjectives poor.composition b.records))
+  unpaid p.cnFirm b `shouldEqual` [ q 0, q 0, q 0, q "0.0882", q "0.3115", q "0.777", q "1.1662", q "1.647" ]
+  map _.values viability `shouldEqual` [ [ q 8, q 10, q "9.6557", q 8, q 8, q 8, q 8, q 8 ] ]
+  map _.bound viability `shouldEqual` [ [ q 8, q 8, q 8, q 8, q 8, q 8, q 8, q 8 ] ]
+  map (\c -> c.outcome == Met) viability `shouldEqual` [ false ]

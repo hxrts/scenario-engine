@@ -431,6 +431,7 @@ Over 400 settings of every seat's four tools, drawn deterministically from the 8
 - **INV-38.** A currency added to China's account with no Flow behind it unbalances its account and trips INV-38; the run as played does not.
 - **Repression.** Under `StatusQuo` over six rounds China's households give up 2.2598 `RMB` against the 5% rate, and its firm saves 8.5761.
 - **Debt-driven postponement.** China's firm opening with no RMB, investing high and repressed: it repays every loan from the next and is never in arrears, while what it owes grows from 17.6 to 40.4807 `RMB` over eight rounds selling at home, and to 41.0457 selling abroad.
+- **Arrears.** Both firms opening with no money, China under its own export control, China's firm investing high and paying high dividends, eight rounds: it cannot repay 0.0882 `RMB` in round 4, rising to 1.647 in round 8. China's output is 8, 10, 9.6557, then 8 a round, clearing its floor every round, and its viability still fails, on the arrears alone.
 - **F1, F2.** Under `Substitute` America's industrial competence grows from 1.1025 after round 2 to 3.3698 after round 6; idle under free trade it wears from 0.225 to 0.1329.
 - **F3.** China's firm investing high ends with 7.0785 `K_I` repressing against 4.7867 rebalanced; with no money of its own, 5.2098 against 3.7521.
 - **F4.** At the off setting China's firm pays 0.9422 `RMB` of interest on the loans it repaid by round 6; at the high setting, none.
