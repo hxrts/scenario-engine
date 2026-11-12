@@ -34,6 +34,7 @@ import Record.Builder as Builder
 import Type.Proxy (Proxy(..))
 import Schema.View (View)
 import Views.Actions (ActionsView)
+import Views.Regimes (Regime)
 import Views.Balance (BalanceView)
 import Views.Common (Chart, StoredRun, Table)
 import Laws.World (Event, eventShape)
@@ -128,6 +129,8 @@ type ViewReplies =
   , "Balance" :: BalanceView
   , "Events" :: Table
   , "Dependence" :: Table
+  , "Regimes" :: Array Regime
+  , "Clearing" :: { goods :: Table, capital :: Table, rules :: Table }
   , "Indicators" :: { countries :: Table, seats :: Table }
   , "Finance" :: { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
   )

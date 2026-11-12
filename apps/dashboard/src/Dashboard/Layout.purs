@@ -4,12 +4,14 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (topBar, page, section, grid, panel, caption, captioned, purpose) where
+module Dashboard.Layout (Tab, topBar, page, section, grid, panel, tabbed, caption, captioned, purpose) where
 
 import Prelude
 
 import Dashboard.UI as UI
 import React.Basic.DOM as D
+import Data.Array (index)
+import Data.Maybe (maybe)
 import React.Basic.Hooks (JSX, element)
 
 -- | The bar across the top of every page: the brand, its links, and the theme button at the far end.
@@ -57,6 +59,18 @@ section s = D.section
           }
       , D.div { className: "flex min-w-0 flex-col gap-stack", children: s.children }
       ]
+  }
+
+-- | A tab: its key, its label, its purpose line, and its content.
+type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
+
+-- | Tabs, the first open: each shows its purpose line, then its content.
+tabbed :: Array Tab -> JSX
+tabbed ts = element UI.tabs
+  { defaultValue: maybe "" _.key (index ts 0)
+  , children:
+      [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
+        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.div { className: "mb-3", children: [ purpose t.purpose ] }, t.content ] })
   }
 
 -- | The 12-column grid. Panels place themselves with `panel`.

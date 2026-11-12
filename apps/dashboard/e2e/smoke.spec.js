@@ -32,7 +32,7 @@ test("the home page shows the latest run's results without any extra click", asy
 
 test("the run page shows standings, net worth, actions, drivers, balance measures and objectives without any click", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
-  for (const title of ["Key figures", "Marginal prices", "Standings", "Net worth over time", "Actions", "Drivers", "Balance measures", "Objectives", "Final balance sheet"])
+  for (const title of ["Key figures", "Marginal prices", "Standings", "Net worth over time", "Actions", "Drivers", "Balance measures", "Seat scorecards", "Final balance sheet"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   // the standings table comes before the net-worth chart
   const standings = page.getByRole("heading", { name: "Standings", exact: true });
@@ -151,12 +151,12 @@ test("the manage actions are visible sections, not disclosures", async ({ page }
 test("the final balance sheet shows the seeded balances at the run's last round, without a click", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
   // [Actor, kind, resource, initial, current, change] at round 5 of run-1
-  await expect(rowWith(page, ["CN-private", "Aggregate (residual)", "RMB", "10", "10.45", "0.45"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN-private", "Aggregate (residual)", "RMB", "10", "8.61", "-1.39"])).toHaveCount(1);
 });
 test("a run with fewer rounds shows its final balance sheet at its own last round", async ({ page }) => {
   await page.goto("/admin/#/runs/run-4");
   // the balances shown are run-4's last round (4), not its initial state
-  await expect(rowWith(page, ["CN", "Actor", "RMB", "88", "104.72", "16.72"])).toHaveCount(1);
+  await expect(rowWith(page, ["CN", "Actor", "RMB", "88", "102.6", "14.6"])).toHaveCount(1);
 });
 test("the Runs page has no comparison control; the Compare page lists every readable run as a choice", async ({ page }) => {
   await page.goto("/admin/#/runs/run-1");
@@ -372,12 +372,13 @@ test("clicking another run does not move the results", async ({ page }) => {
   await page.goto("/admin/#/runs");
   await page.getByRole("button", { name: "run-1", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-1" })).toBeVisible();
-  const keyFigures = page.getByRole("heading", { name: "Key figures", exact: true });
-  const before = await keyFigures.boundingBox();
+  // the first section of the results stays put: what follows it is as long as the run is
+  const headline = page.getByRole("heading", { name: "Who is trapped, and how tightly?", exact: true });
+  const before = await headline.boundingBox();
   await page.getByRole("button", { name: "run-4", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run run-4" })).toBeVisible();
   await expect(page.getByText("Loading…", { exact: true })).toHaveCount(0);
-  const after = await keyFigures.boundingBox();
+  const after = await headline.boundingBox();
   expect(after.y).toBe(before.y);
 });
 

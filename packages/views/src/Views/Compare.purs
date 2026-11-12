@@ -25,7 +25,7 @@ import Core.Num (Kind(..))
 import Laws.Query (accountsOf, holding)
 import Laws.Types (ActorId)
 import Data.String (joinWith)
-import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, mapMaybe, nub, sortWith, uncons)
+import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, mapMaybe, nub, null, sortWith, uncons)
 import Data.Either (hush)
 import Schema.Run (Spec, specKey, specPairs)
 import Data.Foldable (any, lookup, sum)
@@ -39,6 +39,7 @@ import Views.Common (listedHolding, Bars, Chart, Column, StoredRun, Table, col, 
 import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
 import Views.Dependence (blockedOrders, salesSplit, cumulativePurchases, cumulativeReceipts, cumulativeShortfall, demandsOf, finalCoverage, requirementsOf)
+import Views.Indicators (countryIndicators, seatIndicators)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -250,7 +251,7 @@ keyValues :: (StoredRun -> Maybe PremiseComposition) -> Array StoredRun -> Table
 keyValues boardOf runs =
   { title: "Key values by run"
   , columns: names [ col.measure, unitColumn ] <> map runHeader runs
-  , rows: concat [ perPlayer, measureRows, objectiveRows, [ rejectedRow ], priceRows, dependenceRows ]
+  , rows: concat [ perPlayer, measureRows, objectiveRows, indicatorRows, [ rejectedRow ], priceRows, dependenceRows ]
   }
   where
   -- each run's values, read once, so a row's cells only look up
@@ -261,6 +262,8 @@ keyValues boardOf runs =
     , completion: maybe [] (\gb -> completionOf gb r) (boardOf r)
     , actions: actionTotals r
     , prices: exchangePrices (final r)
+    , countries: filter (\c -> c.round == completed r) (countryIndicators r)
+    , seats: maybe [] (\gb -> filter (\x -> x.round == completed r) (seatIndicators gb r)) (boardOf r)
     }
   perRun = map read runs
 
@@ -282,6 +285,15 @@ keyValues boardOf runs =
 
   measureRows = map (\m -> row [ m.label, m.unit (numeraireUnit runs) ] (\v -> m.cell (m.read v.measures))) runMeasures
 
+  -- the run page's headline (docs/07 §9.2), after the final round, so an experiment's arms read side by side
+  indicatorRows =
+    concatMap
+      ( \c -> [ row [ "Net external position, " <> show c, numeraireUnit runs ] (\v -> maybe "—" (quantity <<< _.netExternal) (find (\x -> x.country == c) v.countries)) ]
+          <> map (\g -> row [ "Substitute gap, " <> show c <> " " <> show g, numeraireUnit runs ] (\v -> maybe "—" (quantity <<< _.gap) (find (\x -> x.country == c) v.countries >>= \x -> find (\y -> y.good == g) x.gaps))) (nub (concatMap (\v -> concatMap (\x -> if x.country == c then map _.good x.gaps else []) v.countries) perRun))
+          <> map (\g -> row [ "Domestic absorption, " <> show c <> " " <> show g, "share of output" ] (\v -> maybe "—" (maybe "n/a" ratio <<< _.share) (find (\x -> x.country == c) v.countries >>= \x -> find (\y -> y.good == g) x.absorption))) (nub (concatMap (\v -> concatMap (\x -> if x.country == c then map _.good x.absorption else []) v.countries) perRun))
+      )
+      (nub (concatMap (map _.country <<< _.countries) perRun))
+      <> concatMap (\a -> [ row [ "Debt service, " <> show a, "owed over revenue" ] (\v -> maybe "—" (maybe "n/a" ratio <<< _.debtService) (find (\x -> x.actor == a) v.seats)), row [ "Viability margin, " <> show a, "measure less bound, worst round" ] (\v -> maybe "—" (\x -> if null x.margins then "none" else joinWith ", " (map quantity x.margins)) (find (\x -> x.actor == a) v.seats)) ]) (nub (concatMap (map _.actor <<< _.seats) perRun))
   objectiveRows = map (\role -> row [ "Objective criteria met, " <> show role, "criteria met of total" ] (roleCell role)) roles
   roles = nub (concatMap (map _.explicitActor <<< _.completion) perRun)
   roleCell role v = case find (\c -> c.explicitActor == role) v.completion of

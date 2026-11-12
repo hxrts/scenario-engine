@@ -21,34 +21,36 @@ module Views.Indicators
 import Prelude
 
 import Checks.Objectives (evaluateObjectives)
-import Core.Kernel.Types (Endpoint(..))
+import Core.Kernel.Types (Amount(..), Endpoint(..), Operation(..), Trigger(..))
 import Core.Map (values)
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (all, any, concatMap, elem, filter, fromFoldable, mapMaybe, nub, null, sort, take, zipWith)
+import Data.Array (all, any, concatMap, elem, filter, fromFoldable, mapMaybe, nub, null, sort, take, zip, zipWith)
 import Data.String (joinWith)
+import Data.Tuple (Tuple(..))
 import Data.Foldable (minimum)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), isNothing, maybe)
 
 import Laws.External (bondsOf, currenciesOf, groupOf)
-import Laws.Query (holding)
+import Laws.Query (capabilitiesOf, holding)
 import Laws.Slice (exchangeFills, legs, select, transformationFills)
-import Laws.Types (ActorId, ActorKind(..), ResourceId, TransformationId)
-import Laws.World (Cause(..), WorldState)
+import Core.Exchange (exchangePrice)
+import Laws.Types (ActorId, ActorKind(..), Capability(..), ResourceId, TransformationId, idText)
+import Laws.World (AuthoredLaw(..), Cause(..), RoundResult, WorldState)
 import Schema.Composition (PremiseComposition, Span(..))
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio)
+import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio, worlds)
 import Views.Finance (earningsOf)
 import Views.Standings (valueIn)
 
 -- | A country's indicators for a round: its net external position, and the share of its output of each good its own
 -- | households bought (`Nothing` when it made none of it).
-type CountryIndicators = { round :: Int, country :: ActorId, netExternal :: Q, absorption :: Array { good :: ResourceId, share :: Maybe Q } }
+type CountryIndicators = { round :: Int, country :: ActorId, netExternal :: Q, absorption :: Array { good :: ResourceId, share :: Maybe Q }, gaps :: Array { good :: ResourceId, gap :: Q } }
 
 countryIndicators :: StoredRun -> Array CountryIndicators
-countryIndicators r = concatMap round r.rounds
+countryIndicators r = concatMap round (zip (worlds r) r.rounds)
   where
-  round x =
+  round (Tuple before x) =
     let
       w = x.world
       countries = sort (nub (map (groupOf w) (fromFoldable (Map.keys w.actors))))
@@ -66,6 +68,7 @@ countryIndicators r = concatMap round r.rounds
               , country: c
               , netExternal: netExternal w inC
               , absorption: map (\g -> { good: g, share: Q.divMaybe (bought g) (made g) }) goods
+              , gaps: substituteGaps before x inC
               }
         )
         (filter (\c -> any (\a -> isAggregate w a && groupOf w a == c) (fromFoldable (Map.keys w.actors))) countries)
@@ -77,7 +80,7 @@ netExternal :: WorldState -> (ActorId -> Boolean) -> Q
 netExternal w inC = Q.sumQ (map one (currenciesOf w))
   where
   members = filter inC (fromFoldable (Map.keys w.actors))
-  home = nub (map _.quote (filter (\x -> not (null x.access) && all inC x.access) (values w.exchanges)))
+  home = homeCurrencies w inC
   bonds = bondsOf w
   one m =
     let
@@ -86,6 +89,36 @@ netExternal w inC = Q.sumQ (map one (currenciesOf w))
       owedBy = Q.sumQ (map _.principal (filter (\b -> b.currency == m && inC b.borrower && not (inC b.lender)) bonds))
     in
       Q.mul (valueIn w m) (Q.add held (Q.sub owedTo owedBy))
+
+-- | A country's substitute gaps in a round: for each good it imported (bought on an Exchange quoted in a currency not
+-- | its own), and that one of its Actors may make, the wage a unit of making it pays less what a unit cost to import
+-- | at the round's opening prices, both valued in the numeraire. Positive, its substitute is dearer than importing and
+-- | stands idle; negative, it is cheaper. Wages are the action laws a unit of the Transformation is charged.
+substituteGaps :: WorldState -> RoundResult -> (ActorId -> Boolean) -> Array { good :: ResourceId, gap :: Q }
+substituteGaps before x inC = mapMaybe gapOf imported
+  where
+  w = x.world
+  members = filter inC (fromFoldable (Map.keys w.actors))
+  home = homeCurrencies before inC
+  foreignFills = filter (\f -> f.actor `elem` members && f.quantity > Q.zero && maybe false (\m -> not (m.quote `elem` home) && not (m.base `elem` currenciesOf before)) (Map.lookup f.exchange before.exchanges)) (select exchangeFills x.record.events)
+  imported = nub (map _.resource foreignFills)
+  importCost g = minimum (mapMaybe (\f -> if f.resource == g then (\m -> Q.mul (exchangePrice m) (valueIn before m.quote)) <$> Map.lookup f.exchange before.exchanges else Nothing) foreignFills)
+  makers g = filter (\t -> any (\e -> e.resource == g && isNothing e.holder) t.effects && any (\a -> MayTransform t.id `elem` capabilitiesOf before a) members) (fromFoldable (values before.transformations))
+  wageOf t = Q.sumQ
+    ( mapMaybe
+        ( \(AuthoredLaw l) -> case l.trigger, l.operation of
+            OnAction a, Emit { resource, owed: Times { ratio } } | a.cause == Just (idText t.id) -> Just (Q.mul ratio (valueIn before resource))
+            _, _ -> Nothing
+        )
+        before.laws
+    )
+  gapOf g = case importCost g, minimum (map wageOf (makers g)) of
+    Just cost, Just wage -> Just { good: g, gap: Q.sub wage cost }
+    _, _ -> Nothing
+
+-- | A country's own currencies: what its home Exchanges quote, those open to its Actors alone.
+homeCurrencies :: WorldState -> (ActorId -> Boolean) -> Array ResourceId
+homeCurrencies w inC = nub (map _.quote (filter (\x -> not (null x.access) && all inC x.access) (values w.exchanges)))
 
 -- | A seat's indicators for a round: what it owed on its agreements over its revenue from goods, and the margin of
 -- | each of its every-round criteria in its worst round so far.
@@ -133,7 +166,8 @@ perUnit w g t = maybe Q.zero (\x -> Q.sumQ (map _.perUnit (filter (\e -> e.resou
 
 countryColumns :: Array Column
 countryColumns =
-  [ column "Net external position" "The currencies the country holds other than its own, and what the rest of the world owes it less what it owes the rest of the world on open agreements, valued in the numeraire after the round. Its own currency is what its home Exchanges quote."
+  [ column "Substitute gap" "For each good the country imported and can make itself, what a unit of making it pays in wages less what a unit cost to import, valued in the numeraire: above 0, its own industry is dearer and stands idle."
+  , column "Net external position" "The currencies the country holds other than its own, and what the rest of the world owes it less what it owes the rest of the world on open agreements, valued in the numeraire after the round. Its own currency is what its home Exchanges quote."
   , column "Domestic absorption" "For each good the country made in the round, the share its own households bought: low when its output depends on demand abroad."
   ]
 
@@ -152,7 +186,7 @@ indicators gb r =
   { countries:
       { title: "Country indicators"
       , columns: names ([ col.round, countryColumn ] <> countryColumns)
-      , rows: map (\c -> [ show c.round, show c.country, quantity c.netExternal, absorptionCell c.absorption ]) (countryIndicators r)
+      , rows: map (\c -> [ show c.round, show c.country, gapsCell c.gaps, quantity c.netExternal, absorptionCell c.absorption ]) (countryIndicators r)
       }
   , seats:
       { title: "Seat indicators"
@@ -164,4 +198,5 @@ indicators gb r =
   countryColumn = column "Country" "A group of Actors: an Actor and those that count as it for Rules. Everything outside it, the Exchanges' reserves included, is abroad."
   absorptionCell xs = listed (map (\a -> show a.good <> " " <> maybe "n/a" ratio a.share) xs)
   marginsCell xs = listed (map quantity xs)
+  gapsCell xs = listed (map (\g -> show g.good <> " " <> quantity g.gap) xs)
   listed xs = if null xs then "none" else joinWith ", " xs

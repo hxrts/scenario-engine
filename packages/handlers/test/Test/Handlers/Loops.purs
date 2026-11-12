@@ -26,8 +26,6 @@ import Laws.Types (ActorId, ExchangeId, ResourceId)
 import Laws.World (Cause(..))
 import Premises.Load (parts)
 import Premises.Pacific as Pacific
-import Premises.Pacific.Country (america, china)
-import Premises.Pacific.Indicators (substituteGap)
 import Premises.Pacific.Names (p)
 import Schema.Run (RunStatus(..), emptySpec)
 import Views.Common (storedRun)
@@ -249,7 +247,6 @@ indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
   it "each indicator on a Pacific run: the status quo's net external positions, domestic absorption, the firms' debt service, the states' viability margins and each country's substitute gap" do
     source <- pacificParts
     r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
-    r6 <- roundOf r 6
     let
       s = storedRun { id: "indicators", name: "indicators", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records)
       cs = filter (\x -> x.round == 6) (countryIndicators s)
@@ -260,7 +257,7 @@ indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
     -- China's firm owes 4.6 times what it sells; the US state, selling nothing, has no ratio, and its viability failed
     map (\x -> Tuple x.actor (Tuple x.debtService x.margins)) ss `shouldEqual` [ Tuple p.cn (Tuple (Just (q "0.5678")) [ q "1.7748" ]), Tuple p.cnFirm (Tuple (Just (q "4.6215")) []), Tuple p.us (Tuple Nothing [ q "-0.6" ]), Tuple p.usFirm (Tuple (Just (q "0.0955")) []) ]
     -- the strong dollar leaves America's substitute dearer than importing, so it stands idle; China's runs
-    map (\c -> substituteGap Pacific.defaultDials r6.world c) [ america, china ] `shouldEqual` [ q "0.0937", q "-0.1074" ]
+    map (\c -> Tuple c.country (map (\g -> Tuple g.good g.gap) c.gaps)) cs `shouldEqual` [ Tuple p.cn [ Tuple p.technology (q "-0.0964") ], Tuple p.row [], Tuple p.us [ Tuple p.industry (q "0.087") ] ]
 
 -- | The experiments (docs/05 §10).
 experiments :: Spec Unit

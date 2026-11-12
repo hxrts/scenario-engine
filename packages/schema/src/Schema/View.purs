@@ -38,6 +38,8 @@ data View
   | Dependence
   | Finance
   | Indicators
+  | Regimes
+  | Clearing
 
 derive instance Eq View
 derive instance Generic View _

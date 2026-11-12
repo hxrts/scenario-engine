@@ -15,10 +15,21 @@ test("a Pacific run launches with its own preset and its run page shows China's 
   await page.goto(`/admin/#/runs/${id}`);
   const dependence = section(page, "Dependence");
   await expect(dependence.getByRole("columnheader", { name: "Coverage", exact: true })).toBeVisible();
-  // rows run round by round, eight to a round: the states' requirements, then the private sectors' demands; after
-  // the header, row 11 is round 2's CN T: America's export control is in force against it, so it imports no
-  // technology and is short 3
-  await expect(dependence.getByRole("row").nth(11).getByRole("cell")).toHaveText(["2", "CN", "T", "3", "0", "0.00", "3", "0", "0", "0", "3", "1", "0", "0"]);
+  // round 2's CN T row: America's export control is in force against it, so it imports no technology and is short 3
+  const cnT = dependence.getByRole("row").filter({ has: page.getByRole("cell", { name: "CN", exact: true }) }).filter({ has: page.getByRole("cell", { name: "T", exact: true }) }).filter({ has: page.getByRole("cell", { name: "2", exact: true }) }).first();
+  await expect(cnT.getByRole("cell")).toHaveText(["2", "CN", "T", "3", "0", "0.00", "3", "0", "0", "0", "3", "1", "0", "0"]);
+  // the run page is built around the three objects: the headline, one regime of three panels per country, clearing,
+  // and the scorecards, above the engine detail
+  for (const title of ["Who is trapped, and how tightly?", "National regimes", "International clearing", "Seat scorecards"])
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  for (const country of ["US", "CN"])
+    for (const panel of ["Capability", "Demand", "Finance"])
+      await expect(page.getByText(`${panel}, ${country}`, { exact: true })).toBeVisible();
+  // the two regimes' panels are laid out alike: each its three panels in one row
+  const top = async (name) => (await page.getByText(name, { exact: true }).boundingBox()).y;
+  expect(await top("Demand, US")).toBe(await top("Capability, US"));
+  expect(await top("Finance, CN")).toBe(await top("Capability, CN"));
+  await expect(page.getByRole("columnheader", { name: "Substitute gap", exact: true })).toBeVisible();
   // the Finance section shows each country's external accounts and its current account
   const finance = section(page, "Finance");
   await expect(finance.getByRole("columnheader", { name: "Residual", exact: true })).toBeVisible();

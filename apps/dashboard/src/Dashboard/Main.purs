@@ -58,8 +58,6 @@ import Web.HTML (window)
 import Web.HTML.HTMLDocument (toNonElementParentNode)
 
 -- | A tab: its label, the one-sentence purpose shown above its content, and the view it fetches.
-type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
-
 -- | A fetched view: its key, and its load, which renders what it reads (`Fetched` in `Dashboard.Components`).
 type Fetch = { key :: String, load :: Aff (Either String JSX) } -> JSX
 
@@ -75,15 +73,6 @@ listRuns = Client.runs
 -- | stays on screen, dimmed, until the new one arrives. Every page that lists runs uses this hook.
 useRunList :: Int -> Hook (UseAff Int (Tuple Int (Either String RunList))) (Loaded (Either String RunList))
 useRunList version = useLoad version listRuns
-
--- | The tabs: each shows its purpose line, then its content.
-tabbed :: Array Tab -> JSX
-tabbed ts = element UI.tabs
-  { defaultValue: maybe "" _.key (index ts 0)
-  , children:
-      [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
-        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.div { className: "mb-3", children: [ Layout.purpose t.purpose ] }, t.content ] })
-  }
 
 -- | A Source cell links to the source run when the list has it.
 runLinks :: RunList -> Int -> Array String -> Maybe String
@@ -379,7 +368,7 @@ plots grid fetch ids shown picked setPicked = D.div
           { title: "Details"
           , purpose: "The comparison's full tables, one tab each."
           , children:
-              [ tabbed
+              [ Layout.tabbed
                   [ { key: "final", label: "Final state", purpose: "Every account's holding after the final round, one column per run; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.final ] } }
                   , { key: "diff", label: "Baseline diff", purpose: "The holdings that differ from the first run, for each run, as a change.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.diff ] } }
                   , { key: "config", label: "Configuration", purpose: "The specification fields that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
