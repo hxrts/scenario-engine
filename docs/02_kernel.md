@@ -308,6 +308,7 @@ The invariant table is the one numbered table for the whole system; other docs c
 | <a id="inv-31"></a>INV-31 | Authoritative records: manifests, append-only round records and round-end Worlds are authoritative and immutable. Metrics are versioned projections. | Checked |
 | <a id="inv-36"></a>INV-36 | Purity: the engine is a pure function. All impurity occurs only through declared effects interpreted by handlers ([§8.4](#84-effects-and-handlers)). | Checked |
 | <a id="inv-37"></a>INV-37 | Obligation consumption: every obligation due in a round is consumed exactly once, and every spawn is due in a later round ([§3.4](#34-successors)). | Checked |
+| <a id="inv-38"></a>INV-38 | External consistency: for every Actor group and every currency (the numeraire, and every Resource an Exchange quotes), the round's change in the group's position, what it holds of the currency and is owed in it by Actors outside the group less what it owes them, open agreements at their principal, equals the round's flows across the group's border: payment for goods, currency traded on an Exchange whose base is a currency, levies, and lending with the change in its agreements. Everything outside the group, Exchange reserves included, is abroad. Read against the World the round was played from (`Laws.External`). | Checked |
 
 ### 9.1 Numerics and randomness
 

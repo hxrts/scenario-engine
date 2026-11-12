@@ -40,9 +40,6 @@ import Laws.StrategyRules (StrategyRules)
 import Laws.Types (ActorId, Id(..), IntentF(..), ResourceId, TransformationId)
 import Laws.World (RejectReason(..), RoundResult)
 import Premises.Load (loadFrom, parts)
-import Schema.Run (RunStatus(..), emptySpec)
-import Views.Common (storedRun)
-import Views.Finance (externalAccounts)
 import Premises.Pacific as Pacific
 import Premises.Pacific.Names (p, pacificId, pacificVersion)
 import Schema.Build.Quantity (q)
@@ -297,7 +294,7 @@ spec = describe "Pacific (docs/05 §9)" do
 
   describe "Balance (docs/05 §9.4)" do
 
-    it "over 400 sampled settings of every seat's four tools, each seat meets a like number of its four criteria, and every external account balances" do
+    it "over 400 sampled settings of every seat's four tools, each seat meets a like number of its four criteria" do
       parts <- pacificParts
       let lcg x = (x * 75 + 74) `mod` 65537
       let lvOf x = { one: x `mod` 3, two: (x / 3) `mod` 3, three: (x / 9) `mod` 3, four: (x / 27) `mod` 3 }
@@ -310,10 +307,8 @@ spec = describe "Pacific (docs/05 §9)" do
         r <- run (Seed 1) (withRounds (Just 6) g)
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
-        -- and every flow across a border is accounted (docs/05 §4.3): no external account has a residual
-        let unaccounted = length (filter (\l -> l.residual /= Q.zero) (externalAccounts (storedRun { id: "balance", name: "balance", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records))))
-        pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm, unaccounted ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3, 4 ] `shouldEqual` [ 986, 961, 976, 984, 0 ]
+        pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 986, 961, 976, 984 ]
 
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do

@@ -92,7 +92,7 @@ dependence r =
       ordered = Q.sumQ (map _.quantity (filter (\d -> d.actor == q.actor && d.resource `elem` filter isCapacity caps) (mapMaybe deliveredOf w.pending)))
       offered = Q.sumQ (concatMap (\s -> if s.candidateTransaction.author == q.actor then map (\o -> Q.neg o.quantity) (filter (\o -> o.quantity < Q.zero && baseOf o.exchange == Just q.resource) (tradesOf s.candidateTransaction.intents)) else []) rec.inputs)
       baseOf x = _.base <$> Map.lookup x w.exchanges
-      isCapacity r = (Map.lookup r w.resources >>= _.category) == Just capacityCategory
+      isCapacity res = (Map.lookup res w.resources >>= _.category) == Just capacityCategory
       amount = fromMaybe bought q.amount
     in
       [ show rec.round

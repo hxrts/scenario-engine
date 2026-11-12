@@ -3,10 +3,11 @@ module Test.Checks.Main where
 import Prelude
 
 import Checks.Objectives (evaluateObjectives)
+import Checks.Round (Failure(..))
 import Checks.Run (checkRun)
 import Core.Draw (Seed(..))
 import Core.Num as Q
-import Data.Array (filter, head, index)
+import Data.Array (any, filter, head, index, take)
 import Data.Foldable (minimum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -33,6 +34,20 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- pacificParts >>= unseated
       r <- run (Seed 1) g
       checkRun (initialOf r) r.records `shouldEqual` []
+  describe "INV-38 External consistency" do
+    it "a currency that reaches a country with no Flow behind it leaves its account unbalanced, and only then" do
+      g <- pacificParts >>= unseated
+      r <- run (Seed 1) g
+      let
+        first = take 1 r.records
+        tampered = map (\x -> x { world = x.world { actors = Map.update (\a -> Just a { accounts = Map.insert p.rmb (Q.add (fromMaybe Q.zero (Map.lookup p.rmb a.accounts)) (q 5)) a.accounts }) p.cn x.world.actors } }) first
+        has38 = any
+          ( \f -> case f of
+              Violated _ inv _ -> inv == "INV-38"
+              _ -> false
+          )
+      has38 (checkRun (initialOf r) first) `shouldEqual` false
+      has38 (checkRun (initialOf r) tampered) `shouldEqual` true
   describe "Objectives" do
     it "Bought and Produced read each round, and an every-round criterion fails if any one round falls short" do
       parts <- pacificParts

@@ -31,17 +31,13 @@ import Premises.Pacific.Private (deposit, firmBond, loan, usBond)
 import Premises.Pacific.Strategies (Levels, controlRule, firmPolicy, statePolicy)
 import Schema.Build.Decision (acting, asTemplate, ge, lit, roundQ, rule, selfEnact)
 import Schema.Build.Quantity (q)
-import Schema.Run (RunStatus(..), emptySpec)
+
 import Test.Handlers.Pacific (fx, holdingAt, moved, pacificParts, playAll, playTariffed, ran, roundOf, shortOf)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Testkit.Run (orThrow, run)
-import Views.Common (StoredRun, storedRun)
-import Views.Finance (bondsOf, externalAccounts)
 
--- | A run as the Run Store reads it back.
-stored :: SimRun -> StoredRun
-stored r = storedRun { id: "loops", name: "loops", status: Completed, manifest: r.manifest, playerSeed: "1", spec: emptySpec, sourceDeleted: false } r.records (map (const []) r.records)
+import Laws.External (bondsOf)
 
 lv :: Int -> Int -> Int -> Int -> Levels
 lv one two three four = { one, two, three, four }
@@ -137,12 +133,6 @@ spec = describe "Pacific's circuits and loops (docs/05 §4.3, §9.5)" do
       all (\b -> b.lender /= b.borrower && b.principal >= Q.zero) bonds `shouldEqual` true
       sort (nub (map (\b -> b.template) bonds)) `shouldEqual` sort [ usBond, firmBond, deposit 2, loan 2 ]
       nub (map (\b -> Tuple b.template b.rate) (filter (\b -> b.template /= usBond && b.template /= firmBond) bonds)) `shouldEqual` [ Tuple (loan 2) Q.zero, Tuple (deposit 2) Q.zero ]
-    it "in every country and currency, every flow across the border is goods, currency, levies or interest: the residual is zero, in every preset over 8 rounds" do
-      source <- pacificParts
-      for_ presetNames \name -> do
-        r <- playAll source name name name name 8
-        let lines = externalAccounts (stored r)
-        filter (\l -> l.residual /= Q.zero) lines `shouldEqual` []
     it "financial repression moves income from households to the firm: under the status quo China's households give up interest against the 5% rate, and its firm saves it on its loans" do
       source <- pacificParts
       r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6

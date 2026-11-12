@@ -26,6 +26,7 @@ import Core.Kernel.Post (crossesBoundary)
 import Core.Map (entries, sumInto)
 
 import Laws.Authority (authorized, executor, worldFacts)
+import Laws.External (externalLines)
 import Laws.Engine.Commit (resolveRound)
 import Laws.Engine.Prepare (prepareRound)
 import Core.Num as Q
@@ -72,7 +73,16 @@ check before r = concatMap (\f -> f before r) (enumFields (Proxy :: Proxy rep) c
 
 -- | The checks of a round against the world it was played from, not yet prepared.
 checkAfter :: WorldState -> RoundResult -> Array Failure
-checkAfter before r = check (prepareRound before) r <> successors before r <> consumedOnce before r
+checkAfter before r = check (prepareRound before) r <> successors before r <> consumedOnce before r <> external before r
+
+-- | INV-38 External consistency: for every country (an Actor group) and every currency, the round's change in its
+-- | position (what it holds and is owed abroad, less what it owes abroad, bonds at their principal) is the flows
+-- | across its border: goods, currency trades, levies and interest. A residual is a flow that crossed the border as
+-- | something else. It reads the world the round was played from, before Prepare, as the accounts do.
+external :: WorldState -> RoundResult -> Array Failure
+external before r = map one (filter (\l -> l.residual /= Q.zero) (externalLines before r))
+  where
+  one l = { invariant: "INV-38", detail: "round " <> show l.round <> ": " <> show l.country <> "'s account in " <> show l.currency <> " does not balance", expected: Q.format (Q.sub l.closing l.residual), observed: Q.format l.closing, about: [ show l.country, show l.currency ] }
 
 -- | INV-11 Order independence over a resolver: resolving the round's inputs in other orders gives the same
 -- | World State. Not part of `check`, which reads a finished round: this one plays the round again.
