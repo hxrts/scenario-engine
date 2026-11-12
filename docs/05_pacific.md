@@ -36,13 +36,12 @@ So in China the state's choice between direction and stimulus is a choice about 
   │  at home  direct ◀─▶ stimulate  │ ── CN bars T ✕ ──▶ │  at home  direct ◀─▶ stimulate  │
   │    stimulus · capex subsidy     │                    │    stimulus · lending rate      │
   │                                 │                    │                                 │
-  │  holds 2 of 10 T capacity       │ ◀──── sells I ──── │  holds 8 of 10 I capacity       │
-  │  lives on taxes and tariffs     │ ─── pays for I ──▶ │  lives on sales and tariffs     │
+  │  holds 2 of 10 T capacity       │ ◀──── I to US ──── │  holds 8 of 10 I capacity       │
+  │  lives on taxes and tariffs     │ ──── T to CN ────▶ │  lives on sales and tariffs     │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
-         subsidy ▼ │  ▲ tax on its                               credit ▼ │  ▲ interest
-        for its    │    exports $                              for its    │    on credit $
-        investment │                                           investment │
+         subsidy ▼ │  ▲ export tax $                             credit ▼ │  ▲ interest $
+         barrier ▼ │  ▲ tariff on input $                       barrier ▼ │  ▲ tariff on input $
                    │                                                      │
   ┌────────────────┴────────────────┐                    ┌────────────────┴────────────────┐
   │ firm                            │                    │ firm                            │
@@ -51,14 +50,16 @@ So in China the state's choice between direction and stimulus is a choice about 
   │  at home  invest ◀─▶ distribute │ ◀──── sells I ──── │  at home  invest ◀─▶ distribute │
   │    capex · wages                │                    │    capex on credit · wages      │
   │                                 │                    │                                 │
-  │  holds 8 of 10 T capacity       │ ◀── pays for T ─── │  holds 2 of 10 I capacity       │
-  │  needs 1 I a round              │ ─── pays for I ──▶ │  needs 1 T a round              │
+  │  holds 8 of 10 T capacity       │ ◀──── input I ──── │  holds 2 of 10 I capacity       │
+  │  needs 1 I a round              │ ──── input T ────▶ │  needs 1 T a round              │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
 stimulus and wages ▼                                   stimulus and wages ▼
          private sector                                         private sector
         spends most of it                                      saves most of it
 ```
+
+Each arrow between the countries is goods, paid for at the Exchange's price. Between the states, China's state sells its industrial inputs to the US and buys its technology, which comes from the US firm. Between the firms, each exports its own good, and each imports the other country's good as the input its production needs. Between each state and its firm run two pairs: the state's support for the firm's investment (the US subsidy, China's credit) against what the firm pays back (the export tax, the interest), and the state's barrier, which binds its own firm, against the tariff the firm pays on its input.
 
 Every outcome is a change in holdings, flows, production or the Rules in force. All values are normalized game units.
 
