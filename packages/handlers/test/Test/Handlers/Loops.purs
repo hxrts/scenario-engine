@@ -375,9 +375,10 @@ arrearsSpec :: Spec Unit
 arrearsSpec = it "Arrears: a Chinese firm that cannot repay fails China's viability, though its output clears the floor every round" do
   poor <- variant (\d -> d { private = d.private { firmMoney = { us: q 0, cn: q 0 } } })
   b <- playLevels poor { us: lv 0 0 0 0, cn: lv 2 0 0 0, usFirm: lv 2 0 2 2, cnFirm: lv 0 0 2 2 } 8
-  let isAgreement c = case c of
-        OfAgreement _ -> true
-        _ -> false
+  let
+    isAgreement c = case c of
+      OfAgreement _ -> true
+      _ -> false
   let unpaid who r = map (\x -> Q.sumQ (map (\l -> Q.sub l.owed l.moved) (filter (\l -> l.from == Held who && isAgreement l.cause) (select legs x.record.events)))) r.records
   let viability = concatMap (\o -> take 1 (drop 2 o.criteria)) (filter (\o -> o.explicitActor == p.cn) (evaluateObjectives poor.composition b.records))
   unpaid p.cnFirm b `shouldEqual` [ q 0, q 0, q 0, q "0.0882", q "0.3115", q "0.777", q "1.1662", q "1.647" ]
