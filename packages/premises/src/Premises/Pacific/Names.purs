@@ -44,6 +44,8 @@ type Names =
   , cnFirmInvestmentLow :: TransformationId
   , cnFirmInvestmentHigh :: TransformationId
   , supply :: StrategyId
+  , usFirmProduction :: TransformationId
+  , cnFirmProduction :: TransformationId
   , commerce :: StrategyId
   , usPrivate :: ActorId
   , cnPrivate :: ActorId
@@ -79,6 +81,8 @@ p =
   , cnFirmInvestmentLow: Id "cn-firm-investment-low"
   , cnFirmInvestmentHigh: Id "cn-firm-investment-high"
   , supply: Id "pacific-supply-v0"
+  , usFirmProduction: Id "us-firm-production"
+  , cnFirmProduction: Id "cn-firm-production"
   , commerce: Id "pacific-commerce-v0"
   , usPrivate: Id "US-private"
   , cnPrivate: Id "CN-private"

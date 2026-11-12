@@ -176,11 +176,11 @@ spec = do
     let pacific = Pacific.pacific Pacific.defaultDials
     it "its two Premises compose with no conflict and check" do
       map (const unit) (parts pacific) `shouldEqual` Right unit
-    it "bilateral-economy alone is a whole economy of states and firms, with no Rules and only the firms' investments" do
+    it "bilateral-economy alone is a whole economy of states and firms, with no Rules and only the firms' production and investments" do
       case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { preset = Nothing } } of
         Left e -> fail e
         Right p -> do
-          Map.size p.composition.world.transformations `shouldEqual` 4
+          Map.size p.composition.world.transformations `shouldEqual` 6
           Map.size p.composition.world.ruleKinds `shouldEqual` 0
     it "private-sector alone fails only on what the other Premises define" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of

@@ -54,7 +54,7 @@ spec = describe "Dependence" do
       row round actor resource = filter (\x -> index x 0 == Just round && index x 1 == Just actor && index x 2 == Just resource) t.rows
     row "2" "CN-private" "T" `shouldEqual` [ [ "2", "CN-private", "T", "1.04", "0", "n/a", "n/a", "1.04", "0", "0", "0", "0", "0", "0" ] ]
     let kv = keyValues (const Nothing) [ r ]
-    map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) `shouldEqual` [ [ "10.35" ] ]
+    map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) `shouldEqual` [ [ "10.1" ] ]
 
   it "China under its own import ban: exposure 3 and short 3 every round, while its industrial inputs sell" do
     loaded <- liftEffect (loadFrom fileOps "pacific/v0")

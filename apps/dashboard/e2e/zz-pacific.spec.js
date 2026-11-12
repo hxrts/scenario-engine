@@ -15,8 +15,8 @@ test("a Pacific run launches with its own preset and its run page shows China's 
   await page.goto(`/admin/#/runs/${id}`);
   const dependence = section(page, "Dependence");
   await expect(dependence.getByRole("columnheader", { name: "Coverage", exact: true })).toBeVisible();
-  // rows run round by round, ten to a round: the states' requirements, the firms' inputs, then the private sectors'
-  // demands; after the header, row 13 is round 2's CN T: China's own ban is in force, so it imports no technology
+  // rows run round by round, eight to a round: the states' requirements, then the private sectors' demands; after
+  // the header, row 11 is round 2's CN T: China's own ban is in force, so it imports no technology
   // and is short 3
-  await expect(dependence.getByRole("row").nth(13).getByRole("cell")).toHaveText(["2", "CN", "T", "3", "0", "0.00", "3", "0", "0", "0", "3", "0", "0", "0"]);
+  await expect(dependence.getByRole("row").nth(11).getByRole("cell")).toHaveText(["2", "CN", "T", "3", "0", "0.00", "3", "0", "0", "0", "3", "0", "0", "0"]);
 });

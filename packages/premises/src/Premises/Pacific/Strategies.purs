@@ -11,6 +11,8 @@ module Premises.Pacific.Strategies
   , banRule
   , tariffRule
   , investmentAt
+  , inputParam
+  , outputParam
   ) where
 
 import Prelude
@@ -19,7 +21,7 @@ import Data.Array (concatMap)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Laws.StrategyRules (Clause, Cond, Expr, SignRule, StrategyRules)
-import Laws.Types (ActorId, Direction(..), ExchangeId, FlowEffect(..), IntentF(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId)
+import Laws.Types (ActorId, Direction(..), ExchangeId, FlowEffect(..), IntentF(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId, idText)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Private (countries, payParam, releaseParam, stockpileParam, subsidyParam, tariffRate)
 import Schema.Build.Decision (acting, asTemplate, due, gt, holding, joint, lit, max', mulQ, named, orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signTransformation, subQ, transformedLastRound)
@@ -67,10 +69,30 @@ commerceRules = [ technology.sell, technology.buy, industry.sell, industry.buy ]
     , buy: rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) (Just (priceAt (named x))) ]
     }
 
--- | A firm's supply routine (docs/05 §6.1): buy the foreign input its production needs this round, beyond what it
--- | holds, on the world Exchange.
+-- | A firm's supply routine (docs/05 §6.1): produce as much as its capacity and the foreign input it holds allow, and
+-- | buy on the world Exchange what brings its input back to one round's full use for the next round.
 supplyRules :: Array Clause
-supplyRules = map (\c -> rule [ acting c.firm ] [ orderAt (named c.world) (max' (lit 0) (subQ (due c.foreign) (holding c.foreign))) (Just (priceAt (named c.world))) ]) countries
+supplyRules = concatMap one countries
+  where
+  one c =
+    let
+      f = if c.firm == p.usFirm then { capacity: p.technologyCapacity, production: p.usFirmProduction } else { capacity: p.industryCapacity, production: p.cnFirmProduction }
+      -- the input one round at full capacity uses
+      need = mulQ (holding f.capacity) (param (inputParam c.firm))
+      -- capacity, or what the input held allows, whichever is less
+      runs = subQ (holding f.capacity) (max' (lit 0) (subQ (holding f.capacity) (mulQ (holding c.foreign) (param (outputParam c.firm)))))
+    in
+      [ rule [ acting c.firm ] [ asTemplate (selfTransform { transformation: f.production, quantity: runs }) ]
+      , rule [ acting c.firm ] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) (Just (priceAt (named c.world))) ]
+      ]
+
+-- | The foreign input a firm's production uses per unit of output.
+inputParam :: ActorId -> String
+inputParam f = idText f <> "-input-per-unit"
+
+-- | The output a firm's production makes per unit of foreign input.
+outputParam :: ActorId -> String
+outputParam f = idText f <> "-output-per-input"
 
 level :: Int -> String
 level n = if n >= 2 then "high" else "low"
