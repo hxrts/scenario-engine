@@ -38,8 +38,8 @@ What runs, and what it connects to. Arrows point from the caller to what it call
                                      │
                                      ▼
  ┌─ apps/server ───────────────────────┐      ┌─ apps/cli ──────────────┐
- │ HTTP ──► Gate ──► route table       │      │ sim, session, compile   │◄── facilitator
- │ OpenAPI documents, hosted sessions  │      │ facilitator console     │    at a terminal
+ │ HTTP ──► Gate ──► route table       │      │ sim, session, compile,  │◄── facilitator
+ │ OpenAPI documents, the live run     │      │ suite, facilitator      │    at a terminal
  └──────────────────┬──────────────────┘      └────────────┬────────────┘
                     └──────────────────┬───────────────────┘
                                        ▼
@@ -122,7 +122,7 @@ The project is a spago workspace. Each package is named `sp-<dir>` and compiles 
 | `experiments` | `core`, `laws`, `schema`, `checks`, `views`, `assembly`, `handlers` (the pure simulation fold only) | Agency and seed batches, over the pure fold | Effects; persistence; `world` or `strategy` imports |
 | `testkit` | `core`, `laws`, `schema`, `premises`, `assembly`, `adapters`, `handlers`, `checks`, `views`, `effects` | The shared fixture set and composition loading for test suites | Anything a `src` module imports |
 | `flags` | nothing | The command-line flag parser that the entry points read their arguments with | Any workspace or effect import |
-| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays Runs and compiles PremiseCompositions; `server` serves and implements the API; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
+| `apps/cli`, `apps/server`, `apps/dashboard` | anything | Programs and their composition roots. `cli` plays the static suite and single Runs, hosts a live run at the terminal, and compiles PremiseCompositions; `server` serves and implements the API and hosts the live run; `dashboard` renders view models and calls the API | Instantiation, seat binding, economic logic; path strings and decoders in the dashboard |
 
 Two deliberate exceptions to the layering. `testkit` may import `adapters`, because it reads the compiled files through the filesystem device. `handlers` does not import `checks`, so a handler never reaches the checkers.
 
