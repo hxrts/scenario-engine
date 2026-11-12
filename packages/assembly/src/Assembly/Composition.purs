@@ -11,7 +11,7 @@ import Data.Array (elem, concatMap, filter, head)
 import Data.Foldable (for_, traverse_)
 import Strategy.StrategyRules (agreementsEntered, strategyRulesRefs)
 
-import Core.Map (entries)
+import Core.Map (entries, values)
 
 import World.Error (ValidationError(..))
 import World.Composition.Validate (Names, compositionNames, unknownNames, validateComposition)
@@ -43,10 +43,12 @@ checkComposition p = do
   composition <- lmapInvalid (validateComposition p.composition p.config)
   traverse_ (\(Tuple (Id name) s) -> checkRefs ("strategy " <> name) (compositionNames composition) s) (entries composition.strategies)
   traverse_ (\(Tuple name s) -> checkRefs ("preset " <> name) (compositionNames composition) s) (Object.toUnfoldable p.presets :: Array _)
-  -- the default preset is one the composition offers
-  traverse_ (\name -> if Object.member name p.presets then Right unit else Left (UnknownPreset name)) p.config.preset
+  -- the default preset, and each seat's alternative, is one the composition offers
+  let named = Array.catMaybes [ p.config.preset ] <> values p.config.alternatives
+  traverse_ (offered p.presets) named
   pure p { composition = composition }
   where
+  offered presets name = if Object.member name presets then Right unit else Left (UnknownPreset name)
   lmapInvalid = case _ of
     Left es -> Left (Invalid es)
     Right g -> Right g

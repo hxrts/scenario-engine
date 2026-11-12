@@ -49,7 +49,7 @@ import Schema.Run (RunStatus)
 import Type.Proxy (Proxy(..))
 import Views.Actor (ActorList, History)
 import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
-import Views.Common (Table)
+
 import Views.Compare (CompareView)
 import Views.Glossary (Glossary)
 import Views.Keys (class ViewShape, viewShape)
@@ -99,8 +99,6 @@ type Operations =
   , "RoundReport" :: Op RoundReport (notFound :: String, internal :: String)
   , "OpenApi" :: Op Json AnyRefusal
   , "Compare" :: Op CompareView AnyRefusal
-  , "Agency" :: Op Table AnyRefusal
-  , "AgencyDetail" :: Op { criteria :: Table, profile :: Table } AnyRefusal
   , "StartSession" :: Op SessionStarted AnyRefusal
   , "GetSession" :: Op SessionState (notFound :: String)
   , "SubmitTranscript" :: Op SessionState (badRequest :: String, notFound :: String, conflict :: String)

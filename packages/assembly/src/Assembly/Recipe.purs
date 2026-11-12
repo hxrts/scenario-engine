@@ -10,7 +10,7 @@ module Assembly.Recipe
 import Prelude
 
 import Core.Draw (Seed)
-import Schema.Run (Spec)
+import Schema.Run (RunClass, Spec)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
 
@@ -28,7 +28,7 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 
 -- | The stored specification of a run: its composition, the player seed it was resolved to, its recipe,
 -- | the run it was derived from, if any, and, for a live session, its model and human seats.
-encodeSpec :: { gameId :: String, composition :: String, premises :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, model :: Maybe String, humans :: Maybe String, cast :: Cast } -> Spec
+encodeSpec :: { gameId :: String, composition :: String, premises :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, model :: Maybe String, humans :: Maybe String, cast :: Cast, runClass :: RunClass, cacheKey :: Maybe String, tag :: Maybe String, metadata :: Maybe String } -> Spec
 encodeSpec r =
   { gameId: Just r.gameId
   , composition: Just r.composition
@@ -40,10 +40,10 @@ encodeSpec r =
   , model: r.model
   , humans: r.humans
   , cast: Just (stringify (encodeWith Snapshot castShape r.cast))
-  , runClass: Nothing
-  , cacheKey: Nothing
-  , tag: Nothing
-  , metadata: Nothing
+  , runClass: Just r.runClass
+  , cacheKey: r.cacheKey
+  , tag: r.tag
+  , metadata: r.metadata
   }
 
 -- | The recipe a stored specification was played with. A live session has no preset and so no recipe.

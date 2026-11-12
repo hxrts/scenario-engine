@@ -60,6 +60,8 @@ type CompareView =
   , diff :: Table
   , config :: Marked
   , seeds :: Table
+  , agency :: Table -- each agency run against the preset run it deviates from (docs/07 §10.3)
+  , agencyCriteria :: Table
   , skipped :: Array String
   }
 

@@ -6,6 +6,8 @@ module Cli.Session (Options, Prepared, prepare, session, evidenceDir, SESSION) w
 
 import Prelude
 
+import Schema.Run (RunClass(..))
+
 import Core.Map as CoreMap
 import Core.Draw (Seed)
 import Laws.Types (ActorId, Id(..))
@@ -64,7 +66,7 @@ session o { parts, game } = do
   created <- now
   owner <- ownerOf "session"
   let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts }
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts, runClass: Interactive, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
   startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do

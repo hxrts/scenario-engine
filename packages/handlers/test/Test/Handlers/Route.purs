@@ -49,8 +49,6 @@ nameOf = case _ of
   GetSession _ -> "GetSession"
   SubmitTranscript _ -> "SubmitTranscript"
   Compare _ -> "Compare"
-  Agency _ -> "Agency"
-  AgencyDetail _ -> "AgencyDetail"
   OpenApi _ -> "OpenApi"
 
 examples :: Array (Tuple ApiRequest { method :: String, url :: String, body :: String })
@@ -72,8 +70,6 @@ examples =
   , Tuple (SubmitTranscript { id: "run-1", submission: { seat: "US", round: 1, text: "hi" } }) { method: "POST", url: "/api/sessions/run-1/transcripts", body: "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}" }
   , Tuple (Compare { runs: [ "a", "b" ], exchange: Just "m 1" }) (g "/api/compare?runs=a,b&exchange=m%201")
   , Tuple (Compare { runs: [], exchange: Nothing }) (g "/api/compare?runs=")
-  , Tuple (Agency { composition: Nothing, playerSeed: Just "1", preset: Nothing, alternative: Just "Aggressive" }) (g "/api/agency?playerSeed=1&alternative=Aggressive")
-  , Tuple (AgencyDetail { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }) (g "/api/agency/detail")
   ]
   where
   g url = { method: "GET", url, body: "" }

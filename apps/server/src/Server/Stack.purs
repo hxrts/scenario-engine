@@ -24,14 +24,13 @@ import Handlers.SqlStore (openStore, sqlStore)
 import Handlers.Store (StoreBackend, interpretObserve, interpretStore)
 import Handlers.System (SystemDevices, interpretClock, interpretEntropy, interpretProcess)
 import Run (Run, case_, on, run)
-import Server.Cache (Profiles)
 import Server.Implementation (answer)
 import Server.Rows (SERVER)
 import Server.Compositions (Compositions)
 import Views.Common (StoredRun)
 import Views.Metrics (roundMetrics)
 
-type ServerCache = Cache StoredRun Profiles
+type ServerCache = Cache StoredRun Unit
 
 type Devices = { system :: SystemDevices, store :: StoreBackend, cache :: ServerCache, sessions :: SessionHost }
 

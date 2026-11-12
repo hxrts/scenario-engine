@@ -9,29 +9,27 @@ module Experiments.Agency
 
 import Prelude
 
-import Assembly.Bindings (strategyRulesBindings)
 import Data.Tuple (Tuple(..))
 
 import Core.Draw (Seed(..))
-import Core.Num as Q
-import Laws.Slice (event, read, select)
+
 import Laws.Types (ActorId)
 import Laws.World (WorldState)
-import Data.Array (concatMap, elem, filter, length, zipWith)
-import Data.Either (Either(..), hush)
+
+import Data.Either (Either, hush)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Checks.Objectives (evaluateObjectives)
-import Foreign.Object (Object)
-import Foreign.Object as Object
-import Laws.StrategyRules (StrategyRules)
-import Schema.Composition (PremiseComposition)
-import Assembly.Error (AssemblyError(..))
+
+import Assembly.Error (AssemblyError)
 import Assembly.Types (PreparedRun)
 import Handlers.Simulate (SimRun, simulate)
-import Views.Agency (AgencyProfile)
-import Views.Common (players)
+import Views.Agency (AgencyProfile, agencyProfile)
+import Assembly.Assemble (assembleCast, defaultCast)
+import Assembly.Composition (CompositionParts)
+import Data.Map (Map)
+import Schema.Cast (Role(..))
+
 import Views.Difference (Difference, differenceOfWorlds)
 
 finalWorld :: SimRun -> Maybe WorldState
@@ -59,37 +57,13 @@ counterfactualFrom seed base game change = do
 playerSeedRuns :: PreparedRun -> Array Int -> Either AssemblyError (Array SimRun)
 playerSeedRuns game seeds = traverse (\s -> simulate (Seed s) game) seeds
 
--- | For each seat, replay with the alternative preset while everything else is fixed. The
--- | alternative must be a known preset: `simulate` names an unknown one, so it is an error, not a silent baseline.
-agency :: PremiseComposition -> Object StrategyRules -> Seed -> PreparedRun -> String -> Array ActorId -> Either AssemblyError (Array AgencyProfile)
-agency composition presets seed game alternative explicitActors = do
-  base <- simulate seed game
-  replacement <- maybe (Left (UnknownPreset alternative)) Right (Object.lookup alternative presets)
-  traverse (profile base replacement) explicitActors
+-- | For each seat with an alternative, replay with that seat alone cast to it, everything else fixed: the baseline
+-- | preset's cast, and both seeds. Each seat keeps its routine. An unknown preset is an error, not a silent baseline.
+agency :: CompositionParts -> Seed -> String -> Map ActorId String -> Either AssemblyError (Array AgencyProfile)
+agency p seed baseline alternatives = do
+  base <- assembleCast p (defaultCast p baseline) [] Nothing >>= simulate seed
+  traverse (profile base) (Map.toUnfoldable alternatives)
   where
-  profile base replacement explicitActor = do
-    { variant, difference: d } <- counterfactualFrom seed base game (\g -> g { seats = Map.union (strategyRulesBindings [ Tuple explicitActor replacement ]) g.seats })
-    let
-      isAggregate e = maybe false (\w -> not (elem e (players w))) (finalWorld base)
-      absSum xs = Q.sumQ (map Q.abs xs)
-      prices = absSum (map _.delta d.prices)
-      others = absSum (map _.delta (filter (\h -> h.actor /= explicitActor && not (isAggregate h.actor)) d.holdings))
-      aggregates = absSum (map _.delta (filter (\h -> isAggregate h.actor) d.holdings))
-      outcomes r = concatMap (\x -> select (read @"executed" (event @"ProcedureOutcome")) x.record.events) r.records
-      institutions = if outcomes base == outcomes variant then 0 else 1
-      ownObjectives r = filter (\o -> o.explicitActor == explicitActor) (evaluateObjectives composition r.records)
-      own r = map _.outcome (concatMap _.criteria (ownObjectives r))
-      objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
-      described r = concatMap (\o -> map (\c -> { description: o.description, outcome: c.outcome }) o.criteria) (ownObjectives r)
-      criteria = zipWith (\b a -> { description: b.description, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
-    pure
-      { explicitActor
-      , alternative
-      , prices
-      , others
-      , aggregates
-      , institutions
-      , objectives
-      , criteria
-      , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
-      }
+  profile base (Tuple explicitActor alternative) = do
+    variant <- assembleCast p (Map.insert explicitActor (CastPreset alternative) (defaultCast p baseline)) [] Nothing >>= simulate seed
+    pure (agencyProfile p.composition explicitActor alternative { rounds: base.records } { rounds: variant.records })

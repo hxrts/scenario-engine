@@ -5,14 +5,11 @@ package:
     - prelude
     - sp-core
     - sp-schema
-    - sp-checks
     - sp-views
     - sp-assembly
     - sp-handlers
-    - arrays
     - either
     - foldable-traversable
-    - foreign-object
     - maybe
     - ordered-collections
   test:

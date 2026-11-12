@@ -20,7 +20,7 @@ import Server.Errors (notFound, ok)
 import Server.Launch (compositionInfo)
 import Server.OpenApi (document, serviceOf)
 import Server.Sessions (sessionView, startSession, submitTranscript)
-import Server.Read (agencyDetailView, agencyView, compareView, actorsView, actorView, getView, balanceSheetLinksView, balanceSheetView, roundReportView, runSummaries)
+import Server.Read (compareView, actorsView, actorView, getView, balanceSheetLinksView, balanceSheetView, roundReportView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Compositions (Compositions)
 import Views.Glossary (glossary)
@@ -44,8 +44,6 @@ answer compositions request = do
     , "BalanceSheetLinks": balanceSheetLinksView
     , "BalanceSheet": \r -> balanceSheetView compositions r.id r.token
     , "Compare": compareView compositions
-    , "Agency": agencyView compositions
-    , "AgencyDetail": agencyDetailView compositions
     , "StartSession": startSession compositions
     , "GetSession": sessionView
     , "SubmitTranscript": \r -> submitTranscript r.id r.submission

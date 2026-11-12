@@ -136,11 +136,19 @@ _dashboard: _ui
     fi
     vite build --config apps/dashboard/vite.config.mjs
 
-# Serve the API and dashboard
+# Play the static simulation suite into the store (--db file, default runs.db): an entry whose cache key is stored is
+# reused, a new or changed one is played, and a run that has left the suite is dropped
+[positional-arguments]
+suite *args:
+    @just _premises
+    spago run -p sp-cli -- suite "$@"
+
+# Serve the API and dashboard, over a store the suite has filled (--db file)
 [positional-arguments]
 serve *args:
     @just _premises _dashboard
     @scripts/free-port.sh "$@"
+    spago run -p sp-cli -- suite --db "$(scripts/db-arg.sh "$@")"
     spago run -p sp-server -- "$@"
 
 # A production build of one composition: only its compiled files, under build/premises/<id>, with no

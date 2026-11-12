@@ -8,6 +8,8 @@ module Server.Sessions
 
 import Prelude
 
+import Schema.Run (RunClass(..))
+
 import Assembly.Assemble (assembleCast, checkRounds, liveCast, unknownSeats, withRounds)
 import Core.Draw (Seed(..))
 import Assembly.Recipe (encodeSpec)
@@ -48,7 +50,7 @@ startSession compositions s = case chosen compositions s.composition of
           owner <- ownerOf serverRole
           id <- nextRunId
           let
-            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just defaultModel, humans: Just (joinWith "," s.humans), cast: liveCast humans parts }
+            spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just defaultModel, humans: Just (joinWith "," s.humans), cast: liveCast humans parts, runClass: Interactive, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
             briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
           startRun { id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
             Left why -> badRequest why

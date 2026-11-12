@@ -4,6 +4,7 @@ module Options
   ( RunOptions
   , runFlags
   , sessionFlags
+  , suiteFlags
   ) where
 
 import Prelude
@@ -35,6 +36,10 @@ roundsFlag = optionalIntFlag "--rounds" "n" (_ >= 1) "a whole number of at least
 -- | values included.
 seedFlag :: Flag (Maybe Seed)
 seedFlag = map Seed <$> optionalIntFlag "--seed" "n" (const true) "a whole number"
+
+-- | The suite's flags: the store it plays into.
+suiteFlags :: Flag { db :: String }
+suiteFlags = { db: _ } <$> textFlag "--db" "file" "runs.db"
 
 -- | A session's flags, for its composition. The window may be zero.
 sessionFlags :: String -> Flag Options

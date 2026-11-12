@@ -1,14 +1,80 @@
--- | One Actor's agency profile: how far its alternative preset moves the run (docs/07 §10.3). The
--- | experiment computes it (`experiments`); the views present it.
-module Views.Agency (AgencyProfile, CriterionChange, agencyTable, agencyCriteria, agencyProfiles, columns) where
+-- | One Actor's agency profile: how far its alternative preset moves the run (docs/07 §10.3), read from stored runs:
+-- | the suite's agency runs against the preset runs they deviate from (`agencyOfRuns`).
+module Views.Agency (AgencyProfile, CriterionChange, agencyOfRuns, agencyProfile, agencyTable, agencyCriteria, agencyProfiles, columns) where
 
 import Prelude
 
+import Core.Map (entries)
+
+import Checks.Objectives (evaluateObjectives)
+import Core.Shape (Format(..), parse)
+import Data.Array (catMaybes, concatMap, elem, filter, find, last, length, mapWithIndex, zipWith)
+import Data.Either (hush)
+import Data.Map as Map
+import Data.Maybe (Maybe(..), maybe)
+import Data.Tuple (Tuple(..))
+import Laws.Slice (event, read, select)
+import Schema.Cast (Role(..), castShape)
+import Schema.Composition (Outcome(..), PremiseComposition)
+import Views.Common (Column, StoredRun, Table, col, column, names, players, price, quantity)
+import Views.Difference (differenceOfWorlds)
+import Laws.World (RoundResult)
+import Core.Num as Q
+
 import Core.Num (Q)
 import Laws.Types (ActorId)
-import Data.Array (concatMap, filter, length, mapWithIndex)
-import Schema.Composition (Outcome(..))
-import Views.Common (Column, Table, col, column, names, price, quantity)
+
+-- | Every agency profile a set of stored runs holds: each run whose cast differs from a preset run's (every seat on one
+-- | preset) in exactly one seat, cast to another preset, against that preset run. The suite's agency runs are such
+-- | runs; a comparison of any runs finds them the same way.
+agencyOfRuns :: PremiseComposition -> Array StoredRun -> Array AgencyProfile
+agencyOfRuns composition runs = catMaybes (map deviation runs)
+  where
+  castOf r = r.spec.cast >>= \text -> hush (parse Snapshot castShape text)
+  presetRuns = catMaybes (map (\r -> r.spec.preset >>= \name -> map (\c -> { run: r, name, cast: c }) (castOf r)) runs)
+  deviation r = do
+    c <- castOf r
+    base <- find (\b -> b.run.id /= r.id && Map.keys b.cast == Map.keys c && single b.cast c) presetRuns
+    Tuple actor alt <- changed base.cast c
+    pure (agencyProfile composition actor alt base.run r)
+  single a b = length (differing a b) == 1
+  differing a b = filter (\(Tuple k v) -> Map.lookup k a /= Just v) (entries b)
+  changed a b = case differing a b of
+    [ Tuple actor (CastPreset alt) ] -> Just (Tuple actor alt)
+    _ -> Nothing
+
+-- | One Actor's profile from a baseline run and the run where it alone played the alternative.
+agencyProfile :: forall a b. PremiseComposition -> ActorId -> String -> { rounds :: Array RoundResult | a } -> { rounds :: Array RoundResult | b } -> AgencyProfile
+agencyProfile composition explicitActor alternative baseRun variantRun =
+  { explicitActor
+  , alternative
+  , prices
+  , others
+  , aggregates
+  , institutions
+  , objectives
+  , criteria
+  , measurable: prices /= Q.zero || others /= Q.zero || aggregates /= Q.zero || institutions > 0 || objectives > 0
+  }
+  where
+  base = baseRun.rounds
+  variant = variantRun.rounds
+  final rs = map _.world (last rs)
+  d = case final base, final variant of
+    Just a, Just b -> differenceOfWorlds a b
+    _, _ -> { holdings: [], prices: [] }
+  isAggregate e = maybe false (\w -> not (elem e (players w))) (final base)
+  absSum xs = Q.sumQ (map Q.abs xs)
+  prices = absSum (map _.delta d.prices)
+  others = absSum (map _.delta (filter (\h -> h.actor /= explicitActor && not (isAggregate h.actor)) d.holdings))
+  aggregates = absSum (map _.delta (filter (\h -> isAggregate h.actor) d.holdings))
+  outcomes rs = concatMap (\x -> select (read @"executed" (event @"ProcedureOutcome")) x.record.events) rs
+  institutions = if outcomes base == outcomes variant then 0 else 1
+  ownObjectives rs = filter (\o -> o.explicitActor == explicitActor) (evaluateObjectives composition rs)
+  own r = map _.outcome (concatMap _.criteria (ownObjectives r))
+  objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
+  described r = concatMap (\o -> map (\c -> { description: o.description, outcome: c.outcome }) o.criteria) (ownObjectives r)
+  criteria = zipWith (\b a -> { description: b.description, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
 
 -- | One objective criterion's result in the baseline and under the alternative.
 type CriterionChange = { description :: String, baseline :: Outcome, alternative :: Outcome }

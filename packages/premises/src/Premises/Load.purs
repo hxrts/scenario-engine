@@ -11,6 +11,7 @@ module Premises.Load
   , loadPresets
   , presetsFrom
   , loadLiteral
+  , compositionText
   ) where
 
 import Prelude hiding (compose)
@@ -25,6 +26,7 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Traversable (sequence, traverse)
 import Data.Maybe (Maybe(..))
+import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -83,6 +85,17 @@ loadFrom ops dir = Tree.readComposition ops dir >>= case _ of
     o <- note (s.path <> ": a Premise must be a JSON object") (toObject j)
     if (Object.lookup "id" o >>= toString) == Just r.id && (Object.lookup "version" o >>= toString) == Just r.version then Right { id: r.id, version: r.version, sections: Object.filterKeys (\k -> k /= "id" && k /= "version") o }
     else Left (s.path <> ": does not hold the Premise " <> r.id <> "@" <> r.version)
+
+-- | The text of a composition directory's files, its presets apart, and of every Premise file it names, in order: what a
+-- | suite run's cache key covers of the compiled composition (`Premises.Suite`; each entry covers the presets it uses).
+compositionText :: forall m. Monad m => Tree.FileOps m -> String -> m (Either String String)
+compositionText ops dir = Tree.readComposition ops dir >>= case _ of
+  Left e -> pure (Left e)
+  Right fs -> case header fs.composition of
+    Left e -> pure (Left e)
+    Right h -> do
+      read <- traverse (Tree.readPremiseFile ops) h.premises
+      pure (map (\sections -> joinWith "\n" ([ fs.composition.text, fs.instantiation.text ] <> map _.text sections)) (sequence read))
 
 -- | Every composition directory under the root, loaded and checked. A root with none is a failure.
 loadAll :: forall m. Monad m => Tree.FileOps m -> m (Either String (Array CompositionParts))

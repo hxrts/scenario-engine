@@ -51,6 +51,7 @@ import Test.Premises.Compose (spec) as Compose
 import Test.Premises.Dials as Dials
 import Test.Premises.Agreements as Agreements
 import Test.Premises.Lease as Lease
+import Test.Premises.Suite as Suite
 import Test.Premises.Flows as Flows
 import Test.Premises.Golden (failWith, fixture, golden)
 import Test.Spec (Spec, describe, it)
@@ -94,6 +95,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   Flows.spec
   Dials.spec
   Lease.spec
+  Suite.spec
   Agreements.spec
   Compose.spec
   describe "Premise DSL builders" do

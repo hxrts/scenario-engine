@@ -12,8 +12,6 @@ module Server.Read
   , actorsView
   , actorView
   , compareView
-  , agencyView
-  , agencyDetailView
   ) where
 
 import Prelude
@@ -22,29 +20,27 @@ import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Schema.View (View)
 import Schema.Run (RunClass(..))
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
-import Server.Cache (cached, cachedAgency)
-import Core.Draw (Seed(..))
+import Server.Cache (cached)
+
 import Laws.Types (Id(..))
-import Assembly.Composition (presetNames, presetOr)
-import Data.Array (catMaybes, concat, filter, find, length, uncons, zip, zipWith, null)
+
+import Data.Array (catMaybes, concat, concatMap, filter, find, length, null, uncons, zip, zipWith)
 import Data.Either (Either(..), either, hush)
-import Data.Int as Int
+
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
 import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Run (Run)
 import Server.Rows (READS)
-import Experiments.Agency (agency)
-import Assembly.Assemble (assemblePreset, configuredSeats)
-import Server.Compositions (Compositions, chosen, ofRun, ofSpec)
+
+import Server.Compositions (Compositions, ofRun, ofSpec)
 import Views.Actions as Actions
-import Views.Agency (AgencyProfile, agencyCriteria, agencyProfiles, agencyTable)
-import Effects.Api (AgencyQuery)
+import Views.Agency (agencyCriteria, agencyOfRuns, agencyTable)
 import Views.Assertions as Assertions
 import Views.Balance as Balance
 import Views.Balances as Balances
-import Views.Common (StoredRun, Table, completed, storedRun)
+import Views.Common (StoredRun, completed, storedRun)
 import Views.Compare as Compare
 import Views.Keys (answerView)
 import Schema.Composition (PremiseComposition)
@@ -205,6 +201,8 @@ compareView compositions { runs: asked, exchange } = do
   loaded <- traverse loadRun ids
   let
     good = catMaybes (map hush loaded)
+    -- each composition's agency runs among the runs compared, against their baselines
+    profiles = concatMap (\ctx -> agencyOfRuns ctx.composition (filter (\r -> map _.id (ofRun compositions r) == Just ctx.composition.id) good)) compositions
     skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
   case uncons good of
     Nothing -> badRequest (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
@@ -223,27 +221,8 @@ compareView compositions { runs: asked, exchange } = do
           , diff: Compare.baselineDiff base others
           , config: Compare.configDiff base others
           , seeds: Balance.seedVariation (Compare.sameSpecification good)
+          , agency: agencyTable profiles
+          , agencyCriteria: agencyCriteria profiles
           , skipped
           } :: CompareView
         )
-
--- | `GET /api/agency?playerSeed=n&preset=p&alternative=a`: the agency analysis, from the composition's
--- | seats playing the preset against the alternative.
-agencyView :: forall r. Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal Table)
-agencyView = agencyReply "table" agencyTable
-
--- | `GET /api/agency/detail`: the same analysis, each criterion under the baseline and the alternative.
-agencyDetailView :: forall r. Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal { criteria :: Table, profile :: Table })
-agencyDetailView = agencyReply "detail" \ps -> { criteria: agencyCriteria ps, profile: agencyProfiles ps }
-
-agencyReply :: forall r a. String -> (Array AgencyProfile -> a) -> Compositions -> AgencyQuery -> Run (READS r) (Answer AnyRefusal a)
-agencyReply kind reply compositions { composition, playerSeed, preset, alternative } = case chosen compositions composition, Int.fromString (fromMaybe "1" playerSeed) of
-  Left e, _ -> badRequest e
-  _, Nothing -> badRequest "playerSeed must be an integer"
-  Right ctx, Just s ->
-    let
-      -- the composition's default against the first other preset it offers, unless named
-      baseline = presetOr (fromMaybe "" preset) ctx
-      other = fromMaybe (fromMaybe baseline (find (_ /= baseline) (presetNames ctx))) alternative
-    in
-      map reply <$> cachedAgency (joinWith "|" [ kind, ctx.composition.id, show s, baseline, other ]) (either (badRequest <<< show) ok (assemblePreset ctx baseline [] Nothing >>= \game -> agency ctx.composition ctx.presets (Seed s) game other (configuredSeats ctx.config)))

@@ -106,4 +106,5 @@ instantiation =
   , fallbacks: Map.empty
   , representations: []
   , preset: Just presetId.freeTrade
+  , alternatives: keyed [ Tuple p.us presetId.hawk, Tuple p.cn presetId.hawk, Tuple p.usFirm presetId.builder, Tuple p.cnFirm presetId.builder ]
   }

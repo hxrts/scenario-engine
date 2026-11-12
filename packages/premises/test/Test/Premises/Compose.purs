@@ -84,7 +84,7 @@ source premises =
   { id: "t"
   , version: "v0"
   , premises
-  , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
+  , config: { seed: Seed 1, rounds: 3, seats: Map.empty, nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing, alternatives: Map.empty }
   , presets: []
   }
 

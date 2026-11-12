@@ -54,7 +54,7 @@ import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
 
-import Effects.Api (AgencyQuery, ApiRequest, Reply, StartSession, Submission)
+import Effects.Api (ApiRequest, Reply, StartSession, Submission)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -316,21 +316,11 @@ endpoints = table
         runs <- commaParam "runs" _.runs
         exchange <- optionalParam "exchange" _.exchange
         in { runs, exchange }
-  , "Agency": get "/api/agency" agencyQuery
-  , "AgencyDetail": get "/api/agency/detail" agencyQuery
   , "StartSession": post "/api/sessions" (bodyOf startSessionShape identity)
   , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open (Just { service: Transcription, summary: "The round a session is on, and which seats have spoken." }) }
   , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open (Just { service: Transcription, summary: "Submit one seat's text for the round that is open." }) }
   }
   where
-  agencyQuery :: Part AgencyQuery AgencyQuery
-  agencyQuery = ado
-    composition <- optionalParam "composition" _.composition
-    playerSeed <- optionalParam "playerSeed" _.playerSeed
-    preset <- optionalParam "preset" _.preset
-    alternative <- optionalParam "alternative" _.alternative
-    in { composition, playerSeed, preset, alternative }
-
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
   endpoint method path part = { method, path, part, access: Admin }
 

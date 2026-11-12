@@ -42,7 +42,7 @@ import Assembly.Composition (CompositionParts)
 
 import Handlers.Store (StoreBackend, runObserve, runStore)
 import Effects.Api (Reply)
-import Server.Cache (Profiles, cached, cachedAgency)
+import Server.Cache (cached)
 import Server.Stack (ServerCache, newServerCache, runServer, systemDevices)
 import Server.Launch (startup)
 import Server.Read (loadRun)
@@ -51,7 +51,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Run (anyRounds, pacificParts)
 
-inCache :: ServerCache -> Run (CACHE StoredRun Profiles + EFFECT + ()) ~> Effect
+inCache :: ServerCache -> Run (CACHE StoredRun Unit + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
 
 type Env =
@@ -130,12 +130,6 @@ spec = describe "API status rules, startup and cache" do
     actor.status `shouldEqual` 200
     history <- either (\e -> liftEffect (throw ("actor: " <> e))) pure (decodeError (Shape.parse Shape.Snapshot (viewShape :: Shape.Shape History) actor.body))
     length history.table.rows `shouldSatisfy` (_ > 0)
-  it "the agency analysis answers 200, and the same reply is kept for the same query" do
-    env <- setup
-    a <- env.api "GET" "/api/agency" ""
-    a.status `shouldEqual` 200
-    b <- env.api "GET" "/api/agency" ""
-    b.body `shouldEqual` a.body
   it "an unknown view or route is a 404; a percent-encoded id is decoded" do
     env <- setup
     launch env 2
@@ -219,16 +213,3 @@ spec = describe "API status rules, startup and cache" do
     r.body `shouldSatisfy` contains (Pattern "[\"seed\",\"player seed\",\"1\",\"2\"]")
     r.body `shouldSatisfy` contains (Pattern "\"marked\":[[false,false,false,true]")
     r.body `shouldSatisfy` contains (Pattern "\"skipped\":[\"run-9: not found\"]")
-  it "the agency cache keeps a success and not a failure" do
-    c <- liftEffect newServerCache
-    loads <- liftEffect (Ref.new 0)
-    let
-      answer status = liftEffect (Ref.modify_ (_ + 1) loads) *> pure (if status == 200 then Right [] else Left status)
-      read key status = void (liftEffect (inCache c (cachedAgency key (answer status))))
-      count = liftEffect (Ref.read loads)
-    read "bad" 400
-    read "bad" 400
-    count >>= (_ `shouldEqual` 2)
-    read "good" 200
-    read "good" 200
-    count >>= (_ `shouldEqual` 3)

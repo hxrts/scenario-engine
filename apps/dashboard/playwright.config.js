@@ -20,7 +20,7 @@ export default defineConfig({
     storageState: { cookies: [{ name: "admin", value: session, domain: "localhost", path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" }], origins: [] },
   },
   webServer: {
-    command: `rm -f ../../output/e2e.db && cd ../.. && printf 'ADMIN_PASSWORD=${password}\n' > output/e2e.env && npx spago run -p sp-server -- --env output/e2e.env --db output/e2e.db --port ${E2E_PORT} --static apps/dashboard/dist`,
+    command: `rm -f ../../output/e2e.db && cd ../.. && printf 'ADMIN_PASSWORD=${password}\n' > output/e2e.env && npx spago run -p sp-cli -- suite --db output/e2e.db && npx spago run -p sp-server -- --env output/e2e.env --db output/e2e.db --port ${E2E_PORT} --static apps/dashboard/dist`,
     url: `http://localhost:${E2E_PORT}/api/runs`,
     timeout: 180_000,
   },

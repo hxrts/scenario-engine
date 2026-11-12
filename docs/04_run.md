@@ -23,7 +23,8 @@ The configuration is the choice of each Run that the PremiseComposition leaves o
 | `nonPlayableActors` | Actor to Strategy id | no | Actors controlled by an in-world non-playable Actor Strategy. |
 | `fallbacks` | Actor to fallback | no | Overrides the declared fallback of an unselected Actor ([§3.2](#32-fallback-resolution)). |
 | `representations` | list of scheme, Actor, weight | no | Active representatives. Weight defaults to 1 ([§5](#5-representation-assignment)). |
-| `preset` | preset name | no | The preset a launch plays when it names none. It must be one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
+| `preset` | preset name | no | The default preset: the cast's default, and the baseline of the suite's agency runs. It must be one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
+| `alternatives` | Actor to preset name | no | Each seat's alternative preset, which the suite's agency runs cast it to ([07 §10.3](07_simulator.md#103-agency-analysis)). Each must be one of the presets. |
 
 Pacific's values are in [05 §3.1](05_pacific.md#31-resources-and-holdings).
 

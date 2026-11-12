@@ -8,7 +8,7 @@ import Prelude
 import Adapters.Exit (fail, usageError)
 import Cli.Session (Options, prepare, session)
 import Cli.Simulate (presets, simulation)
-import Cli.Stack (runSession, runSystem)
+import Cli.Stack (runLaunches, runSession, runSystem)
 import Data.Array (drop, uncons)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
@@ -17,7 +17,9 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Flags (parseWith, usageOf)
 import Node.Process (argv)
-import Options (runFlags, sessionFlags)
+import Options (runFlags, sessionFlags, suiteFlags)
+import Cli.Suite (suite)
+import Adapters.Digest (sha256)
 
 main :: Effect Unit
 main = do
@@ -31,8 +33,11 @@ main = do
     Just { head: "session", tail: rest } -> case uncons rest of
       Just { head: composition, tail: flags } -> either usage (launchAff_ <<< live) (parseWith (sessionFlags composition) flags)
       Nothing -> usage "session needs a composition, e.g. session pacific"
+    Just { head: "suite", tail: flags } -> case parseWith suiteFlags flags of
+      Left e -> usage e
+      Right o -> launchAff_ (runLaunches o.db (suite sha256) >>= orFail)
     Just { head: "presets", tail: [ composition ] } -> launchAff_ (runSystem (presets composition) >>= orFail)
-    _ -> usage "expected a command: run, session or presets <composition>"
+    _ -> usage "expected a command: run, session, suite or presets <composition>"
 
 live :: Options -> Aff Unit
 live o = runSystem (prepare o) >>= case _ of
@@ -46,6 +51,7 @@ usage :: String -> Effect Unit
 usage = usageError
   [ "usage: run <composition> " <> usageOf runFlags
   , "       session <composition> " <> usageOf (sessionFlags "")
+  , "       suite " <> usageOf suiteFlags
   , "       presets <composition>"
   , "  e.g. just sim pacific --preset Restrict --rounds 6"
   , "       just session pacific --humans US --rounds 3"

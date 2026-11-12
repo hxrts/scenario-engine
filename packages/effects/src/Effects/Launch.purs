@@ -24,9 +24,11 @@ import Effects.Play (playRun)
 import Effects.Signatures (CLOCK, ENTROPY, OBSERVE, PLAY, PROCESS, PlayRequest(..))
 import Effects.Store (checkRunId)
 import Effects.System (now, ownerOf, resolveSeed)
-import Assembly.Assemble (assemblePreset, defaultCast)
+import Assembly.Assemble (assembleCast)
 import Assembly.Override (Override)
 import Assembly.Recipe (encodeSpec)
+import Schema.Cast (Cast)
+import Schema.Run as RunClass
 import Assembly.Composition (CompositionParts)
 import Run (Run)
 import Schema.Composition (compositionRef, gameIdOf, premisesText)
@@ -37,13 +39,17 @@ type LAUNCHES r = OBSERVE + PLAY + CLOCK + ENTROPY + PROCESS + r
 -- | The reply to a launch: the new run, and the player seed it was played with.
 type Launched = { id :: String, playerSeed :: Int }
 
--- | A run to start: its name, what it is played from, and, when it is derived, its source and kind.
+-- | A simulated run to start: its name, its cast (and the preset it names every seat on, when it is one preset's run),
+-- | its player seed (Nothing draws one), round count (Nothing is the configuration's), overrides, and the suite's
+-- | cache key it is stored under.
 type Start =
   { name :: String
-  , preset :: String
+  , cast :: Cast
+  , preset :: Maybe String
   , playerSeed :: Maybe Int
   , rounds :: Maybe Int
   , overrides :: Array Override
+  , cacheKey :: Maybe String
   }
 
 -- | Start a run and play it to completion, persisting every round; returns the new run's id and the
@@ -62,11 +68,11 @@ freshRunId = checkRunId <$> nextRunId
 startAs :: forall r. String -> String -> CompositionParts -> Start -> Run (LAUNCHES r) (Either String Launched)
 startAs role id p l = do
   seed <- resolveSeed (Seed <$> l.playerSeed)
-  case assemblePreset p l.preset l.overrides l.rounds of
+  case assembleCast p l.cast l.overrides l.rounds of
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: Just l.preset, cast: defaultCast p l.preset, rounds: Just game.rounds, overrides: l.overrides, model: Nothing, humans: Nothing }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: l.preset, cast: l.cast, rounds: Just game.rounds, overrides: l.overrides, model: Nothing, humans: Nothing, runClass: RunClass.Simulated, cacheKey: l.cacheKey, tag: Nothing, metadata: Nothing }
       created <- now
       owner <- ownerOf role
       attempt <- playRun (Simulated { seed, game, run: { id, name: l.name, created, spec, manifest: game.manifest, owner } })

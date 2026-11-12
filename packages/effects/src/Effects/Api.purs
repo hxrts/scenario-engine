@@ -10,7 +10,6 @@ module Effects.Api
   , ApiF(..)
   , StartSession
   , Submission
-  , AgencyQuery
   , Reply
   , API
   , call
@@ -27,9 +26,6 @@ import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
 import Data.Maybe (Maybe)
-
--- | Which agency analysis: the composition, the player seed, and the two presets. An absent one takes its default.
-type AgencyQuery = { composition :: Maybe String, playerSeed :: Maybe String, preset :: Maybe String, alternative :: Maybe String }
 
 -- | The reply to a request: its HTTP status, and its body (JSON text).
 type Reply = { status :: Int, body :: String }
@@ -55,8 +51,6 @@ data ApiRequest
   | RoundReport { id :: String, round :: Int }
   | OpenApi String
   | Compare { runs :: Array String, exchange :: Maybe String }
-  | Agency AgencyQuery
-  | AgencyDetail AgencyQuery
   | StartSession StartSession
   | GetSession String
   | SubmitTranscript { id :: String, submission :: Submission }

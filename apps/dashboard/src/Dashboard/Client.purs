@@ -12,8 +12,6 @@ module Dashboard.Client
   , balanceSheetLinks
   , runView
   , compare
-  , agency
-  , agencyDetail
   ) where
 
 import Prelude
@@ -23,7 +21,7 @@ import Core.Shape (Format(Snapshot), decodeJsonWith)
 
 import Handlers.Api.Client (send)
 import Schema.Decode (decodeError)
-import Views.Common (Table)
+
 import Views.Compare (CompareView)
 import Views.Actor (ActorList, History)
 import Views.BalanceSheet (BalanceSheet, BalanceSheetLink)
@@ -76,11 +74,3 @@ runView key id round = (_ >>= decodeError <<< decodeJsonWith Snapshot key.shape)
 -- | The comparison of the runs, the first being the baseline.
 compare :: Array String -> Aff (Either String CompareView)
 compare ids = send @"Compare" fetch { runs: ids, exchange: Nothing }
-
--- | The agency analysis beyond its table: each criterion under the baseline and the alternative.
-agencyDetail :: Aff (Either String { criteria :: Table, profile :: Table })
-agencyDetail = send @"AgencyDetail" fetch { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }
-
--- | The agency analysis against the fixed baseline.
-agency :: Aff (Either String Table)
-agency = send @"Agency" fetch { composition: Nothing, playerSeed: Nothing, preset: Nothing, alternative: Nothing }

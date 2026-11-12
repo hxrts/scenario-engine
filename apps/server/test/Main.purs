@@ -137,9 +137,9 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           -- a comparison with no valid run is a bad request
           noneValid <- api "GET" "/api/compare" [ { k: "runs", v: "run-8,run-9" } ] ""
           noneValid.status `shouldEqual` 400
-          -- the agency analysis names an unknown preset explicitly
-          badPreset <- api "GET" "/api/agency" [ { k: "alternative", v: "NoSuchPreset" } ] ""
-          badPreset.status `shouldEqual` 400
+          -- the agency route is gone: agency is read from the suite's runs in a comparison
+          noAgency <- api "GET" "/api/agency" [] ""
+          noAgency.status `shouldEqual` 404
           badLaunch <- api "POST" "/api/runs" [] (stringify (encodeJson { name: "x", preset: "NoSuchPreset", playerSeed: Just 1, rounds: Just 2 }))
           badLaunch.status `shouldEqual` 400
           -- a client that still sends the removed gameSeed field is accepted, and the field is ignored

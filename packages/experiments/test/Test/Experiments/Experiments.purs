@@ -120,8 +120,7 @@ spec context = describe "Experiments (§11) and performance" do
   it "agency: every seat has a measurable effect, or the gap is a balancing finding" do
     ctx <- context
     for_ [ "FreeTrade", "Hawk" ] \baseline -> do
-      g <- gameOf ctx (spec' (const baseline) [] 1)
-      ps <- orThrow (agency ctx.composition ctx.presets (Seed 1) g "Restrict" playableActors)
+      ps <- orThrow (agency ctx (Seed 1) baseline ctx.config.alternatives)
       log ("baseline " <> baseline <> ": measurable " <> show (length (filter _.measurable ps)) <> "/4; not measurable: " <> joinWith ", " (map (show <<< _.explicitActor) (filter (not <<< _.measurable) ps)))
       length ps `shouldEqual` 4
   it "a 6-round game and a 100-player-seed batch finish in generous wall-clock bounds" do

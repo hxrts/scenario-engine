@@ -45,7 +45,7 @@ runInterpret :: Backend -> WorldState -> Run (INTERPRET + ()) ~> Aff
 runInterpret llm w = run (case_ # on _interpret \(Interpret round transcripts k) -> k <$> interpreter llm w round transcripts)
 
 -- | Programs that launch and store runs, over the store in the file named.
-runLaunches :: forall a. String -> Run (LAUNCHES + STORE + CONSOLE + ()) a -> Aff a
+runLaunches :: forall a. String -> Run (LAUNCHES + STORE + FILES + CONSOLE + ()) a -> Aff a
 runLaunches path program = do
   db <- liftEffect (openStore open path)
   let store = sqlStore db processAlive
@@ -58,6 +58,7 @@ runLaunches path program = do
         # on _entropy (interpretEntropy system)
         # on _process (interpretProcess system)
         # on _console (interpretConsole console)
+        # on _files (interpretFiles fileDevice)
     )
     program
 

@@ -16,7 +16,7 @@ import Data.Array (elem, filter, find, index, length, null)
 import Control.Alt ((<|>))
 import Dashboard.Api (Loaded, useLoad)
 import Dashboard.Client as Client
-import Dashboard.Components (diffTable, fetched, groupedBars, loaded, overlayChart, placeholderFrame, selectInput, status, tableOf)
+import Dashboard.Components (diffTable, fetched, groupedBars, loaded, note, overlayChart, placeholderFrame, selectInput, status, tableOf)
 import Dashboard.DataTable (DataTable, defaults, mkDataTable)
 import Dashboard.Glossary (glossaryContext)
 import Dashboard.Layout as Layout
@@ -214,7 +214,7 @@ plots grid fetch ids shown picked setPicked = D.div
                   , { key: "config", label: "Configuration", purpose: "The specification fields that differ between the runs; differing values are highlighted.", content: D.div { children: loadedWith waiting \c -> [ diffTable grid c.config ] } }
                   , { key: "compatibility", label: "Compatibility", purpose: compatibilityPurpose, content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.compatibility ] } }
                   , { key: "seeds", label: "Seed variation", purpose: "Does the outcome depend on the seed? The spread and Gini of the runs that share this run's specification and differ only in seed, with the lowest, highest and range of each. With one run, no range is reported.", content: D.div { children: loadedWith waiting \c -> [ tableOf grid c.seeds ] } }
-                  , { key: "agency", label: "Agency (fixed baseline)", purpose: "The agency analysis against a fixed baseline, for each Actor's alternatives.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: [ fetch { key: "agency", load: map (tableOf grid) <$> Client.agency }, fetch { key: "agency-detail", load: map (\d -> D.div { className: "flex min-w-0 flex-col gap-stack", children: [ Layout.captioned d.profile.title [ tableOf grid d.profile ], Layout.captioned d.criteria.title [ tableOf grid d.criteria ] ] }) <$> Client.agencyDetail } ] } }
+                  , { key: "agency", label: "Agency", purpose: "For each agency run among those compared: how far one seat playing the alternative preset moves the run, against the preset run it deviates from, and its objective criteria under each.", content: D.div { className: "flex min-w-0 flex-col gap-stack", children: loadedWith waiting \c -> if null c.agency.rows then [ note "No agency run is among the runs compared." ] else [ Layout.captioned c.agency.title [ tableOf grid c.agency ], Layout.captioned c.agencyCriteria.title [ tableOf grid c.agencyCriteria ] ] } }
                   ]
               ]
           }

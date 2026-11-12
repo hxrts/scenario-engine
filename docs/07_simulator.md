@@ -37,7 +37,24 @@ The engine owns all economic behaviour ([02 §8.1](02_kernel.md#81-canonical-res
 
 A simulation is one complete automated Run: a call over an assembled `PreparedRun` ([08 §4](08_architecture.md#4-key-interfaces)). The seat bindings are chosen when the Run is assembled, not inside the simulator. The simulator rejects a Run with an `Agent` or `Human` seat (`AssemblyError.NotSimulable`). The player seed is an argument, and it drives all seat-Strategy randomness. The game seed is part of the World. The program boundary resolves the player seed to a concrete value before the call (§5), and the stored spec records that value.
 
-The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the cast ([04 §2](04_run.md#2-instantiation-configuration)), and its class (simulated or interactive). A live session also records its model and human seats. With the same engine version, the spec and the seeds reproduce the complete economic history.
+The stored spec records how the run was made: the game id, the preset every seat plays (absent for a live session), the resolved player seed, the overrides, the round count, the cast ([04 §2](04_run.md#2-instantiation-configuration)), and its class (simulated or interactive). A live session also records its model and human seats. A simulated run records its suite cache key, and an interactive run its tag and metadata (§8.2). With the same engine version, the spec and the seeds reproduce the complete economic history.
+
+**Simulated and interactive runs.** A simulated run is one entry of the static suite, played at build time. An interactive run is a live run (§8.2). Runs are never launched one by one from the dashboard.
+
+**The static suite.** For each compiled PremiseComposition, at its configured rounds and game seed and under player seed 1, the suite (`Premises.Suite`) holds:
+
+- one preset run per preset, with every configured seat cast to it;
+- one agency run per seat that has an alternative preset in the configuration ([04 §2](04_run.md#2-instantiation-configuration)): the default preset's run with that seat alone cast to its alternative (§10.3).
+
+`just suite [--db file]` plays the suite into the store (`suite` in §6.2), and `just serve` and the dashboard tests run it into the store they use.
+
+**The cache key.** Each entry is stored under a digest of three things:
+
+- the engine build: the compiled output of the modules that decide how a run is assembled and played (the kernel, laws, Strategy interpreter, World, assembly, the round runner and the simulation fold);
+- the composition's compiled files, its presets apart;
+- the entry's own text: its cast, the presets that cast uses, its rounds and both seeds.
+
+An entry whose key is stored is reused, and one whose key is not is played and stored under it. A stored simulated run whose key the suite no longer has is deleted. A change to the engine or to a dial replays every run of the composition, a change to one preset replays only the runs that use it, and nothing changed plays nothing.
 
 ### 3.1 Configuration inheritance
 
@@ -107,6 +124,7 @@ A run is never left `running` once its work has ended. It is marked `failed`, wi
 |---|---|
 | `run <composition> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default: the composition's own default) for `n` rounds. `n` is a whole number of at least 1, and defaults to the PremiseComposition's configured count; `checkRounds` refuses a count outside the PremiseComposition's round range. Prints a header, one line per round, and the invariant results. Does not save to the Run Store. |
 | `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` answer with a typed transcript each round; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Prints each Actor's balance sheet path at the start. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
+| `suite [--db file]` (`just suite`) | Plays the static suite into the store (§3): every entry whose cache key is not stored, then deletes the simulated runs that have left the suite, and prints how many were played, reused and dropped. |
 | `presets <composition>` | Prints the composition's preset names, one per line. |
 | `server [--db file] [--port n] [--static dir] [--env file]` (`just serve`) | Serves the API, the landing page, and the dashboard at `/admin` (§8.3). Defaults: `runs.db`, port 8787 (1 to 65535), the dashboard build directory, and `.env`. |
 
@@ -343,9 +361,9 @@ The Dashboard names each difference between runs that are not directly comparabl
 
 ### 10.3 Agency analysis
 
-For each Playable Actor, the simulator replays the Run with the alternative preset for that Actor and everything else fixed. It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria. An unknown preset name is an error, never a silent baseline.
+Agency is read from the suite's agency runs (§3): each seat alone cast to its alternative preset, with its routine kept, against the default preset's run, everything else and both seeds fixed. A comparison finds them among the runs it compares: a run whose cast differs from a preset run's in exactly one seat, cast to another preset, is that seat's agency run against that preset run (`Views.Agency`). It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria. An unknown alternative preset fails the composition's checks.
 
-The Compare page's Agency (fixed baseline) tab shows one row per Playable Actor under the alternative. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each Playable Actor's objective criteria are shown under the baseline and the alternative (`GET /api/agency/detail`). The agency profile per role gives one row per Playable Actor: its measures under the alternative, and its criteria met either way.
+The comparison's Agency tab shows one row per agency run. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each seat's objective criteria are shown under the baseline and the alternative.
 
 ---
 
@@ -384,7 +402,7 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 4 | Engine fixtures | [05 §10.6](05_pacific.md#106-engine-fixtures) P-A to P-F through `resolveRound` alone, the currency dealer and a foreign loan under the asset fee among them, and the order independence of P-A, P-H and P-C ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05), [INV-11](02_kernel.md#inv-11)). |
 | 5 | Counterfactual pair | Free trade against the same run with China's export control from round 1: China's state sells industrial inputs after round 1 in the first, and none to America in the second. |
 | 6 | Persistence | Save a run to the Run Store, reload it, compare its stored records and round-end Worlds with the pure run, and replay from the stored records. The run is identical ([INV-31](02_kernel.md#inv-31)). |
-| 7 | Agency | [§10.3](#103-agency-analysis) across every seat of the reference PremiseComposition, `FreeTrade` against `Hawk`: every Playable Actor has a measurable effect and its objective criteria are reported. |
+| 7 | Agency | [§10.3](#103-agency-analysis) across every seat of the reference PremiseComposition, `FreeTrade` against each seat's alternative (the states on `Hawk`, the firms on `Builder`), each keeping its routine: every Playable Actor has a measurable effect and its objective criteria are reported, and the table read from the suite's stored agency runs equals the analysis. |
 | 8 | Pacific golden scenarios | [05 §10.1](05_pacific.md#101-trade-barriers-and-substitution) A to H: free trade in two currencies, each export control, substitution held back by competence, a tariff its importer pays, a barrier met by substitution in both directions, and the invariants, replay, submission order, each currency's total, repeated enactment and the controls that cannot be bypassed ([INV-04](02_kernel.md#inv-04), [INV-05](02_kernel.md#inv-05), [INV-07](02_kernel.md#inv-07), [INV-11](02_kernel.md#inv-11), [INV-13](02_kernel.md#inv-13)). |
 | 9 | Routine beside a player | [05 §10.1](05_pacific.md#101-trade-barriers-and-substitution) Routine: a human seat composed with its routine, whose commerce reads what the human's speech put forward. |
 | 10 | Sensitivity | [05 §12](05_pacific.md#12-sensitivity): each structural difference between the countries keeps its effect over each dial changed alone. |
@@ -392,6 +410,8 @@ Each test passes when its cited fixture's expected values hold and its listed in
 | 12 | Circuits, accounting and loops | [05 §10.5](05_pacific.md#105-circuits-accounting-and-loops): every leg of the four circular flows carries a flow; every open bond is one claim and one liability; every external account balances in every preset; the repression transfer; and each feedback loop F1 to F12 under the conditions [05 §6](05_pacific.md#6-how-the-objects-interact) states, with its counter-case ([INV-05](02_kernel.md#inv-05)). |
 | 13 | Experiments | [05 §11](05_pacific.md#11-experiments): the political trap, the dollar trap, lost knowledge, international leverage, mutually reinforcing dependence, and the status quo against rebalancing. |
 | 14 | Derived indicators | [05 §10.5](05_pacific.md#105-circuits-accounting-and-loops) Indicators: the substitute gap, net external position, debt service and viability margin of a Pacific run, as literals; and INV-38 tripped by a tampered run. |
+| 15 | Static suite | `Premises.Suite`: one run per preset and one agency run per seat; against the cache keys a fresh store plays every entry, an unchanged one none, a changed dial or engine every run, a changed preset only the runs that use it, and a removed preset drops its run. |
+| 16 | Cast | [04 §2](04_run.md#2-instantiation-configuration): every seat cast to one preset plays as the preset run; a non-player plays as the seat did; a mixed cast assembles; each refusal (an Aggregate, an unknown id or preset, a forbidden seat, a seat left out). |
 
 The premises suite also runs the authored agreements of [03 §15](03_premise.md#15-authoring-laws-and-agreements), which are not a mandatory test. The core suite covers only the kernel, and the rest of the former core tests are in `packages/laws/test`. Unnumbered tests in the same suites: every preset plays 8 rounds with the invariants holding; a run resumed from its third round-end World matches the uninterrupted run; an order from outside an Exchange's access is rejected; the INV-29 and INV-30 checks; and player seeds leave a game with no seeded choice unchanged.
 

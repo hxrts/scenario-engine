@@ -11,7 +11,6 @@ package:
     - foldable-traversable
     - foreign-object
     - functions
-    - integers
     - maybe
     - strings
     - tuples
@@ -26,7 +25,6 @@ package:
     - sp-adapters
     - sp-views
     - sp-flags
-    - sp-experiments
     - variant
     - newtype
   run:

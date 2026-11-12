@@ -70,9 +70,10 @@ configShape = object "Configuration"
       <*> fieldOf "fallbacks" "overrides of each PlayableActor's declared fallback" (emptyByDefault (idMap fallbackShape)) _.fallbacks
       <*> fieldOf "representations" "the Representation assignments" (arrayOf assignmentShape) _.representations
       <*> fieldOf "preset" "the preset a launch plays when it names none" (optionalOf stringShape) _.preset
+      <*> fieldOf "alternatives" "each seat's alternative preset, which it deviates to in the suite's agency runs" (emptyByDefault (idMap stringShape)) _.alternatives
   )
   where
-  mk s r se n f rep pr = { seed: Seed s, rounds: r, seats: se, nonPlayableActors: n, fallbacks: f, representations: rep, preset: pr }
+  mk s r se n f rep pr alt = { seed: Seed s, rounds: r, seats: se, nonPlayableActors: n, fallbacks: f, representations: rep, preset: pr, alternatives: alt }
 
 -- | A composition, decoded from its merged sections.
 decodeComposition :: Json -> Either JsonDecodeError PremiseComposition

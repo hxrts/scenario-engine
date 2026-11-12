@@ -71,6 +71,7 @@ filtered s p = p
       , representations = filter (\r -> keptActor r.explicitActor && r.scheme `elem` map _.id schemes) p.config.representations
       -- the default preset stays only if the preset itself does
       , preset = p.config.preset >>= \name -> if Object.member name keptPresets then Just name else Nothing
+      , alternatives = Map.filter (\name -> Object.member name keptPresets) p.config.alternatives
       }
   , presets = keptPresets
   }

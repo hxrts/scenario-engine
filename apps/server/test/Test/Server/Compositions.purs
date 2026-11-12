@@ -94,7 +94,7 @@ harbor =
   { id: "harbor"
   , version: "v0"
   , premises: [ premiseOf { id: "harbor", version: "v0" } harborWorld ]
-  , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing }
+  , config: { seed: Seed 7, rounds: 3, seats: keyed [ Tuple "A" "seat-1", Tuple "B" "seat-2" ], nonPlayableActors: Map.empty, fallbacks: Map.empty, representations: [], preset: Nothing, alternatives: Map.empty }
   , presets: harborPresets
   }
 

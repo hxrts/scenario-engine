@@ -165,6 +165,7 @@ type InstantiationConfig =
   , fallbacks :: Map ActorId Fallback -- overrides of the declared fallback
   , representations :: Array { scheme :: String, explicitActor :: ActorId, weight :: Q }
   , preset :: Maybe String -- the preset a launch plays when it names none
+  , alternatives :: Map ActorId String -- Actor -> the preset it deviates to in the suite's agency runs
   }
 
 type InitialWorld = { world :: WorldState, manifest :: Manifest }

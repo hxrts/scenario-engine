@@ -5,7 +5,7 @@ module Test.Server.Seed (serve, serveOn) where
 
 import Prelude
 
-import Assembly.Assemble (checkRounds)
+import Assembly.Assemble (checkRounds, defaultCast)
 import Assembly.Composition (CompositionParts)
 import Data.Argonaut.Decode.Error (printJsonDecodeError)
 import Core.Shape (Format(..), Shape, fieldOf, intShape, object, optionalOf, parse, stringShape)
@@ -45,7 +45,7 @@ serveOn d ctxs req
         Nothing -> pure { status: 400, body: "no such composition" }
         Just p -> case traverse_ (checkRounds p.composition) l.rounds of
           Left e -> pure { status: 400, body: show e }
-          Right _ -> runServer d (start "server" p { name: l.name, preset: l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [] }) <#> case _ of
+          Right _ -> runServer d (start "server" p { name: l.name, cast: defaultCast p l.preset, preset: Just l.preset, playerSeed: l.playerSeed, rounds: l.rounds, overrides: [], cacheKey: Nothing }) <#> case _ of
             Left e -> { status: 400, body: e }
             Right x -> { status: 200, body: "{\"playerSeed\":" <> show x.playerSeed <> ",\"id\":\"" <> x.id <> "\"}" }
   | otherwise = route (implementOn d ctxs) req
