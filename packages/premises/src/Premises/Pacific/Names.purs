@@ -10,14 +10,15 @@ pacificId = "pacific"
 pacificVersion :: String
 pacificVersion = "v0"
 
-bilateralId :: String
-bilateralId = "bilateral-economy"
+-- | The three Premises: one per economic object (docs/05 §8).
+usRegimeId :: String
+usRegimeId = "us-regime"
 
-strategicId :: String
-strategicId = "strategic-dependence"
+chinaRegimeId :: String
+chinaRegimeId = "china-regime"
 
-privateId :: String
-privateId = "private-sector"
+clearingId :: String
+clearingId = "international-clearing"
 
 -- | The type of `p`.
 type Names =
@@ -56,12 +57,16 @@ type Names =
   , usExportTax :: RuleKindId
   , usImportTariff :: RuleKindId
   , cnImportTariff :: RuleKindId
+  , usImportBan :: RuleKindId
+  , cnImportBan :: RuleKindId
   , usExportControl :: RuleKindId
   , cnExportControl :: RuleKindId
   , usAssetFee :: RuleKindId
   , wage :: RuleKindId
-  , commerce :: StrategyId
-  , supply :: StrategyId
+  , usCommerce :: StrategyId
+  , cnCommerce :: StrategyId
+  , usSupply :: StrategyId
+  , cnSupply :: StrategyId
   , usPrivateDemand :: StrategyId
   , cnPrivateDemand :: StrategyId
   , rowSavings :: StrategyId
@@ -104,12 +109,16 @@ p =
   , usExportTax: Id "us-export-tax"
   , usImportTariff: Id "us-import-tariff"
   , cnImportTariff: Id "cn-import-tariff"
+  , usImportBan: Id "us-import-ban"
+  , cnImportBan: Id "cn-import-ban"
   , usExportControl: Id "us-export-control"
   , cnExportControl: Id "cn-export-control"
   , usAssetFee: Id "us-asset-fee"
   , wage: Id "wage"
-  , commerce: Id "pacific-commerce-v0"
-  , supply: Id "pacific-supply-v0"
+  , usCommerce: Id "us-commerce-v0"
+  , cnCommerce: Id "cn-commerce-v0"
+  , usSupply: Id "us-supply-v0"
+  , cnSupply: Id "cn-supply-v0"
   , usPrivateDemand: Id "us-private-demand-v0"
   , cnPrivateDemand: Id "cn-private-demand-v0"
   , rowSavings: Id "row-savings-v0"

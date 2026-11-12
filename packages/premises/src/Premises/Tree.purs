@@ -50,7 +50,7 @@ readComposition ops dir = do
   p <- readSection ops path presetsFile
   pure ({ composition: _, instantiation: _, presets: _ } <$> c <*> i <*> p)
 
--- | A Premise's file (`premises/bilateral-economy/v0.json`), by id and version.
+-- | A Premise's file (`premises/us-regime/v0.json`), by id and version.
 readPremiseFile :: forall m. Monad m => FileOps m -> { id :: String, version :: String } -> m (Either String Section)
 readPremiseFile ops r = do
   root <- premiseRoot ops

@@ -8,8 +8,8 @@ import World.Error (ValidationError(..))
 import Core.Shape (Format(..), encodeWith)
 import Laws.Types (Id(..), RefKind(..), idText)
 import Data.Argonaut.Core (Json, stringify, toArray, toObject, toString)
-import Data.Array (elem, filter, length, mapMaybe)
-import Data.Either (Either(..))
+import Data.Array (elem, filter, find, length, mapMaybe)
+import Data.Either (Either(..), isLeft)
 
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -171,24 +171,24 @@ spec = do
 
   describe "Pacific (docs/05 §8)" do
     let pacific = Pacific.pacific Pacific.defaultDials
-    it "its two Premises compose with no conflict and check" do
+    let
+      only ids = pacific.premises # filter (\x -> x.id `elem` ids)
+      sectionOf id key = (Object.lookup key <<< _.sections) =<< (find (\x -> x.id == id) pacific.premises)
+      sizeOf id key = maybe 0 (\j -> maybe (maybe 0 length (toArray j)) (\o -> length (Object.keys o)) (toObject j)) (sectionOf id key)
+    it "its three Premises, one per economic object, compose with no conflict and check" do
+      map _.id pacific.premises `shouldEqual` [ "us-regime", "china-regime", "international-clearing" ]
       map (const unit) (parts pacific) `shouldEqual` Right unit
-    it "bilateral-economy alone is a whole economy of states and firms: every kind of Rule declared but none in force, and only production and the firms' investments" do
-      case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { preset = Nothing } } of
-        Left e -> fail e
-        Right p -> do
-          Map.size p.composition.world.transformations `shouldEqual` 10
-          Map.size p.composition.world.ruleKinds `shouldEqual` 7
-          Map.size p.composition.world.rules `shouldEqual` 0
-    it "private-sector alone fails only on what the other Premises define" do
-      case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of
-        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Actor CN, which no Premise in the composition defines"
-        Right _ -> fail "the private-sector Premise extends Actors it does not define"
-    it "strategic-dependence alone fails only on the Actors the other Premise defines" do
-      case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
-        Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"
-        Right _ -> fail "the strategic Premise extends Actors it does not define"
-    it "strategic-dependence adds each country's barriers, America's asset fee and each state's investment by extension" do
+    it "both regimes are one builder's: their Premises have the same sections, with as many of each kind" do
+      let kinds = [ "actors", "transformations", "laws", "templates", "strategies", "parameters" ]
+      map (sizeOf "us-regime") kinds `shouldEqual` [ 3, 6, 6, 1, 3, 6 ]
+      map (sizeOf "china-regime") kinds `shouldEqual` [ 3, 6, 6, 6, 3, 6 ]
+    it "the clearing system holds every Exchange, every kind of Rule, the Rules in force and world savings; no regime does" do
+      map (sizeOf "international-clearing") [ "exchanges", "ruleKinds", "rules", "groups", "actors" ] `shouldEqual` [ 5, 7, 1, 4, 1 ]
+      map (\id -> map (sizeOf id) [ "exchanges", "ruleKinds", "rules", "groups" ]) [ "us-regime", "china-regime" ] `shouldEqual` [ [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ] ]
+    it "a regime alone does not load: its Exchanges, Rules and Resources are the clearing system's" do
+      isLeft (parts pacific { premises = only [ "us-regime" ], presets = [], config = pacific.config { preset = Nothing } }) `shouldEqual` true
+      isLeft (parts pacific { premises = only [ "us-regime", "international-clearing" ], presets = [], config = pacific.config { preset = Nothing } }) `shouldEqual` true
+    it "the composed US state holds the capabilities its regime gives it" do
       case parts pacific of
         Left e -> fail e
         Right p -> map _.capabilities (Map.lookup (Id "US") p.composition.world.actors) `shouldEqual` map _.capabilities (Map.lookup (Id "US") Pacific.composition.world.actors)

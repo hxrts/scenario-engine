@@ -26,7 +26,8 @@ import Data.Either (Either(..), either)
 import Data.Array (length)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), contains)
+import Data.String (Pattern(..), contains, joinWith)
+import Premises.Pacific as Pacific
 import Effect.Aff (Aff)
 import Effect (Effect)
 import Effect.Class (liftEffect)
@@ -305,7 +306,7 @@ spec = describe "API status rules, startup and cache" do
       Just { manifest: Right m } -> pure m
       _ -> liftEffect (throw "no stored manifest")
     rounds <- liftEffect (runObserve env.store (readRounds "run-1"))
-    let written = encodeSpec { gameId: "pacific/pacific-01", composition: "pacific@v0", premises: "bilateral-economy@v0,strategic-dependence@v0,private-sector@v0", playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
+    let written = encodeSpec { gameId: "pacific/pacific-01", composition: "pacific@v0", premises: joinWith "," (map (\x -> x.id <> "@" <> x.version) (Pacific.pacific Pacific.defaultDials).premises), playerSeed: Seed 1, preset: Nothing, rounds: Just 2, overrides: [], derivation: Nothing, model: Just "m", humans: Just "US" }
     liftEffect do
       runStore env.store (createRun { id: "session-1", name: "live session", created: "2026-01-01T00:00:00Z", spec: written, manifest, owner: "session:1:0" })
       for_ rounds \r -> case r.record, r.snapshot, r.assertions, r.transcripts of

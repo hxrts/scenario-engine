@@ -32,7 +32,7 @@ orderFile = compositionsDir <> "/order.json"
 compositionDir :: String -> String -> String
 compositionDir id version = compositionsDir <> "/" <> id <> "/" <> version
 
--- | A Premise's file under the premise root (`premises/bilateral-economy/v0.json`).
+-- | A Premise's file under the premise root (`premises/us-regime/v0.json`).
 premiseFilePath :: String -> String -> String
 premiseFilePath id version = premisesDir <> "/" <> id <> "/" <> version <> ".json"
 

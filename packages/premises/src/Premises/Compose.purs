@@ -299,7 +299,7 @@ appendNew = foldl (\acc x -> if x `elem` acc then acc else snoc acc x)
 directory :: forall r. { id :: String, version :: String | r } -> String
 directory c = L.compositionDir c.id c.version
 
--- | A Premise's file under the premise root (`premises/bilateral-economy/v0.json`).
+-- | A Premise's file under the premise root (`premises/us-regime/v0.json`).
 premisePath :: forall r. { id :: String, version :: String | r } -> String
 premisePath p = L.premiseFilePath p.id p.version
 

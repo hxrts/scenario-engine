@@ -9,12 +9,8 @@ module Premises.Pacific.Private
   , WorldDials
   , Level2
   , Level3
-  , Country
   , defaultPrivate
   , defaultWorld
-  , countries
-  , countryOf
-  , level
   , demandStrategies
   , worldStrategy
   , parameters
@@ -43,7 +39,8 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Laws.StrategyRules (Expr, StrategyRules, Template(..))
-import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, RuleKindId, StrategyId, idText)
+import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, StrategyId, idText)
+import Premises.Pacific.Country (Country, countries, levelName)
 import Premises.Pacific.Names (p)
 import Schema.Build.Decision (divQ, holding, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
 import Schema.Build.Quantity (q)
@@ -104,47 +101,6 @@ defaultWorld =
   , reserves: { low: q 3, high: q 6 }
   , savings: { usd: q 20, rmb: q 60, buy: q "0.2", lend: q "0.5", lendUnderFee: q "0.2", flight: q "0.3" }
   }
-
--- | A country: its seats and private sector, its good and the foreign good, the Exchanges each trades on, its own
--- | tariff and export control and the other country's, and its home and the foreign currency.
-type Country =
-  { state :: ActorId
-  , private :: ActorId
-  , firm :: ActorId
-  , other :: ActorId
-  , demand :: StrategyId
-  , good :: ResourceId
-  , foreign :: ResourceId
-  , home :: ExchangeId
-  , ownWorld :: ExchangeId
-  , world :: ExchangeId
-  , tariff :: RuleKindId
-  , control :: RuleKindId
-  , otherControl :: RuleKindId
-  , money :: ResourceId
-  , foreignMoney :: ResourceId
-  }
-
-countries :: Array Country
-countries = [ america, china ]
-
-america :: Country
-america = { state: p.us, private: p.usPrivate, firm: p.usFirm, other: p.cn, demand: p.usPrivateDemand, good: p.technology, foreign: p.industry, home: p.technologyUs, ownWorld: p.technologyWorld, world: p.industryWorld, tariff: p.usImportTariff, control: p.usExportControl, otherControl: p.cnExportControl, money: p.usd, foreignMoney: p.rmb }
-
-china :: Country
-china = { state: p.cn, private: p.cnPrivate, firm: p.cnFirm, other: p.us, demand: p.cnPrivateDemand, good: p.industry, foreign: p.technology, home: p.industryCn, ownWorld: p.industryWorld, world: p.technologyWorld, tariff: p.cnImportTariff, control: p.cnExportControl, otherControl: p.usExportControl, money: p.rmb, foreignMoney: p.usd }
-
--- | The country an Actor belongs to: its state, firm or private sector.
-countryOf :: ActorId -> Country
-countryOf a = if a == china.state || a == china.firm || a == china.private then china else america
-
--- | A tool's setting as a word: 0 off, 1 low, 2 high.
-levelName :: Int -> String
-levelName n = if n <= 0 then "off" else if n == 1 then "low" else "high"
-
--- | A setting above off as the word its parameter is named with.
-level :: Int -> String
-level n = if n >= 2 then "high" else "low"
 
 neg :: Expr -> Expr
 neg x = subQ (lit 0) x

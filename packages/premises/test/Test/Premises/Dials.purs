@@ -26,7 +26,7 @@ spec = describe "Dials and Pacific's Premises" do
     (text doubled /= text composition) `shouldEqual` true
   it "Pacific's Premises compose back to the reference world, value for value" do
     let source = pacific defaultDials
-    map _.id source.premises `shouldEqual` [ "bilateral-economy", "strategic-dependence", "private-sector" ]
+    map _.id source.premises `shouldEqual` [ "us-regime", "china-regime", "international-clearing" ]
     case composedOf { id: source.id, version: source.version, premises: source.premises } of
       Left e -> fail e
       Right c -> (encodeWith Authored compositionShape c == encodeWith Authored compositionShape composition) `shouldEqual` true

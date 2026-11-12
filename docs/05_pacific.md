@@ -321,15 +321,15 @@ For each state and good, `coverage = min(1, capacity / requirement)` and `exposu
 
 ## 8. How it is built
 
-Pacific is three Premises, each at version `v0`, each a layer on the ones before ([03 §2](03_premise.md#2-premises-and-compositions)). The authored source is `Premises.Pacific`.
+Pacific is three Premises at version `v0`, one per economic object ([03 §2](03_premise.md#2-premises-and-compositions)). One builder makes both regimes (`Premises.Pacific.Regime`), from a configuration that is the only place the two countries' numbers and institutions differ (`configOf`); a second makes the clearing system (`Premises.Pacific.Clearing`). Both read a country only through its record (`Premises.Pacific.Country`), and the composition is the union of the three objects' parts (`Premises.Pacific`).
 
 | Premise | Adds |
 |---|---|
-| `bilateral-economy` | The states and firms, both currencies and goods, capacities and competences and their decay, every production Transformation, the requirements, all five Exchanges, the firms' investments, the groups, both routines, every Rule kind, the bond templates, and the criteria that read only these. It is a complete economy on its own, with no wages paid and no one lending. |
-| `strategic-dependence` | The export tax (in force), the states' investments, and, by `extends`, each state's authority over its tariff and export control, America's over the asset fee, and its own investment. |
-| `private-sector` | The private sectors and the rest of the world's savings, their demand, lending and requirements, the wage laws, the parameters of the tools' levels, and, by `extends`, their access to the Exchanges, each state's viability and each seat's households' criterion. |
+| `us-regime` | America's state, firm and private sector; their production and investment Transformations; the wage laws that pay its private sector; the US bond; its routines and its private sector's demand; its requirements; its seats' criteria. |
+| `china-regime` | The same for China, with China's deposits and loans at each repression setting in place of the US bond. |
+| `international-clearing` | Every Resource, both world Exchanges, each home Exchange and the currency dealer; every kind of Rule, and the export tax in force; the groups that make each country one party to the Rules; the rest of the world's savings; and the parameters the Strategies read. |
 
-The second and third Premises each extend what the first defines, so neither loads alone.
+A regime does not load alone: its Exchanges, Rules and Resources are the clearing system's.
 
 **Dials.** `Premises.Pacific.Dials` holds every number: the prices and the home premium, the currency Exchange, opening money in each currency, how each country's capacity splits between state and firm, the requirements, each investment's goods, construction wages, yield and delay, competence (opening, learning, decay, training), the input share and input per unit, each production's wage, the tariff and tax rates, `Cautious`'s threshold, the private sectors' shares and the rest of the world's (`WorldDials`: bond rates, repression's three settings, the fee, the reserves, world savings), each tool's low and high level, and the objectives' bars.
 

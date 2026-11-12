@@ -2,10 +2,8 @@
 -- | tools at three levels, and the presets built from them.
 module Premises.Pacific.Strategies
   ( Levels
-  , commerceRules
-  , commerceSign
-  , supplyRules
-  , supplySign
+  , commerce
+  , supply
   , statePolicy
   , firmPolicy
   , presetId
@@ -27,7 +25,8 @@ import Data.Tuple (Tuple(..))
 import Laws.StrategyRules (Clause, Cond, Expr, SignRule(..), StrategyRules)
 import Laws.Types (ActorId, Direction(..), FlowEffect(..), IntentF(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId, idText)
 import Premises.Pacific.Names (p)
-import Premises.Pacific.Private (Country, addQ, countries, countryOf, deposit, feeParam, level, lendTo, loan, loanShareParam, neg, ofForeign, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
+import Premises.Pacific.Country (Country, countries, countryOf, level)
+import Premises.Pacific.Private (addQ, deposit, feeParam, lendTo, loan, loanShareParam, neg, ofForeign, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
 import Schema.Build.Decision (acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
 
 -- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §2). For a state: its trade barrier, its
@@ -90,11 +89,9 @@ viabilityParam = "cautious-output"
 minQ :: Expr -> Expr -> Expr
 minQ a b = max' (lit 0) (subQ a (max' (lit 0) (subQ a b)))
 
-type Producing = { t :: TransformationId, capacity :: ResourceId, skill :: ResourceId }
-
 -- | What a producer can run of a capacity: no more than the competence to run it.
-runnable :: Producing -> Expr
-runnable r = minQ (holding r.capacity) (holding r.skill)
+runnable :: ResourceId -> ResourceId -> Expr
+runnable capacity skill = minQ (holding capacity) (holding skill)
 
 -- | What a unit of the foreign good costs a country in its own currency at the round's prices: its price on the world
 -- | Exchange, in the producer's currency, converted at the currency Exchange's price (RMB per USD).
@@ -103,73 +100,60 @@ importCost c =
   if c.money == p.usd then divQ (priceAt (named c.world)) (priceAt (named p.currency))
   else mulQ (priceAt (named c.world)) (priceAt (named p.currency))
 
-ownProduction :: ActorId -> Producing
-ownProduction a = if a == p.us then { t: p.usTechnologyProduction, capacity: p.technologyCapacity, skill: p.technologyCompetence } else { t: p.cnIndustryProduction, capacity: p.industryCapacity, skill: p.industryCompetence }
-
-substituteProduction :: ActorId -> Producing
-substituteProduction a = if a == p.us then { t: p.usIndustryProduction, capacity: p.industryCapacity, skill: p.industryCompetence } else { t: p.cnTechnologyProduction, capacity: p.technologyCapacity, skill: p.technologyCompetence }
-
--- | Routine commerce (docs/05 §6.1). For each good, sell what is left after the round's requirement and the inputs
--- | the Strategy's earlier clauses committed, and buy what the requirement needs beyond what is held, both on the
--- | good's world Exchange. Buy the foreign currency that two rounds of the foreign requirement cost. Produce its own
--- | good as far as its capacity, competence and the wages it can pay allow; and the foreign good only when that is
--- | cheaper than importing it at the round's exchange rate and tariff, or when the other country's export control is
--- | in force. Written once for both countries: each reads its own.
-commerceRules :: Array Clause
-commerceRules = [ sell p.technology p.technologyWorld, buy p.technology p.technologyWorld, sell p.industry p.industryWorld, buy p.industry p.industryWorld ] <> concatMap produce countries
+-- | A state's commerce routine (docs/05 §6.1). For each good, sell what is left after the round's requirement and the
+-- | inputs the Strategy's earlier clauses committed, and buy what the requirement needs beyond what is held, both on
+-- | the good's world Exchange. Buy the foreign currency that two rounds of the foreign requirement cost. Produce its
+-- | own good as far as its capacity, competence and the wages it can pay allow; and the foreign good only when that
+-- | is cheaper than importing it at the round's exchange rate and tariff, or when the other country's export control
+-- | is in force. It signs the bonds its state borrows on.
+commerce :: Country -> Array String -> StrategyRules
+commerce c signs =
+  { rules:
+      [ sell p.technology p.technologyWorld
+      , buy p.technology p.technologyWorld
+      , sell p.industry p.industryWorld
+      , buy p.industry p.industryWorld
+      , rule [] [ asTemplate (selfTransform { transformation: c.production, quantity: q1 }) ]
+      , substitute [ controlled ]
+      , substitute [ not' controlled, tariffed, le (param (wageParam c.substitute)) (addQ (importCost c) (param tariffRate)) ]
+      , substitute [ not' controlled, not' tariffed, le (param (wageParam c.substitute)) (importCost c) ]
+      , rule [] [ ofForeign c cover ]
+      ]
+  , sign: if signs == [] then [] else [ SignAgreements signs ]
+  }
   where
   sell r x = rule [] [ orderAt (named x) (neg (max' (lit 0) (subQ (subQ (holding r) (due r)) (planned r)))) (Just (priceAt (named x))) ]
   buy r x = rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) (Just (priceAt (named x))) ]
-  produce c =
-    let
-      own = ownProduction c.state
-      sub = substituteProduction c.state
-      q1 = minQ (runnable own) (divQ (holding c.money) (param (wageParam own.t)))
-      q2 = minQ (runnable sub) (divQ (subQ (holding c.money) (mulQ q1 (param (wageParam own.t)))) (param (wageParam sub.t)))
-      controlled = ruleInForce { by: c.other, kinds: [ c.otherControl ] }
-      tariffed = ruleInForce { by: c.state, kinds: [ c.tariff ] }
-      substitute conds = rule ([ acting c.state ] <> conds) [ asTemplate (selfTransform { transformation: sub.t, quantity: q2 }) ]
-      cover = max' (lit 0) (subQ (mulQ (mulQ (lit 2) (due c.foreign)) (priceAt (named c.world))) (holding c.foreignMoney))
-    in
-      [ rule [ acting c.state ] [ asTemplate (selfTransform { transformation: own.t, quantity: q1 }) ]
-      , substitute [ controlled ]
-      , substitute [ not' controlled, tariffed, le (param (wageParam sub.t)) (addQ (importCost c) (param tariffRate)) ]
-      , substitute [ not' controlled, not' tariffed, le (param (wageParam sub.t)) (importCost c) ]
-      , rule [ acting c.state ] [ ofForeign c cover ]
-      ]
-
--- | America's state signs the US bonds its lenders offer it: its households', the rest of the world's, China's.
-commerceSign :: Array SignRule
-commerceSign = [ SignAgreements [ usBond ] ]
+  q1 = minQ (runnable c.capacity c.skill) (divQ (holding c.money) (param (wageParam c.production)))
+  q2 = minQ (runnable c.foreignCapacity c.foreignSkill) (divQ (subQ (holding c.money) (mulQ q1 (param (wageParam c.production)))) (param (wageParam c.substitute)))
+  controlled = ruleInForce { by: c.other, kinds: [ c.otherControl ] }
+  tariffed = ruleInForce { by: c.state, kinds: [ c.tariff ] }
+  substitute conds = rule conds [ asTemplate (selfTransform { transformation: c.substitute, quantity: q2 }) ]
+  cover = max' (lit 0) (subQ (mulQ (mulQ (lit 2) (due c.foreign)) (priceAt (named c.world))) (holding c.foreignMoney))
 
 -- | A firm's supply routine (docs/05 §6.1): produce as much as its capacity, competence, the foreign input it holds
--- | and the wages it can pay allow; buy on the world Exchange what brings its input back to two rounds' full use;
--- | and buy the foreign currency that three rounds of its input cost.
-supplyRules :: Array Clause
-supplyRules = concatMap one countries
-  where
-  one c =
-    let
-      f = if c.firm == p.usFirm then { t: p.usFirmProduction, base: p.usFirmBaseProduction, capacity: p.technologyCapacity, skill: p.technologyCompetence } else { t: p.cnFirmProduction, base: p.cnFirmBaseProduction, capacity: p.industryCapacity, skill: p.industryCompetence }
-      cap = runnable { t: f.t, capacity: f.capacity, skill: f.skill }
-      -- the capacity that runs on the foreign input, and the rest
-      dependent = mulQ cap (param inputShare)
-      independent = subQ cap dependent
-      -- the input one round at full capacity uses
-      need = mulQ dependent (param (inputParam c.firm))
-      budget = divQ (holding c.money) (param (wageParam f.t))
-      base = minQ independent budget
-      runs = minQ (minQ dependent (mulQ (holding c.foreign) (param (outputParam c.firm)))) (subQ budget base)
-      cover = max' (lit 0) (subQ (mulQ (mulQ (lit 3) need) (priceAt (named c.world))) (holding c.foreignMoney))
-    in
-      [ rule [ acting c.firm ] [ asTemplate (selfTransform { transformation: f.base, quantity: base }), asTemplate (selfTransform { transformation: f.t, quantity: runs }) ]
-      , rule [ acting c.firm ] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) (Just (priceAt (named c.world))) ]
-      , rule [ acting c.firm ] [ ofForeign c cover ]
+-- | and the wages it can pay allow; buy on the world Exchange what brings its input back to two rounds' full use; and
+-- | buy the foreign currency that three rounds of its input cost. It signs the loans its firm borrows on.
+supply :: Country -> Array String -> StrategyRules
+supply c signs =
+  { rules:
+      [ rule [] [ asTemplate (selfTransform { transformation: c.firmBase, quantity: base }), asTemplate (selfTransform { transformation: c.firmProduction, quantity: runs }) ]
+      , rule [] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) (Just (priceAt (named c.world))) ]
+      , rule [] [ ofForeign c cover ]
       ]
-
--- | China's firm signs the loans its state offers it, at whatever rate.
-supplySign :: Array SignRule
-supplySign = [ SignAgreements (map loan [ 0, 1, 2 ]) ]
+  , sign: if signs == [] then [] else [ SignAgreements signs ]
+  }
+  where
+  cap = runnable c.capacity c.skill
+  -- the capacity that runs on the foreign input, and the rest
+  dependent = mulQ cap (param inputShare)
+  independent = subQ cap dependent
+  -- the input one round at full capacity uses
+  need = mulQ dependent (param (inputParam c.firm))
+  budget = divQ (holding c.money) (param (wageParam c.firmProduction))
+  base = minQ independent budget
+  runs = minQ (minQ dependent (mulQ (holding c.foreign) (param (outputParam c.firm)))) (subQ budget base)
+  cover = max' (lit 0) (subQ (mulQ (mulQ (lit 3) need) (priceAt (named c.world))) (holding c.foreignMoney))
 
 -- | China's financial repression at a setting, while some conditions hold (docs/05 §5.5): it lends its firm a
 -- | share of its RMB at the setting's rate, and signs its households' deposits at the setting's rate.
@@ -195,14 +179,13 @@ withoutHome3 :: ActorId -> Levels -> StrategyRules
 withoutHome3 a lv = { rules: barrier <> industrial <> home4, sign: [] }
   where
   c = countryOf a
-  inv = if a == p.us then { t: p.usIndustrialInvestment, capacity: p.industryCapacity, input: p.technology } else { t: p.cnTechnologyInvestment, capacity: p.technologyCapacity, input: p.industry }
   -- enacting a Rule already in force adds nothing, so it may be enacted every round
   barrier = case lv.one of
     0 -> []
     1 -> [ rule [ acting a ] [ asTemplate (selfEnact (tariffRule a)) ] ]
     _ -> [ rule [ acting a ] [ asTemplate (selfEnact (controlRule a)) ] ]
   -- build while capacity held and on order is below the requirement it substitutes for
-  industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding inv.capacity) (scheduled inv.capacity)) ] [ asTemplate (selfTransform { transformation: inv.t, quantity: affordable lv.two inv.t inv.input c.money }) ] ]
+  industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding c.foreignCapacity) (scheduled c.foreignCapacity)) ] [ asTemplate (selfTransform { transformation: c.investment, quantity: affordable lv.two c.investment c.good c.money }) ] ]
   home4
     | lv.four == 0 = []
     -- America levies foreign lenders
@@ -229,8 +212,7 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
   -- no more than half the foreign currency it holds buys, so the stockpile never crowds out its input
   units = minQ (param (stockpileParam (level lv.two))) (divQ (mulQ (lit "0.5") (holding c.foreignMoney)) (priceAt (named c.world)))
   stockpile = if lv.two == 0 then [] else [ rule [ acting f ] [ orderAt (named c.world) units (Just (priceAt (named c.world))), ofForeign c (mulQ units (priceAt (named c.world))) ] ]
-  investment = if f == p.usFirm then p.usFirmInvestment else p.cnFirmInvestment
-  invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: investment, quantity: affordable lv.three investment c.good c.money }) ] ]
+  invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: c.firmInvestment, quantity: affordable lv.three c.firmInvestment c.good c.money }) ] ]
   pay = if lv.four == 0 then [] else [ rule [ acting f ] [ asTemplate (Transfer { from: selfActor, to: c.private, resource: c.money, quantity: mulQ (param (payParam (level lv.four))) (holding c.money) }) ] ]
 
 -- | The presets' names (docs/05 §6.3).
@@ -311,14 +293,10 @@ presets =
   firms f = combine ([ statePolicy p.us (lv 0 0 0 0), statePolicy p.cn (lv 0 0 0 0) ] <> map (\x -> firmPolicy x.firm f) countries)
   barrierKinds a = let x = countryOf a in [ x.tariff, x.control ]
   -- build one unit while the other country keeps a barrier against this one
-  adaptive = { rules: map (\x -> invest x.state [ ruleInForce { by: x.other, kinds: barrierKinds x.other } ]) countries, sign: [] }
+  adaptive = { rules: map (\x -> invest x [ ruleInForce { by: x.other, kinds: barrierKinds x.other } ]) countries, sign: [] }
 
-  invest :: ActorId -> Array Cond -> Clause
-  invest a extra =
-    let
-      s = if a == p.us then { t: p.usIndustrialInvestment, cap: p.industryCapacity, good: p.industry, input: p.technology } else { t: p.cnTechnologyInvestment, cap: p.technologyCapacity, good: p.technology, input: p.industry }
-    in
-      rule ([ acting a, gt (due s.good) (addQ (holding s.cap) (scheduled s.cap)) ] <> extra) [ asTemplate (selfTransform { transformation: s.t, quantity: affordable 1 s.t s.input (countryOf a).money }) ]
+  invest :: Country -> Array Cond -> Clause
+  invest x extra = rule ([ acting x.state, gt (due x.foreign) (addQ (holding x.foreignCapacity) (scheduled x.foreignCapacity)) ] <> extra) [ asTemplate (selfTransform { transformation: x.investment, quantity: affordable 1 x.investment x.good x.money }) ]
   -- control exports to the other the round after it enacted a barrier against this country
   retaliate = { rules: map (\x -> rule [ acting x.state, restrictedLastRound { by: x.other, target: x.state } ] [ asTemplate (selfEnact (controlRule x.state)) ]) countries, sign: [] }
   -- while its firm's production on US technology last round kept up, China stays rebalanced; when it fell short, as
