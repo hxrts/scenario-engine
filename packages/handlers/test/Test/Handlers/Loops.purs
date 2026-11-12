@@ -262,7 +262,7 @@ indicatorsSpec = describe "Derived indicators (docs/05 §4.4)" do
 -- | The experiments (docs/05 §10).
 experiments :: Spec Unit
 experiments = describe "Experiments (docs/05 §10)" do
-  it "Political trap: rebalancing costs China no industrial output, so its viability floor is at risk only when a US export control cuts its firm; its households gain the interest repression took" do
+  it "Political trap: rebalancing costs China no industrial output; a US export control cuts it to 9 a round, still above its floor of 8; its households gain the interest repression took" do
     source <- pacificParts
     let arm cn us = { us, cn, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
     repressed <- playLevels source (arm (lv 0 0 2 2) (lv 0 0 0 0)) 6
@@ -294,6 +294,28 @@ experiments = describe "Experiments (docs/05 §10)" do
     a <- playLevels skilled l 6
     b <- playLevels unskilled l 6
     (map (\x -> ran x p.usIndustryProduction) a.records <> map (\x -> ran x p.usIndustryProduction) b.records <> map (\x -> shortOf x p.us p.industry) a.records <> map (\x -> shortOf x p.us p.industry) b.records) `shouldEqual` [ q 4, q 4, q 4, q 4, q 4, q 4, q "0.25", q "0.2625", q "0.2757", q "0.2895", q "0.3039", q "0.3191", q 0, q 1, q 1, q 1, q 1, q 1, q 0, q "4.75", q "4.7375", q "4.7243", q "4.7105", q "4.6961" ]
+  it "International leverage: China's export control costs America 5 I a round until it substitutes, building down to 1.07 by round 8; China's import ban cuts the US firm's sales abroad by two-fifths and its money by nearly a third, while its debt barely moves" do
+    source <- pacificParts
+    let arm us cn = { us, cn, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
+    supplyIdle <- playLevels source (arm (lv 0 0 0 0) (lv 2 0 0 0)) 8
+    supplyBuilding <- playLevels source (arm (lv 0 2 0 0) (lv 2 0 0 0)) 8
+    demand <- playLevels source (arm (lv 0 0 0 0) (lv 1 0 0 0)) 8
+    free <- playLevels source (arm (lv 0 0 0 0) (lv 0 0 0 0)) 8
+    let
+      short r = map (\x -> shortOf x p.us p.industry) r.records
+      soldAbroad r = Q.neg (Q.sumQ (map (\x -> Q.sumQ (map _.quantity (filter (\fl -> fl.actor == p.usFirm && fl.exchange == p.technologyWorld && fl.quantity < Q.zero) (select exchangeFills x.record.events)))) r.records))
+      firmDebt r = map (\x -> Q.sumQ (map _.principal (filter (\b -> b.borrower == p.usFirm) (bondsOf x.world)))) (drop 7 r.records)
+    d8 <- roundOf demand 8
+    f8 <- roundOf free 8
+    (short supplyIdle <> short supplyBuilding <> [ soldAbroad demand, soldAbroad free, holdingAt d8 p.usFirm p.usd, holdingAt f8 p.usFirm p.usd ] <> firmDebt demand <> firmDebt free) `shouldEqual` [ q 0, q 5, q 5, q 5, q 5, q 5, q 5, q 5, q 0, q 5, q "3.7774", q "2.7161", q "1.6039", q "1.4341", q "1.2558", q "1.0686", q "35.5556", q "60.7592", q "20.7627", q "29.9179", q "1.2118", q "1.2432" ]
+  it "Mutually reinforcing dependence: under the status quo China lends America ever more dollars, from 3 to 10.35 a round, while America keeps buying about 6 units of China's industrial inputs a round and China's industry runs at about 10" do
+    source <- pacificParts
+    r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
+    let
+      lent = map (\x -> moved x p.cn p.us p.usd) r.records
+      americaBuys = map (\x -> Q.sumQ (map _.quantity (filter (\fl -> (fl.actor == p.us || fl.actor == p.usFirm || fl.actor == p.usPrivate) && fl.resource == p.industry && fl.quantity > Q.zero) (select exchangeFills x.record.events)))) r.records
+      chinaMakes = map (\x -> Q.add (ran x p.cnIndustryProduction) (Q.add (ran x p.cnFirmProduction) (ran x p.cnFirmBaseProduction))) r.records
+    (lent <> americaBuys <> chinaMakes) `shouldEqual` [ q 0, q 3, q "3.3333", q "6.4692", q "7.1919", q "10.3526", q 6, q 6, q 6, q "5.8889", q "5.9929", q "5.7748", q 10, q 10, q "9.8889", q "9.9929", q "9.7748", q "9.9966" ]
   it "Status quo against rebalancing: each country's arrangement, kept or undone, alone or together, over 8 rounds; then the other's export control from round 5" do
     source <- pacificParts
     let
