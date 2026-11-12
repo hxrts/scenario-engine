@@ -29,26 +29,25 @@ So in China the state's choice between direction and release is a choice about c
 ```text
              UNITED STATES                                          CHINA
 
-  ┌─────────────────────────────────┐   ban on T   ✕     ┌─────────────────────────────────┐
-  │ state                           │ ───────────────▶   │ state                           │
-  │  abroad   press  ◀─▶ protect    │   ban on I   ✕     │  abroad   press  ◀─▶ protect    │
-  │  at home  direct ◀─▶ release    │   ◀─────────────── │  at home  direct ◀─▶ release    │
+  ┌─────────────────────────────────┐                    ┌─────────────────────────────────┐
+  │ state                           │                    │ state                           │
+  │  abroad   press  ◀─▶ protect    │ ──── bans T ✕ ───▶ │  abroad   press  ◀─▶ protect    │
+  │  at home  direct ◀─▶ release    │ ◀─── bans I ✕ ──── │  at home  direct ◀─▶ release    │
   │                                 │                    │                                 │
-  │  holds 2 of 10 T capacity       │   tariff on I $    │  holds 8 of 10 I capacity       │
-  │  lives on levies                │ ◀─── China pays ── │  lives on its own sales         │
-  │                                 │   US pays for I $  │                                 │
-  │                                 │   ───────────────▶ │                                 │
+  │  holds 2 of 10 T capacity       │ ◀── tariff on I ── │  holds 8 of 10 I capacity       │
+  │  lives on levies                │ ── pays for I ───▶ │  lives on its own sales         │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
-      ban binds ▼  │  ▲ tax on its                           ban binds ▼  │  ▼ credit for its
-       its firm    │    exports $                             its firm    │    investment
+      ban binds ▼  │  ▲ tax on its                           ban binds ▼  │  ▲ asks to invest
+       its firm    │    exports $                             its firm    │    on credit
+                   │                                                      │
   ┌────────────────┴────────────────┐                    ┌────────────────┴────────────────┐
-  │ firm                            │   technology       │ firm                            │
-  │  abroad   export ◀─▶ home       │ ───────────────▶   │  abroad   export ◀─▶ home       │
-  │  at home  build  ◀─▶ spend      │   I sold by firm   │  at home  build  ◀─▶ spend      │
-  │                                 │   ◀─────────────── │                                 │
-  │  holds 8 of 10 T capacity       │                    │  holds 2 of 10 I capacity       │
-  │  invests freely                 │                    │  invests only on credit         │
+  │ firm                            │                    │ firm                            │
+  │  abroad   export ◀─▶ home       │ ───── sells T ───▶ │  abroad   export ◀─▶ home       │
+  │  at home  build  ◀─▶ spend      │ ◀──── sells I ──── │  at home  build  ◀─▶ spend      │
+  │                                 │                    │                                 │
+  │  holds 8 of 10 T capacity       │ ◀── pays for T ─── │  holds 2 of 10 I capacity       │
+  │  invests freely                 │ ─── pays for I ──▶ │  invests only on credit         │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
    release and pay ▼                                      release and pay ▼
