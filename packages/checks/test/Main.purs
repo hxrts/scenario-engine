@@ -12,10 +12,12 @@ import Data.Foldable (minimum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Effect (Effect)
-import Laws.Slice (exchangeFills, select)
+import Laws.Slice (exchangeFills, legs, select)
+import Laws.World (Cause(..))
+import Core.Kernel.Types (Endpoint(..))
 import Premises.Pacific.Names (p)
 import Schema.Build.Quantity (q)
-import Schema.Build.Base (bought, everyRound, producedOf, volumeOf)
+import Schema.Build.Base (arrears, bought, everyRound, producedOf, volumeOf)
 import Schema.Build.World (atLeast, criterion, metric)
 import Schema.Composition (Outcome(..))
 import Test.Spec (describe, it)
@@ -71,3 +73,23 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let least = fromMaybe Q.zero (minimum boughtByHand)
       map _.outcome (evaluated [ every p.usPrivate (bought [ p.technology, p.industry ]) least ]) `shouldEqual` [ Met ]
       map _.outcome (evaluated [ every p.usPrivate (bought [ p.technology, p.industry ]) (Q.add least (q "0.0001")) ]) `shouldEqual` [ NotMet ]
+    it "Arrears reads what an Actor owed on its agreements and did not pay; a criterion is met only when its further conditions hold in the same rounds" do
+      parts <- pacificParts
+      g <- unseated parts
+      r <- run (Seed 1) g
+      let
+        withCriteria cs = parts.composition { explicitActors = Map.update (\d -> Just d { objective = map (_ { criteria = cs }) d.objective }) p.us parts.composition.explicitActors }
+        evaluated cs = maybe [] _.criteria (head (filter (\o -> o.explicitActor == p.us) (evaluateObjectives (withCriteria cs) r.records)))
+        noArrears = { metric: metric { actors: [ p.cnFirm ], measure: arrears, negated: true }, atLeast: atLeast Q.zero }
+        someArrears = { metric: metric { actors: [ p.cnFirm ], measure: arrears, negated: false }, atLeast: atLeast Q.one }
+        base = criterion { metric: metric { actors: [ p.cnFirm ], measure: arrears, negated: true }, over: everyRound, atLeast: atLeast Q.zero }
+        owedByHand = map (\x -> Q.sumQ (map (\l -> Q.sub l.owed l.moved) (filter (\l -> l.from == Held p.cnFirm && isAgreement l.cause) (select legs x.record.events)))) r.records
+        isAgreement = case _ of
+          OfAgreement _ -> true
+          _ -> false
+        results = evaluated [ base, base { also = [ noArrears ] }, base { also = [ noArrears, someArrears ] } ]
+      -- the measure is the unpaid part of what fell due, by hand, and China's firm pays all it owes at the default
+      map (\x -> map Q.neg x.values) (take 1 results) `shouldEqual` [ owedByHand ]
+      owedByHand `shouldEqual` map (const Q.zero) r.records
+      -- a further condition that fails in a round fails the criterion, though its own measure clears the bound
+      map _.outcome results `shouldEqual` [ Met, Met, NotMet ]
