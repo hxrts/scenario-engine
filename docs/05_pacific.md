@@ -36,8 +36,8 @@ So in China the state's choice between direction and release is a choice about c
   │                                 │                    │                                 │
   │  holds 2 of 10 T capacity       │   tariff on I $    │  holds 8 of 10 I capacity       │
   │  lives on levies                │ ◀─── China pays ── │  lives on its own sales         │
-  │                                 │   I sold by state  │                                 │
-  │                                 │   ◀─────────────── │                                 │
+  │                                 │   US pays for I $  │                                 │
+  │                                 │   ───────────────▶ │                                 │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
       ban binds ▼  │  ▲ tax on its                           ban binds ▼  │  ▼ credit for its
