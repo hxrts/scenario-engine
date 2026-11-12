@@ -108,7 +108,6 @@
             "arrays",
             "effect",
             "either",
-            "exceptions",
             "foldable-traversable",
             "foreign-object",
             "maybe",
@@ -116,7 +115,6 @@
             "node-process",
             "ordered-collections",
             "prelude",
-            "refs",
             "run",
             "sp-adapters",
             "sp-assembly",
@@ -595,7 +593,6 @@
         "test": {
           "dependencies": [
             "aff",
-            "argonaut-codecs",
             "effect",
             "sp-checks",
             "sp-testkit",
