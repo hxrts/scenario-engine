@@ -12,7 +12,7 @@ module Server.Launch
 import Prelude
 
 import Control.Alt ((<|>))
-import Data.Array (elem, filter, head, sort)
+import Data.Array (head)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM, traverse_)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -24,7 +24,6 @@ import Server.Rows (LAUNCHES)
 import Type.Row (type (+))
 import Effects.Api (Launch, LaunchBatch)
 import Effects.Store (failRunning)
-import Foreign.Object as Object
 import Views.Composition (CompositionInfo)
 import Assembly.Assemble (checkRounds)
 import Assembly.Composition (CompositionParts, presetNames)
