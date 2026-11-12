@@ -2,7 +2,7 @@
 -- | requirement of, what its own capacity covers, what it must import, what it traded, what it received for its
 -- | sales, what it went short, the Rules in force that block that Resource reaching it, and the capacity on
 -- | order for it. Derived from the World and the round's record only. Pure.
-module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, demandsOf, capacitiesOf, finalCoverage, cumulativeShortfall, cumulativeReceipts, cumulativePurchases, salesSplit, blockedOrders) where
+module Views.Dependence (dependence, columns, coverage, exposure, requirementsOf, demandsOf, capacitiesOf, runnableOf, finalCoverage, cumulativeShortfall, cumulativeReceipts, cumulativePurchases, salesSplit, blockedOrders) where
 
 import Prelude
 
@@ -12,12 +12,14 @@ import Core.Num as Q
 import Data.Array (any, concatMap, elem, filter, find, length, mapMaybe, nub, zip)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
+import Data.Foldable (maximum, minimum)
 import Data.Tuple (Tuple(..))
 import Laws.Engine.Compile (deliveredOf)
 import Laws.Query (capabilitiesOf, holding, tradesOf)
 import Laws.Slice (event, exchangeFills, select, shortfalls, trades)
 import Laws.Types (ActorId, Capability(..), DrawSource(..), FlowEffect(..), ResourceId, RuleF(..))
 import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RejectReason(..), RoundRecord, WorldState)
+import Schema.Composition (capacityCategory)
 import Schema.Recurring (kinds)
 import Views.Common (Column, StoredRun, Table, col, column, final, names, quantity, ratio, records, snapshots)
 
@@ -25,7 +27,7 @@ requirementColumn :: Column
 requirementColumn = column "Requirement" "What the Actor's fixed recurring requirement consumes of the Resource each round."
 
 capacityColumn :: Column
-capacityColumn = column "Capacity" "Capacity(a, g): what the Actor's own capacity produces of the Resource each round, after the round."
+capacityColumn = column "Capacity" "Capacity(a, g): what the Actor's own capacity can produce of the Resource each round, after the round: for a Transformation, the least it holds of what each unit draws, such as capacity and the competence to run it."
 
 coverageColumn :: Column
 coverageColumn = column "Coverage" "Coverage = min(1, Capacity / Requirement): how much of the requirement domestic capacity can meet."
@@ -80,15 +82,16 @@ dependence r =
   rowOf rec w q =
     let
       caps = capacitiesOf w q.actor q.resource
-      capacity = Q.sumQ (map (holding w q.actor) caps)
+      capacity = runnableOf w q.actor q.resource
       fills = filter (\f -> f.actor == q.actor && f.resource == q.resource) (select exchangeFills rec.events)
       bought = Q.sumQ (map _.quantity (filter (\f -> f.quantity > Q.zero) fills))
       sold = Q.neg (Q.sumQ (map _.quantity (filter (\f -> f.quantity < Q.zero) fills)))
       paid = Q.sumQ (map (\f -> Q.neg (Q.mul f.price f.quantity)) (filter (\f -> f.quantity < Q.zero) fills))
       short = Q.sumQ (map _.quantity (filter (\f -> f.actor == q.actor && f.resource == q.resource) (select shortfalls rec.events)))
-      ordered = Q.sumQ (map _.quantity (filter (\d -> d.actor == q.actor && d.resource `elem` caps) (mapMaybe deliveredOf w.pending)))
+      ordered = Q.sumQ (map _.quantity (filter (\d -> d.actor == q.actor && d.resource `elem` filter isCapacity caps) (mapMaybe deliveredOf w.pending)))
       offered = Q.sumQ (concatMap (\s -> if s.candidateTransaction.author == q.actor then map (\o -> Q.neg o.quantity) (filter (\o -> o.quantity < Q.zero && baseOf o.exchange == Just q.resource) (tradesOf s.candidateTransaction.intents)) else []) rec.inputs)
       baseOf x = _.base <$> Map.lookup x w.exchanges
+      isCapacity r = (Map.lookup r w.resources >>= _.category) == Just capacityCategory
       amount = fromMaybe bought q.amount
     in
       [ show rec.round
@@ -144,6 +147,18 @@ capacitiesOf w a g = nub (mapMaybe one w.recurring <> concatMap run (values w.tr
     | any (\e -> e.resource == g && isNothing e.holder) t.effects && mayTransform t.id = map _.resource (filter (\d -> d.from == Executor) t.draws)
     | otherwise = []
   mayTransform tid = MayTransform tid `elem` capabilitiesOf w a
+  one x = case x.destination, x.amount of
+    ToActor to, HeldAmount cap | x.kind == kinds.production && to == a && x.resource == g -> Just cap
+    _, _ -> Nothing
+
+-- | What an Actor's own capacity can produce of a Resource in a round: what a recurring production entry reads, and
+-- | the most any one Transformation producing it can run, which is the least the Actor holds of what each unit draws.
+runnableOf :: WorldState -> ActorId -> ResourceId -> Q
+runnableOf w a g = Q.sumQ (map (holding w a) (mapMaybe one w.recurring)) `Q.add` fromMaybe Q.zero (maximum (mapMaybe run (values w.transformations)))
+  where
+  run t
+    | any (\e -> e.resource == g && isNothing e.holder) t.effects && MayTransform t.id `elem` capabilitiesOf w a = minimum (map (\d -> holding w a d.resource) (filter (\d -> d.from == Executor) t.draws))
+    | otherwise = Nothing
   one x = case x.destination, x.amount of
     ToActor to, HeldAmount cap | x.kind == kinds.production && to == a && x.resource == g -> Just cap
     _, _ -> Nothing

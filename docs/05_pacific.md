@@ -308,7 +308,7 @@ Literal worlds cut from Pacific with no production or requirements, run through 
 
 ### 9.4 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 869, 884, 867 and 889 of their criteria (US, China, US firm, Chinese firm): 2.17, 2.21, 2.17 and 2.22 of 4 a run. The opening Money and the bars are set so; a change to any dial is checked against this sample.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 850, 871, 866 and 864 of their criteria (US, China, US firm, Chinese firm): 2.13, 2.18, 2.17 and 2.16 of 4 a run. The opening Money and the bars are set so; a change to any dial is checked against this sample.
 
 ## 10. Sensitivity
 

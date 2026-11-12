@@ -1,8 +1,7 @@
 -- | Pins: strategy JSON is the premise format of docs/03 §11 (marked `Pins`), and the expected candidate Transactions are the strategy semantics of docs/02 §7.
 module Test.Strategy.Main where
 
-import Schema.Build.Decision (divQ, subQ, holding)
-import Schema.Build.Decision (asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfActor, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)
+import Schema.Build.Decision (divQ, holding, subQ, asTemplate, cheapest, choose, costliest, each, factor, ge, gt, joint, le, lit, mulQ, named, noAction, not', orderAt, param, priceAt, procedure, reciprocate, restrictedLastRound, restrictionInForce, roundQ, rule, selfEnact, selfActor, selfTransform, signIf, signProcedures, tradeAt, transformedLastRound)
 import Schema.Build.Intent (repeal, route, transfer)
 import Schema.Build.Quantity (q)
 import Schema.Build.World (byKey, fromHolder, emptyWorld, actorsOf, noActor, noTransformation, noExchange, noResource, resourcesOf)

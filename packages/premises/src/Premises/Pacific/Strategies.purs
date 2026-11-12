@@ -68,9 +68,11 @@ commerceRules = [ technology.sell, technology.buy, industry.sell, industry.buy ]
       t = if a == p.us then p.usTechnologyProduction else p.cnTechnologyProduction
       i = if a == p.us then p.usIndustryProduction else p.cnIndustryProduction
       budget = mulQ (holding p.money) (param unitsPerMoney)
-      tq = minQ (holding p.technologyCapacity) budget
+      -- what each capacity can run: no more than the competence to run it
+      runnable cap skill = minQ (holding cap) (holding skill)
+      tq = minQ (runnable p.technologyCapacity p.technologyCompetence) budget
     in
-      [ rule [ acting a ] [ asTemplate (selfTransform { transformation: t, quantity: tq }), asTemplate (selfTransform { transformation: i, quantity: minQ (holding p.industryCapacity) (subQ budget tq) }) ] ]
+      [ rule [ acting a ] [ asTemplate (selfTransform { transformation: t, quantity: tq }), asTemplate (selfTransform { transformation: i, quantity: minQ (runnable p.industryCapacity p.industryCompetence) (subQ budget tq) }) ] ]
   technology = good p.technology p.technologyWorld
   industry = good p.industry p.industryWorld
 
@@ -87,10 +89,12 @@ supplyRules = concatMap one countries
   where
   one c =
     let
-      f = if c.firm == p.usFirm then { capacity: p.technologyCapacity, production: p.usFirmProduction, base: p.usFirmBaseProduction } else { capacity: p.industryCapacity, production: p.cnFirmProduction, base: p.cnFirmBaseProduction }
+      f = if c.firm == p.usFirm then { capacity: p.technologyCapacity, skill: p.technologyCompetence, production: p.usFirmProduction, base: p.usFirmBaseProduction } else { capacity: p.industryCapacity, skill: p.industryCompetence, production: p.cnFirmProduction, base: p.cnFirmBaseProduction }
+      -- the capacity it has the competence to run
+      runnable = minQ (holding f.capacity) (holding f.skill)
       -- the capacity that runs on the foreign input, and the rest
-      dependent = mulQ (holding f.capacity) (param inputShare)
-      independent = subQ (holding f.capacity) dependent
+      dependent = mulQ runnable (param inputShare)
+      independent = subQ runnable dependent
       -- the input one round at full capacity uses
       need = mulQ dependent (param (inputParam c.firm))
       -- the units the firm can pay wages for

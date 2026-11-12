@@ -28,6 +28,8 @@ type Names =
   , industry :: ResourceId
   , technologyCapacity :: ResourceId
   , industryCapacity :: ResourceId
+  , technologyCompetence :: ResourceId
+  , industryCompetence :: ResourceId
   , technologyWorld :: ExchangeId
   , industryWorld :: ExchangeId
   , technologyUs :: ExchangeId
@@ -71,6 +73,8 @@ p =
   , industry: Id "I"
   , technologyCapacity: Id "K_T"
   , industryCapacity: Id "K_I"
+  , technologyCompetence: Id "S_T"
+  , industryCompetence: Id "S_I"
   , technologyWorld: Id "technology-world"
   , industryWorld: Id "industry-world"
   , technologyUs: Id "technology-us"

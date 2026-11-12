@@ -118,9 +118,11 @@ spec = describe "A second Premise" do
       Right h -> do
         let
           doc name = either identity (\ds -> joinWith "" (map (stringify <<< snd) ds)) (documentsOf [ pacificP, h ] { composition: name, server: "s" })
+          -- Pacific's Resource ids, as the document lists them: every one, in id order
+          pacificIds = "\"enum\":[" <> joinWith "," (map (\r -> "\"" <> idText r <> "\"") (sort (fromFoldable (Map.keys pacificP.composition.world.resources)))) <> "]"
         doc "harbor" `shouldSatisfy` contains (Pattern "\"enum\":[\"C\",\"G\"]")
-        doc "harbor" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"CN-credit\",\"I\",\"K_I\",\"K_T\",\"M\",\"T\"]"))
-        doc "pacific" `shouldSatisfy` contains (Pattern "\"enum\":[\"CN-credit\",\"I\",\"K_I\",\"K_T\",\"M\",\"T\"]")
+        doc "harbor" `shouldSatisfy` (not <<< contains (Pattern pacificIds))
+        doc "pacific" `shouldSatisfy` contains (Pattern pacificIds)
         doc "pacific" `shouldSatisfy` (not <<< contains (Pattern "\"enum\":[\"C\",\"G\"]"))
   it "Pacific is listed with its own presets, launched, and its Dependence view served" do
     case parts (Pacific.pacific Pacific.defaultDials) of

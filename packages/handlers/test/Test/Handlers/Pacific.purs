@@ -142,17 +142,18 @@ spec = describe "Pacific (docs/05 §9)" do
       map (\x -> output x p.cnFirm) r.records `shouldEqual` map Q.fromInt [ 2, 2, 1, 1, 1, 1 ]
       r2 <- roundOf r 2
       shortOf r2 p.cn p.technology `shouldEqual` Q.fromInt 3
-    it "D US substitution: investing costs the US state 2 T of its own need in round 1; it holds 4 K_I and imports 3 I in round 3, and 6 and 1 in round 4" do
+    it "D US substitution: investing costs the US state 2 T of its own need in round 1; by round 4 it holds 6 K_I but the competence to run only about 3, so it still imports 2.7 I" do
       parts <- pacificParts
       r <- playAll parts "Substitute" "FreeTrade" "FreeTrade" "FreeTrade" 6
       r1 <- roundOf r 1
       shortOf r1 p.us p.technology `shouldEqual` Q.fromInt 2
       r3 <- roundOf r 3
       holdingAt r3 p.us p.industryCapacity `shouldEqual` Q.fromInt 4
-      traded r3 p.us p.industry `shouldEqual` Q.fromInt 3
+      -- the capacity runs only as far as the competence to run it: the quarter unit it opened with, the unit its
+      -- first investment trained, and what production taught since
+      [ holdingAt r3 p.us p.industryCompetence, traded r3 p.us p.industry ] `shouldEqual` [ q "2.0577", q "3.775" ]
       r4 <- roundOf r 4
-      holdingAt r4 p.us p.industryCapacity `shouldEqual` Q.fromInt 6
-      traded r4 p.us p.industry `shouldEqual` Q.fromInt 1
+      [ holdingAt r4 p.us p.industryCapacity, holdingAt r4 p.us p.industryCompetence, traded r4 p.us p.industry ] `shouldEqual` [ q 6, q "3.0605", q "2.7137" ]
     it "E The importer pays the tariff: under the US tariff China still sells 4 I in round 2" do
       parts <- pacificParts
       r <- playAll parts "Tariff" "FreeTrade" "FreeTrade" "FreeTrade" 6
@@ -243,7 +244,7 @@ spec = describe "Pacific (docs/05 §9)" do
       map (\a -> holdingAt r1 a p.money) [ p.usPrivate, p.cnPrivate ] `shouldEqual` [ q 10, q 10 ]
       r2 <- roundOf r 2
       traded r2 p.usFirm p.technology `shouldEqual` Q.fromInt (-4)
-    it "K Selling only at home starves the other firm: with neither firm on the world Exchange, China's firm runs only half its capacity in round 2" do
+    it "K Selling only at home starves the other firm: with neither firm on the world Exchange, China's firm runs only half its capacity in round 2; with competence above its capacity, one idle round does not keep it from coming back" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Builder" "Builder" 6
       map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 0, q 2, q 2, q 2, q "0.5142" ]
@@ -288,7 +289,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 869, 884, 867, 889 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 850, 871, 866, 864 ]
 
   describe "Sensitivity (docs/05 §10)" do
     it "over the spend shares, the capacity split, the tax rate, credit and the home premium, each structural difference keeps its effect" do

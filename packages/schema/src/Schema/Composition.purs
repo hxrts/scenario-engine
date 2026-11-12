@@ -23,6 +23,7 @@ module Schema.Composition
   , gameIdOf
   , compositionRef
   , capacityCategory
+  , competenceCategory
   ) where
 
 import Prelude
@@ -113,6 +114,10 @@ type MetricRef = { actors :: Array ActorId, measure :: Measure, negated :: Boole
 -- | The category a premise declares for a Resource used as capacity (docs/03): views leave it out of holdings.
 capacityCategory :: String
 capacityCategory = "capacity"
+
+-- | The category of a competence: what a workforce knows how to run, drawn like a capacity, but learned and lost.
+competenceCategory :: String
+competenceCategory = "competence"
 
 data Measure
   = HoldingOf ResourceId

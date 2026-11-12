@@ -9,6 +9,7 @@
 module Premises.Pacific
   ( pacific
   , Dials
+  , Competence
   , Objectives
   , defaultDials
   , compositionWith
@@ -33,7 +34,7 @@ import Laws.Types (DrawSource(..), LevyPayer(..), Exchange, ActorId, ActorKind(.
 import Premises.Compose (CompositionSource, Premise, pick, premiseOf)
 import Premises.Kit.Exchanges (exchange)
 import Premises.Kit.Holdings (HoldingTable)
-import Premises.Kit.Resources (capacity)
+import Premises.Kit.Resources (capacity, competence)
 import Premises.Kit.Seats (Cover(..), aggregateActor, seat)
 import Premises.Pacific.Names (bilateralId, p, pacificId, pacificVersion, privateId, strategicId)
 import Premises.Pacific.Private (bond, bondIssue, Level2, PrivateDials, countries, defaultPrivate, demandStrategies, parameters, tariffRate)
@@ -70,6 +71,7 @@ type Dials =
   , usInvestment :: { cost :: Q, yield :: Q, delay :: Int }
   , cnInvestment :: { cost :: Q, yield :: Q, delay :: Int }
   , firmInvestment :: { cost :: Q, yield :: Q, delay :: Int }
+  , competence :: Competence
   , credit :: Q
   , creditFee :: Level2
   , subsidy :: Level2
@@ -80,6 +82,19 @@ type Dials =
   , taxRate :: Q
   , private :: PrivateDials
   , objectives :: Objectives
+  }
+
+-- | Industrial competence (docs/05 §3.3): what each producer opens with of each good's competence, the share of it
+-- | that wears away each round, what each unit produced teaches, and what a unit of investment trains.
+type Competence =
+  { decay :: Q
+  , learning :: Q
+  , us :: { technology :: Q, industry :: Q }
+  , cn :: { technology :: Q, industry :: Q }
+  , usFirm :: Q
+  , cnFirm :: Q
+  , stateTraining :: Q
+  , firmTraining :: Q
   }
 
 -- | The bars each seat's four criteria set (docs/05 §7): the most of the good it imports a state may go short over the
@@ -111,6 +126,10 @@ defaultDials =
   , usInvestment: { cost: q 2, yield: q 2, delay: 1 }
   , cnInvestment: { cost: q 4, yield: q 2, delay: 2 }
   , firmInvestment: { cost: q 2, yield: q 1, delay: 1 }
+  -- a producer running its capacity fully holds competence at learning / decay = 1.5 times it, where what a round
+  -- teaches makes up what it wears away; so each country opens at that level in its own good, and America with a
+  -- quarter of a unit of industrial competence, so capacity it builds runs only as fast as it learns
+  , competence: { decay: q "0.1", learning: q "0.15", us: { technology: q 3, industry: q "0.25" }, cn: { technology: q 0, industry: q 12 }, usFirm: q 12, cnFirm: q 3, stateTraining: q 1, firmTraining: q 1 }
   , credit: q 2
   , creditFee: { low: q 1, high: q 2 }
   , subsidy: { low: q 1, high: q 2 }
@@ -143,11 +162,11 @@ derive instance Ord Layer
 -- | Opening holdings: Money, one production cycle's output, and capacity. The private sectors start empty.
 table :: Dials -> HoldingTable
 table d =
-  [ Tuple p.us [ p.money := d.money.us, p.technology := d.technologyCapacity.us, p.industry := 0, p.technologyCapacity := d.technologyCapacity.us, p.industryCapacity := 0 ]
-  , Tuple p.cn [ p.money := d.money.cn, p.technology := 0, p.industry := d.industryCapacity.cn, p.technologyCapacity := 0, p.industryCapacity := d.industryCapacity.cn, p.credit := d.credit ]
+  [ Tuple p.us [ p.money := d.money.us, p.technology := d.technologyCapacity.us, p.industry := 0, p.technologyCapacity := d.technologyCapacity.us, p.industryCapacity := 0, p.technologyCompetence := d.competence.us.technology, p.industryCompetence := d.competence.us.industry ]
+  , Tuple p.cn [ p.money := d.money.cn, p.technology := 0, p.industry := d.industryCapacity.cn, p.technologyCapacity := 0, p.industryCapacity := d.industryCapacity.cn, p.technologyCompetence := d.competence.cn.technology, p.industryCompetence := d.competence.cn.industry, p.credit := d.credit ]
   -- each firm opens with one round's foreign input
-  , Tuple p.usFirm [ p.money := d.private.firmMoney.us, p.technology := d.technologyCapacity.usFirm, p.industry := Q.mul (Q.mul d.technologyCapacity.usFirm d.inputShare) d.inputPerUnit.usFirm, p.technologyCapacity := d.technologyCapacity.usFirm ]
-  , Tuple p.cnFirm [ p.money := d.private.firmMoney.cn, p.technology := Q.mul (Q.mul d.industryCapacity.cnFirm d.inputShare) d.inputPerUnit.cnFirm, p.industry := d.industryCapacity.cnFirm, p.industryCapacity := d.industryCapacity.cnFirm ]
+  , Tuple p.usFirm [ p.money := d.private.firmMoney.us, p.technology := d.technologyCapacity.usFirm, p.industry := Q.mul (Q.mul d.technologyCapacity.usFirm d.inputShare) d.inputPerUnit.usFirm, p.technologyCapacity := d.technologyCapacity.usFirm, p.technologyCompetence := d.competence.usFirm ]
+  , Tuple p.cnFirm [ p.money := d.private.firmMoney.cn, p.technology := Q.mul (Q.mul d.industryCapacity.cnFirm d.inputShare) d.inputPerUnit.cnFirm, p.industry := d.industryCapacity.cnFirm, p.industryCapacity := d.industryCapacity.cnFirm, p.industryCompetence := d.competence.cnFirm ]
   , Tuple p.usPrivate [ p.money := 0, p.technology := 0, p.industry := 0 ]
   , Tuple p.cnPrivate [ p.money := 0, p.technology := 0, p.industry := 0 ]
   ]
@@ -210,7 +229,7 @@ worldOf layer d =
   , strategies: keyed ([ Tuple p.commerce { rules: commerceRules, sign: [ SignAgreements [ bondIssue ] ] }, Tuple p.supply { rules: supplyRules, sign: [] } ] <> (if private then demandStrategies else []))
   -- commerce runs beside whoever plays each state, and supply beside whoever plays each firm (docs/04 §6)
   , explicitActors: keyed (map (\(Tuple k (Tuple _ def)) -> Tuple k (def { routine = Just (if k == p.us || k == p.cn then p.commerce else p.supply) })) seats)
-  , authored: { circulation: circulation layer d, reservable: [ p.technologyCapacity, p.industryCapacity ], decays: [] }
+  , authored: { circulation: circulation layer d, reservable: [ p.technologyCapacity, p.industryCapacity, p.technologyCompetence, p.industryCompetence ], decays: map (\r -> { resource: r, rate: d.competence.decay }) [ p.technologyCompetence, p.industryCompetence ] }
   , world: emptyWorld
       { numeraire = p.money
       , focus = Just { resource: p.industry, label: "Industrial inputs" }
@@ -220,6 +239,8 @@ worldOf layer d =
           , Tuple p.industry (noResource { transferability = Free })
           , Tuple p.technologyCapacity capacity
           , Tuple p.industryCapacity capacity
+          , Tuple p.technologyCompetence competence
+          , Tuple p.industryCompetence competence
           , Tuple p.credit capacity
           ]
       , exchanges = byKey
@@ -228,7 +249,7 @@ worldOf layer d =
           , Tuple p.technologyUs (market ([ p.us, p.usFirm ] <> (if private then [ p.usPrivate ] else [])) p.technology (Q.mul d.homePremium d.technologyPrice))
           , Tuple p.industryCn (market ([ p.cn, p.cnFirm ] <> (if private then [ p.cnPrivate ] else [])) p.industry (Q.mul d.homePremium d.industryPrice))
           ]
-      , transformations = byKey ([ Tuple p.usFirmProduction (production (Just (Tuple p.industry d.inputPerUnit.usFirm)) p.technology p.technologyCapacity), Tuple p.cnFirmProduction (production (Just (Tuple p.technology d.inputPerUnit.cnFirm)) p.industry p.industryCapacity), Tuple p.usFirmBaseProduction (production Nothing p.technology p.technologyCapacity), Tuple p.cnFirmBaseProduction (production Nothing p.industry p.industryCapacity), Tuple p.usTechnologyProduction (production Nothing p.technology p.technologyCapacity), Tuple p.usIndustryProduction (production Nothing p.industry p.industryCapacity), Tuple p.cnTechnologyProduction (production Nothing p.technology p.technologyCapacity), Tuple p.cnIndustryProduction (production Nothing p.industry p.industryCapacity), Tuple p.usFirmInvestment usFirmInvestment, Tuple p.cnFirmInvestment (cnFirmInvestment Nothing), Tuple p.cnFirmInvestmentLow (cnFirmInvestment (Just d.creditFee.low)), Tuple p.cnFirmInvestmentHigh (cnFirmInvestment (Just d.creditFee.high)) ] <> (if layer >= Strategic then stateInvestments else []))
+      , transformations = byKey ([ Tuple p.usFirmProduction (production (Just (Tuple p.industry d.inputPerUnit.usFirm)) p.technology p.technologyCapacity p.technologyCompetence), Tuple p.cnFirmProduction (production (Just (Tuple p.technology d.inputPerUnit.cnFirm)) p.industry p.industryCapacity p.industryCompetence), Tuple p.usFirmBaseProduction (production Nothing p.technology p.technologyCapacity p.technologyCompetence), Tuple p.cnFirmBaseProduction (production Nothing p.industry p.industryCapacity p.industryCompetence), Tuple p.usTechnologyProduction (production Nothing p.technology p.technologyCapacity p.technologyCompetence), Tuple p.usIndustryProduction (production Nothing p.industry p.industryCapacity p.industryCompetence), Tuple p.cnTechnologyProduction (production Nothing p.technology p.technologyCapacity p.technologyCompetence), Tuple p.cnIndustryProduction (production Nothing p.industry p.industryCapacity p.industryCompetence), Tuple p.usFirmInvestment usFirmInvestment, Tuple p.cnFirmInvestment (cnFirmInvestment Nothing), Tuple p.cnFirmInvestmentLow (cnFirmInvestment (Just d.creditFee.low)), Tuple p.cnFirmInvestmentHigh (cnFirmInvestment (Just d.creditFee.high)) ] <> (if layer >= Strategic then stateInvestments else []))
       -- the wage is a levy on production, declared with the economy so that every layer can name it
       , ruleKinds = keyed ([ Tuple (Id "wage") { form: LevyFlows GovernedBySource, text: "{governor} pays wages of {amount} per unit produced" } ] <> (if layer >= Strategic then ruleKinds else []))
       , rules = if layer >= Strategic then Map.singleton (Id "us-export-tax") (exportTax d) else Map.empty
@@ -292,20 +313,23 @@ worldOf layer d =
   -- the state ends the run with at least the other state's Money
   power a = criterion { metric: metric { actors: [ a ], measure: holdingOf p.money, negated: false }, over: final, atLeast: Of (metric { actors: [ if a == p.us then p.cn else p.us ], measure: holdingOf p.money, negated: false }) }
   stateInvestments =
-    [ Tuple p.usIndustrialInvestment (investment p.technology p.industryCapacity d.usInvestment)
-    , Tuple p.cnTechnologyInvestment (investment p.industry p.technologyCapacity d.cnInvestment)
+    [ Tuple p.usIndustrialInvestment (trained p.industryCompetence d.competence.stateTraining (investment p.technology p.industryCapacity d.usInvestment))
+    , Tuple p.cnTechnologyInvestment (trained p.technologyCompetence d.competence.stateTraining (investment p.industry p.technologyCapacity d.cnInvestment))
     ]
-  usFirmInvestment = investment p.technology p.technologyCapacity d.firmInvestment
+  usFirmInvestment = trained p.technologyCompetence d.competence.firmTraining (investment p.technology p.technologyCapacity d.firmInvestment)
+  -- an investment trains the workforce for what it builds, as well as building it
+  trained skill perUnit t = t { effects = t.effects <> [ { resource: skill, holder: Nothing, perUnit, rounds: Nothing } ] }
   -- the Chinese firm's investment draws state credit, so the state must sign each order; at a credit rate the firm
   -- also pays the state a fee per unit
-  cnFirmInvestment fee = (investment p.industry p.industryCapacity d.firmInvestment)
+  cnFirmInvestment fee = (trained p.industryCompetence d.competence.firmTraining (investment p.industry p.industryCapacity d.firmInvestment))
     { draws = [ fromHolder p.credit Q.one ]
     , ownerSigns = true
     , payment = map (\f -> { curve: { intercept: f, slope: q 0, domain: { lo: q 0, hi: q 1000000 } }, resource: p.money, to: p.cn }) fee
     }
   -- a firm's production: each unit uses a unit of its capacity for the round and its share of the foreign input,
   -- and delivers a unit of its good the next round
-  production input good cap = noTransformation { inputs = keyed (maybe [] (\(Tuple i perUnit) -> [ i := perUnit ]) input), draws = [ { resource: cap, from: Executor, perUnit: Q.one } ], delay = 1, effects = [ { resource: good, holder: Nothing, perUnit: Q.one, rounds: Nothing } ] }
+  -- and as much of its competence, and delivers a unit of its good the next round, and what the unit taught
+  production input good cap skill = noTransformation { inputs = keyed (maybe [] (\(Tuple i perUnit) -> [ i := perUnit ]) input), draws = [ { resource: cap, from: Executor, perUnit: Q.one }, { resource: skill, from: Executor, perUnit: Q.one } ], delay = 1, effects = [ { resource: good, holder: Nothing, perUnit: Q.one, rounds: Nothing }, { resource: skill, holder: Nothing, perUnit: d.competence.learning, rounds: Nothing } ] }
   perInput x = fromMaybe Q.zero (Q.divMaybe Q.one x)
   investment input output i = noTransformation { inputs = keyed [ input := i.cost ], delay = i.delay, maximum = Just (q 2), effects = [ { resource: output, holder: Nothing, perUnit: i.yield, rounds: Nothing } ] }
   ruleKinds =
