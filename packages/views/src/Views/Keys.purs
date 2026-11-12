@@ -128,7 +128,7 @@ type ViewReplies =
   , "Balance" :: BalanceView
   , "Events" :: Table
   , "Dependence" :: Table
-  , "Finance" :: { bonds :: Table, external :: Table, current :: Table }
+  , "Finance" :: { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
   )
 
 -- | The `View` of a label, with the Shape its reply has.

@@ -15,9 +15,10 @@ import Schema.Composition (Bound(..), PremiseComposition, Measure(..), MetricRef
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (holding)
-import Laws.Slice (exchangeFills, select, transformationPaymentsTo, transformationFills, count, read, runSlice, shortfalls, total, whereEq)
+import Core.Kernel.Types (Endpoint(..))
+import Laws.Slice (exchangeFills, legs, select, transformationPaymentsTo, transformationFills, count, read, runSlice, shortfalls, total, whereEq)
 import Laws.Types (ActorId)
-import Laws.World (RoundResult)
+import Laws.World (Cause(..), RoundResult)
 import Data.Array (all, any, concatMap, elem, filter, last, null, zipWith)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
@@ -46,12 +47,15 @@ evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
   criterion c =
     let
       values = series c.over c.metric
-      bound = case c.atLeast of
+      boundOf b = case b of
         Fixed q -> map (const q) values
         Of m -> series c.over m
+      bound = boundOf c.atLeast
+      -- every further condition holds over the same span, too
+      holds x = all identity (zipWith (>=) (series c.over x.metric) (boundOf x.atLeast))
       outcome
         | null records || null values = NotEvaluated
-        | all identity (zipWith (>=) values bound) = Met
+        | all identity (zipWith (>=) values bound) && all holds c.also = Met
         | otherwise = NotMet
     in
       { outcome, values, bound }
@@ -75,6 +79,7 @@ evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
     PayeeReceipts -> true
     Bought _ -> true
     Produced _ -> true
+    Arrears -> true
     VolumeOf _ -> true
 
 -- | One Actor's value of a measure in one round.
@@ -85,9 +90,16 @@ measureValue msr e r = case msr of
   ShortfallRounds res -> if runSlice (count (shortfall res)) r.record.events > 0 then Q.fromInt 1 else Q.zero
   PayeeReceipts -> runSlice (total (read @"moved" (transformationPaymentsTo e))) r.record.events
   Bought rs -> Q.sumQ (map _.quantity (filter (\f -> f.actor == e && f.quantity > Q.zero && f.resource `elem` rs) (select exchangeFills r.record.events)))
+  Arrears -> Q.sumQ (map (\l -> Q.sub l.owed l.moved) (filter (\l -> fromEndpoint l.from == Just e && isAgreement l.cause) (select legs r.record.events)))
   Produced res -> Q.sumQ (map (\f -> Q.mul f.quantity (perUnit res f.transformation)) (filter (\f -> f.by == e) (select transformationFills r.record.events)))
   VolumeOf tid -> runSlice (total (read @"quantity" (whereEq @"transformation" tid transformationFills))) r.record.events
   where
   shortfall res = whereEq @"resource" res (whereEq @"actor" e shortfalls)
+  fromEndpoint = case _ of
+    Held a -> Just a
+    _ -> Nothing
+  isAgreement = case _ of
+    OfAgreement _ -> true
+    _ -> false
   -- what one unit of a Transformation delivers of a Resource
   perUnit res tid = maybe Q.zero (\t -> Q.sumQ (map _.perUnit (filter (\x -> x.resource == res) t.effects))) (Map.lookup tid r.world.transformations)

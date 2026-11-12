@@ -10,6 +10,8 @@ module Views.Finance
   , externalAccounts
   , currenciesOf
   , columns
+  , Earnings
+  , earningsOf
   ) where
 
 import Prelude
@@ -18,14 +20,14 @@ import Core.Kernel.Types (Account(..), Amount(..), Effect(..), Endpoint(..), Par
 import Core.Map (values)
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (concatMap, elem, filter, fromFoldable, head, mapMaybe, nub, sort, zip)
+import Data.Array (concatMap, elem, filter, fromFoldable, mapMaybe, nub, sort, zip)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Laws.Query (holding)
-import Laws.Slice (legs, select)
+import Laws.Slice (exchangeFills, legs, select)
 import Laws.Types (ActorId, ResourceId)
-import Laws.World (Cause(..), Mechanism(..), PendingTransaction(..), WorldState)
+import Laws.World (Cause(..), Mechanism(..), PendingTransaction(..), WorldState, WorldTemplate(..))
 import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio, worlds)
 import Views.Standings (valueIn)
 
@@ -34,16 +36,29 @@ import Views.Standings (valueIn)
 type Bond = { template :: String, lender :: ActorId, borrower :: ActorId, currency :: ResourceId, principal :: Q, rate :: Q }
 
 -- | The bonds open in a World State: every pending agreement of one obligation moving `ratio × principal` of a
--- | Resource from one named Actor to another.
+-- | Resource from one named Actor to another; and every one still in its term, which owes nothing yet and spawns such
+-- | an agreement for its principal, at the rate that agreement's template sets.
 bondsOf :: WorldState -> Array Bond
 bondsOf w = mapMaybe one w.pending
   where
-  one (PendingTransaction pt) = case pt.transaction.cause, head pt.transaction.obligations of
-    Just (OfAgreement { template }), Just o | [ _ ] <- pt.transaction.obligations -> case o.effect of
-      Move { from: HeldBy (Named borrower), to: HeldBy (Named lender), resource, owed: Times { ratio: grow, amount: Exactly principal } } ->
+  one (PendingTransaction pt) = case pt.transaction.cause, pt.transaction.obligations of
+    Just (OfAgreement { template }), [ o ] -> case o.effect, o.next.performed of
+      Move { from: HeldBy (Named borrower), to: HeldBy (Named lender), resource, owed: Times { ratio: grow, amount: Exactly principal } }, _ ->
         Just { template, lender, borrower, currency: resource, principal, rate: Q.sub grow Q.one }
-      _ -> Nothing
+      Move { from: HeldBy (Named borrower), to: HeldBy (Named lender), resource, owed: Exactly z }, [ s ] | z == Q.zero ->
+        case Map.lookup "principal" s.args, rateOf s.template of
+          Just (Exactly principal), Just rate -> Just { template, lender, borrower, currency: resource, principal, rate }
+          _, _ -> Nothing
+      _, _ -> Nothing
     _, _ -> Nothing
+  -- the rate a template's one obligation charges over its principal
+  rateOf t = case Map.lookup t w.templates of
+    Just (WorldTemplate tt) -> case tt.transaction.obligations of
+      [ o ] -> case o.effect of
+        Move { owed: Times { ratio } } -> Just (Q.sub ratio Q.one)
+        _ -> Nothing
+      _ -> Nothing
+    Nothing -> Nothing
 
 -- | The currencies of a world: its numeraire and every Resource an Exchange quotes.
 currenciesOf :: WorldState -> Array ResourceId
@@ -166,9 +181,60 @@ externalColumns =
   , column "Residual" "Closing less opening less the four flows: what crossed the border as something else. Zero when every flow is accounted."
   ]
 
+-- | What a producer kept of a round's sales, every amount valued in the numeraire at the round's opening prices: its
+-- | revenue from goods sold, less the levies and wages it paid (every Flow a Rule charged it), less its debt service
+-- | (what it paid on its agreements).
+type Earnings = { round :: Int, actor :: ActorId, revenue :: Q, charges :: Q, debtService :: Q, retained :: Q }
+
+-- | The earnings of every Actor that sold on the Exchanges, by round.
+earningsOf :: StoredRun -> Array Earnings
+earningsOf r = concatMap round (zip (worlds r) r.rounds)
+  where
+  round (Tuple before x) =
+    let
+      value m = valueIn before m
+      isCurrency res = res `elem` currenciesOf before
+      paidBy a l = case l.from of
+        Held b -> b == a
+        _ -> false
+      ls = select legs x.record.events
+      seats = filter (\a -> Map.member a r.manifest.initial.actors) (sort (nub (map _.actor (select exchangeFills x.record.events))))
+    in
+      map
+        ( \a ->
+            let
+              revenue = Q.sumQ
+                ( mapMaybe
+                    ( \f -> case Map.lookup f.exchange before.exchanges of
+                        Just m | f.actor == a && f.quantity < Q.zero && not (isCurrency m.base) -> Just (Q.mul (Q.mul (Q.neg f.quantity) f.price) (value m.quote))
+                        _ -> Nothing
+                    )
+                    (select exchangeFills x.record.events)
+                )
+              charged p = Q.sumQ (map (\l -> Q.mul l.moved (value l.resource)) (filter (\l -> paidBy a l && p l.cause) ls))
+              charges = charged \c -> case c of
+                OfRule _ -> true
+                _ -> false
+              debtService = charged \c -> case c of
+                OfAgreement _ -> true
+                _ -> false
+            in
+              { round: x.record.round, actor: a, revenue, charges, debtService, retained: Q.sub revenue (Q.add charges debtService) }
+        )
+        seats
+
+earningsColumns :: Array Column
+earningsColumns =
+  [ column "Seller" "An Actor that sold on the Exchanges in the round."
+  , column "Revenue" "What it was paid for goods it sold, valued in the numeraire at the round's opening prices."
+  , column "Levies and wages" "What every Rule charged it: wages, upkeep, tariffs, taxes and fees, valued alike."
+  , column "Debt service" "What it paid on its agreements: principal and interest, valued alike."
+  , column "Retained" "Revenue less levies and wages, less debt service: what the round's sales left it."
+  ]
+
 -- | The columns this module defines.
 columns :: Array Column
-columns = bondColumns <> externalColumns <> currentColumns
+columns = bondColumns <> externalColumns <> currentColumns <> earningsColumns
 
 currentColumns :: Array Column
 currentColumns =
@@ -179,7 +245,7 @@ currentColumns =
   ]
 
 -- | The view: the bonds open after each round, and the external accounts, with the current account in the numeraire.
-finance :: StoredRun -> { bonds :: Table, external :: Table, current :: Table }
+finance :: StoredRun -> { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
 finance r =
   { bonds:
       { title: "Open bonds"
@@ -190,6 +256,11 @@ finance r =
       { title: "External accounts"
       , columns: names ([ col.round ] <> externalColumns)
       , rows: map (\l -> [ show l.round, show l.country, show l.currency, quantity l.opening, quantity l.goods, quantity l.exchange, quantity l.levies, quantity l.interest, quantity l.closing, quantity l.residual ]) lines
+      }
+  , earnings:
+      { title: "Earnings"
+      , columns: names ([ col.round ] <> earningsColumns)
+      , rows: map (\e -> [ show e.round, show e.actor, quantity e.revenue, quantity e.charges, quantity e.debtService, quantity e.retained ]) (earningsOf r)
       }
   , current:
       { title: "Current account"

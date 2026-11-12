@@ -178,7 +178,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         Right _ -> fail "expected unknown references"
       withCapabilities cs = coverageComposition { world = w { actors = map (_ { capabilities = cs }) w.actors } }
       ref kind name = UnknownReference kind name
-      objective measure = { description: "o", criteria: [ { metric: { actors: [ Id "ghost" ], measure, negated: false }, over: Final, atLeast: Fixed Q.zero } ] }
+      objective measure = { description: "o", criteria: [ { metric: { actors: [ Id "ghost" ], measure, negated: false }, over: Final, atLeast: Fixed Q.zero, also: [] } ] }
       withObjective measure = coverageComposition { explicitActors = map (_ { objective = Just (objective measure) }) coverageComposition.explicitActors }
     it "a capability naming an unknown Exchange, Resource or Transformation" do
       reports (withCapabilities [ MayTrade (Id "m0"), MayTransfer (Id "r0"), MayTransform (Id "t0") ]) config
@@ -197,7 +197,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a bound that is another metric is read too" do
       let
         metric = { actors: [ us ], measure: HoldingOf (Id "M"), negated: false }
-        bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }) } ] }
+        bounded = { description: "o", criteria: [ { metric, over: Final, atLeast: Of (metric { measure = HoldingOf (Id "r5") }), also: [] } ] }
       reports (coverageComposition { explicitActors = map (_ { objective = Just bounded }) coverageComposition.explicitActors }) config [ ref RefResource "r5" ]
     it "an implicit coverage fallback naming no Actor" do
       reports (coverageComposition { explicitActors = map (_ { fallback = Just (ImplicitCoverage (Id "nowhere")) }) coverageComposition.explicitActors }) config [ ref RefActor "nowhere" ]

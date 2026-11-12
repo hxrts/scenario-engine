@@ -22,6 +22,7 @@ module Premises.Pacific.Private
   , reserveParam
   , loanShareParam
   , usBond
+  , firmBond
   , deposit
   , loan
   , ofForeign
@@ -61,6 +62,7 @@ type PrivateDials =
   , pay :: Level2
   , stockpile :: Level2
   , lend :: { us :: Q, cn :: Q }
+  , lendFirm :: Q
   , firmMoney :: { us :: Q, cn :: Q }
   , privateMoney :: { us :: Q, cn :: Q }
   }
@@ -72,7 +74,9 @@ defaultPrivate =
   , pay: { low: q "0.05", high: q "0.15" }
   , stockpile: { low: q 1, high: q 2 }
   , lend: { us: q "0.1", cn: q "0.4" }
-  , firmMoney: { us: q 50, cn: q 50 }
+  -- the share America's households lend their firm each round, on its bond
+  , lendFirm: q "0.1"
+  , firmMoney: { us: q 15, cn: q 10 }
   , privateMoney: { us: q 10, cn: q 10 }
   }
 
@@ -129,6 +133,14 @@ ofForeign c amount =
 -- | The US bond, which every lender to the US state holds: households, the rest of the world, China's reserves.
 usBond :: String
 usBond = "us-bond"
+
+-- | The US firm's bond, which America's households hold.
+firmBond :: String
+firmBond = "us-firm-bond"
+
+-- | The share of its USD America's private sector lends its firm each round.
+lendFirmParam :: String
+lendFirmParam = "US-private-lend-firm-share"
 
 -- | China's household deposit at a repression setting, and its loan to its firm at one.
 deposit :: Int -> String
@@ -205,6 +217,7 @@ parameters d w prices = Object.fromFoldable
   ( [ Tuple tariffRate prices.tariff
     , Tuple (lendParam p.usPrivate) d.lend.us
     , Tuple (lendParam p.cnPrivate) d.lend.cn
+    , Tuple lendFirmParam d.lendFirm
     , Tuple (rowParam "buy") w.savings.buy
     , Tuple (rowParam "lend") w.savings.lend
     , Tuple (rowParam "lend-under-fee") w.savings.lendUnderFee
@@ -257,7 +270,8 @@ demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c false,
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead
   lend c =
-    if c.state == p.us then [ rule [] [ lendTo { template: usBond, lender: c.private, borrower: c.state, money: c.money, principal: principal c } ] ]
+    -- America's also lend its firm, on the firm's bond
+    if c.state == p.us then [ rule [] [ lendTo { template: usBond, lender: c.private, borrower: c.state, money: c.money, principal: principal c } ], rule [] [ lendTo { template: firmBond, lender: c.private, borrower: c.firm, money: c.money, principal: mulQ (param lendFirmParam) (holding c.money) } ] ]
     else [ rule [] (map (\n -> lendTo { template: deposit n, lender: c.private, borrower: c.state, money: c.money, principal: principal c }) [ 0, 1, 2 ]) ]
 
 -- | The rest of the world's savings (§6.2): while the US asset fee is not in force it turns a share of its RMB into

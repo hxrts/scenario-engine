@@ -146,7 +146,7 @@ mkBody grid = fetched >>= \fetch -> mkActor >>= \actor -> mkEvents grid >>= \eve
         , Layout.section
             { title: "Finance"
             , purpose: "The bonds open after each round, who lent and who owes, and each country's external accounts: what crossed its border for goods, currency, levies and interest, and its current account in the numeraire."
-            , children: [ view (Keys.viewKey @"Finance") (titled grid <<< _.current), view (Keys.viewKey @"Finance") (titled grid <<< _.external), view (Keys.viewKey @"Finance") (\v -> if null v.bonds.rows then note "No bonds are open in this run." else titled grid v.bonds) ]
+            , children: [ view (Keys.viewKey @"Finance") (titled grid <<< _.current), view (Keys.viewKey @"Finance") (titled grid <<< _.external), view (Keys.viewKey @"Finance") (titled grid <<< _.earnings), view (Keys.viewKey @"Finance") (\v -> if null v.bonds.rows then note "No bonds are open in this run." else titled grid v.bonds) ]
             }
         , Layout.section
             { title: "Whole-economy measures"

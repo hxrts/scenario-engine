@@ -63,6 +63,7 @@ type Names =
   , cnExportControl :: RuleKindId
   , usAssetFee :: RuleKindId
   , wage :: RuleKindId
+  , upkeep :: RuleKindId
   , usCommerce :: StrategyId
   , cnCommerce :: StrategyId
   , usSupply :: StrategyId
@@ -115,6 +116,7 @@ p =
   , cnExportControl: Id "cn-export-control"
   , usAssetFee: Id "us-asset-fee"
   , wage: Id "wage"
+  , upkeep: Id "upkeep"
   , usCommerce: Id "us-commerce-v0"
   , cnCommerce: Id "cn-commerce-v0"
   , usSupply: Id "us-supply-v0"

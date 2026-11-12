@@ -180,10 +180,10 @@ spec = do
       map (const unit) (parts pacific) `shouldEqual` Right unit
     it "both regimes are one builder's: their Premises have the same sections, with as many of each kind" do
       let kinds = [ "actors", "transformations", "laws", "templates", "strategies", "parameters" ]
-      map (sizeOf "us-regime") kinds `shouldEqual` [ 3, 6, 6, 1, 3, 6 ]
-      map (sizeOf "china-regime") kinds `shouldEqual` [ 3, 6, 6, 6, 3, 6 ]
+      map (sizeOf "us-regime") kinds `shouldEqual` [ 3, 6, 8, 4, 3, 6 ]
+      map (sizeOf "china-regime") kinds `shouldEqual` [ 3, 6, 8, 12, 3, 6 ]
     it "the clearing system holds every Exchange, every kind of Rule, the Rules in force and world savings; no regime does" do
-      map (sizeOf "international-clearing") [ "exchanges", "ruleKinds", "rules", "groups", "actors" ] `shouldEqual` [ 5, 7, 1, 4, 1 ]
+      map (sizeOf "international-clearing") [ "exchanges", "ruleKinds", "rules", "groups", "actors" ] `shouldEqual` [ 5, 8, 1, 4, 1 ]
       map (\id -> map (sizeOf id) [ "exchanges", "ruleKinds", "rules", "groups" ]) [ "us-regime", "china-regime" ] `shouldEqual` [ [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ] ]
     it "a regime alone does not load: its Exchanges, Rules and Resources are the clearing system's" do
       isLeft (parts pacific { premises = only [ "us-regime" ], presets = [], config = pacific.config { preset = Nothing } }) `shouldEqual` true

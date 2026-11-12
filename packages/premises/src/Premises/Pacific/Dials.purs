@@ -42,6 +42,7 @@ type Dials =
   , tariffRate :: Q
   , taxRate :: Q
   , cautiousOutput :: Q
+  , upkeep :: Q
   , private :: PrivateDials
   , world :: WorldDials
   , objectives :: Objectives
@@ -114,18 +115,20 @@ defaultDials =
   , tariffRate: q 1
   , taxRate: q "0.5"
   , cautiousOutput: q "0.5"
+  -- what each unit of capacity held costs a round in maintenance, idle or not, paid to its country's households
+  , upkeep: q "0.05"
   , private: defaultPrivate
   , world: defaultWorld
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §9.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q "18.5", cn: q 13 }
-      , viability: { us: q "1.25", cn: q "9.25" }
-      , prosperity: { us: q "14.5", cn: q "1.25" }
-      , industry: { us: q "12.9", cn: q "6.5" }
-      , wealth: { us: q "3.9", cn: q "17.5" }
-      , output: { us: q "11.7", cn: q "1.65" }
-      , market: { us: q "14.5", cn: q "1.25" }
+      { security: { us: q "18.8", cn: q "12.3" }
+      , viability: { us: q "0.79", cn: q 8 }
+      , prosperity: { us: q "14.4", cn: q "1.09" }
+      , industry: { us: q "10.9", cn: q 4 }
+      , wealth: { us: q "3.5", cn: q 10 }
+      , output: { us: q "6.65", cn: q "1.6" }
+      , market: { us: q "14.4", cn: q "1.09" }
       }
   }
 

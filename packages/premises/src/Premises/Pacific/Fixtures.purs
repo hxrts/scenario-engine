@@ -61,7 +61,7 @@ exports =
 fixturePA :: Tuple String Json
 fixturePA = fixture "P-A" spec
   { candidateTransactions = Just exports
-  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 52, p.technology := 4 ]), Tuple p.cn (keyed [ p.usd := 2, p.technology := 4 ]), Tuple p.us (keyed [ p.usd := 114 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.usd := 0, p.technology := 0 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 17, p.technology := 4 ]), Tuple p.cn (keyed [ p.usd := 2, p.technology := 4 ]), Tuple p.us (keyed [ p.usd := 114 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.usd := 0, p.technology := 0 ]) ] })
   }
 
 -- | P-H: the US firm sells 2 T at home to its own state, at the home price of 1.25 USD, and pays no tax.
@@ -71,7 +71,7 @@ fixturePH = fixture "P-H" spec
       [ candidateTransaction { author: p.usFirm, intents: [ trade { exchange: p.technologyUs, quantity: q (-2), limit: Just (q "1.25") } ] }
       , candidateTransaction { author: p.us, intents: [ trade { exchange: p.technologyUs, quantity: q 2, limit: Just (q "1.25") } ] }
       ]
-  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := "52.5", p.technology := 6 ]), Tuple p.us (keyed [ p.usd := "109.5", p.technology := 4 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := "17.5", p.technology := 6 ]), Tuple p.us (keyed [ p.usd := "109.5", p.technology := 4 ]) ] })
   }
 
 -- | P-B: the US enacts its export control on technology to China in round 1; in round 2 the same exports move
@@ -82,7 +82,7 @@ fixturePB = fixture "P-B" spec
       [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.us, intents: [ ChangeRule (Enact (controlRule p.us)) ] } ] }
       , noRound
           { candidateTransactions = Just exports
-          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 50, p.technology := 8 ]), Tuple p.cn (keyed [ p.usd := 6, p.technology := 0 ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 15, p.technology := 8 ]), Tuple p.cn (keyed [ p.usd := 6, p.technology := 0 ]) ] })
           }
       ]
   }
@@ -91,7 +91,7 @@ fixturePB = fixture "P-B" spec
 fixturePG :: Tuple String Json
 fixturePG = fixture "P-G" spec
   { candidateTransactions = Just [ candidateTransaction { author: p.cnFirm, intents: [ trade { exchange: p.industryWorld, quantity: q (-2), limit: Just (q 2) } ] } ]
-  , expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.rmb := 50, p.industry := 2 ]) ], reserves = balances [ Tuple p.industryWorld (keyed [ p.rmb := 0, p.industry := 0 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.rmb := 10, p.industry := 2 ]) ], reserves = balances [ Tuple p.industryWorld (keyed [ p.rmb := 0, p.industry := 0 ]) ] })
   }
 
 -- | P-C: the Chinese firm invests one unit, of 2 I; in round 2 it has the new unit of capacity, and the unit of
@@ -102,7 +102,7 @@ fixturePC = fixture "P-C" spec
   , rounds = Just
       [ noRound
           { candidateTransactions = Just [ candidateTransaction { author: p.cnFirm, intents: [ Transform { by: p.cnFirm, transformation: p.cnFirmInvestment, quantity: q 1 } ] } ]
-          , expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.rmb := 50, p.industry := 0 ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.rmb := 10, p.industry := 0 ]) ] })
           }
       , noRound { expect = Just (noExpect { accounts = balances [ Tuple p.cnFirm (keyed [ p.industryCapacity := 3, p.industryCompetence := "3.33" ]) ] }) }
       ]
@@ -134,7 +134,7 @@ fixturePX = fixture "P-X" spec
   , rounds = Just
       [ noRound
           { candidateTransactions = Just [ candidateTransaction { author: p.usFirm, intents: [ trade { exchange: p.currency, quantity: q (-10), limit: Nothing } ] } ]
-          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 40, p.rmb := "13.75" ]) ], reserves = balances [ Tuple p.currency (keyed [ p.usd := 160, p.rmb := "140.25" ]) ] })
+          , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 5, p.rmb := "13.75" ]) ], reserves = balances [ Tuple p.currency (keyed [ p.usd := 160, p.rmb := "140.25" ]) ] })
           }
       , noRound
           { candidateTransactions = Just [ candidateTransaction { author: p.cn, intents: [ trade { exchange: p.currency, quantity: q 10, limit: Nothing } ] } ]
@@ -144,7 +144,8 @@ fixturePX = fixture "P-X" spec
   }
 
 -- | P-F: the US enacts its high asset fee, 0.05 USD per USD a Chinese lender Transfers to it, in round 1. In round
--- | 2 China lends the US 4 USD on the US bond and pays 0.2 USD of fee; in round 3 the US repays 4.2 USD.
+-- | 2 China lends the US 4 USD on the US bond and pays 0.2 USD of fee. The bond runs two rounds: nothing moves in
+-- | round 3, and in round 4 the US repays 4.2 USD.
 fixturePF :: Tuple String Json
 fixturePF = fixture "P-F" spec
   { cut = cut { actors = [ us, cn ], resources = [ p.usd, p.industry ], exchanges = [] }
@@ -154,6 +155,7 @@ fixturePF = fixture "P-F" spec
           { candidateTransactions = Just [ (candidateTransaction { author: p.cn, intents: [ Transfer { from: p.cn, to: p.us, resource: p.usd, quantity: q 4 }, Enter { template: usBond, args: [ { name: "principal", value: q 4 } ], parties: [ { role: "lender", actor: p.cn }, { role: "borrower", actor: p.us } ] } ] }) # \s -> s { candidateTransaction = s.candidateTransaction { signers = [ p.us ] }, signatures = [ p.us ] } ]
           , expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.usd := "1.8" ]), Tuple p.us (keyed [ p.usd := "116.2" ]) ] })
           }
+      , noRound { expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.usd := "1.8" ]), Tuple p.us (keyed [ p.usd := "116.2" ]) ] }) }
       , noRound { expect = Just (noExpect { accounts = balances [ Tuple p.cn (keyed [ p.usd := 6 ]), Tuple p.us (keyed [ p.usd := 112 ]) ] }) }
       ]
   }

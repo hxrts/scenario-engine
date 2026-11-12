@@ -55,7 +55,7 @@ clearing d = emptyParts
       ]
         <> map (\c -> Tuple c.home (market [ c.state, c.firm, c.private ] c.good c.money (Q.mul d.homePremium (priceOf c.good)))) countries
         <> [ Tuple p.currency (currencyExchange d (everyone <> [ p.row ])) ]
-  , ruleKinds = [ Tuple p.wage { form: LevyFlows GovernedBySource, text: "{governor} pays wages of {amount} per unit produced" } ] <> ruleKinds
+  , ruleKinds = [ Tuple p.wage { form: LevyFlows GovernedBySource, text: "{governor} pays wages of {amount} per unit produced" }, Tuple p.upkeep { form: LevyFlows GovernedBySource, text: "{governor} pays upkeep of {amount} per unit of capacity held" } ] <> ruleKinds
   , rules = [ Tuple "us-export-tax" (exportTax d) ]
   -- each firm and each private sector counts as its country for Rules, so controls and levies bind them
   , groups = concatMap (\c -> [ Tuple c.firm c.state, Tuple c.private c.state ]) countries

@@ -13,6 +13,7 @@ module Schema.Composition
   , Outcome(..)
   , Objective
   , Criterion
+  , Condition
   , MetricRef
   , Measure(..)
   , Span(..)
@@ -106,7 +107,12 @@ derive instance Eq Fallback
 -- | Measurable criteria over the recorded game (§10.5). Objectives never affect the economy.
 type Objective = { description :: String, criteria :: Array Criterion }
 
-type Criterion = { metric :: MetricRef, over :: Span, atLeast :: Bound }
+-- | A criterion: a metric at least a bound over a span, and every further condition in `also` over the same span,
+-- | each its own metric and bound. Met only when all hold.
+type Criterion = { metric :: MetricRef, over :: Span, atLeast :: Bound, also :: Array Condition }
+
+-- | A further condition of a criterion.
+type Condition = { metric :: MetricRef, atLeast :: Bound }
 
 -- | A measurement summed over the listed Actors; `negated` expresses "at most".
 type MetricRef = { actors :: Array ActorId, measure :: Measure, negated :: Boolean }
@@ -126,6 +132,7 @@ data Measure
   | PayeeReceipts
   | Bought (Array ResourceId) -- the units of these Resources an Actor bought on the Exchanges
   | Produced ResourceId -- the units of a Resource the Actor's Transformations delivered
+  | Arrears -- what the Actor owed on its agreements in the round and did not pay
   | VolumeOf TransformationId
 
 derive instance Generic Measure _

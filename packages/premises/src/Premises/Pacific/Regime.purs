@@ -19,7 +19,7 @@ import Prelude
 import Core.Kernel.Types (Account(..), Amount(..), Condition(..), Party(..), Short(..), noNext)
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (filter)
+import Data.Array (concatMap, filter)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Laws.Types (ActorId, ActorKind(..), Capability, DrawSource(..), Id(..), ResourceId, Transformation, TransformationId, idText)
@@ -30,13 +30,13 @@ import Premises.Pacific.Country (Country)
 import Premises.Pacific.Dials (Dials, Investment)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Parts (Parts, emptyParts)
-import Premises.Pacific.Private (deposit, demandStrategies, loan, usBond)
+import Premises.Pacific.Private (deposit, demandStrategies, firmBond, loan, usBond)
 import Premises.Pacific.Strategies (commerce, supply)
-import Schema.Build.Agreement (agreement, clause, guard, onAction, spawn, step)
-import Schema.Build.Base (bought, cumulative, everyRound, holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, producedOf, shortfallOf, volumeOf, (:=))
+import Schema.Build.Agreement (agreement, clause, guard, onAction, perHeld, spawn, step)
+import Schema.Build.Base (arrears, bought, cumulative, everyRound, holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, producedOf, shortfallOf, volumeOf, (:=))
 import Schema.Build.Quantity (q)
-import Schema.Build.World (aggregate, atLeast, criterion, finishes, metric, noTransformation)
-import Schema.Composition (Criterion, Measure)
+import Schema.Build.World (aggregate, allOf, atLeast, criterion, finishes, metric, noTransformation)
+import Schema.Composition (Bound, Criterion, Measure, MetricRef)
 
 -- | What one country's regime is made of that the other's is not: its names, its opening holdings, its requirements,
 -- | its wages, its industrial policy, the bonds its institutions use, the instruments its state holds, the measure
@@ -51,7 +51,7 @@ type RegimeConfig =
   , bonds :: Array { name :: String, money :: ResourceId, rate :: Q }
   , signs :: { state :: Array String, firm :: Array String }
   , instruments :: Array Capability
-  , viability :: { actors :: Array ActorId, measure :: Measure }
+  , viability :: { actors :: Array ActorId, measure :: Measure, also :: Array { metric :: MetricRef, atLeast :: Bound } }
   , bars :: { security :: Q, viability :: Q, prosperity :: Q, industry :: Q, wealth :: Q, output :: Q, market :: Q }
   , text :: { stateGoal :: String, state :: String, stateDependency :: String, firm :: String, firmDependency :: String }
   }
@@ -77,8 +77,8 @@ regime d cfg = emptyParts
       , Tuple c.firmInvestment (investment c.good c.capacity c.skill d.competence.firmTraining d.firmInvestment)
       , Tuple c.investment (investment c.good c.foreignCapacity c.foreignSkill d.competence.stateTraining cfg.industrialPolicy)
       ]
-  , laws = map (\(Tuple t w) -> wageLaw t w) wageTable
-  , templates = map bondTemplate cfg.bonds
+  , laws = map (\(Tuple t w) -> wageLaw t w) wageTable <> map upkeepLaw [ c.capacity, c.foreignCapacity ]
+  , templates = concatMap bondTemplates cfg.bonds
   , strategies = [ Tuple c.commerce (commerce c cfg.signs.state), Tuple c.supply (supply c cfg.signs.firm) ] <> filter (\x -> fst' x == c.demand) demandStrategies
   , requirements =
       [ need c.state c.good (Just cfg.needs.own)
@@ -105,6 +105,8 @@ regime d cfg = emptyParts
     , Tuple c.investment cfg.industrialPolicy.wages
     ]
   wageParamOf t = idText t <> "-wage"
+  -- every unit of capacity its state and firm hold costs its upkeep each round, paid to its private sector
+  upkeepLaw cap = perHeld p.upkeep [ c.state, c.firm ] cap (HeldBy (Named c.private)) c.money d.upkeep
 
   -- each unit pays its wage to this country's private sector, in its currency
   wageLaw :: TransformationId -> Q -> AuthoredLaw
@@ -137,7 +139,7 @@ regime d cfg = emptyParts
     [ criterion { metric: metric { actors: [ c.state ], measure: shortfallOf c.foreign, negated: true }, over: cumulative, atLeast: atLeast (Q.neg cfg.bars.security) }
     , finishes c.firm (holdingOf c.capacity) (atLeast cfg.bars.industry)
     -- its political viability every round, and its households' purchases over the run
-    , criterion { metric: metric { actors: cfg.viability.actors, measure: cfg.viability.measure, negated: false }, over: everyRound, atLeast: atLeast cfg.bars.viability }
+    , allOf { metric: metric { actors: cfg.viability.actors, measure: cfg.viability.measure, negated: false }, over: everyRound, atLeast: atLeast cfg.bars.viability } cfg.viability.also
     , purchases cfg.bars.prosperity
     ]
 
@@ -149,17 +151,28 @@ regime d cfg = emptyParts
     , purchases cfg.bars.market
     ]
 
--- | A bond (§5.4): the lender has Transferred the principal; the borrower repays it with the bond's interest the next
--- | round. What the borrower cannot pay carries another round, with interest again; if it holds less than one unit,
--- | the bond lapses and the lender loses what is owed.
-bondTemplate :: { name :: String, money :: ResourceId, rate :: Q } -> Tuple String WorldTemplate
-bondTemplate b = step b.name [ "principal" ] [ "lender", "borrower" ]
-  ( agreement (Id "bond") []
-      [ clause "repay" borrower { from: HeldBy borrower, to: HeldBy lender, resource: b.money, owed: Times { ratio: Q.add Q.one b.rate, amount: Arg "principal" } } Cap [ guard (StockAtLeast { stock: { at: HeldBy borrower, resource: b.money }, amount: Exactly Q.one }) ]
-          (noNext { short = [ spawn b.name 1 [ Tuple "principal" Remainder ] both ] })
-      ]
-  )
+-- | A bond (§5.4), in two steps: the lender has Transferred the principal, which the borrower holds for a round (the
+-- | first step owes nothing), and then repays with the bond's interest (the second). Money received in a round is
+-- | spendable from the next, so a loan due the round after it was made would be repaid as soon as it could be spent;
+-- | with a term of two rounds, a borrower has the use of it for one. What the borrower cannot pay carries another
+-- | round, with interest again; if it holds less than one unit, the bond lapses and the lender loses what is owed.
+bondTemplates :: { name :: String, money :: ResourceId, rate :: Q } -> Array (Tuple String WorldTemplate)
+bondTemplates b =
+  [ step b.name [ "principal" ] [ "lender", "borrower" ]
+      ( agreement (Id "bond") []
+          [ clause "term" borrower { from: HeldBy borrower, to: HeldBy lender, resource: b.money, owed: Exactly Q.zero } Cap []
+              (noNext { performed = [ spawn due 1 [ Tuple "principal" (Arg "principal") ] both ] })
+          ]
+      )
+  , step due [ "principal" ] [ "lender", "borrower" ]
+      ( agreement (Id "bond") []
+          [ clause "repay" borrower { from: HeldBy borrower, to: HeldBy lender, resource: b.money, owed: Times { ratio: Q.add Q.one b.rate, amount: Arg "principal" } } Cap [ guard (StockAtLeast { stock: { at: HeldBy borrower, resource: b.money }, amount: Exactly Q.one }) ]
+              (noNext { short = [ spawn due 1 [ Tuple "principal" Remainder ] both ] })
+          ]
+      )
+  ]
   where
+  due = b.name <> "-due"
   lender = Bound "lender"
   borrower = Bound "borrower"
   both = [ Tuple "lender" lender, Tuple "borrower" borrower ]
@@ -179,11 +192,11 @@ configOf d c
       , wages: { production: d.wage.usTechnology, substitute: d.wage.usIndustry }
       , inputPerUnit: d.inputPerUnit.usFirm
       , industrialPolicy: d.usInvestment
-      , bonds: [ { name: usBond, money: p.usd, rate: d.world.usRate } ]
-      -- the US state borrows on the US bond from whoever offers it
-      , signs: { state: [ usBond ], firm: [] }
+      , bonds: [ { name: usBond, money: p.usd, rate: d.world.usRate }, { name: firmBond, money: p.usd, rate: d.world.usRate } ]
+      -- the US state borrows on the US bond from whoever offers it, and the US firm on its own from its households
+      , signs: { state: [ usBond ], firm: [ firmBond ] }
       , instruments: [ mayEnact c.tariff, mayEnact c.control, mayEnact p.usAssetFee ]
-      , viability: { actors: [ p.usPrivate ], measure: bought [ p.technology, p.industry ] }
+      , viability: { actors: [ p.usPrivate ], measure: bought [ p.technology, p.industry ], also: [] }
       , bars: { security: d.objectives.security.us, viability: d.objectives.viability.us, prosperity: d.objectives.prosperity.us, industry: d.objectives.industry.us, wealth: d.objectives.wealth.us, output: d.objectives.output.us, market: d.objectives.market.us }
       , text:
           { stateGoal: "Secure industrial inputs, grow the US firm, and keep US households buying every round and over the run"
@@ -208,7 +221,8 @@ configOf d c
       -- China's state signs its households' deposits by its repression setting (its policy); its firm takes every loan
       , signs: { state: [], firm: map loan [ 0, 1, 2 ] }
       , instruments: [ mayEnact c.tariff, mayEnact c.control ]
-      , viability: { actors: [ p.cn, p.cnFirm ], measure: producedOf p.industry }
+      -- and financial stability: China's firm pays what it owes on its loans every round
+      , viability: { actors: [ p.cn, p.cnFirm ], measure: producedOf p.industry, also: [ { metric: metric { actors: [ p.cnFirm ], measure: arrears, negated: true }, atLeast: atLeast Q.zero } ] }
       , bars: { security: d.objectives.security.cn, viability: d.objectives.viability.cn, prosperity: d.objectives.prosperity.cn, industry: d.objectives.industry.cn, wealth: d.objectives.wealth.cn, output: d.objectives.output.cn, market: d.objectives.market.cn }
       , text:
           { stateGoal: "Secure technology, grow China's firm, and keep China's industry producing every round while its households gain over the run"

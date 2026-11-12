@@ -18,6 +18,7 @@ module Schema.Build.Base
   , payeeReceipts
   , volumeOf
   , bought
+  , arrears
   , producedOf
   , final
   , everyRound
@@ -89,6 +90,10 @@ payeeReceipts :: Measure
 payeeReceipts = PayeeReceipts
 
 -- | The Money an Actor paid for what it bought on the Exchanges.
+-- | What an Actor owed on its agreements in a round and did not pay.
+arrears :: Measure
+arrears = Arrears
+
 -- | The units of these Resources an Actor bought on the Exchanges.
 bought :: forall a. Named a ResourceTag => Array a -> Measure
 bought rs = Bought (map named rs)

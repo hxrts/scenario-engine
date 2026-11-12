@@ -149,7 +149,7 @@ worldRefs = foldWorld
 -- | The names the composition's objectives, schemes, and fallbacks refer to, and the configuration's.
 compositionRefs :: PremiseComposition -> InstantiationConfig -> Array (Tuple RefKind String)
 compositionRefs gb config =
-  concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective explicitActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast)
+  concatMap metricRefs (concatMap _.criteria (mapMaybe _.objective explicitActors) >>= \c -> [ c.metric ] <> boundMetric c.atLeast <> concatMap (\x -> [ x.metric ] <> boundMetric x.atLeast) c.also)
     <> map (name RefActor) (concatMap coverageOf fallbacks)
     <> concatMap (\s -> [ name RefActor s.target ] <> map (name RefActor) s.eligibleActors <> [ name RefResource s.observes ]) gb.schemes
     <> map (name RefStrategy) (map _.strategy (mapMaybe aggregateOf (values gb.world.actors)) <> concatMap _.nonPlayableActor explicitActors <> mapMaybe _.routine explicitActors <> concatMap institutional fallbacks)
@@ -173,6 +173,7 @@ compositionRefs gb config =
     Schema.PayeeReceipts -> []
     Schema.Bought rs -> map (name RefResource) rs
     Schema.Produced r -> [ name RefResource r ]
+    Schema.Arrears -> []
     VolumeOf t -> [ name RefTransformation t ]
   -- the Aggregate a coverage fallback names
   coverageOf = case _ of

@@ -13,7 +13,7 @@ module Schema.Premise.PlayableActor
 import Core.Num (qShape)
 import Core.Shape (Shape, arrayOf, atBare, atEmbedded, atKindArg, atLiteral, atOneKey, boolShape, defaultsTo, field, genericPremiseSum, listOf, optionalOf, recordOf, stringShape, (&.))
 import Laws.Types (idShape)
-import Schema.Composition (ActorDefinition, Bound, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
+import Schema.Composition (ActorDefinition, Bound, Condition, Criterion, Fallback, Measure, MetricRef, Objective, Span(..))
 
 -- Tags ----------------------------------------------------------------------------------------
 
@@ -43,6 +43,9 @@ boughtTag = "bought"
 
 producedTag :: String
 producedTag = "produced"
+
+arrearsTag :: String
+arrearsTag = "arrears"
 
 volumeTag :: String
 volumeTag = "volume"
@@ -81,6 +84,13 @@ criterionShape = recordOf "Criterion"
   ( field @"metric" "the measured quantity" metricShape
       &. field @"over" "the span of rounds (default final)" (defaultsTo Final spanShape)
       &. field @"atLeast" "the bound" boundShape
+      &. field @"also" "further conditions, each a metric and a bound over the same span, all of which must hold (default none)" (defaultsTo [] (listOf conditionShape))
+  )
+
+conditionShape :: Shape Condition
+conditionShape = recordOf "Condition"
+  ( field @"metric" "the measured quantity" metricShape
+      &. field @"atLeast" "the bound" boundShape
   )
 
 metricShape :: Shape MetricRef
@@ -113,6 +123,7 @@ measureShape = genericPremiseSum "Measure"
   , "PayeeReceipts": atBare { tag: payeeReceiptsTag, desc: "Money received as a transformation payee" }
   , "Bought": atOneKey boughtTag "the units of these Resources the Actor bought on the Exchanges" (arrayOf idShape)
   , "Produced": atKindArg { tag: producedTag, desc: "the units of a Resource the Actor's Transformations delivered" } idShape
+  , "Arrears": atBare { tag: arrearsTag, desc: "what the Actor owed on its agreements in the round and did not pay" }
   , "VolumeOf": atKindArg { tag: volumeTag, desc: "the volume run through a transformation" } idShape
   }
 

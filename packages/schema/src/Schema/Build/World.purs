@@ -23,6 +23,7 @@ module Schema.Build.World
   , totalAtLeast
   , objective
   , criterion
+  , allOf
   , metric
   , definition
   , aggregate
@@ -165,7 +166,11 @@ objective o = o
 
 -- | A criterion.
 criterion :: { metric :: MetricRef, over :: Span, atLeast :: Bound } -> Criterion
-criterion c = c
+criterion c = { metric: c.metric, over: c.over, atLeast: c.atLeast, also: [] }
+
+-- | A criterion that holds only while each further condition holds too, over the same span.
+allOf :: { metric :: MetricRef, over :: Span, atLeast :: Bound } -> Array { metric :: MetricRef, atLeast :: Bound } -> Criterion
+allOf c also = { metric: c.metric, over: c.over, atLeast: c.atLeast, also }
 
 -- | A metric.
 metric :: forall a. Named a ActorTag => { actors :: Array a, measure :: Measure, negated :: Boolean } -> MetricRef
