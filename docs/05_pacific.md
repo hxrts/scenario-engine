@@ -78,7 +78,7 @@ Each regime's three dimensions are made of the ordinary vocabulary:
 
 | Dimension | Resources | Transformations | Laws and agreements | Exchanges |
 |---|---|---|---|---|
-| Productive capability | `K_T`, `K_I`, `S_T`, `S_I`, and the goods as inputs | each production and investment (§3.5) | competence wear (depreciation), upkeep (a stock law), requirements | none of its own |
+| Productive capability | `K_T`, `K_I`, `S_T`, `S_I`, and the goods as inputs | each production and investment (§3.5) | upkeep (a stock law), requirements; competence wears by the decay the clearing Premise declares for every competence | none of its own |
 | Effective demand | the country's currency held by its households | none | wages (an action law on each Transformation's units), transfers and dividends (Transfers) | the home Exchange (`technology-us`, `industry-cn`), on which its households buy |
 | Financial capacity | the country's currency | none | the bond templates (§3.4), with their interest and arrears | none of its own |
 
