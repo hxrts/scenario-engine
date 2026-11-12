@@ -21,7 +21,7 @@ import Laws.Query (drawable, holderOf, holding)
 import Laws.Represent as Represent
 import Laws.Slice (runLegQuery, select, transformationFills, count, describeSlice, event, exchangeFills, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
 import Laws.World (PendingTransaction(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, settledEvent, renderReason)
-import Laws.Types (Capability(..), Direction(..), ActorId, ActorKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeTag, CandidateTransaction, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, candidateTransactionId, ruleIdOf, submissionIndex)
+import Laws.Types (LevyPayer(..), Capability(..), Direction(..), ActorId, ActorKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeTag, CandidateTransaction, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, candidateTransactionId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -699,7 +699,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind embargo" ]
     it "a levy may be ad valorem, and may go to the sink" do
       let
-        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: AdValorem (Id "EM"), in: Id "M", to: LevyToSink } }
+        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: AdValorem (Id "EM"), in: Id "M", to: LevyToSink, payer: PaidBySender } }
         declared = Map.singleton (Id "toll") { form: LevyFlows GovernedByDestination, text: "" }
         w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") toll, exchanges = Map.singleton (Id "EM") (priced "EM" "E" [] "2") }
         r = resolved w [ submit "A" 0 [ send "B" 5 ] ]
@@ -722,7 +722,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a new Rule kind, declared only as data, is enforced by the mechanism" do
       let
         embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block }
-        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: PerUnit, in: Id "M", to: LevyToDestination } }
+        toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
         declared = Map.fromFoldable [ Tuple (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }, Tuple (Id "toll") { form: LevyFlows GovernedByDestination, text: "" } ]
         blocked = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
         tolled = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") toll }
@@ -1053,4 +1053,4 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"limitPrice\":null,\"exchange\":\"energy-asia\"}],\"tag\":\"Trade\"}"
     it "the snapshot form of a rule enactment nests the Rule the same way" do
       stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
-        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"
+        `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"payer\":{\"values\":[],\"tag\":\"PaidBySender\"},\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"

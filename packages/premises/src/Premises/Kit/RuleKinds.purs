@@ -10,7 +10,7 @@ module Premises.Kit.RuleKinds
 
 import Core.Num (Q)
 import Laws.StrategyRules (Expr, IntentTemplate, selfName)
-import Laws.Types (Capability, Direction(..), ActorId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
+import Laws.Types (LevyPayer(..), Capability, Direction(..), ActorId, FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleChangeF(..), RuleF(..))
 import Schema.Build.Base (mayEnact)
 import Schema.Build.Decision (selfEnact)
 
@@ -31,7 +31,7 @@ levyRule d =
   }
   where
   levyOf :: forall v. ActorId -> ActorId -> v -> RuleF v
-  levyOf jurisdiction origin rate = FlowRule { kind: Id d.kind, scope: { governor: jurisdiction, counterparty: origin, direction: Inbound, over: d.covered }, effect: Levy { rate, basis: PerUnit, in: d.paidIn, to: LevyToDestination } }
+  levyOf jurisdiction origin rate = FlowRule { kind: Id d.kind, scope: { governor: jurisdiction, counterparty: origin, direction: Inbound, over: d.covered }, effect: Levy { rate, basis: PerUnit, in: d.paidIn, to: LevyToDestination, payer: PaidBySender } }
 
 -- | A block of flows of the covered Resources, either way.
 type BlockKit =

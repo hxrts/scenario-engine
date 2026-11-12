@@ -10,7 +10,7 @@ import Laws.Engine.Commit (resolveRound)
 import Core.Num as Q
 import Laws.Query (holding)
 import Laws.Slice (event, levies, read, runSlice, select, shortfalls, total, transfers)
-import Laws.Types (Capability(..), Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), RuleForm(..), candidateTransactionId)
+import Laws.Types (LevyPayer(..), Capability(..), Direction(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceId, RuleF(..), RuleForm(..), candidateTransactionId)
 import Laws.World (UnseededWorld, Cause(..), Endpoint(..), Event(..), Mechanism(..), settledEvent, seeded)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (for_)
@@ -45,7 +45,7 @@ world = emptyWorld
       , Tuple "Emp" (noActor { accounts = keyed [ "M" := 8 ] })
       , Tuple "Wrk" noActor
       ]
-  , rules = rulesFromList [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.div (Q.fromInt 1) (Q.fromInt 10), basis: PerUnit, in: Id "M", to: LevyToDestination } } ]
+  , rules = rulesFromList [ FlowRule { kind: Id "toll", scope: { governor: Id "C", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.div (Q.fromInt 1) (Q.fromInt 10), basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } } ]
   , recurring = compileIn (Id "M") circulation decays
   }
 

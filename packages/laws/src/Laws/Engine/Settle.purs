@@ -213,7 +213,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
             Just from, Just to -> filter (\l -> l.amount > Q.zero) (leviesOn w { from, to, resource: m.base } x.quantity)
             _, _ -> []
           cause = OfMatch { exchange: id, buyer: ref x.buyer, seller: ref x.seller }
-          posted = runTransaction w a.ledger (pairTransaction { base: m.base, quote: m.quote, seller: account x.seller, buyer: account x.buyer, sellerActor, buyerActor, quantity: x.quantity, paid: Q.mul r.price x.quantity, levies: map (\l -> { to: l.to, in: l.in, amount: l.amount }) levies, cause })
+          posted = runTransaction w a.ledger (pairTransaction { base: m.base, quote: m.quote, seller: account x.seller, buyer: account x.buyer, sellerActor, buyerActor, quantity: x.quantity, paid: Q.mul r.price x.quantity, levies: map (\l -> { to: l.to, in: l.in, amount: l.amount, byBuyer: l.from /= l.sender }) levies, cause })
           levyEvents = zipWith (\l leg -> settledEvent w.round [ leg ] Nothing (OfRule { kind: l.kind })) levies (drop 2 posted.flows)
         in
           addEvents ([ settledEvent w.round (take 2 posted.flows) (Just r.price) cause ] <> levyEvents) a { ledger = posted.ledger }
@@ -288,7 +288,7 @@ transfersAndRules w acc s = foldl one withLevies (mapWithIndex Tuple p.intents)
   withLevies = foldl levy acc s.item.levies
   levy a' t =
     let
-      owed = Q.mul (scaleOf s t.from) t.amount
+      owed = Q.mul (scaleOf s t.sender) t.amount
     in
       case runTransaction w a'.ledger (payTransaction t.from t.to t.in owed (OfRule { kind: t.kind })) of
         posted

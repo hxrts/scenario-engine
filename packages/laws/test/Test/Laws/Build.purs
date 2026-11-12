@@ -6,7 +6,7 @@ import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.World (WorldState)
-import Laws.Types (ResourceId, ResourceTag, Draw, DrawSource(..), Capability, Direction(..), Actor, ActorId, ActorKind(..), ActorTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Exchange, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedCandidateTransaction, Transferability(..), Transformation, candidateTransactionId)
+import Laws.Types (LevyPayer(..), ResourceId, ResourceTag, Draw, DrawSource(..), Capability, Direction(..), Actor, ActorId, ActorKind(..), ActorTag, Estimator, FlowEffect(..), FlowGovernance(..), Id(..), Intent, LevyBasis(..), LevyRecipient(..), Exchange, Representation, ResourceDefinition, RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, SignedCandidateTransaction, Transferability(..), Transformation, candidateTransactionId)
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -95,7 +95,7 @@ exchange access =
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
 banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }

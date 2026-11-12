@@ -2,7 +2,7 @@
 -- | (docs/03_premise.md). Core knows none of it.
 module Laws.Types (module Laws.Types, module Core.Types) where
 
-import Core.Shape (Desc(..), refersTo, Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, enumName, field, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, recordOf, recordShape, stringShape, unitShape, (&.))
+import Core.Shape (Desc(..), defaultsTo, refersTo, Format(..), Shape, arrayOf, atTagged, decodeJsonWith, encodeWith, enumName, field, fieldOf, genericEnum, genericSum, keyedBy, mapOf, object, optionalOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Core.Types (Id(..), idText, idShape, ActorTag, ResourceTag, ExchangeTag, ActorId, ResourceId, ExchangeId, Quantity, Price, Ratio, RoundIndex, RoundOffset, Interval, Holdings, CostFunction, Exchange)
 import Prelude
 import Core.Num (Q, qShape)
@@ -186,8 +186,11 @@ data LevyBasis = PerUnit | AdValorem ExchangeId
 -- | Who receives a levy: the group the flow is going to, the Rule's governor, or nobody.
 data LevyRecipient = LevyToDestination | LevyToGovernor | LevyToSink
 
--- | A levy: its rate on its basis, the Resource it is paid in, and who receives it.
-type LevyF v = { rate :: v, basis :: LevyBasis, in :: ResourceId, to :: LevyRecipient }
+-- | Who pays a levy: the side the flow leaves (the seller of a trade), or the side it reaches (the buyer).
+data LevyPayer = PaidBySender | PaidByReceiver
+
+-- | A levy: its rate on its basis, the Resource it is paid in, who receives it, and who pays it.
+type LevyF v = { rate :: v, basis :: LevyBasis, in :: ResourceId, to :: LevyRecipient, payer :: LevyPayer }
 
 -- | What a flows Rule does: a levy on the flow, or a block on it.
 data FlowEffect v = Levy (LevyF v) | Block
@@ -412,6 +415,7 @@ derive instance Generic Direction _
 derive instance Generic (FlowEffect v) _
 derive instance Generic LevyBasis _
 derive instance Generic LevyRecipient _
+derive instance Generic LevyPayer _
 derive instance Generic (RuleF v) _
 derive instance Generic FlowGovernance _
 derive instance Generic RuleForm _
@@ -439,6 +443,7 @@ derive instance Eq Direction
 derive instance Eq FlowGovernance
 derive instance Eq LevyBasis
 derive instance Eq LevyRecipient
+derive instance Eq LevyPayer
 derive instance Eq RuleForm
 derive instance (Eq m, Eq v) => Eq (IntentF m v)
 derive instance Eq v => Eq (FlowEffect v)
@@ -461,6 +466,9 @@ instance Show FlowGovernance where
   show = genericShow
 
 instance Show LevyBasis where
+  show = genericShow
+
+instance Show LevyPayer where
   show = genericShow
 
 instance Show LevyRecipient where
@@ -523,8 +531,17 @@ levyBasisShape = genericSum "LevyBasis"
 levyRecipientShape :: Shape LevyRecipient
 levyRecipientShape = genericEnum "LevyRecipient"
 
+levyPayerShape :: Shape LevyPayer
+levyPayerShape = genericEnum "LevyPayer"
+
 levyShape :: forall v. Shape v -> Shape (LevyF v)
-levyShape v = recordShape "Levy" { rate: v, basis: levyBasisShape, in: refIdShape, to: levyRecipientShape }
+levyShape v = recordOf "Levy"
+  ( field @"rate" "the rate on the basis" v
+      &. field @"basis" "what the levy is charged on" levyBasisShape
+      &. field @"in" "the Resource it is paid in" refIdShape
+      &. field @"to" "who receives it" levyRecipientShape
+      &. field @"payer" "who pays it (default the sender)" (defaultsTo PaidBySender levyPayerShape)
+  )
 
 ruleShape :: Shape (RuleF Q)
 ruleShape = genericSum "Rule"

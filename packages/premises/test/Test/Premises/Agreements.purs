@@ -21,7 +21,7 @@ import Partial.Unsafe (unsafeCrashWith)
 import Laws.Engine.Commit (resolveRound)
 import Laws.Invariants (checkAfter)
 import Laws.Query (holding)
-import Laws.Types (Capability(..), Direction(..), ActorId, FlowEffect(..), FlowGovernance(..), RuleForm(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceTag, Rule, RuleF(..), RuleKindId, SignedCandidateTransaction, candidateTransactionId)
+import Laws.Types (LevyPayer(..), Capability(..), Direction(..), ActorId, FlowEffect(..), FlowGovernance(..), RuleForm(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), ResourceTag, Rule, RuleF(..), RuleKindId, SignedCandidateTransaction, candidateTransactionId)
 import Schema.Build.Agreement (Clause, Guard, agreement, onAction, clause, due, guard, held, repeal, spawn, step)
 import Schema.Build.Base (keyed, (:=))
 import Schema.Build.Quantity (q)
@@ -89,7 +89,7 @@ has :: ActorId -> Id ResourceTag -> String -> Guard
 has who resource x = guard (StockAtLeast { stock: { at: held (named who), resource }, amount: Exactly (q x) })
 
 levyRule :: Rule
-levyRule = FlowRule { kind: Id "tariff", scope: { governor: b, counterparty: a, direction: Inbound, over: [ goods ] }, effect: Levy { rate: q 1, basis: PerUnit, in: money, to: LevyToGovernor } }
+levyRule = FlowRule { kind: Id "tariff", scope: { governor: b, counterparty: a, direction: Inbound, over: [ goods ] }, effect: Levy { rate: q 1, basis: PerUnit, in: money, to: LevyToGovernor, payer: PaidBySender } }
 
 spec :: Spec Unit
 spec = describe "New designs, written with no core change" do

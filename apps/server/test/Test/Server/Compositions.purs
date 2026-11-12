@@ -133,7 +133,7 @@ spec = describe "A second Premise" do
         cache <- liftEffect newServerCache
         let api method path query body = liftEffect (route (implement [ meridian, pc ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
-        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Balanced\",\"Builder\",\"Directed\",\"Exporter\",\"FreeTrade\",\"Hawk\",\"Hedger\",\"Merchant\",\"Patron\",\"Planner\",\"Populist\",\"Rebalance\",\"Reformer\",\"Restrict\",\"RestrictAndSubstitute\",\"Retaliate\",\"Substitute\",\"Tariff\"]")
+        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Builder\",\"Exporter\",\"FreeTrade\",\"Hawk\",\"Hedger\",\"Merchant\",\"Patron\",\"Planner\",\"Populist\",\"Rebalance\",\"Reformer\",\"Restrict\",\"Retaliate\",\"Substitute\",\"Tariff\"]")
         list.body `shouldSatisfy` contains (Pattern "\"defaultPreset\":\"FreeTrade\"")
         launched <- api "POST" "/api/runs" [] "{\"composition\":\"pacific\",\"name\":\"p\",\"preset\":\"Restrict\",\"playerSeed\":1,\"rounds\":6}"
         launched.status `shouldEqual` 200

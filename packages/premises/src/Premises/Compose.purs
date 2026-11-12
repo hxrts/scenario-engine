@@ -231,7 +231,8 @@ circulationList who acc (Tuple key value)
       pure acc { merged = Object.insert "circulation" (fromObject inner.merged) acc.merged }
   | otherwise = Left (UnknownSection { premise: who, key: "circulation." <> key })
 
--- | A Premise's `extends`: `{ actors: { <name>: { accounts, capabilities } }, exchanges: { <name>: { access } } }`.
+-- | A Premise's `extends`: `{ actors: { <name>: { accounts, capabilities, criteria } }, exchanges: { <name>: { access } } }`.
+-- | Criteria are added to the Actor's objective.
 applyExtension :: Merged -> Tuple String Json -> Either ComposeError Merged
 applyExtension acc (Tuple who value) = do
   o <- objectOf who "extends" value
@@ -261,6 +262,12 @@ addToActor who name acc entry (Tuple key value) = case key of
   "capabilities" -> do
     added <- arrayOf' who ("extends.actors." <> name <> ".capabilities") value
     pure (Object.insert "capabilities" (fromArray (appendNew (fromMaybe [] (Object.lookup "capabilities" entry >>= toArray)) added)) entry)
+  "criteria" -> do
+    added <- arrayOf' who ("extends.actors." <> name <> ".criteria") value
+    definition <- objectOf who ("actors." <> name <> ".definition") (fromMaybe (fromObject Object.empty) (Object.lookup "definition" entry))
+    objective <- objectOf who ("actors." <> name <> ".definition.objective") (fromMaybe (fromObject Object.empty) (Object.lookup "objective" definition))
+    let criteria = fromArray (appendNew (fromMaybe [] (Object.lookup "criteria" objective >>= toArray)) added)
+    pure (Object.insert "definition" (fromObject (Object.insert "objective" (fromObject (Object.insert "criteria" criteria objective)) definition)) entry)
   _ -> Left (UnknownSection { premise: who, key: "extends.actors." <> name <> "." <> key })
   where
   addAccount accounts (Tuple resource quantity) = case Object.lookup resource accounts of

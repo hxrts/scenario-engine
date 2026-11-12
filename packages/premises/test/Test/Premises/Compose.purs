@@ -180,12 +180,12 @@ spec = do
       case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { preset = Nothing } } of
         Left e -> fail e
         Right p -> do
-          Map.size p.composition.world.transformations `shouldEqual` 2
+          Map.size p.composition.world.transformations `shouldEqual` 4
           Map.size p.composition.world.ruleKinds `shouldEqual` 0
     it "private-sector alone fails only on what the other Premises define" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of
-        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Exchange industry-cn, which no Premise in the composition defines"
-        Right _ -> fail "the private-sector Premise extends Exchanges it does not define"
+        Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Actor CN, which no Premise in the composition defines"
+        Right _ -> fail "the private-sector Premise extends Actors it does not define"
     it "strategic-dependence alone fails only on the Actors the other Premise defines" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
         Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"

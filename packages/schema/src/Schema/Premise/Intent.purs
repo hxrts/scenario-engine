@@ -12,8 +12,8 @@ import Core.Sum (ctor)
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, premiseSum)
-import Laws.Types (enterBody, transformBody, repealBody, Capability, Direction(..), ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Core.Shape (Shape, defaultsTo, field, recordOf, (&.), atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, premiseSum)
+import Laws.Types (enterBody, transformBody, repealBody, Capability, Direction(..), ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), LevyPayer(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
@@ -58,10 +58,17 @@ recipientShape = nameShape "LevyRecipient" "who receives it: destination, govern
     LevyToGovernor -> "governor"
     LevyToSink -> "sink"
 
+payerShape :: Shape LevyPayer
+payerShape = nameShape "LevyPayer" "who pays it: sender or receiver" payer [ PaidBySender, PaidByReceiver ]
+  where
+  payer = case _ of
+    PaidBySender -> "sender"
+    PaidByReceiver -> "receiver"
+
 -- | What a flows Rule does, over its filling.
 effectShapeOf :: forall v. Shape v -> Shape (FlowEffect v)
 effectShapeOf v = genericPremiseSum "FlowEffect"
-  { "Levy": atOneKey "levy" "a levy on the flow: its rate, its basis, the Resource it is paid in, and who receives it" (recordShape "Levy" { rate: v, basis: basisShape, in: idShape, to: recipientShape })
+  { "Levy": atOneKey "levy" "a levy on the flow: its rate, its basis, the Resource it is paid in, and who receives it" (recordOf "Levy" (field @"rate" "its rate" v &. field @"basis" "what it is charged on" basisShape &. field @"in" "the Resource it is paid in" idShape &. field @"to" "who receives it" recipientShape &. field @"payer" "who pays it (default the sender)" (defaultsTo PaidBySender payerShape)))
   , "Block": atBare { tag: "block", desc: "the flow is refused" }
   }
 

@@ -13,7 +13,7 @@ import Core.Draw (Seed(..))
 import Core.Map (values)
 import Laws.Engine.Prepare (observe, prepareRound)
 import Laws.Engine.Screen (screen)
-import Laws.Types (ResourceId, Capability(..), Direction(..), ActorId, ActorTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), candidateTransactionId, samePositions, traverseIntent)
+import Laws.Types (LevyPayer(..), ResourceId, Capability(..), Direction(..), ActorId, ActorTag, FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), RefKind(..), RuleChangeF(..), RuleF(..), RuleForm(..), RuleKindDecl, RuleKindTag, Transferability(..), candidateTransactionId, samePositions, traverseIntent)
 import Laws.Slice (event, pickOf)
 import Data.Array.NonEmpty as NEA
 import Data.Identity (Identity(..))
@@ -357,7 +357,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
 banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }

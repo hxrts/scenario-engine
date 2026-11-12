@@ -4,6 +4,7 @@
 -- | The premise tags are private to this module.
 module Schema.Premise.PlayableActor
   ( definitionShape
+  , criterionShape
   , metricShape
   , boundShape
   , fallbackShape

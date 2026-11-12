@@ -85,7 +85,7 @@ pairTransaction
      , buyerActor :: ActorId
      , quantity :: Q
      , paid :: Q
-     , levies :: Array { to :: Maybe ActorId, in :: ResourceId, amount :: Q }
+     , levies :: Array { to :: Maybe ActorId, in :: ResourceId, amount :: Q, byBuyer :: Boolean }
      , cause :: Cause
      }
   -> Transaction
@@ -94,7 +94,7 @@ pairTransaction p =
       [ leg "delivery" p.sellerActor p.seller p.buyer p.base p.quantity [ bound 1 ]
       , leg "payment" p.buyerActor p.buyer p.seller p.quote p.paid [ bound 0 ]
       ]
-        <> map (\l -> leg "levy" p.sellerActor p.seller (maybe K.Destroyed named l.to) l.in l.amount [ bound 0 ]) p.levies
+        <> map (\l -> if l.byBuyer then leg "levy" p.buyerActor p.buyer (maybe K.Destroyed named l.to) l.in l.amount [ bound 0 ] else leg "levy" p.sellerActor p.seller (maybe K.Destroyed named l.to) l.in l.amount [ bound 0 ]) p.levies
   , ration: { tier: 1, whole: false, scaleGroup: Nothing }
   , phase: 1
   , cause: Just p.cause

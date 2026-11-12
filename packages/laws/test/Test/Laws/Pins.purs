@@ -8,7 +8,7 @@ import Laws.Engine.Commit (EngineError, resolveRound)
 
 import Core.Num as Q
 import Laws.Query (holding, reserveOf)
-import Laws.Types (Capability(..), Direction(..), Actor, ActorKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Payment, CandidateTransactionId, ResourceId, RuleF(..), SignedCandidateTransaction, Transformation, candidateTransactionId)
+import Laws.Types (LevyPayer(..), Capability(..), Direction(..), Actor, ActorKind(..), FlowEffect(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Payment, CandidateTransactionId, ResourceId, RuleF(..), SignedCandidateTransaction, Transformation, candidateTransactionId)
 import Laws.World (Cause(..), Endpoint(..), Event(..), Flow, Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), WorldState, settledEvent, lapse, orderRemoved, rejection)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldM)
@@ -147,7 +147,7 @@ pins = describe "Settlement pins" do
 
   it "a levy to the sink posts before its Transfer, as its own event" do
     let
-      levy = FlowRule { kind: Id "tariff", scope: { governor: b, counterparty: a, direction: Inbound, over: [ e ] }, effect: Levy { rate: q "0.5", basis: PerUnit, in: m, to: LevyToSink } }
+      levy = FlowRule { kind: Id "tariff", scope: { governor: b, counterparty: a, direction: Inbound, over: [ e ] }, effect: Levy { rate: q "0.5", basis: PerUnit, in: m, to: LevyToSink, payer: PaidBySender } }
       w = (world [ withAccount e (q "10") (explicitActor "A" []), explicitActor "B" [] ]) { rules = Map.singleton (Id "l") levy }
     events (resolveRound w [ submit "A" 0 [ send "A" "B" e "4" ] ]) `shouldEqual`
       [ settledEvent 1 [ flow (held "A") Sink m "2" "2" ] Nothing (OfRule { kind: Id "tariff" })

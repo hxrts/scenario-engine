@@ -38,8 +38,12 @@ type Names =
   , usExportTax :: RuleKindId
   , usIndustrialInvestment :: TransformationId
   , cnTechnologyInvestment :: TransformationId
-  , usTechnologyBan :: RuleKindId
-  , cnIndustrialBan :: RuleKindId
+  , usImportBan :: RuleKindId
+  , cnImportBan :: RuleKindId
+  , cnImportTariff :: RuleKindId
+  , cnFirmInvestmentLow :: TransformationId
+  , cnFirmInvestmentHigh :: TransformationId
+  , supply :: StrategyId
   , commerce :: StrategyId
   , usPrivate :: ActorId
   , cnPrivate :: ActorId
@@ -69,8 +73,12 @@ p =
   , usExportTax: Id "us-export-tax"
   , usIndustrialInvestment: Id "us-industrial-investment"
   , cnTechnologyInvestment: Id "cn-technology-investment"
-  , usTechnologyBan: Id "us-technology-ban"
-  , cnIndustrialBan: Id "cn-industrial-ban"
+  , usImportBan: Id "us-import-ban"
+  , cnImportBan: Id "cn-import-ban"
+  , cnImportTariff: Id "cn-import-tariff"
+  , cnFirmInvestmentLow: Id "cn-firm-investment-low"
+  , cnFirmInvestmentHigh: Id "cn-firm-investment-high"
+  , supply: Id "pacific-supply-v0"
   , commerce: Id "pacific-commerce-v0"
   , usPrivate: Id "US-private"
   , cnPrivate: Id "CN-private"

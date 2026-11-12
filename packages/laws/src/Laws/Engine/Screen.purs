@@ -23,10 +23,10 @@ import Core.Kernel.Types (Condition(..))
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
-import Laws.Query (aggregateOf, capabilitiesOf, holderOf, lookupQ, exchangesOf, procedureSupport, transfersOf, transformsOf)
-import Laws.Types (Capability, CollectiveProcedureId, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransaction, CandidateTransactionId, ResourceId, RuleKindId, SignedCandidateTransaction, holderDraw, jointIntent)
+import Laws.Query (rulesOf, aggregateOf, capabilitiesOf, holderOf, lookupQ, exchangesOf, procedureSupport, transfersOf, transformsOf)
+import Laws.Types (FlowEffect(..), LevyPayer(..), RuleF(..), Capability, CollectiveProcedureId, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransaction, CandidateTransactionId, ResourceId, RuleKindId, SignedCandidateTransaction, holderDraw, jointIntent)
 import Laws.World (Cause(..), Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, foldl, filter, find, length, mapMaybe, nub, nubEq)
+import Data.Array (all, any, concat, elem, foldl, filter, find, findMap, length, mapMaybe, nub, nubEq)
 import Data.Foldable (for_)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -40,7 +40,7 @@ import Data.Tuple (Tuple(..))
 
 -- | A screened candidate Transaction: signatures, shape, and authority checked; levies attached.
 -- | `routes` holds, by Intent index, the candidate Exchanges of each routed Trade (docs/02 §5.2).
-type Levy = { kind :: RuleKindId, from :: ActorId, to :: Maybe ActorId, in :: ResourceId, amount :: Q }
+type Levy = { kind :: RuleKindId, from :: ActorId, sender :: ActorId, to :: Maybe ActorId, in :: ResourceId, amount :: Q }
 
 type Item =
   { candidateTransaction :: CandidateTransaction
@@ -182,7 +182,8 @@ conditioned w p = concat <$> traverse check gated
     pure (leviesOn w { from: t.from, to: t.to, resource: t.resource } t.quantity)
 
 -- | The levies the flows Rules in force charge one movement of a Resource, by the units moved: a Transfer at
--- | screening, and a matched Exchange pair at clearing, share this one computation. The sender pays. A Rule
+-- | screening, and a matched Exchange pair at clearing, share this one computation. The sender pays, or the
+-- | receiver when the Rule says so (`from` is the payer, `sender` the side the flow leaves). A Rule
 -- | applies through whichever of its directions covers the flow, once, and rules of one kind paid the same way
 -- | are one levy, so one shipment is charged once.
 leviesOn :: WorldState -> { from :: ActorId, to :: ActorId, resource :: ResourceId } -> Q -> Array Levy
@@ -191,7 +192,15 @@ leviesOn w flow quantity = map levyOf (nubEq (map keyOf charged))
   applicable = mapMaybe (find (appliesTo flow)) (flowLaws w)
   charged = mapMaybe (\law -> (\leg -> { kind: kindOf law, leg }) <$> emitted quantity (groupOf w flow.to) law) applicable
   keyOf c = { kind: c.kind, in: c.leg.resource, to: c.leg.to }
-  levyOf key = { kind: key.kind, from: flow.from, to: key.to, in: key.in, amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged)) }
+  payerOf kind = fromMaybe PaidBySender
+    ( findMap
+        ( \r -> case r of
+            FlowRule { kind: k, effect: Levy l } | k == kind -> Just l.payer
+            _ -> Nothing
+        )
+        (rulesOf w)
+    )
+  levyOf key = { kind: key.kind, from: if payerOf key.kind == PaidByReceiver then flow.to else flow.from, sender: flow.from, to: key.to, in: key.in, amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged)) }
 
 -- | The kind of the first flows Rule in force that blocks a movement of a Resource from one Actor to another,
 -- | if one does: a Transfer at screening, and a matched Exchange fill at clearing, share this one check.

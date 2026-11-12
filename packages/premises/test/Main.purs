@@ -21,7 +21,7 @@ import World.Composition.Validate (validateComposition)
 import Core.Num (Q)
 import Core.Num as Q
 import Premises.Kit.Resources (capacity)
-import Laws.Types (ResourceId, DrawSource(..), idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), ActorTag, Capability(..), Actor, ActorKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
+import Laws.Types (LevyPayer(..), ResourceId, DrawSource(..), idText, LevyBasis(..), LevyRecipient(..), Direction(..), FlowEffect(..), RuleF(..), ActorTag, Capability(..), Actor, ActorKind(..), Id(..), IntentF(..), RefKind(..), RuleChangeF(..))
 import Laws.World (Cause(..), Event, Mechanism(..), RecurringAmount(..), RecurringDestination(..), UnseededWorld, View, settledEvent, seeded)
 import Schema.Recurring (flowRule, kinds, productionRule, requirementRule, salesOf, shareRule)
 import Data.Argonaut.Core (Json, stringify, toString, toObject)
@@ -597,7 +597,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
 tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination } }
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
 banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
 banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
