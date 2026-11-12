@@ -153,7 +153,7 @@ defaultDials =
   , wage: { usTechnology: q "0.25", usIndustry: q "1.5", cnTechnology: q "0.75", cnIndustry: q "0.25" }
   , tariffRate: q 1
   , taxRate: q "0.5"
-  , cautiousOutput: q 6
+  , cautiousOutput: q "0.5"
   , private: defaultPrivate
   , world: defaultWorld
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §9.4), so a seat

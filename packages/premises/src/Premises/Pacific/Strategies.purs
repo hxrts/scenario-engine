@@ -67,10 +67,10 @@ wageParam t = idText t <> "-wage"
 costParam :: TransformationId -> String
 costParam t = idText t <> "-cost"
 
--- | An investment at a level, no more than the goods held and not yet committed pay for: an order beyond them would
--- | be scaled down with the investor's other orders.
-affordable :: Int -> TransformationId -> ResourceId -> Expr
-affordable n t good = minQ (lit n) (divQ (max' (lit 0) (subQ (holding good) (planned good))) (param (costParam t)))
+-- | An investment at a level, no more than the goods held and not yet committed, and the money for its construction
+-- | wages, pay for: an order beyond the goods would be scaled down with the investor's other orders.
+affordable :: Int -> TransformationId -> ResourceId -> ResourceId -> Expr
+affordable n t good money = minQ (minQ (lit n) (divQ (max' (lit 0) (subQ (holding good) (planned good))) (param (costParam t)))) (divQ (holding money) (param (wageParam t)))
 
 -- | The share of a firm's capacity that runs on its foreign input.
 inputShare :: String
@@ -83,7 +83,8 @@ inputParam f = idText f <> "-input-per-unit"
 outputParam :: ActorId -> String
 outputParam f = idText f <> "-output-per-input"
 
--- | The industrial production China's cautious state holds out for before it rebalances (docs/05 §6.3, F11).
+-- | The production on US technology China's cautious state wants its firm to keep up while it rebalances (docs/05
+-- | §6.3, F11).
 viabilityParam :: String
 viabilityParam = "cautious-output"
 
@@ -203,7 +204,7 @@ withoutHome3 a lv = { rules: barrier <> industrial <> home4, sign: [] }
     1 -> [ rule [ acting a ] [ asTemplate (selfEnact (tariffRule a)) ] ]
     _ -> [ rule [ acting a ] [ asTemplate (selfEnact (controlRule a)) ] ]
   -- build while capacity held and on order is below the requirement it substitutes for
-  industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding inv.capacity) (scheduled inv.capacity)) ] [ asTemplate (selfTransform { transformation: inv.t, quantity: affordable lv.two inv.t inv.input }) ] ]
+  industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding inv.capacity) (scheduled inv.capacity)) ] [ asTemplate (selfTransform { transformation: inv.t, quantity: affordable lv.two inv.t inv.input c.money }) ] ]
   home4
     | lv.four == 0 = []
     -- America levies foreign lenders
@@ -231,7 +232,7 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
   units = minQ (param (stockpileParam (level lv.two))) (divQ (mulQ (lit "0.5") (holding c.foreignMoney)) (priceAt (named c.world)))
   stockpile = if lv.two == 0 then [] else [ rule [ acting f ] [ orderAt (named c.world) units (Just (priceAt (named c.world))), ofForeign c (mulQ units (priceAt (named c.world))) ] ]
   investment = if f == p.usFirm then p.usFirmInvestment else p.cnFirmInvestment
-  invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: investment, quantity: affordable lv.three investment c.good }) ] ]
+  invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: investment, quantity: affordable lv.three investment c.good c.money }) ] ]
   pay = if lv.four == 0 then [] else [ rule [ acting f ] [ asTemplate (Transfer { from: selfActor, to: c.private, resource: c.money, quantity: mulQ (param (payParam (level lv.four))) (holding c.money) }) ] ]
 
 -- | The presets' names (docs/05 §6.3).
@@ -319,10 +320,10 @@ presets =
     let
       s = if a == p.us then { t: p.usIndustrialInvestment, cap: p.industryCapacity, good: p.industry, input: p.technology } else { t: p.cnTechnologyInvestment, cap: p.technologyCapacity, good: p.technology, input: p.industry }
     in
-      rule ([ acting a, gt (due s.good) (addQ (holding s.cap) (scheduled s.cap)) ] <> extra) [ asTemplate (selfTransform { transformation: s.t, quantity: affordable 1 s.t s.input }) ]
+      rule ([ acting a, gt (due s.good) (addQ (holding s.cap) (scheduled s.cap)) ] <> extra) [ asTemplate (selfTransform { transformation: s.t, quantity: affordable 1 s.t s.input (countryOf a).money }) ]
   -- control exports to the other the round after it enacted a barrier against this country
   retaliate = { rules: map (\x -> rule [ acting x.state, restrictedLastRound { by: x.other, target: x.state } ] [ asTemplate (selfEnact (controlRule x.state)) ]) countries, sign: [] }
-  -- while its state's industrial production last round kept up, China stays rebalanced; when it fell short, China
-  -- represses at the high setting. Its reserves stay on throughout
-  kept = transformedLastRound { by: p.cn, transformation: p.cnIndustryProduction, atLeast: param viabilityParam }
+  -- while its firm's production on US technology last round kept up, China stays rebalanced; when it fell short, as
+  -- under a US export control, China represses at the high setting. Its reserves stay on throughout
+  kept = transformedLastRound { by: p.cnFirm, transformation: p.cnFirmProduction, atLeast: param viabilityParam }
   cautious = combine ([ statePolicy p.us (lv 0 0 0 0), withoutHome3 p.cn (lv 0 0 0 2), repression [ kept ] 0, repression [ not' kept ] 2 ] <> exporting)

@@ -36,6 +36,7 @@ data View
   | Balance
   | Events
   | Dependence
+  | Finance
 
 derive instance Eq View
 derive instance Generic View _
