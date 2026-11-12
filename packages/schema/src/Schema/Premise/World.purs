@@ -23,7 +23,7 @@ import Laws.World (authoredLawShape, focusShape, FlowGate, UnseededWorld, worldT
 
 import Core.Num (Q, qShape)
 import Core.Num as Q
-import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericPremiseSum, intShape, iso, listOf, nameShape, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
+import Core.Shape (RecF, Shape, arrayOf, atBare, atKindArg, boolShape, contramapRec, defaulted, defaultsTo, emptyByDefault, field, fieldOf, genericNameShape, genericPremiseSum, intShape, iso, listOf, orList, object, optionalOf, recordOf, recordShape, refined, stringShape, (&.))
 import Laws.Types (Aggregate, DelayedFlow, Draw, DrawSource, CollectiveProcedure, CostFunction, Actor, ActorId, ActorKind(..), Estimator, FlowGovernance(..), Id(..), Interval, Exchange, ExchangeId, Payment, Representation, ResourceDefinition, ResourceId, Rule, RuleForm, RuleId, RuleKindDecl, Transferability, Transformation, TransformationId, executorDraws, idMap, idMapWith, idShape, idText)
 import Laws.Types as Types
 import Data.Array (concatMap, elem, filter, find, mapMaybe, mapWithIndex, sortWith)
@@ -269,7 +269,7 @@ ruleForm = genericPremiseSum "RuleForm"
   , "ReduceHolding": atBare { tag: "reduce", desc: "a reduction of what can be drawn, governed by the holder" }
   }
   where
-  governance = nameShape "FlowGovernance" "who governs: destination, origin or either" governed [ GovernedByDestination, GovernedBySource, GovernedByEither ]
+  governance = genericNameShape "FlowGovernance" (\ns -> "who governs: " <> orList ns) governed
   governed = case _ of
     GovernedByDestination -> "destination"
     GovernedBySource -> "origin"

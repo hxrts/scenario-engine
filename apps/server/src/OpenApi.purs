@@ -7,7 +7,7 @@ import Prelude
 
 import Adapters.Exit (fail, usageError)
 import Adapters.Filesystem (fileDevice)
-import Core.Shape (prettyJson)
+import Core.Shape (lowerName, prettyJson)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -20,7 +20,7 @@ import Handlers.System (interpretFiles)
 import Node.Process (argv)
 import Premises.Load (loadAll)
 import Run (case_, on, run)
-import Server.OpenApi (defaultServer, document, documentsOf, serviceName, services)
+import Server.OpenApi (defaultServer, document, documentsOf, services)
 
 type Flags = { composition :: String, server :: String, out :: String }
 
@@ -36,10 +36,10 @@ main = do
   case parseWith flags args of
     Left e -> usageError [ "usage: openapi " <> usageOf flags, "  e.g. just openapi pacific --out build/openapi" ] e
     Right f
-      | f.composition == "" -> for_ services \s -> fileDevice.write ("openapi/" <> serviceName s <> ".json") (prettyJson (document s))
+      | f.composition == "" -> for_ services \s -> fileDevice.write ("openapi/" <> lowerName s <> ".json") (prettyJson (document s))
       | otherwise -> run (case_ # on _files (interpretFiles fileDevice)) (loadAll files) >>= case _ of
           Left e -> fail e
           Right compositions -> case documentsOf compositions { composition: f.composition, server: f.server } of
             Left e -> fail e
             Right documents -> for_ documents \(Tuple s doc) ->
-              fileDevice.write ((if f.out == "" then "openapi/" <> f.composition else f.out) <> "/" <> serviceName s <> ".json") (prettyJson doc)
+              fileDevice.write ((if f.out == "" then "openapi/" <> f.composition else f.out) <> "/" <> lowerName s <> ".json") (prettyJson doc)

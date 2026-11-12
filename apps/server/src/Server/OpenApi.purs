@@ -3,7 +3,6 @@
 -- | describe a route differently from how it behaves.
 module Server.OpenApi
   ( services
-  , serviceName
   , serviceOf
   , document
   , defaultServer
@@ -20,24 +19,19 @@ import Laws.Types (RefKind)
 import Laws.World (namesOfKind)
 import Server.Compositions (Compositions)
 
-import Core.Shape (Desc, allValues, jsonSchemaIn, schemaComponentsIn)
+import Core.Shape (Desc, allValues, lowerName, jsonSchemaIn, schemaComponentsIn)
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromObject, fromString)
 import Data.String (Pattern(..), joinWith, stripPrefix, toLower)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object as Object
 import Handlers.Api.Contract (operations)
-import Handlers.Api.Route (Service(..), Doc, endpointAccess, errorShape)
+import Handlers.Api.Route (Service, Doc, endpointAccess, errorShape)
 
 services :: Array Service
-services = [ Transcription, Narrative ]
-
-serviceName :: Service -> String
-serviceName = case _ of
-  Transcription -> "transcription"
-  Narrative -> "narrative"
+services = allValues
 
 serviceOf :: String -> Maybe Service
-serviceOf name = find (\s -> serviceName s <> ".json" == toLower name) services
+serviceOf name = find (\s -> lowerName s <> ".json" == toLower name) services
 
 type Published = { service :: Service, operation :: String, summary :: String, reply :: Desc, status :: Int, errors :: Array Int }
 
@@ -74,7 +68,7 @@ type Where = { server :: String, names :: String -> Array String }
 documentIn :: Where -> Service -> Json
 documentIn at service = obj
   [ Tuple "openapi" (fromString "3.1.0")
-  , Tuple "info" (obj [ Tuple "title" (fromString ("Scenario Engine " <> serviceName service <> " API")), Tuple "version" (fromString "1") ])
+  , Tuple "info" (obj [ Tuple "title" (fromString ("Scenario Engine " <> lowerName service <> " API")), Tuple "version" (fromString "1") ])
   , Tuple "servers" (fromArray [ obj [ Tuple "url" (fromString at.server) ] ])
   , Tuple "paths" (obj (mapMaybe (pathOf at) ops))
   , Tuple "components" (obj [ Tuple "schemas" (obj components) ])

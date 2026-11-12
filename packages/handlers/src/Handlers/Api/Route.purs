@@ -216,6 +216,7 @@ isOpen = case _ of
 data Service = Transcription | Narrative
 
 derive instance Eq Service
+derive instance Generic Service _
 
 -- | How an open route is published: to which service, and what it does.
 type Publish = { service :: Service, summary :: String }

@@ -12,8 +12,8 @@ import Core.Sum (ctor)
 import Prelude
 
 import Core.Num (Q, qShape)
-import Core.Shape (Shape, defaultsTo, field, recordOf, (&.), atBare, atKindArg, atOneKey, fieldOf, genericPremiseSum, listOf, nameShape, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, premiseSum)
-import Laws.Types (enterBody, transformBody, repealBody, Capability, Direction(..), ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), LevyPayer(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
+import Core.Shape (Shape, defaultsTo, field, recordOf, (&.), atBare, atKindArg, atOneKey, fieldOf, genericNameShape, genericPremiseSum, listOf, orList, camelName, object, omittedWhen, oneKey, optionalOf, partialIso, recordShape, refined, requiredOf, premiseSum)
+import Laws.Types (enterBody, transformBody, repealBody, Capability, Direction, ActorId, FlowEffect, Intent, LevyBasis, LevyRecipient(..), LevyPayer(..), IntentF(..), ExchangeId, Pair, ResourceId, RuleChangeF(..), RuleF, idShape, transferBody)
 import Data.Array (null)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..))
@@ -36,12 +36,7 @@ repealTag = "repeal"
 
 -- | A Rule's direction, written by name.
 directionShape :: Shape Direction
-directionShape = nameShape "Direction" "direction: inbound, outbound or eitherWay" dirName [ Inbound, Outbound, EitherWay ]
-  where
-  dirName = case _ of
-    Inbound -> "inbound"
-    Outbound -> "outbound"
-    EitherWay -> "eitherWay"
+directionShape = genericNameShape "Direction" (\ns -> "direction: " <> orList ns) camelName
 
 -- | What a levy is charged on: `perUnit`, or `{ adValorem: <exchange> }`.
 basisShape :: Shape LevyBasis
@@ -51,7 +46,7 @@ basisShape = genericPremiseSum "LevyBasis"
   }
 
 recipientShape :: Shape LevyRecipient
-recipientShape = nameShape "LevyRecipient" "who receives it: destination, governor or sink" recipient [ LevyToDestination, LevyToGovernor, LevyToSink ]
+recipientShape = genericNameShape "LevyRecipient" (\ns -> "who receives it: " <> orList ns) recipient
   where
   recipient = case _ of
     LevyToDestination -> "destination"
@@ -59,7 +54,7 @@ recipientShape = nameShape "LevyRecipient" "who receives it: destination, govern
     LevyToSink -> "sink"
 
 payerShape :: Shape LevyPayer
-payerShape = nameShape "LevyPayer" "who pays it: sender or receiver" payer [ PaidBySender, PaidByReceiver ]
+payerShape = genericNameShape "LevyPayer" (\ns -> "who pays it: " <> orList ns) payer
   where
   payer = case _ of
     PaidBySender -> "sender"

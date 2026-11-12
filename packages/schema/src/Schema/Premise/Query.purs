@@ -7,9 +7,9 @@ module Schema.Premise.Query
   , atParty
   ) where
 
-import Core.Shape (Shape, atBare, atOneKey, genericPremiseSum, nameShape, optionalOf, recordShape)
+import Core.Shape (Shape, atBare, atOneKey, camelName, genericNameShape, genericPremiseSum, orList, optionalOf, recordShape)
 import Laws.Types (ActorId, ResourceId, idShape)
-import Laws.World (CausePattern, LegAggregate(..), LegQuery, Side(..), Window(..))
+import Laws.World (CausePattern, LegAggregate, LegQuery, Side, Window)
 import Data.Maybe (Maybe)
 import Record as Record
 import Type.Proxy (Proxy(..))
@@ -22,19 +22,10 @@ atParty :: ActorId -> ShareMeasure -> LegQuery
 atParty party m = Record.insert (Proxy :: Proxy "party") party m
 
 windowShape :: Shape Window
-windowShape = nameShape "Window" "thisRoundSoFar or lastRound" name [ ThisRoundSoFar, LastRound ]
-  where
-  name = case _ of
-    ThisRoundSoFar -> "thisRoundSoFar"
-    LastRound -> "lastRound"
+windowShape = genericNameShape "Window" orList camelName
 
 sideShape :: Shape Side
-sideShape = nameShape "Side" "incoming, outgoing or netOutgoing" name [ Incoming, Outgoing, NetOutgoing ]
-  where
-  name = case _ of
-    Incoming -> "incoming"
-    Outgoing -> "outgoing"
-    NetOutgoing -> "netOutgoing"
+sideShape = genericNameShape "Side" orList camelName
 
 causeShape :: Shape CausePattern
 causeShape = genericPremiseSum "CausePattern"
@@ -44,12 +35,7 @@ causeShape = genericPremiseSum "CausePattern"
   }
 
 aggregateShape :: Shape LegAggregate
-aggregateShape = nameShape "LegAggregate" "sumMoved, sumValue or largestUnits" name [ SumMoved, SumValue, LargestUnits ]
-  where
-  name = case _ of
-    SumMoved -> "sumMoved"
-    SumValue -> "sumValue"
-    LargestUnits -> "largestUnits"
+aggregateShape = genericNameShape "LegAggregate" orList camelName
 
 measureShape :: Shape ShareMeasure
 measureShape = recordShape "ShareMeasure" { window: windowShape, side: sideShape, resource: optionalOf idShape, cause: causeShape, aggregate: aggregateShape }

@@ -82,6 +82,8 @@ module Core.Shape
   , genericNameShape
   , enumName
   , lowerName
+  , camelName
+  , orList
   , pairOf
   , keyedOf
   , listOf
@@ -631,7 +633,19 @@ lowerName = toLower <<< enumName
 genericNameShape :: forall a rep. Generic a rep => EnumCtors rep => String -> (Array String -> String) -> (a -> String) -> Shape a
 genericNameShape name message text = nameShape name (message (map text values)) text values
   where
-  values = map _.value (enumCtors (Proxy :: Proxy rep) to)
+  values = allValues :: Array a
+
+-- | A constructor's name with its first letter in lower case (`ThisRoundSoFar` is `thisRoundSoFar`).
+camelName :: forall a rep. Generic a rep => EnumCtors rep => a -> String
+camelName x = toLower (take 1 n) <> drop 1 n
+  where
+  n = enumName x
+
+-- | Spellings as a reader lists them: `a, b or c`.
+orList :: Array String -> String
+orList xs = case Array.unsnoc xs of
+  Just { init, last } | not (Array.null init) -> joinWith ", " init <> " or " <> last
+  _ -> joinWith "" xs
 
 -- | A sum of constructors with no argument, written as `{"tag":..,"values":[]}`: its tag alone.
 genericEnum :: forall a rep. Generic a rep => EnumCtors rep => String -> Shape a

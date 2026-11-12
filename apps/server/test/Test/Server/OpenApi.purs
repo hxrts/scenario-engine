@@ -9,7 +9,7 @@ import Handlers.Api.Route (Service(..), submissionShape, endpointAccess, isOpen,
 
 import Data.Array (find, elem, filter, all, any, length, sort, zipWith)
 
-import Core.Shape (Format(..), Shape, decodeJsonWith, Desc(..), TagForm(..), jsonSchema, schemaComponents)
+import Core.Shape (Format(..), Shape, decodeJsonWith, Desc(..), TagForm(..), jsonSchema, lowerName, schemaComponents)
 import Data.Either (isRight, either)
 import Views.Keys (viewShape)
 import Handlers.Api.Contract (SessionStarted, SessionState)
@@ -26,7 +26,7 @@ import Effect.Aff (Aff, delay)
 import Effect.Class (liftEffect)
 import Effects.Api (ApiRequest(..), Reply)
 import Foreign.Object as Object
-import Server.OpenApi (documentsOf, document, published, serviceName, services)
+import Server.OpenApi (documentsOf, document, published, services)
 import Server.Stack (implement, newServerCache)
 import Test.Server.Host (testHost)
 import Test.Spec (Spec, describe, it)
@@ -148,7 +148,7 @@ spec = describe "JSON Schema and OpenAPI" do
   it "the documents are served without a session, and live replies validate" do
     call <- api
     services # traverse_ \s -> do
-      r <- call "GET" ("/api/openapi/" <> serviceName s <> ".json") ""
+      r <- call "GET" ("/api/openapi/" <> lowerName s <> ".json") ""
       r.status `shouldEqual` 200
       r.body `shouldEqual` stringify (document s)
     (_.status <$> call "GET" "/api/openapi/nothing.json" "") >>= (_ `shouldEqual` 404)

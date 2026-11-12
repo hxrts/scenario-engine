@@ -9,6 +9,7 @@ module Dashboard.RunForms
   ) where
 
 import Prelude
+import Core.Shape (allValues)
 
 import Data.Argonaut.Parser (jsonParser)
 import Data.Bifunctor (lmap)
@@ -32,7 +33,7 @@ type DeriveFields = { kind :: DeriveKind, name :: String, preset :: String, seed
 
 -- | The kinds a run can be derived by, in the form's order.
 deriveKinds :: Array DeriveKind
-deriveKinds = [ Duplicate, Rerun, Variant, Counterfactual ]
+deriveKinds = allValues
 
 -- | The request the form asks for. Only the fields of the chosen kind are read, and a blank one keeps the source's
 -- | value. What the kind may change, and the composition's ranges, are the server's to refuse.

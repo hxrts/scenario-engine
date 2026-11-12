@@ -153,7 +153,21 @@ function loadContext() {
     for (const m of src.matchAll(/\bcolumn\s+"([^"]+)"/g)) columns.add(m[1]);
   }
   need("column names in the views' `column` definitions", [...columns]);
-  return { eventKinds, intentCtors, viewNames, routeSegments, specKeys, presets, columns };
+  const enums = need("sums of constructors with no argument", enumsIn(sourceFiles().filter((f) => f.endsWith(".purs") && inSrc(f)).map(read)));
+  return { eventKinds, intentCtors, viewNames, routeSegments, specKeys, presets, columns, enums };
+}
+
+// The sums whose every constructor has no argument, each as its constructor names: what Generic
+// (Core.Shape's enumCtors) lists, so a literal list of all of them restates the type.
+function enumsIn(texts) {
+  const out = [];
+  for (const text of texts) {
+    for (const m of lex(text).bare.join("\n").matchAll(/^data (\w+)\s*\n?\s*=\s*([\s\S]*?)(?=\n\S|\n\n|$)/gm)) {
+      const ctors = m[2].split("|").map((c) => c.trim());
+      if (ctors.length >= 2 && ctors.every((c) => /^[A-Z]\w*$/.test(c))) out.push({ type: m[1], ctors });
+    }
+  }
+  return out;
 }
 
 const routeFile = "packages/handlers/src/Handlers/Api/Route.purs";
@@ -186,6 +200,7 @@ const fixes = {
   alias: "call the original name, and delete the definition that only renames it",
   "test-literal": "build the input through the DSL (Schema.Build.*) and observe; a format-pinning test goes in scripts/check/derived.allow",
   "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check/derived.allow",
+  "enum-list": "list a sum's constructors through Generic (genericEnum, genericNameShape, allValues in Core.Shape) rather than writing them all out",
   "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/08 §3)",
 };
 
@@ -267,6 +282,17 @@ function scan(file, text, ctx) {
       if (/\bself:\s/.test(l) && /\b(toSign|prices):/.test(bare.slice(Math.max(0, i - 8), i + 9).join(" "))) add("test-literal", i);
     }
   });
+
+  // enum-list: a literal array of every constructor of a sum with no arguments (docs/08 §6). A test's
+  // expected value may spell them out, so only sources are read.
+  if (inSrc(file)) {
+    const joined = bare.join("\n");
+    const enums = [...ctx.enums, ...enumsIn([text])]; // a sum declared in this file counts, as in a sample
+    for (const m of joined.matchAll(/\[\s*((?:\w+\.)?[A-Z]\w*(?:\s*,\s*(?:\w+\.)?[A-Z]\w*)+)\s*\]/g)) {
+      const names = new Set(m[1].split(",").map((c) => c.trim().replace(/^\w+\./, "")));
+      if (enums.some((e) => e.ctors.length === names.size && e.ctors.every((c) => names.has(c)))) add("enum-list", joined.slice(0, m.index).split("\n").length - 1);
+    }
+  }
 
   // silent-default and intent-walk read the arms of a case together
   arms(bare, (l, i, g) => {
