@@ -114,7 +114,7 @@ spec context = describe "Views and error paths" do
     cell (rowOf "Spread of final net worth") 3 `shouldEqual` valueIn "Spread" r2
     cell (rowOf "Final net worth, US") 2 `shouldEqual` standingOf "US" r1
     cell (rowOf "Final net worth, US") 3 `shouldEqual` standingOf "US" r2
-    cell (rowOf "Final net worth, US") 1 `shouldEqual` "M"
+    cell (rowOf "Final net worth, US") 1 `shouldEqual` "USD"
     -- one row of net worth per Player, whatever the number of runs
     length (filter (\row -> cell row 0 == "Final net worth, US") kv.rows) `shouldEqual` 1
     -- one net-worth chart per Player, with one line per run

@@ -173,12 +173,13 @@ spec = do
     let pacific = Pacific.pacific Pacific.defaultDials
     it "its two Premises compose with no conflict and check" do
       map (const unit) (parts pacific) `shouldEqual` Right unit
-    it "bilateral-economy alone is a whole economy of states and firms, with no Rules and only the firms' production and investments" do
+    it "bilateral-economy alone is a whole economy of states and firms: every kind of Rule declared but none in force, and only production and the firms' investments" do
       case parts pacific { premises = filter (\x -> x.id == "bilateral-economy") pacific.premises, presets = [], config = pacific.config { preset = Nothing } } of
         Left e -> fail e
         Right p -> do
-          Map.size p.composition.world.transformations `shouldEqual` 12
-          Map.size p.composition.world.ruleKinds `shouldEqual` 1
+          Map.size p.composition.world.transformations `shouldEqual` 10
+          Map.size p.composition.world.ruleKinds `shouldEqual` 7
+          Map.size p.composition.world.rules `shouldEqual` 0
     it "private-sector alone fails only on what the other Premises define" do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "private-sector") pacific.premises } of
         Left e -> e `shouldEqual` "composition pacific: Premise private-sector@v0 extends the Actor CN, which no Premise in the composition defines"
@@ -187,7 +188,7 @@ spec = do
       case composedOf { id: pacific.id, version: pacific.version, premises: filter (\x -> x.id == "strategic-dependence") pacific.premises } of
         Left e -> e `shouldEqual` "composition pacific: Premise strategic-dependence@v0 extends the Actor CN, which no Premise in the composition defines"
         Right _ -> fail "the strategic Premise extends Actors it does not define"
-    it "strategic-dependence adds each country's ban and investment by extension" do
+    it "strategic-dependence adds each country's barriers, America's asset fee and each state's investment by extension" do
       case parts pacific of
         Left e -> fail e
         Right p -> map _.capabilities (Map.lookup (Id "US") p.composition.world.actors) `shouldEqual` map _.capabilities (Map.lookup (Id "US") Pacific.composition.world.actors)

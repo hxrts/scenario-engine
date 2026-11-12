@@ -34,7 +34,7 @@ import Laws.StrategyRules (SignRule(..))
 import Strategy.StrategyRules (strategyRulesRefs)
 import Schema.Premise.StrategyRules (decodeStrategyRules, encodeStrategyRules)
 import Schema.Premise.Intent (capabilityShape)
-import Schema.Build.World (matching, own)
+import Schema.Build.World (matching, noResource, own)
 import Schema.Build.Base (holdingOf, mayTrade, mayTransfer, mayTransform)
 import Schema.Build.Decision (selfTransform, asTemplate, joint, lit, max', procedure, rule, signProcedures)
 import Adapters.Filesystem (fileOps)
@@ -153,7 +153,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> onExchange (Id "industry-world") (\m -> m { reserves = Map.insert (Id "X") (Q.fromInt 1) m.reserves }) w)
       (UnknownReference RefResource "X")
     rejects "UnknownReference: a transformation's payee is not an Actor"
-      (editWorld \w -> onTransformation (Id "cn-firm-investment-low") (\t -> t { payment = map (_ { to = Id "NOBODY" }) t.payment }) w)
+      (editWorld \w -> onTransformation (Id "us-firm-investment") (\t -> t { payment = Just { curve: { intercept: Q.fromInt 1, slope: Q.zero, domain: { lo: Q.zero, hi: Q.fromInt 100 } }, resource: Id "USD", to: Id "NOBODY" } }) w)
       (UnknownReference RefActor "NOBODY")
     rejects "UnknownReference: a transformation input is not a Resource"
       (editWorld \w -> onTransformation (Id "us-firm-investment") (\t -> t { inputs = Map.insert (Id "X") (Q.fromInt 1) t.inputs }) w)
@@ -210,13 +210,13 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { exchanges = Map.update (Just <<< _ { position = Q.fromInt 10000000 }) (Id "technology-world") w.exchanges })
       (InfeasibleExchange "technology-world")
     rejects "DuplicateHolder: two Actors hold what a holder draw names"
-      (editWorld (onActor (Id "US") \e -> e { accounts = Map.insert (Id "CN-credit") (Q.fromInt 1) e.accounts }))
-      (DuplicateHolder "CN-credit")
+      (editWorld \w -> onTransformation (Id "us-firm-investment") (\t -> t { draws = t.draws <> [ { resource: Id "K_I", from: HolderOf, perUnit: Q.one } ] }) w)
+      (DuplicateHolder "K_I")
     rejects "DrawWithoutHolder: a holder draw on a Resource nothing holds"
-      (editWorld (onActor (Id "CN") \e -> e { accounts = Map.delete (Id "CN-credit") e.accounts }))
-      (DrawWithoutHolder "cn-firm-investment" "CN-credit")
+      (editWorld \w -> onTransformation (Id "cn-firm-investment") (\t -> t { draws = t.draws <> [ { resource: Id "Z", from: HolderOf, perUnit: Q.one } ] }) (w { resources = Map.insert (Id "Z") noResource w.resources }))
+      (DrawWithoutHolder "cn-firm-investment" "Z")
     rejects "TooManyHolderDraws: a Transformation with more than one holder draw"
-      (editWorld \w -> onTransformation (Id "cn-firm-investment") (\t -> t { draws = t.draws <> [ { resource: Id "K_I", from: HolderOf, perUnit: Q.one } ] }) w)
+      (editWorld \w -> onTransformation (Id "cn-firm-investment") (\t -> t { draws = t.draws <> [ { resource: Id "S_I", from: HolderOf, perUnit: Q.one }, { resource: Id "K_I", from: HolderOf, perUnit: Q.one } ] }) w)
       (TooManyHolderDraws "cn-firm-investment")
     rejects "RequiredNotSelected: a required explicit Actor with no seat or NonPlayableActor"
       (editConfig \c -> c { seats = Map.delete (Id "US") c.seats })

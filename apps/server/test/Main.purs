@@ -125,7 +125,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           cmp.body `shouldSatisfy` (not <<< contains (Pattern "playerSeed"))
           -- the trajectory unit is the exchange's quote per base unit; an unknown exchange is a client error
           traj <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "exchange", v: "industry-world" } ] ""
-          traj.body `shouldSatisfy` contains (Pattern "\"unit\":\"M/I\"")
+          traj.body `shouldSatisfy` contains (Pattern "\"unit\":\"RMB/I\"")
           noExchange <- api "GET" "/api/compare" [ { k: "runs", v: "run-1,run-2" }, { k: "exchange", v: "no-such-exchange" } ] ""
           noExchange.status `shouldEqual` 400
           missing <- api "GET" "/api/runs/run-9/overview" [] ""

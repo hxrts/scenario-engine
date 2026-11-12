@@ -132,7 +132,8 @@ spec = describe "A second Premise" do
         cache <- liftEffect newServerCache
         let api method path query body = liftEffect (route (implement [ pc ] (storeOver db) cache (testHost (storeOver db))) { method, path, query: Object.fromFoldable query, body })
         list <- api "GET" "/api/premise" [] ""
-        list.body `shouldSatisfy` contains (Pattern "\"presets\":[\"Adaptive\",\"Builder\",\"Exporter\",\"FreeTrade\",\"Hawk\",\"Hedger\",\"Merchant\",\"Patron\",\"Planner\",\"Populist\",\"Rebalance\",\"Reformer\",\"Restrict\",\"Retaliate\",\"Substitute\",\"Tariff\"]")
+        -- every preset the composition authors, in name order
+        list.body `shouldSatisfy` contains (Pattern ("\"presets\":[" <> joinWith "," (map (\n -> "\"" <> n <> "\"") (sort (fromFoldable (Object.keys pc.presets)))) <> "]"))
         list.body `shouldSatisfy` contains (Pattern "\"defaultPreset\":\"FreeTrade\"")
         launched <- api "POST" "/api/runs" [] "{\"composition\":\"pacific\",\"name\":\"p\",\"preset\":\"Restrict\",\"playerSeed\":1,\"rounds\":6}"
         launched.status `shouldEqual` 200

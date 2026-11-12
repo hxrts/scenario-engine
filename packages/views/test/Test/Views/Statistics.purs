@@ -39,7 +39,7 @@ de :: ActorId
 de = Id "CN"
 
 money :: ResourceId
-money = Id "M"
+money = Id "USD"
 
 energy :: ResourceId
 energy = Id "T"
@@ -56,13 +56,13 @@ baseRun p = do
 setHolding :: WorldState -> ActorId -> ResourceId -> Q -> WorldState
 setHolding w e res amount = onActor e (\x -> (x { accounts = Map.insert res amount x.accounts })) w
 
--- | A World State where every Actor holds nothing of Money, Energy or Military, and every Exchange's
+-- | A World State where every Actor holds nothing of either currency or either good, and every Exchange's
 -- | position is zero, so each Energy and Military price is its base price.
 blank :: WorldState -> WorldState
 blank w0 = w { exchanges = map (\m -> m { position = Q.zero }) w.exchanges }
   where
   w = foldl zeroPlayer w0 (players w0)
-  zeroPlayer acc e = setHolding (setHolding (setHolding acc e (Id "I") Q.zero) e energy Q.zero) e money Q.zero
+  zeroPlayer acc e = setHolding (setHolding (setHolding (setHolding acc e (Id "I") Q.zero) e energy Q.zero) e money Q.zero) e (Id "RMB") Q.zero
 
 -- | A run whose initial World State and single final World State are given, with one empty round.
 runWith :: StoredRun -> WorldState -> WorldState -> StoredRun

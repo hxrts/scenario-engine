@@ -20,7 +20,7 @@ import Experiments.Agency (agency, counterfactual, playerSeedRuns)
 import Laws.Slice (exchangeFills, matches)
 import Laws.Types (ActorId, Id(..))
 import Core.Num as Q
-import Premises.Pacific.Strategies (banRule)
+import Premises.Pacific.Strategies (controlRule)
 import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfEnact)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -33,15 +33,15 @@ seats = map Id [ "US", "CN", "US-firm", "CN-firm" ]
 
 spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Mandatory tests (docs/07_simulator.md §14)" do
-  it "7 Counterfactual pair: China's state sells industrial inputs to the US in the base run, and none once the US bans them" do
+  it "7 Counterfactual pair: China's state sells industrial inputs in the base run, and none to America once China controls their export" do
     ctx <- context
     base <- everySeat ctx "FreeTrade"
     let
-      ban = { rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfEnact (banRule (Id "US"))) ] ], sign: [] }
+      ban = { rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfEnact (controlRule (Id "CN"))) ] ], sign: [] }
       chinaSellsAfterRoundOne r = any
         (\x -> x.record.round > 1 && any (matches exchangeFills (\f -> f.actor == Id "CN" && f.resource == Id "I" && f.quantity < Q.zero)) x.record.events)
         r.records
-    cf <- case counterfactual (Seed 1) base (\g -> g { seats = Map.union (strategyRulesBindings [ Tuple (Id "US") ban ]) g.seats }) of
+    cf <- case counterfactual (Seed 1) base (\g -> g { seats = Map.union (strategyRulesBindings [ Tuple (Id "CN") ban ]) g.seats }) of
       Right x -> pure x
       Left e -> throwError (error (show e))
     chinaSellsAfterRoundOne cf.base `shouldEqual` true

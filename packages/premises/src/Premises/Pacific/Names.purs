@@ -23,7 +23,13 @@ privateId = "private-sector"
 type Names =
   { us :: ActorId
   , cn :: ActorId
-  , money :: ResourceId
+  , usFirm :: ActorId
+  , cnFirm :: ActorId
+  , usPrivate :: ActorId
+  , cnPrivate :: ActorId
+  , row :: ActorId
+  , usd :: ResourceId
+  , rmb :: ResourceId
   , technology :: ResourceId
   , industry :: ResourceId
   , technologyCapacity :: ResourceId
@@ -34,41 +40,44 @@ type Names =
   , industryWorld :: ExchangeId
   , technologyUs :: ExchangeId
   , industryCn :: ExchangeId
-  , credit :: ResourceId
+  , currency :: ExchangeId
   , usFirmInvestment :: TransformationId
   , cnFirmInvestment :: TransformationId
-  , usExportTax :: RuleKindId
   , usIndustrialInvestment :: TransformationId
   , cnTechnologyInvestment :: TransformationId
-  , usImportBan :: RuleKindId
-  , cnImportBan :: RuleKindId
-  , cnImportTariff :: RuleKindId
-  , cnFirmInvestmentLow :: TransformationId
-  , cnFirmInvestmentHigh :: TransformationId
-  , supply :: StrategyId
   , usFirmProduction :: TransformationId
   , usFirmBaseProduction :: TransformationId
+  , cnFirmProduction :: TransformationId
   , cnFirmBaseProduction :: TransformationId
   , usTechnologyProduction :: TransformationId
   , usIndustryProduction :: TransformationId
   , cnTechnologyProduction :: TransformationId
   , cnIndustryProduction :: TransformationId
-  , cnFirmProduction :: TransformationId
+  , usExportTax :: RuleKindId
+  , usImportTariff :: RuleKindId
+  , cnImportTariff :: RuleKindId
+  , usExportControl :: RuleKindId
+  , cnExportControl :: RuleKindId
+  , usAssetFee :: RuleKindId
+  , wage :: RuleKindId
   , commerce :: StrategyId
-  , usPrivate :: ActorId
-  , cnPrivate :: ActorId
-  , usFirm :: ActorId
-  , cnFirm :: ActorId
+  , supply :: StrategyId
   , usPrivateDemand :: StrategyId
   , cnPrivateDemand :: StrategyId
-  , usImportTariff :: RuleKindId
+  , rowSavings :: StrategyId
   }
 
 p :: Names
 p =
   { us: Id "US"
   , cn: Id "CN"
-  , money: Id "M"
+  , usFirm: Id "US-firm"
+  , cnFirm: Id "CN-firm"
+  , usPrivate: Id "US-private"
+  , cnPrivate: Id "CN-private"
+  , row: Id "ROW"
+  , usd: Id "USD"
+  , rmb: Id "RMB"
   , technology: Id "T"
   , industry: Id "I"
   , technologyCapacity: Id "K_T"
@@ -79,32 +88,29 @@ p =
   , industryWorld: Id "industry-world"
   , technologyUs: Id "technology-us"
   , industryCn: Id "industry-cn"
-  , credit: Id "CN-credit"
+  , currency: Id "usd-rmb"
   , usFirmInvestment: Id "us-firm-investment"
   , cnFirmInvestment: Id "cn-firm-investment"
-  , usExportTax: Id "us-export-tax"
   , usIndustrialInvestment: Id "us-industrial-investment"
   , cnTechnologyInvestment: Id "cn-technology-investment"
-  , usImportBan: Id "us-import-ban"
-  , cnImportBan: Id "cn-import-ban"
-  , cnImportTariff: Id "cn-import-tariff"
-  , cnFirmInvestmentLow: Id "cn-firm-investment-low"
-  , cnFirmInvestmentHigh: Id "cn-firm-investment-high"
-  , supply: Id "pacific-supply-v0"
   , usFirmProduction: Id "us-firm-production"
   , usFirmBaseProduction: Id "us-firm-base-production"
+  , cnFirmProduction: Id "cn-firm-production"
   , cnFirmBaseProduction: Id "cn-firm-base-production"
   , usTechnologyProduction: Id "us-technology-production"
   , usIndustryProduction: Id "us-industry-production"
   , cnTechnologyProduction: Id "cn-technology-production"
   , cnIndustryProduction: Id "cn-industry-production"
-  , cnFirmProduction: Id "cn-firm-production"
+  , usExportTax: Id "us-export-tax"
+  , usImportTariff: Id "us-import-tariff"
+  , cnImportTariff: Id "cn-import-tariff"
+  , usExportControl: Id "us-export-control"
+  , cnExportControl: Id "cn-export-control"
+  , usAssetFee: Id "us-asset-fee"
+  , wage: Id "wage"
   , commerce: Id "pacific-commerce-v0"
-  , usPrivate: Id "US-private"
-  , cnPrivate: Id "CN-private"
-  , usFirm: Id "US-firm"
-  , cnFirm: Id "CN-firm"
+  , supply: Id "pacific-supply-v0"
   , usPrivateDemand: Id "us-private-demand-v0"
   , cnPrivateDemand: Id "cn-private-demand-v0"
-  , usImportTariff: Id "us-import-tariff"
+  , rowSavings: Id "row-savings-v0"
   }

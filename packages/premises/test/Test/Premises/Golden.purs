@@ -61,7 +61,7 @@ golden = describe "Golden fixtures" do
     case resolveRound f.world (firstInputs f) of
       Left e -> failWith (show e)
       Right r -> do
-        let tampered = r { world = onActor (Id "US") (\e -> e { accounts = Map.insert (Id "M") (Q.fromInt 1000) e.accounts }) r.world }
+        let tampered = r { world = onActor (Id "US") (\e -> e { accounts = Map.insert (Id "USD") (Q.fromInt 1000) e.accounts }) r.world }
         map _.invariant (check f.world tampered) `shouldEqual` [ "INV-04", "INV-05" ]
 
 permutations :: forall a. Array a -> Array (Array a)

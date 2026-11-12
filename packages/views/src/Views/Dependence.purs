@@ -21,7 +21,8 @@ import Laws.Types (ActorId, Capability(..), DrawSource(..), FlowEffect(..), Reso
 import Laws.World (RecurringAmount(..), RecurringDestination(..), RecurringSource(..), RejectReason(..), RoundRecord, WorldState)
 import Schema.Composition (capacityCategory)
 import Schema.Recurring (kinds)
-import Views.Common (Column, StoredRun, Table, col, column, final, names, quantity, ratio, records, snapshots)
+import Views.Common (Column, StoredRun, Table, col, column, final, names, quantity, ratio, records, snapshots, worlds)
+import Views.Standings (valueIn)
 
 requirementColumn :: Column
 requirementColumn = column "Requirement" "What the Actor's fixed recurring requirement consumes of the Resource each round."
@@ -118,9 +119,17 @@ finalCoverage w q = coverage q.amount (Q.sumQ (map (holding w q.actor) (capaciti
 cumulativeShortfall :: StoredRun -> ActorId -> ResourceId -> Q
 cumulativeShortfall r a g = Q.sumQ (concatMap (\rec -> map _.quantity (filter (\f -> f.actor == a && f.resource == g) (select shortfalls rec.events))) (records r))
 
--- | What an Actor was paid for its Exchange sales over the run.
+-- | What an Actor was paid for its sales of goods over the run, valued in the numeraire.
 cumulativeReceipts :: StoredRun -> ActorId -> Q
-cumulativeReceipts r a = Q.sumQ (concatMap (\rec -> map (\f -> Q.neg (Q.mul f.price f.quantity)) (filter (\f -> f.actor == a && f.quantity < Q.zero) (select exchangeFills rec.events))) (records r))
+cumulativeReceipts r a = Q.sumQ (concatMap round (zip (worlds r) r.rounds))
+  where
+  -- each sale of a good, its proceeds valued in the numeraire at the round's opening prices; a currency sold on a
+  -- currency Exchange is not a sale
+  round (Tuple before x) = mapMaybe (sale before) (filter (\f -> f.actor == a && f.quantity < Q.zero) (select exchangeFills x.record.events))
+  sale w f = case Map.lookup f.exchange w.exchanges of
+    Just m | not (isCurrency w m.base) -> Just (Q.mul (Q.neg (Q.mul f.price f.quantity)) (valueIn w m.quote))
+    _ -> Nothing
+  isCurrency w res = res == w.numeraire || any (\m -> m.quote == res) (values w.exchanges)
 
 -- | Every fixed requirement of the recurring cycle.
 requirementsOf :: WorldState -> Array { actor :: ActorId, resource :: ResourceId, amount :: Q }
