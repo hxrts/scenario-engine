@@ -8,7 +8,7 @@ import Prelude
 
 import Data.Array (mapMaybe)
 
-import Data.Maybe (maybe)
+import Data.Maybe (Maybe(..), maybe)
 
 import Data.Tuple (Tuple(..))
 import Effects.Api (ApiRequest, Reply)
@@ -19,7 +19,7 @@ import Run (Run)
 import Server.Errors (notFound, ok)
 import Server.Launch (compositionInfo)
 import Server.OpenApi (document, serviceOf)
-import Server.Sessions (sessionView, startSession, submitTranscript)
+import Server.Live (advanceLive, clearLive, endLive, liveView, pauseLive, startLive, submitText)
 import Server.Read (compareView, actorsView, actorView, getView, balanceSheetLinksView, balanceSheetView, roundReportView, runSummaries)
 import Server.Rows (SERVER)
 import Server.Compositions (Compositions)
@@ -44,8 +44,14 @@ answer compositions request = do
     , "BalanceSheetLinks": balanceSheetLinksView
     , "BalanceSheet": \r -> balanceSheetView compositions r.id r.token
     , "Compare": compareView compositions
-    , "StartSession": startSession compositions
-    , "GetSession": sessionView
-    , "SubmitTranscript": \r -> submitTranscript r.id r.submission
+    , "StartLive": startLive compositions
+    , "GetLive": \_ -> liveView
+    , "SubmitTranscript": submitText Nothing
+    , "SubmitManual": submitText (Just "facilitator")
+    , "AdvanceLive": \_ -> advanceLive
+    , "PauseLive": \_ -> pauseLive true
+    , "ResumeLive": \_ -> pauseLive false
+    , "EndLive": \_ -> endLive
+    , "ClearLive": \_ -> clearLive
     }
     request

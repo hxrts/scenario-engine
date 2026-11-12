@@ -7,6 +7,8 @@ module Server.Launch
 
 import Prelude
 
+import Schema.Run (RunStatus(..))
+
 import Control.Alt ((<|>))
 import Data.Array (head)
 
@@ -32,8 +34,8 @@ serverRole = "server"
 -- | such as a live CLI session on the same store, are not this server's to fail. Returns the line to report, if any.
 startup :: forall r. Run (STORE + r) (Maybe String)
 startup = do
-  stale <- failRunning { role: serverRole, reason: "interrupted: the server stopped before the run finished" }
-  pure (if stale > 0 then Just ("marked " <> show stale <> " interrupted run(s) failed") else Nothing)
+  stale <- failRunning { role: serverRole, reason: "cleared: the server stopped while the run was live", status: Cleared }
+  pure (if stale > 0 then Just ("marked " <> show stale <> " interrupted live run(s) cleared") else Nothing)
 
 -- | `GET /api/premise`: the compositions the launch form offers (`Views.Composition`).
 compositionInfo :: forall r. Array CompositionParts -> Run (LAUNCHES r) (Array CompositionInfo)

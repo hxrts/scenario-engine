@@ -52,4 +52,4 @@ gated s impl r = case accessOf request of
   admin = maybe false (\v -> any (_ == "admin=" <> v) (map trim (split (Pattern ";") r.cookie))) s.session
   allowed = case _ of
     Open _ -> true
-    Admin -> admin
+    Admin _ -> admin

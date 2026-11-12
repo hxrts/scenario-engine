@@ -51,15 +51,14 @@ module Effects.Signatures
   , PlayRequest(..)
   , PlayOutcome
   , _play
-  , LIVE
   , LiveF(..)
   , SESSIONS
   , SessionsF(..)
   , SessionState
   , SubmitResult(..)
+  , ControlResult(..)
   , _sessions
   , LiveRequest
-  , _live
   ) where
 
 import Prelude
@@ -153,7 +152,7 @@ type StoredRound =
 data StoreF a
   = CreateRun NewRun (Unit -> a)
   | SetStatus String RunStatus (Maybe String) (Unit -> a) -- the run, its new status, and why it failed if it did
-  | FailRunning { role :: String, reason :: String } (Int -> a)
+  | FailRunning { role :: String, reason :: String, status :: RunStatus } (Int -> a) -- the runs a role left running, set to the status given
   | SetSpec String Spec (Unit -> a)
   | DeleteRun String (Int -> a)
 
@@ -303,28 +302,47 @@ type LiveRequest =
   , report :: RoundResult -> Array String
   }
 
--- | Play a live session and settle its run. The reply is why it failed, rendered, or `Right`.
+-- | Play a live run and settle it: what the live handler (`Handlers.Session.interpretLive`) is given, by the host
+-- | that holds the run (`SESSIONS`). The reply is why it failed, rendered, or `Right`.
 data LiveF a = PlayLive LiveRequest (Either String Unit -> a)
 
 derive instance Functor LiveF
 
-type LIVE r = (live :: LiveF | r)
-
-_live :: Proxy "live"
-_live = Proxy
-
--- | One live session as a client sees it.
-type SessionState = { round :: RoundIndex, status :: RunStatus, window :: Int, submitted :: Array ActorId, awaiting :: Array ActorId }
+-- | The live run as a client sees it: its id and tag, the round open, whether it is paused or ending after this
+-- | round, its window, and which human seats have spoken this round and which are awaited.
+type SessionState =
+  { id :: String
+  , tag :: String
+  , round :: RoundIndex
+  , status :: RunStatus
+  , paused :: Boolean
+  , ending :: Boolean
+  , window :: Int
+  , submitted :: Array ActorId
+  , awaiting :: Array ActorId
+  }
 
 data SubmitResult = Accepted | NoSuchSession | NotASeat | NotThisRound RoundIndex | AlreadySubmitted | SessionOver
 
 derive instance Eq SubmitResult
 
--- | Live sessions a server hosts, started once and fed text as it arrives.
+-- | The answer to a lifecycle control: done, no run is live, or the live run is over.
+data ControlResult = Controlled | NoLiveRun | LiveRunOver
+
+derive instance Eq ControlResult
+
+-- | The one live run a host holds (docs/07 §8.2): started, read, fed text as it arrives (a seat's own, or a
+-- | facilitator's for it, `enteredBy`), and driven through its lifecycle. `Advance` closes the open round now;
+-- | `Pause true` stops the window clock and `Pause false` restarts it; `End` completes the run after the round open;
+-- | `Clear` stops it at once, recorded as cleared, and answers its id.
 data SessionsF a
-  = Host { request :: LiveRequest, humans :: Array ActorId } a
-  | State String (Maybe SessionState -> a)
-  | Submit { id :: String, seat :: ActorId, round :: RoundIndex, text :: String } (SubmitResult -> a)
+  = Host { request :: LiveRequest, humans :: Array ActorId, tag :: String } a
+  | State (Maybe SessionState -> a)
+  | Submit { seat :: ActorId, round :: RoundIndex, text :: String, enteredBy :: Maybe String } (SubmitResult -> a)
+  | Advance (ControlResult -> a)
+  | Pause Boolean (ControlResult -> a)
+  | End (ControlResult -> a)
+  | Clear (Maybe String -> a)
 
 derive instance Functor SessionsF
 

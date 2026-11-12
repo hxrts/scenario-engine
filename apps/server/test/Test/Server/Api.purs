@@ -165,7 +165,7 @@ spec = describe "API status rules, startup and cache" do
       Nothing -> fail "no stored spec"
     overview <- env.api "GET" "/api/runs/run-1/overview" ""
     overview.body `shouldSatisfy` contains (Pattern "\"target\":6")
-  it "startup fails the server's leftover runs, fails a run whose process has gone, and leaves a live process's run running" do
+  it "startup clears the server's leftover live runs, clears a run whose process has gone, and leaves a live process's run running" do
     env <- setup
     launch env 2
     manifest <- liftEffect (runObserve env.store (readManifest "run-1")) >>= case _ of
@@ -178,10 +178,10 @@ spec = describe "API status rules, startup and cache" do
       runStore env.store (new "session-1" "session:1:0")
       runStore env.store (new "crashed" "session:99999999:0")
     n <- liftEffect (runStore env.store startup)
-    n `shouldEqual` Just "marked 2 interrupted run(s) failed"
+    n `shouldEqual` Just "marked 2 interrupted live run(s) cleared"
     runs <- liftEffect (runObserve env.store listRuns)
     map (\r -> { id: r.id, status: r.status }) runs `shouldEqual`
-      [ { id: "run-1", status: Completed }, { id: "left", status: Failed }, { id: "session-1", status: Running }, { id: "crashed", status: Failed } ]
+      [ { id: "run-1", status: Completed }, { id: "left", status: Cleared }, { id: "session-1", status: Running }, { id: "crashed", status: Cleared } ]
   it "the run cache keeps a finished run until a write, and never keeps a running one" do
     env <- setup
     launch env 2

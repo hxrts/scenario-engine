@@ -101,7 +101,7 @@ waitFor call text = go 200
   go :: Int -> Aff Unit
   go 0 = pure unit
   go n = do
-    r <- call "GET" "/api/sessions/run-1" ""
+    r <- call "GET" "/api/live" ""
     if contains (Pattern text) r.body then pure unit else delay (Milliseconds 25.0) *> go (n - 1)
 
 spec :: Spec Unit
@@ -117,27 +117,32 @@ spec = describe "JSON Schema and OpenAPI" do
     let tree = DRec "Tree" [ { key: "kids", desc: "", shape: DArray (DRef "Tree") } ]
     stringify (jsonSchema (DRef "Tree")) `shouldEqual` "{\"$ref\":\"#/components/schemas/Tree\"}"
     map (\(Tuple n _) -> n) (schemaComponents tree) `shouldEqual` [ "Tree" ]
-  it "each document names exactly its service's routes, all open, at the paths the route table writes" do
-    pathsOf Transcription `shouldEqual` [ "/api/sessions/{id}", "/api/sessions/{id}/transcripts" ]
+  it "each document names exactly its service's routes, at the paths the route table writes; an admin route states the admin session" do
+    pathsOf Transcription `shouldEqual` [ "/api/live", "/api/live/advance", "/api/live/clear", "/api/live/end", "/api/live/pause", "/api/live/resume", "/api/live/submissions", "/api/live/transcripts" ]
     pathsOf Narrative `shouldEqual` [ "/api/runs/{id}/rounds/{round}/report" ]
-    (wire (GetSession "x")).url `shouldEqual` "/api/sessions/x"
+    (wire GetLive).url `shouldEqual` "/api/live"
+    let doc = stringify (document Transcription)
+    contains (Pattern "\"securitySchemes\":{\"adminSession\"") doc `shouldEqual` true
+    map _.operation (filter _.admin published) # sort # shouldEqual [ "AdvanceLive", "ClearLive", "EndLive", "PauseLive", "ResumeLive", "StartLive", "SubmitManual" ]
+    contains (Pattern "security") (stringify (document Narrative)) `shouldEqual` false
     (wire (RoundReport { id: "x", round: 2 })).url `shouldEqual` "/api/runs/x/rounds/2/report"
   it "the integration contract's example payloads read through their Shapes" do
     let
       reads :: forall a. Shape a -> String -> Boolean
       reads shape text = isRight (decodeJsonWith Snapshot shape (parsed text))
-    reads (viewShape :: Shape SessionState) "{\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
+    reads (viewShape :: Shape SessionState) "{\"id\":\"run-1\",\"tag\":\"mock\",\"paused\":false,\"ending\":false,\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
     reads (viewShape :: Shape SessionStarted) "{\"id\":\"run-1\",\"balanceSheets\":[{\"actor\":\"US\",\"kind\":\"Playable Actor\",\"path\":\"/balancesheet/run-1/abc123\"}]}" `shouldEqual` true
     isRight (decodeJsonWith Authored submissionShape (parsed "{\"seat\":\"US\",\"round\":1,\"text\":\"We sell ten Energy to Germany.\"}")) `shouldEqual` true
-    map _.name (filter (\e -> isOpen e.access && e.name `elem` [ "GetSession", "SubmitTranscript", "RoundReport" ]) endpointAccess) # sort # shouldEqual [ "GetSession", "RoundReport", "SubmitTranscript" ]
-    map _.path (filter (\e -> e.name == "StartSession") endpointAccess) `shouldEqual` [ "/api/sessions" ]
+    map _.name (filter (\e -> isOpen e.access && e.name `elem` [ "GetLive", "SubmitTranscript", "RoundReport", "StartLive", "SubmitManual" ]) endpointAccess) # sort # shouldEqual [ "GetLive", "RoundReport", "SubmitTranscript" ]
+    map _.path (filter (\e -> e.name == "StartLive") endpointAccess) `shouldEqual` [ "/api/live" ]
   it "each route's documented refusals are the ones it makes, and status lists its values" do
     let
       codes op = maybe [] _.errors (find ((_ == op) <<< _.operation) published)
-    codes "GetSession" `shouldEqual` [ 404 ]
+    codes "GetLive" `shouldEqual` [ 404 ]
+    codes "StartLive" `shouldEqual` [ 400, 401, 409 ]
     codes "SubmitTranscript" `shouldEqual` [ 400, 404, 409 ]
     codes "RoundReport" `shouldEqual` [ 404, 500 ]
-    contains (Pattern "\"enum\":[\"running\",\"completed\",\"failed\"]") (stringify (document Transcription)) `shouldEqual` true
+    contains (Pattern "\"enum\":[\"running\",\"completed\",\"failed\",\"cleared\"]") (stringify (document Transcription)) `shouldEqual` true
     length published `shouldEqual` length (filter (isJust <<< _.publish) endpointAccess)
   it "an unknown Composition has no documents, and its error names the known ones" do
     ctx <- anyRounds <$> pacificParts
@@ -154,14 +159,14 @@ spec = describe "JSON Schema and OpenAPI" do
       r.status `shouldEqual` 200
       r.body `shouldEqual` stringify (document s)
     (_.status <$> call "GET" "/api/openapi/nothing.json" "") >>= (_ `shouldEqual` 404)
-    _ <- call "POST" "/api/sessions" "{\"humans\":[\"US\"],\"rounds\":4,\"playerSeed\":1}"
+    _ <- call "POST" "/api/live" "{\"cast\":{\"US\":\"human\",\"CN\":\"agent\",\"US-firm\":\"agent\",\"CN-firm\":\"agent\"},\"rounds\":4,\"playerSeed\":1,\"tag\":\"mock\",\"metadata\":{}}"
     waitFor call "\"awaiting\":[\"US\"]"
-    state <- call "GET" "/api/sessions/run-1" ""
+    state <- call "GET" "/api/live" ""
     let transcription = document Transcription
-    (accepts transcription <$> replySchema transcription "/api/sessions/{id}" "get" <*> pure (parsed state.body)) `shouldEqual` Just true
-    (accepts transcription <$> replySchema transcription "/api/sessions/{id}" "get" <*> pure (parsed "{\"round\":\"one\"}")) `shouldEqual` Just false
-    submitted <- call "POST" "/api/sessions/run-1/transcripts" "{\"seat\":\"US\",\"round\":1,\"text\":\"nothing\"}"
-    (accepts transcription <$> replySchema transcription "/api/sessions/{id}/transcripts" "post" <*> pure (parsed submitted.body)) `shouldEqual` Just true
+    (accepts transcription <$> replySchema transcription "/api/live" "get" <*> pure (parsed state.body)) `shouldEqual` Just true
+    (accepts transcription <$> replySchema transcription "/api/live" "get" <*> pure (parsed "{\"round\":\"one\"}")) `shouldEqual` Just false
+    submitted <- call "POST" "/api/live/transcripts" "{\"seat\":\"US\",\"round\":1,\"text\":\"nothing\"}"
+    (accepts transcription <$> replySchema transcription "/api/live/transcripts" "post" <*> pure (parsed submitted.body)) `shouldEqual` Just true
     waitFor call "\"round\":2"
     report <- call "GET" "/api/runs/run-1/rounds/1/report" ""
     report.status `shouldEqual` 200

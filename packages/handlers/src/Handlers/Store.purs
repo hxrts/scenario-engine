@@ -58,7 +58,7 @@ type StoreBackend =
   { createRun :: NewRun -> Effect Unit
   , appendRound :: AppendRound -> Effect Unit
   , setStatus :: String -> RunStatus -> Maybe String -> Effect Unit
-  , failRunning :: { role :: String, reason :: String } -> Effect Int
+  , failRunning :: { role :: String, reason :: String, status :: RunStatus } -> Effect Int
   , setSpec :: String -> Spec -> Effect Unit
   , deleteRun :: String -> Effect Int
   , listRuns :: Effect (Array RunInfo)

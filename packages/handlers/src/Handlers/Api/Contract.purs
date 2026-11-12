@@ -81,7 +81,7 @@ instance ViewShape a => EntryOf (Created a e) a e where
 -- | The refusals of an operation nobody outside this repository depends on.
 type AnyRefusal = (badRequest :: String, notFound :: String, conflict :: String, internal :: String)
 
-type SessionState = { round :: Int, status :: RunStatus, window :: Int, submitted :: Array String, awaiting :: Array String }
+type SessionState = { id :: String, tag :: String, round :: Int, status :: RunStatus, paused :: Boolean, ending :: Boolean, window :: Int, submitted :: Array String, awaiting :: Array String }
 
 type SessionStarted = { id :: String, balanceSheets :: Array BalanceSheetLink }
 
@@ -99,9 +99,15 @@ type Operations =
   , "RoundReport" :: Op RoundReport (notFound :: String, internal :: String)
   , "OpenApi" :: Op Json AnyRefusal
   , "Compare" :: Op CompareView AnyRefusal
-  , "StartSession" :: Op SessionStarted AnyRefusal
-  , "GetSession" :: Op SessionState (notFound :: String)
+  , "StartLive" :: Op SessionStarted (badRequest :: String, conflict :: String)
+  , "GetLive" :: Op SessionState (notFound :: String)
   , "SubmitTranscript" :: Op SessionState (badRequest :: String, notFound :: String, conflict :: String)
+  , "SubmitManual" :: Op SessionState (badRequest :: String, notFound :: String, conflict :: String)
+  , "AdvanceLive" :: Op SessionState (notFound :: String, conflict :: String)
+  , "PauseLive" :: Op SessionState (notFound :: String, conflict :: String)
+  , "ResumeLive" :: Op SessionState (notFound :: String, conflict :: String)
+  , "EndLive" :: Op SessionState (notFound :: String, conflict :: String)
+  , "ClearLive" :: Op { cleared :: String } (notFound :: String)
   )
 
 -- | The status of a refusal, by its label: the one place a status is written. Each carries the message.

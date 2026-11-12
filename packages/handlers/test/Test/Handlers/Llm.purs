@@ -47,7 +47,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 tr :: String -> String -> Transcript
-tr seat text = { seat: Id seat, text }
+tr seat text = { seat: Id seat, text, enteredBy: Nothing }
 
 -- | A backend that answers every call with the same reply text.
 answerWith :: String -> Aff Backend

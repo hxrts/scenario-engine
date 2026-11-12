@@ -132,7 +132,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Joint pass rule (docs/04 §11)" do
     let
       known e = e == Id "US" || e == Id "EU"
-      said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      said = [ { seat: Id "US", text: "I will buy ten energy", enteredBy: Nothing } ]
       joint = { author: Id "US", intents: [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], signers: [ Id "EU" ], agreed: [ Id "EU", Id "US" ] }
     it "drops a CandidateTransaction whose author did not speak, and one with no Intents" do
       map _.author (jointCandidateTransactions known said [ joint { author = Id "EU" }, joint { intents = [] } ]) `shouldEqual` []

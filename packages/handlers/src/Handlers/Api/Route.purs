@@ -22,6 +22,7 @@ module Handlers.Api.Route
   , Service(..)
   , Publish
   , submissionShape
+  , metadataShape
   , Doc
   , endpointAccess
   ) where
@@ -29,7 +30,7 @@ module Handlers.Api.Route
 import Prelude
 
 import Laws.Types (RefKind(RefActor))
-import Core.Shape (class Payload, Desc, Shape, arrayOf, encodeWith, field, fieldOf, fromPayload, intShape, object, optionalOf, recordOf, refersTo, stringShape, toPayload, decodeJsonWith)
+import Core.Shape (class Payload, Desc, Shape, boolShape, decodeJsonWith, defaulted, encodeWith, field, fieldOf, fromPayload, intShape, object, objectValuesOf, optionalOf, recordOf, refersTo, stringShape, toPayload)
 
 import Control.Alt ((<|>))
 
@@ -54,7 +55,8 @@ import Record as Record
 import Type.Proxy (Proxy(..))
 import Effect (Effect)
 
-import Effects.Api (ApiRequest, Reply, StartSession, Submission)
+import Effects.Api (ApiRequest, Metadata, Reply, StartLive, Submission)
+import Schema.Cast (castShape)
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import JSURI (decodeURIComponent, encodeURIComponent)
@@ -197,13 +199,14 @@ bodyOf s get = Part
 -- | read from and written to a request.
 type Endpoint b = { method :: String, path :: String, part :: Part b b, access :: Access }
 
--- | Who may call an endpoint, and, for an open one, how it is published. Every endpoint is `Admin` unless the table
--- | says otherwise, so a new route is private until someone decides it is not, and only an open route can be published.
-data Access = Admin | Open (Maybe Publish)
+-- | Who may call an endpoint, and how it is published, if it is. Every endpoint is `Admin Nothing` unless the table
+-- | says otherwise, so a new route is private and unpublished until someone decides it is not. A published admin route
+-- | states in its document that it needs the admin session.
+data Access = Admin (Maybe Publish) | Open (Maybe Publish)
 
 isOpen :: Access -> Boolean
 isOpen = case _ of
-  Admin -> false
+  Admin _ -> false
   Open _ -> true
 
 -- | The services built outside this repository, each with its own OpenAPI document.
@@ -212,7 +215,7 @@ data Service = Transcription | Narrative
 derive instance Eq Service
 derive instance Generic Service _
 
--- | How an open route is published: to which service, and what it does.
+-- | How a route is published: to which service, and what it does.
 type Publish = { service :: Service, summary :: String }
 
 derive instance Eq Access
@@ -316,13 +319,19 @@ endpoints = table
         runs <- commaParam "runs" _.runs
         exchange <- optionalParam "exchange" _.exchange
         in { runs, exchange }
-  , "StartSession": post "/api/sessions" (bodyOf startSessionShape identity)
-  , "GetSession": (get "/api/sessions/:id" (capture "id" identity)) { access = Open (Just { service: Transcription, summary: "The round a session is on, and which seats have spoken." }) }
-  , "SubmitTranscript": (post "/api/sessions/:id/transcripts" ((\id submission -> { id, submission }) <$> capture "id" _.id <*> bodyOf submissionShape _.submission)) { access = Open (Just { service: Transcription, summary: "Submit one seat's text for the round that is open." }) }
+  , "StartLive": (post "/api/live" (bodyOf startLiveShape identity)) { access = Admin (Just { service: Transcription, summary: "Start the live run: its cast, rounds, window, seed, tag and metadata. A production run needs its metadata complete. Refused while a run is live, unless replace clears it first." }) }
+  , "GetLive": (get "/api/live" (pure unit)) { access = Open (Just { service: Transcription, summary: "The live run: the round open, whether it is paused or ending, and which seats have spoken." }) }
+  , "SubmitTranscript": (post "/api/live/transcripts" (bodyOf submissionShape identity)) { access = Open (Just { service: Transcription, summary: "Submit one seat's text for the round that is open." }) }
+  , "SubmitManual": (post "/api/live/submissions" (bodyOf submissionShape identity)) { access = Admin (Just { service: Transcription, summary: "A facilitator submits a human seat's text for the round that is open; the record marks it as entered by the facilitator." }) }
+  , "AdvanceLive": (post "/api/live/advance" (pure unit)) { access = Admin (Just { service: Transcription, summary: "Close the open round now: every human seat not yet heard says nothing, and the round resolves." }) }
+  , "PauseLive": (post "/api/live/pause" (pure unit)) { access = Admin (Just { service: Transcription, summary: "Stop the propose window's clock. Submissions are still taken." }) }
+  , "ResumeLive": (post "/api/live/resume" (pure unit)) { access = Admin (Just { service: Transcription, summary: "Restart the propose window's clock." }) }
+  , "EndLive": (post "/api/live/end" (pure unit)) { access = Admin (Just { service: Transcription, summary: "Complete the live run after the round being played." }) }
+  , "ClearLive": (post "/api/live/clear" (pure unit)) { access = Admin (Just { service: Transcription, summary: "Stop the live run now, record it as cleared with the rounds it played, and free the slot." }) }
   }
   where
   endpoint :: forall b. String -> String -> Part b b -> Endpoint b
-  endpoint method path part = { method, path, part, access: Admin }
+  endpoint method path part = { method, path, part, access: Admin Nothing }
 
   get :: forall b. String -> Part b b -> Endpoint b
   get = endpoint "GET"
@@ -362,7 +371,7 @@ endpointAccess = map (\r -> { name: r.name, method: r.method, path: "/" <> joinW
     Nothing -> s
   publishOf = case _ of
     Open p -> p
-    Admin -> Nothing
+    Admin p -> p
 
 -- | The names of the table's endpoints, one per operation of `ApiRequest`, in the order of the type.
 endpointNames :: Array String
@@ -373,16 +382,31 @@ decodeBody :: forall a. Shape a -> String -> Either Reply a
 decodeBody s text = either (Left <<< failWith 400) Right (decodeError (Shape.parse Shape.Authored s text))
 
 -- | The body of `POST /api/sessions`.
-startSessionShape :: Shape StartSession
-startSessionShape = object "StartSession" ado
+-- | A live run's metadata.
+metadataShape :: Shape Metadata
+metadataShape = object "Metadata" ado
+  name <- fieldOf "name" "the run's name" (optionalOf stringShape) _.name
+  facilitator <- fieldOf "facilitator" "who runs it" (optionalOf stringShape) _.facilitator
+  date <- fieldOf "date" "when it is played" (optionalOf stringShape) _.date
+  venue <- fieldOf "venue" "where it is played" (optionalOf stringShape) _.venue
+  players <- fieldOf "players" "the player of each human seat, by seat id" (defaulted Object.empty Object.isEmpty (objectValuesOf stringShape)) _.players
+  notes <- fieldOf "notes" "anything else" (optionalOf stringShape) _.notes
+  in { name, facilitator, date, venue, players, notes }
+
+-- | The body of `POST /api/live`.
+startLiveShape :: Shape StartLive
+startLiveShape = object "StartLive" ado
   composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
-  humans <- fieldOf "humans" "the seats a person plays" (arrayOf stringShape) _.humans
+  cast <- fieldOf "cast" "each castable Actor's role: human, agent, agent:<model>, preset:<name> or nonplayer:<name>; absent casts every seat as an agent" (optionalOf castShape) _.cast
   rounds <- fieldOf "rounds" "the round count; absent keeps the composition's" (optionalOf intShape) _.rounds
   window <- fieldOf "window" "seconds a round stays open; absent waits for every seat" (optionalOf intShape) _.window
   playerSeed <- fieldOf "playerSeed" "the player seed; absent draws one" (optionalOf intShape) _.playerSeed
-  in { composition, humans, rounds, window, playerSeed }
+  tag <- fieldOf "tag" "mock, or production, which needs its metadata complete" stringShape _.tag
+  metadata <- fieldOf "metadata" "the run's name, facilitator, date, venue, players and notes" metadataShape _.metadata
+  replace <- fieldOf "replace" "clear a run that is live first" (optionalOf boolShape) _.replace
+  in { composition, cast, rounds, window, playerSeed, tag, metadata, replace }
 
--- | The body of `POST /api/sessions/:id/transcripts`.
+-- | The body of `POST /api/live/transcripts` and `POST /api/live/submissions`.
 submissionShape :: Shape Submission
 submissionShape = object "Submission" ado
   seat <- fieldOf "seat" "the seat speaking" (refersTo (show RefActor) stringShape) _.seat

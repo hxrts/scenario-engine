@@ -45,9 +45,15 @@ nameOf = case _ of
   RoundReport _ -> "RoundReport"
   BalanceSheetLinks _ -> "BalanceSheetLinks"
   BalanceSheet _ -> "BalanceSheet"
-  StartSession _ -> "StartSession"
-  GetSession _ -> "GetSession"
+  StartLive _ -> "StartLive"
+  GetLive -> "GetLive"
   SubmitTranscript _ -> "SubmitTranscript"
+  SubmitManual _ -> "SubmitManual"
+  AdvanceLive -> "AdvanceLive"
+  PauseLive -> "PauseLive"
+  ResumeLive -> "ResumeLive"
+  EndLive -> "EndLive"
+  ClearLive -> "ClearLive"
   Compare _ -> "Compare"
   OpenApi _ -> "OpenApi"
 
@@ -63,11 +69,17 @@ examples =
   , Tuple (RunView { id: "run-1", view: Balances, round: Just 2 }) (g "/api/runs/run-1/balances?round=2")
   , Tuple (RoundReport { id: "run-1", round: 2 }) (g "/api/runs/run-1/rounds/2/report")
   , Tuple (OpenApi "narrative.json") (g "/api/openapi/narrative.json")
-  , Tuple (GetSession "run-1") (g "/api/sessions/run-1")
+  , Tuple GetLive (g "/api/live")
   , Tuple (BalanceSheetLinks "run-1") (g "/api/runs/run-1/balancesheets")
   , Tuple (BalanceSheet { id: "run-1", token: "abc" }) (g "/api/runs/run-1/balancesheet/abc")
-  , Tuple (StartSession { composition: Nothing, humans: [ "US" ], rounds: Nothing, window: Nothing, playerSeed: Nothing }) { method: "POST", url: "/api/sessions", body: "{\"humans\":[\"US\"]}" }
-  , Tuple (SubmitTranscript { id: "run-1", submission: { seat: "US", round: 1, text: "hi" } }) { method: "POST", url: "/api/sessions/run-1/transcripts", body: "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}" }
+  , Tuple (StartLive { composition: Nothing, cast: Nothing, rounds: Nothing, window: Nothing, playerSeed: Nothing, tag: "mock", metadata: { name: Nothing, facilitator: Nothing, date: Nothing, venue: Nothing, players: Object.empty, notes: Nothing }, replace: Nothing }) (p "/api/live" "{\"metadata\":{},\"tag\":\"mock\"}")
+  , Tuple (SubmitTranscript { seat: "US", round: 1, text: "hi" }) (p "/api/live/transcripts" "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}")
+  , Tuple (SubmitManual { seat: "US", round: 1, text: "hi" }) (p "/api/live/submissions" "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}")
+  , Tuple AdvanceLive (p "/api/live/advance" "{}")
+  , Tuple PauseLive (p "/api/live/pause" "{}")
+  , Tuple ResumeLive (p "/api/live/resume" "{}")
+  , Tuple EndLive (p "/api/live/end" "{}")
+  , Tuple ClearLive (p "/api/live/clear" "{}")
   , Tuple (Compare { runs: [ "a", "b" ], exchange: Just "m 1" }) (g "/api/compare?runs=a,b&exchange=m%201")
   , Tuple (Compare { runs: [], exchange: Nothing }) (g "/api/compare?runs=")
   ]
@@ -95,7 +107,7 @@ spec = describe "Handlers.Api.Route's endpoint table" do
         _ -> Nothing
     bad (get "/api/nope") `shouldEqual` Just (Tuple 404 "{\"error\":\"/api/nope\"}")
     bad (get "/api/runs/r/nope") `shouldEqual` Just (Tuple 404 "{\"error\":\"nope\"}")
-    map (\(Tuple s _) -> s) (bad { method: "POST", path: "/api/sessions", query: Object.empty, body: "[]" }) `shouldEqual` Just 400
+    map (\(Tuple s _) -> s) (bad { method: "POST", path: "/api/live", query: Object.empty, body: "[]" }) `shouldEqual` Just 400
     map (\(Tuple s _) -> s) (bad { method: "POST", path: "/api/runs", query: Object.empty, body: "{}" }) `shouldEqual` Just 404
   where
   get path = { method: "GET", path, query: Object.empty, body: "" }

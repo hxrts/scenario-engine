@@ -25,7 +25,7 @@ import Data.String (Pattern(..), joinWith, stripPrefix, toLower)
 import Data.Tuple (Tuple(..), fst)
 import Foreign.Object as Object
 import Handlers.Api.Contract (operations)
-import Handlers.Api.Route (Service, Doc, endpointAccess, errorShape)
+import Handlers.Api.Route (Service, Doc, endpointAccess, errorShape, isOpen)
 
 services :: Array Service
 services = allValues
@@ -33,7 +33,8 @@ services = allValues
 serviceOf :: String -> Maybe Service
 serviceOf name = find (\s -> lowerName s <> ".json" == toLower name) services
 
-type Published = { service :: Service, operation :: String, summary :: String, reply :: Desc, status :: Int, errors :: Array Int }
+-- | One published operation. `admin` marks a route that needs the admin session, which its document states.
+type Published = { service :: Service, operation :: String, summary :: String, reply :: Desc, status :: Int, errors :: Array Int, admin :: Boolean }
 
 -- | Every operation the route table publishes, with its entry of the contract.
 published :: Array Published
@@ -43,7 +44,7 @@ published = mapMaybe entry endpointAccess
     p <- e.publish
     c <- find (\o -> o.name == e.name) operations
     -- what reading the request can refuse is the route's own
-    pure { service: p.service, operation: e.name, summary: p.summary, reply: c.reply, status: c.status, errors: sort (nub (c.refusals <> requestErrors e.doc)) }
+    pure { service: p.service, operation: e.name, summary: p.summary, reply: c.reply, status: c.status, errors: sort (nub (c.refusals <> requestErrors e.doc <> (if isOpen e.access then [] else [ 401 ]))), admin: not (isOpen e.access) }
   requestErrors doc = (if isJust doc.body then [ 400 ] else []) <> (if any _.integer doc.params then [ 404 ] else [])
 
 -- | Where a document says the service is served, unless it was written for another server.
@@ -71,10 +72,12 @@ documentIn at service = obj
   , Tuple "info" (obj [ Tuple "title" (fromString ("Scenario Engine " <> lowerName service <> " API")), Tuple "version" (fromString "1") ])
   , Tuple "servers" (fromArray [ obj [ Tuple "url" (fromString at.server) ] ])
   , Tuple "paths" (obj (mapMaybe (pathOf at) ops))
-  , Tuple "components" (obj [ Tuple "schemas" (obj components) ])
+  , Tuple "components" (obj ([ Tuple "schemas" (obj components) ] <> security))
   ]
   where
   ops = filter (\p -> p.service == service) published
+  -- the admin session, a cookie set by `POST /admin/login`, when any route of the document needs it
+  security = if any _.admin ops then [ Tuple "securitySchemes" (obj [ Tuple "adminSession" (obj [ Tuple "type" (fromString "apiKey"), Tuple "in" (fromString "cookie"), Tuple "name" (fromString "admin"), Tuple "description" (fromString "The admin session, set by POST /admin/login with the admin password.") ]) ]) ] else []
   components = nubByEq (\a b -> fst a == fst b) (concatMap (\p -> schemaComponentsIn at.names p.reply <> maybe [] (schemaComponentsIn at.names) (requestOf p)) ops)
 
 obj :: Array (Tuple String Json) -> Json
@@ -106,5 +109,5 @@ pathFrom at p { method, pattern, doc } = Tuple path (obj [ Tuple (toLower method
       , Tuple "summary" (fromString p.summary)
       , Tuple "parameters" (fromArray parameters)
       , Tuple "responses" (obj ([ Tuple (show p.status) (obj [ Tuple "description" (fromString "OK"), Tuple "content" (json p.reply) ]) ] <> errors))
-      ] <> body
+      ] <> body <> (if p.admin then [ Tuple "security" (fromArray [ obj [ Tuple "adminSession" (fromArray []) ] ]) ] else [])
     )

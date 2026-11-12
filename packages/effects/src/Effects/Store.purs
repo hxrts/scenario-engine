@@ -45,7 +45,7 @@ finish id = either (failRun id <<< show) (const (setStatus id Completed Nothing)
 -- | process of another role, such as a live session on the same store, may still be running its own),
 -- | with the reason. A run with no recorded owner predates the owner column and counts as left over.
 -- | Returns how many.
-failRunning :: forall r. { role :: String, reason :: String } -> Run (STORE + r) Int
+failRunning :: forall r. { role :: String, reason :: String, status :: RunStatus } -> Run (STORE + r) Int
 failRunning r = lift _store (FailRunning r identity)
 
 setSpec :: forall r. String -> Spec -> Run (STORE + r) Unit

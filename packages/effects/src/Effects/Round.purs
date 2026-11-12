@@ -43,7 +43,7 @@ runRound inWorld w0 = do
     view e = observe w e
   spoken <- for (filter (\e -> isNothing (strategyOf inWorld e)) actors) \e -> do
     said <- lift _seatInput (Speak e.id (view e) identity)
-    pure (map (\text -> { seat: e.id, text }) said)
+    pure (map (\text -> { seat: e.id, text, enteredBy: Nothing }) said)
   let transcripts = mapMaybe identity spoken
   joint <-
     if null transcripts then pure []

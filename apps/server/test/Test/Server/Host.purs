@@ -13,4 +13,4 @@ stubReply :: String
 stubReply = "{\"text\":\"nothing\",\"candidateTransactions\":[]}"
 
 testHost :: StoreBackend -> SessionHost
-testHost store = unsafePerformEffect (newSessionHost { store, metricsOf: roundMetrics, llm: \_ -> backend { model: "stub", call: \_ _ -> pure { text: stubReply, raw: stubReply }, digest: identity } })
+testHost store = unsafePerformEffect (newSessionHost { store, metricsOf: roundMetrics, say: const (pure unit), llm: \_ -> backend { model: "stub", call: \_ _ -> pure { text: stubReply, raw: stubReply }, digest: identity } })

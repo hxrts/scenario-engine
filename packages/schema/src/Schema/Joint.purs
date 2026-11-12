@@ -16,7 +16,7 @@ module Schema.Joint
 import Prelude
 
 import Laws.CandidateTransaction (CandidateTransactionBody, candidateTransactionAt)
-import Core.Shape (recordShape, Shape, arrayOf, field, recordOf, requiredOf, stringShape, (&.))
+import Core.Shape (recordShape, Shape, arrayOf, field, fieldOf, object, optionalOf, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
 import Laws.Types (refIdShape, ActorId, ExchangeId, CandidateTransaction, CandidateTransactionCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)
@@ -27,10 +27,16 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (mapAccumL)
 
 -- | One seat's transcript of a round: its id and what it said.
-type Transcript = { seat :: ActorId, text :: String }
+-- | One seat's words for a round. `enteredBy` names who typed them when that was not the seat itself (a facilitator
+-- | entering a seat's text in a live run); absent, the seat spoke.
+type Transcript = { seat :: ActorId, text :: String, enteredBy :: Maybe String }
 
 transcriptShape :: Shape Transcript
-transcriptShape = recordShape "Transcript" { seat: idShape, text: stringShape }
+transcriptShape = object "Transcript" ado
+  seat <- fieldOf "seat" "the seat that spoke" idShape _.seat
+  text <- fieldOf "text" "what it said" stringShape _.text
+  enteredBy <- fieldOf "enteredBy" "who typed the text, when not the seat itself" (optionalOf stringShape) _.enteredBy
+  in { seat, text, enteredBy }
 
 -- | A candidate Transaction reconciled by the joint pass: its author, its body (Intents, and the signers the joint candidate Transaction
 -- | asks for besides the author), and the seats whose transcripts describe it. The engine signs for

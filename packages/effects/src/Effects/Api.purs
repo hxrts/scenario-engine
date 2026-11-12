@@ -8,7 +8,8 @@
 module Effects.Api
   ( ApiRequest(..)
   , ApiF(..)
-  , StartSession
+  , StartLive
+  , Metadata
   , Submission
   , Reply
   , API
@@ -19,6 +20,8 @@ module Effects.Api
 import Prelude
 
 import Schema.View (View)
+import Schema.Cast (Cast)
+import Foreign.Object (Object)
 import Schema.Run (RunClass)
 import Data.Generic.Rep (class Generic)
 import Run (Run, lift)
@@ -34,7 +37,30 @@ type Reply = { status :: Int, body :: String }
 -- | are carried as the text the request gave, so each route's validation and its messages stay with
 -- | the route's semantics. A body is decoded as typed data before the operation runs.
 -- | The body of a request to host a live session.
-type StartSession = { composition :: Maybe String, humans :: Array String, rounds :: Maybe Int, window :: Maybe Int, playerSeed :: Maybe Int }
+-- | A live run's metadata: what it is, who runs it, when and where, a player's name for each human seat (by seat id),
+-- | and notes. A production run needs every field but the notes; a mock run takes what it is given.
+type Metadata =
+  { name :: Maybe String
+  , facilitator :: Maybe String
+  , date :: Maybe String
+  , venue :: Maybe String
+  , players :: Object String
+  , notes :: Maybe String
+  }
+
+-- | The body of `POST /api/live`: the composition (absent is the first), the cast (absent casts every configured
+-- | seat as an agent), the rounds, the window in seconds (absent waits for every seat), the player seed (absent draws
+-- | one), the tag (`mock` or `production`), the metadata, and whether to clear a run that is live first.
+type StartLive =
+  { composition :: Maybe String
+  , cast :: Maybe Cast
+  , rounds :: Maybe Int
+  , window :: Maybe Int
+  , playerSeed :: Maybe Int
+  , tag :: String
+  , metadata :: Metadata
+  , replace :: Maybe Boolean
+  }
 
 -- | One seat's text for one round.
 type Submission = { seat :: String, round :: Int, text :: String }
@@ -51,9 +77,15 @@ data ApiRequest
   | RoundReport { id :: String, round :: Int }
   | OpenApi String
   | Compare { runs :: Array String, exchange :: Maybe String }
-  | StartSession StartSession
-  | GetSession String
-  | SubmitTranscript { id :: String, submission :: Submission }
+  | StartLive StartLive
+  | GetLive
+  | SubmitTranscript Submission -- a seat's own text
+  | SubmitManual Submission -- a facilitator's text for a human seat
+  | AdvanceLive
+  | PauseLive
+  | ResumeLive
+  | EndLive
+  | ClearLive
 
 derive instance Eq ApiRequest
 derive instance Generic ApiRequest _

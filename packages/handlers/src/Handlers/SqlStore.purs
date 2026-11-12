@@ -188,7 +188,7 @@ sqlStore d alive =
   , failRunning: \r -> do
       running <- select d runsTable "where status = 'running'" [] :: Effect (Array { id :: String, owner :: String })
       left <- filterA (leftBehind r.role) running
-      for_ left \run -> d.execute "update runs set status = 'failed', reason = ? where id = ?" [ SqlText r.reason, SqlText run.id ]
+      for_ left \run -> d.execute "update runs set status = ?, reason = ? where id = ?" [ SqlText (show r.status), SqlText r.reason, SqlText run.id ]
       pure (length left)
   , setSpec: \id spec -> void (d.execute "update runs set spec = ? where id = ?" [ SqlText (specText spec), SqlText id ])
   , deleteRun: \id -> d.dbDbTransaction do

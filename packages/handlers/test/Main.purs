@@ -93,7 +93,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- pacificParts >>= unseated
       records <- play g 2 Map.empty
       saved <- liftEffect (Ref.new [])
-      let said = [ { seat: Id "US", text: "I will buy ten energy" } ]
+      let said = [ { seat: Id "US", text: "I will buy ten energy", enteredBy: Nothing } ]
       liftEffect do
         save <- recorder (memoryStore saved) stubMetrics "run-x" g.world
         for_ records \r -> save r (if r.record.round == 1 then said else [])

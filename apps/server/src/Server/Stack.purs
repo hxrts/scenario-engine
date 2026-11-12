@@ -67,4 +67,4 @@ implement compositions store cache sessions = implementOn { system: systemDevice
 
 -- | The session host of the real server: its seats and joint pass run through the `pi` model process.
 newHost :: StoreBackend -> Effect SessionHost
-newHost store = newSessionHost { store, metricsOf: roundMetrics, llm: \m -> let model = fromMaybe defaultModel m in backend { model, call: pi { model, rawDir: "runs/server/raw" }, digest: sha256 } }
+newHost store = newSessionHost { store, metricsOf: roundMetrics, say: const (pure unit), llm: \m -> let model = fromMaybe defaultModel m in backend { model, call: pi { model, rawDir: "runs/server/raw" }, digest: sha256 } }

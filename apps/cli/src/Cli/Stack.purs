@@ -18,11 +18,11 @@ import Laws.World (WorldState)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Launch (LAUNCHES)
-import Effects.Signatures (CONSOLE, ENTROPY, FILES, INTERPRET, InterpretF(..), STORE, _play, _clock, _console, _entropy, _files, _interpret, _live, _observe, _process, _store)
+import Effects.Signatures (CONSOLE, ENTROPY, FILES, INTERPRET, InterpretF(..), STORE, _play, _clock, _console, _entropy, _files, _interpret, _observe, _process, _sessions, _store)
 import Handlers.Llm.Backend (Backend, backend, logging)
 import Handlers.Llm.Joint (interpreter)
 import Handlers.Play (interpretPlay)
-import Handlers.Session (interpretLive)
+import Handlers.Sessions (interpretSessions, newSessionHost)
 import Handlers.SqlStore (openStore, sqlStore)
 import Handlers.Store (interpretObserve, interpretStore)
 import Handlers.System (ConsoleDevice, SystemDevices, interpretClock, interpretConsole, interpretEntropy, interpretFiles, interpretProcess)
@@ -72,11 +72,12 @@ runSession o program = do
   let
     llm m = let model = fromMaybe o.model m in logging evidence turn (backend { model, call: pi { model, rawDir: dir <> "/raw" }, digest: sha256 })
     store = sqlStore db processAlive
+  host <- liftEffect (newSessionHost { store, metricsOf: roundMetrics, llm, say: writeLine })
   run
     ( case_
         # on _observe (liftEffect <<< interpretObserve store)
         # on _store (liftEffect <<< interpretStore store)
-        # on _live (interpretLive { store, metricsOf: roundMetrics, input: \_ _ prompt -> readLine prompt, say: writeLine, llm })
+        # on _sessions (liftEffect <<< interpretSessions host)
         # on _clock (interpretClock system)
         # on _entropy (interpretEntropy system)
         # on _process (interpretProcess system)

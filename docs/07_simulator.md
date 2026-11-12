@@ -114,16 +114,16 @@ A run is never left `running` once its work has ended. It is marked `failed`, wi
 
 - the engine returns an error (the reason is the error);
 - an exception occurs while simulating or saving a round, such as a store fault (the reason is the exception);
-- a live session stops early: a language-model backend cannot start, exits non-zero, or its input ends at a prompt (the reason names the cause). A backend failure is fatal: the round in progress is not completed, and the rounds already saved remain.
+- a live run stops early: a language-model backend cannot start, exits non-zero, or its input ends at a prompt (the reason names the cause). A backend failure is fatal: the round in progress is not completed, and the rounds already saved remain.
 
-**Interruption.** A run records the process that created it (`owner`: its role, process id, and start time). When a server starts, runs still marked `running` are marked `failed` with a reason beginning `interrupted` if a server created them, if they have no owner, or if their creating process has gone. A run owned by another live process, such as a CLI session on the same store, is left alone.
+**Interruption.** A run records the process that created it (`owner`: its role, process id, and start time). When a server starts, runs still marked `running` are marked `cleared` (the live run it held, §8.2) with a reason saying the server stopped, if a server created them, if they have no owner, or if their creating process has gone. A run owned by another live process, such as a CLI session on the same store, is left alone.
 
 ### 6.2 Commands
 
 | Command | Behaviour |
 |---|---|
 | `run <composition> [--preset P] [--rounds n] [--seed n]` (`just sim`) | Plays every seat with preset `P` (default: the composition's own default) for `n` rounds. `n` is a whole number of at least 1, and defaults to the PremiseComposition's configured count; `checkRounds` refuses a count outside the PremiseComposition's round range. Prints a header, one line per round, and the invariant results. Does not save to the Run Store. |
-| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console. Seats named in `--humans` answer with a typed transcript each round; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Prints each Actor's balance sheet path at the start. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
+| `session <premise> [--humans S,…] [--model id] [--rounds n] [--window s] [--id name] [--db file] [--seed n]` (`just session`) | Live facilitator console: a mock live run through the same host and lifecycle as the server's (§8.2). A human seat's text is typed as `SEAT: text`, and a line starting with `/` is a control: `/advance`, `/pause`, `/resume`, `/end` or `/clear`. Seats named in `--humans` are human; the rest are AI-agent seats. `--window` is whole seconds, where 0 gives no propose window. The id is 1 to 64 letters, digits, `-` or `_`, starting with a letter or digit. Defaults: window 0, id `session-1`, database `runs.db`, and the configured model. Prints each Actor's balance sheet path at the start. Saves the session as a run; raw model output and call evidence are kept beside it (§8). |
 | `suite [--db file]` (`just suite`) | Plays the static suite into the store (§3): every entry whose cache key is not stored, then deletes the simulated runs that have left the suite, and prints how many were played, reused and dropped. |
 | `presets <composition>` | Prints the composition's preset names, one per line. |
 | `server [--db file] [--port n] [--static dir] [--env file]` (`just serve`) | Serves the API, the landing page, and the dashboard at `/admin` (§8.3). Defaults: `runs.db`, port 8787 (1 to 65535), the dashboard build directory, and `.env`. |
@@ -225,7 +225,7 @@ The server serves JSON through the `API` operations. Each operation below is one
 | `GET /api/runs/:id/balancesheets` | Every Actor's name, kind, and balance sheet path, for the admin page. | 200. 404 for an unknown run |
 | `GET /api/runs/:id/balancesheet/:token` | Open. One Actor's balance sheet page ([§9.4](#94-balancesheet-pages)). | 200. 404 for an unknown run or token |
 | `GET /api/runs/:id/rounds/:round/report` | Open. What one round produced (§8.2). | 200. 404 for an unknown run or a round not played |
-| `POST /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions/:id/transcripts` | Start a hosted live session (admin); read its state and submit a seat's text (open). See §8.2. | See §8.2 |
+| `POST /api/live`, `GET /api/live`, `POST /api/live/transcripts`, `POST /api/live/submissions`, `POST /api/live/advance`, `…/pause`, `…/resume`, `…/end`, `…/clear` | The live run: start it with its cast, tag and metadata (admin), read its state and submit a seat's text (open), a facilitator's submission and the lifecycle controls (admin). See §8.2. | See §8.2 |
 | `GET /api/openapi/:service` | Open. The OpenAPI document of `transcription.json` or `narrative.json` (§8.2). | 200. 404 for any other name |
 | `GET /api/premise` | The launch form's PremiseCompositions: name, version, its Premises with their versions, round range, default rounds, game seed, `defaultName` (the next run ID), and the seat presets in order. | 200 |
 | `GET /api/runs` | The run list, one row per run, with its id, class (`simulated` or `interactive`) and readable flag. `class=` lists one class. | 200. 400 for an unknown class |
@@ -243,30 +243,50 @@ Runs are not launched, derived, resumed, archived or deleted through the API. Si
 
 Speech transcription and the newspaper are built outside this repository and reach it over open HTTPS routes. This repository does not transcribe speech and does not write a front page. Reading a round's transcripts into Intents, the joint pass, stays here ([04 §11.2](04_run.md#112-live-session)).
 
-Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (session status, submitting a seat's text) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its routes, summaries, paths, methods, parameters and request bodies from the route table, and its reply schemas, success statuses and refusals from the API's contract (`Handlers.Api.Contract`), which the routes answer through, so a route cannot be documented differently from how it behaves. A route's refusals are the labels of its entry's row; what reading its request can refuse comes from the table. `just openapi <premise>` writes the same documents for one PremiseComposition, where a reference to a kind the PremiseComposition names is an `enum` of its names.
+Their contract is two OpenAPI 3.1 documents, the source of truth for those routes: `GET /api/openapi/transcription.json` (the live run: starting it, its state, a seat's text, and its lifecycle controls) and `GET /api/openapi/narrative.json` (a round's report). `just _premises` writes the same documents to `openapi/`. Each document takes its routes, summaries, paths, methods, parameters and request bodies from the route table, and its replies and statuses from the contract. A route that needs the admin session says so: the document declares an `adminSession` security scheme (the `admin` cookie that `POST /admin/login` sets) and lists it on that route, with a 401 among its refusals.
 
-**How to authenticate.** There is no authentication for these routes. They are open: anyone with the URL can read every Actor's report and submit any seat's text. Every other `/api` route needs the admin session cookie (§8.3), including `POST /api/sessions`.
+**One live run.** A server holds at most one live run (an interactive run, §3). It is tagged `mock` or `production`, and starting one while another is live is refused unless the request clears the live one first. Its lifecycle:
+
+| State or step | Meaning |
+|---|---|
+| `running` | Rounds are played; each round closes when every human seat has spoken, its window passes, or it is advanced. |
+| paused | Still `running`, with the window's clock stopped; submissions are taken. |
+| ending | Still `running`; the run completes after the round open. |
+| `completed` | Played to its rounds, or ended. |
+| `cleared` | Stopped at once by a facilitator, or by a server restart; the rounds it played stay stored. |
+| `failed` | A device failed; the rounds already played stay readable. |
+
+**How to authenticate.** The live run's state, a seat's own text, the round report and the documents are open: anyone with the URL can read every Actor's report and submit any human seat's text. Starting the run, a facilitator's submission and the lifecycle controls need the admin session cookie (§8.3).
 
 | Route | Access | Request | Replies |
 |---|---|---|---|
-| `POST /api/sessions` | Admin | `humans`; optional `composition`, `rounds`, `window` (seconds, 0 for none), `playerSeed` | 200 with the Run id and each Actor's balance sheet path. 400 for an unknown PremiseComposition or seat, or rounds outside the range. 401 without the admin session |
-| `GET /api/sessions/:id` | Open | | 200 with the session's state. 404 for no such session |
-| `POST /api/sessions/:id/transcripts` | Open | `seat`, `round`, `text` | 200 accepted, with the session's state. 400 for an unknown seat or a body that does not decode. 404 for no such session. 409 for the wrong round, a seat that has already spoken this round, or a session that is over |
+| `POST /api/live` | Admin | `tag` (`mock` or `production`), `metadata` (`name`, `facilitator`, `date`, `venue`, `players` by seat id, `notes`); optional `composition`, `cast` ([04 §2](04_run.md#2-instantiation-configuration); absent casts every seat as an agent), `rounds`, `window` (seconds, 0 for none), `playerSeed`, `replace` | 200 with the Run id and each Actor's balance sheet path. 400 for an unknown PremiseComposition, a cast that does not assemble, rounds outside the range, an unknown tag, or a production run whose metadata is incomplete, naming each missing field (`players.<seat>` for a human seat with no player). 409 while a run is live, unless `replace` is true, which clears it first. 401 without the admin session |
+| `GET /api/live` | Open | | 200 with the live run's state, or the last run's when none is live. 404 when the server has held none |
+| `POST /api/live/transcripts` | Open | `seat`, `round`, `text` | 200 accepted, with the state. 400 for a seat no person plays or a body that does not decode. 404 with no run. 409 for a round not open (or advanced), a seat that has already spoken this round, or a run that is over |
+| `POST /api/live/submissions` | Admin | `seat`, `round`, `text` | The same, for a facilitator entering a human seat's text; the stored transcript records it as entered by the facilitator |
+| `POST /api/live/advance` | Admin | | 200 with the state: the open round closes now, every human seat not yet heard says nothing, and the round resolves. 404 with no run. 409 for a run that is over |
+| `POST /api/live/pause`, `POST /api/live/resume` | Admin | | The same: the window's clock stops, or restarts |
+| `POST /api/live/end` | Admin | | The same: the run completes after the round open |
+| `POST /api/live/clear` | Admin | | 200 with `{"cleared": id}`: the run stops now and is recorded as cleared. 404 when no run is live |
 | `GET /api/runs/:id/rounds/:round/report` | Open | | 200 with the round report. 404 for an unknown run or a round it has not played |
 | `GET /api/openapi/transcription.json`, `GET /api/openapi/narrative.json` | Open | | 200 with the document |
 
-An unknown seat is one no person plays in this session: AI agent seats speak for themselves. A refusal's body is `{"error": "..."}`.
-
-The reply to `POST /api/sessions`, for the body `{"humans":["US"],"rounds":4,"playerSeed":1}`:
+A refusal's body is `{"error": "..."}`. The reply to `POST /api/live`:
 
 ```json
-{"id":"run-1","balanceSheets":[{"actor":"US","kind":"Playable Actor","path":"/balancesheet/run-1/abc123"}]}
+{"id":"run-23","balanceSheets":[{"actor":"US","kind":"Playable Actor","path":"/balancesheet/run-23/abc123"}]}
 ```
 
-The session status reply, which is also the reply to an accepted submission:
+for the body:
 
 ```json
-{"window":0,"submitted":[],"status":"running","round":1,"awaiting":["US"]}
+{"cast":{"US":"human","CN":"agent","US-firm":"preset:Builder","CN-firm":"nonplayer:FreeTrade"},"rounds":4,"playerSeed":1,"tag":"mock","metadata":{"name":"rehearsal"}}
+```
+
+The live run's state, which is also the reply to an accepted submission and to a control:
+
+```json
+{"id":"run-23","tag":"mock","round":1,"status":"running","paused":false,"ending":false,"window":0,"submitted":[],"awaiting":["US"]}
 ```
 
 A submission's body:
@@ -277,14 +297,14 @@ A submission's body:
 
 **The order of calls in a round.**
 
-1. A facilitator starts the session with `POST /api/sessions`, under the admin session. The reply's `id` is the session id and the Run id.
-2. The speech component reads `GET /api/sessions/:id` for the open `round` and the seats still `awaiting`.
-3. It posts each seat's text once, with that round number. The round closes when every human seat has submitted or its deadline (`window`) passes, and a seat that has not spoken by then says nothing that round.
+1. A facilitator starts the live run with `POST /api/live`, under the admin session. The reply's `id` is the Run id.
+2. The speech component reads `GET /api/live` for the open `round` and the seats still `awaiting`.
+3. It posts each seat's text once, with that round number. The round closes when every human seat has submitted, its window passes, or the facilitator advances it, and a seat that has not spoken by then says nothing that round.
 4. The joint pass reads the round's transcripts and the round resolves ([04 §11](04_run.md#11-round-execution)).
-5. The newspaper reads `GET /api/runs/:id/rounds/:round/report` once the session reports a later `round`, or a `status` of `completed` for the last round. The report is a 404 until the round has been played.
-6. A `status` of `failed` ends the session, and the rounds already played stay readable.
+5. The newspaper reads `GET /api/runs/:id/rounds/:round/report` once the run reports a later `round`, or a `status` of `completed` for the last round. The report is a 404 until the round has been played.
+6. A `status` of `failed` or `cleared` ends the run, and the rounds already played stay readable.
 
-Sessions live in the server's memory. After a restart the session routes reply 404 and the Run is marked failed ([§6.1](#61-invalid-actions-and-failures)), while its saved rounds remain.
+The live run is held in the server's memory. After a restart `GET /api/live` replies 404 and the Run is marked cleared ([§6.1](#61-invalid-actions-and-failures)), while its saved rounds remain.
 
 **What is stable.** The routes, their methods, the field names of their requests and replies, and the status codes above are the contract. In a report, `prices`, `balances`, `shortfalls`, `enacted`, `repealed`, `rejected` and `lapsed` are summaries meant for a downstream writer, with numbers as display strings ([02 §9.1](02_kernel.md#91-numerics-and-randomness)). `events` carries the engine's events in their stored form and changes with the store's schema version. Ids and balance sheet paths are opaque text. The wording of an `error` is not part of the contract.
 
@@ -299,7 +319,7 @@ Everything that shows more than one Actor's data sits behind a password.
 | `/admin` | The login page, and the dashboard once logged in. Its hashed assets under `/admin/assets` are public because the balance sheet page loads them, and they hold no data. |
 | `/api` | Private by default ([§8.1](#81-read-api-and-run-operations)). |
 
-**The API is private by default.** Each row of the route table is `Admin` unless the table says `Open`, so a new route is private until someone decides it is not. The open routes are the balance sheet route, the session status and transcript routes, the round report, and the OpenAPI documents. Every other route replies 401 without the admin session, and the gate checks this before a request's body is read. A test walks the whole route table to hold this.
+**The API is private by default.** Each row of the route table is `Admin` unless the table says `Open`, so a new route is private until someone decides it is not. The open routes are the balance sheet route, the live run's state and a seat's own transcript route, the round report, and the OpenAPI documents. Every other route replies 401 without the admin session, and the gate checks this before a request's body is read. A test walks the whole route table to hold this.
 
 **The password.** `ADMIN_PASSWORD` is read from a `.env` file, whose path is the server's `--env` flag (default `.env`). The file is not committed; `.env.example` names the variable with no value. A missing file or an empty password refuses every admin request. A correct login at `POST /admin/login` sets the session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when the request came over HTTPS. Its value is derived from the password, so a restart logs nobody out.
 

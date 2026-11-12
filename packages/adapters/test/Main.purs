@@ -118,7 +118,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       db <- liftEffect (open ":memory:")
       let port = storeOver db
       liftEffect $ runStore port (createRun { owner: "server:1:0", id: "run-1", name: "orphan", created: "2026-01-01T00:00:00Z", spec: emptySpec { gameId = Just "x" }, manifest })
-      n <- liftEffect (runStore port (failRunning { role: "server", reason: "interrupted" }))
+      n <- liftEffect (runStore port (failRunning { role: "server", reason: "interrupted", status: Failed }))
       n `shouldEqual` 1
       runs <- liftEffect (runObserve port listRuns)
       map (\r -> { status: r.status, reason: r.reason }) runs `shouldEqual` [ { status: Failed, reason: Just "interrupted" } ]
@@ -136,7 +136,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       g <- presetSeats' [ "US", "CN", "US-firm", "CN-firm" ] "FreeTrade" (Just 2)
       let
         seed = Seed 3
-        said = [ { seat: Id "US", text: "I will ban industrial inputs from China" } ]
+        said = [ { seat: Id "US", text: "I will ban industrial inputs from China", enteredBy: Nothing } ]
       db <- liftEffect (open ":memory:")
       let port = storeOver db
       played <- orThrow (simulate seed g)

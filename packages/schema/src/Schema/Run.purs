@@ -27,8 +27,8 @@ import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 
--- | A run's lifecycle state.
-data RunStatus = Running | Completed | Failed
+-- | A run's lifecycle state. A live run that is cleared stops at once and keeps the rounds it played.
+data RunStatus = Running | Completed | Failed | Cleared
 
 derive instance Eq RunStatus
 

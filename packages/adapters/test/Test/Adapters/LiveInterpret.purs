@@ -32,9 +32,9 @@ import Testkit.Run (pacificParts, presetSeats)
 -- | The fixed transcripts: the US firm and China describe one exchange, and the US says something unrelated.
 transcripts :: Array Transcript
 transcripts =
-  [ { seat: Id "US-firm", text: "I will give China two units of technology this round, and China gives me two units of money." }
-  , { seat: Id "CN", text: "Agreed. The US firm sends me two units of technology and I send it two units of money." }
-  , { seat: Id "US", text: "I am keeping my money at home this round." }
+  [ { seat: Id "US-firm", text: "I will give China two units of technology this round, and China gives me two units of money.", enteredBy: Nothing }
+  , { seat: Id "CN", text: "Agreed. The US firm sends me two units of technology and I send it two units of money.", enteredBy: Nothing }
+  , { seat: Id "US", text: "I am keeping my money at home this round.", enteredBy: Nothing }
   ]
 
 world :: Aff WorldState

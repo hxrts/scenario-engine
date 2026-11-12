@@ -32,7 +32,7 @@ import Server.Stack (newServerCache)
 import Test.Server.Api as Api
 import Test.Server.Gate as Gate
 import Test.Server.OpenApi as OpenApi
-import Test.Server.Sessions as Sessions
+import Test.Server.Live as Live
 import Test.Server.Http as HttpDevice
 import Test.Server.Compositions as Compositions
 import Test.Server.Fixed as Fixed
@@ -45,7 +45,7 @@ main :: Effect Unit
 main = runSpecAndExitProcess [ consoleReporter ] do
   HttpDevice.spec
   Gate.spec
-  Sessions.spec
+  Live.spec
   OpenApi.spec
   Api.spec
   Compositions.spec
