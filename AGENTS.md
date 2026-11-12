@@ -38,7 +38,7 @@ Read them in order. Each layer builds on the one before it.
 2. `02_kernel.md`: what any World can be made of (the kernel and types), the canonical round sequence (§8.1), effects (§8.4), invariants `INV-xx` (§9), numerics (§9.1)
 3. `03_premise.md`: how Premises are authored and composed, and the vocabulary that compiles to the kernel
 4. `04_run.md`: how a PremiseComposition is assembled and realized as a Run, Round by Round
-5. `05_pacific.md`: *Pacific*, the reference PremiseComposition (two countries, each a state and a firm, trade barriers, industrial policy, a circular flow), and its golden scenarios
+5. `05_pacific.md`: *Pacific*, the reference PremiseComposition (two countries, each a state and a firm, with two currencies, industrial competence, export controls, financial repression and dollar reserves, in a circular flow), its feedback loops, experiments and golden scenarios
 6. `07_simulator.md`: simulator, run store, dashboard, mandatory tests
 7. `08_architecture.md`: package layout, dependency direction, key interfaces
 
@@ -58,4 +58,4 @@ Spec conventions:
 
 ## Tests
 
-The premise fixtures are golden tests against `resolveRound` (`packages/premises/test/Test/Premises/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/07_simulator.md` §14 and `packages/handlers/test/Test/Handlers/Simulate.purs`. Pacific's golden scenarios play whole Runs and are in `packages/handlers/test/Test/Handlers/Pacific.purs`.
+The premise fixtures are golden tests against `resolveRound` (`packages/premises/test/Test/Premises/Golden.purs`, which runs every fixture in the DSL's list). The mandatory tests are in `docs/07_simulator.md` §14 and `packages/handlers/test/Test/Handlers/Simulate.purs`. Pacific's golden scenarios play whole Runs and are in `packages/handlers/test/Test/Handlers/Pacific.purs`; its circuits, accounting, feedback loops and experiments in `packages/handlers/test/Test/Handlers/Loops.purs`.

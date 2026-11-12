@@ -9,8 +9,7 @@ module Views.Finance
   , ExternalLine
   , externalAccounts
   , currenciesOf
-  , bondColumns
-  , externalColumns
+  , columns
   ) where
 
 import Prelude
@@ -138,20 +137,26 @@ owedTo w inC m = Q.sumQ (map _.principal (filter (\b -> b.currency == m && inC b
 owedBy :: WorldState -> (ActorId -> Boolean) -> ResourceId -> Q
 owedBy w inC m = Q.sumQ (map _.principal (filter (\b -> b.currency == m && inC b.borrower && not (inC b.lender)) (bondsOf w)))
 
+countryColumn :: Column
+countryColumn = column "Country" "A group of Actors: an Actor and those that count as it for Rules. Everything outside it, the Exchanges' reserves included, is abroad."
+
+currencyColumn :: Column
+currencyColumn = column "Currency" "The currency a bond or an account is in: the numeraire, or a Resource an Exchange quotes."
+
 bondColumns :: Array Column
 bondColumns =
   [ column "Template" "The bond's agreement template."
   , column "Lender" "The Actor owed: it Transferred the principal."
   , column "Borrower" "The Actor that owes, and repays the next round."
-  , column "Currency" "The Resource the bond is in."
+  , currencyColumn
   , column "Principal" "What was lent, or carried from a bond not repaid in full."
   , column "Rate" "The interest a round, over the principal."
   ]
 
 externalColumns :: Array Column
 externalColumns =
-  [ column "Country" "A group of Actors: a state and the Actors that count as it for Rules."
-  , column "Currency" "The currency of this account."
+  [ countryColumn
+  , currencyColumn
   , column "Opening" "What the country held of the currency and was owed in it by the rest of the world, less what it owed, before the round: bonds at their principal."
   , column "Goods" "Paid to it for goods it sold abroad, less paid for goods it bought from abroad."
   , column "Currency trades" "Bought on the currency Exchanges, less sold."
@@ -159,6 +164,18 @@ externalColumns =
   , column "Interest" "Interest received from abroad, less interest paid: lending across the border plus the change in its bonds."
   , column "Closing" "The position after the round."
   , column "Residual" "Closing less opening less the four flows: what crossed the border as something else. Zero when every flow is accounted."
+  ]
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = bondColumns <> externalColumns <> currentColumns
+
+currentColumns :: Array Column
+currentColumns =
+  [ column "Current account" "Goods, levies and interest across the border, every currency valued in the numeraire at the round's closing prices."
+  , column "Financial account" "Currency trades across the border, valued alike: what the country moved between currencies."
+  , column "Valuation" "The change in its opening position from the currencies' values moving over the round."
+  , column "Change in position" "Its position in the numeraire after the round, less before: the three columns' sum."
   ]
 
 -- | The view: the bonds open after each round, and the external accounts, with the current account in the numeraire.
@@ -176,19 +193,12 @@ finance r =
       }
   , current:
       { title: "Current account"
-      , columns: names ([ col.round ] <> currentColumns)
+      , columns: names ([ col.round, countryColumn ] <> currentColumns)
       , rows: concatMap currentRows (zip (worlds r) r.rounds)
       }
   }
   where
   lines = externalAccounts r
-  currentColumns =
-    [ column "Country" "A group of Actors."
-    , column "Current account" "Goods, levies and interest across the border, every currency valued in the numeraire at the round's closing prices."
-    , column "Financial account" "Currency trades across the border, valued alike: what the country moved between currencies."
-    , column "Valuation" "The change in its opening position from the currencies' values moving over the round."
-    , column "Change in position" "Its position in the numeraire after the round, less before: the three columns' sum."
-    ]
   currentRows (Tuple before x) =
     let
       w = x.world

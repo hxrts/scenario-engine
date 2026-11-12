@@ -142,6 +142,6 @@ This section lists the rules that every PremiseComposition and every rule should
 - [02 Kernel](02_kernel.md): what any World can be made of, and the invariants of the economy.
 - [03 Premise](03_premise.md): how Premises are authored and composed, and the vocabulary that compiles to the kernel.
 - [04 Run](04_run.md): how a PremiseComposition is assembled and realized, Round by Round.
-- [05 Pacific](05_pacific.md): *Pacific*, a two-country PremiseComposition of trade, export bans and substitution.
+- [05 Pacific](05_pacific.md): *Pacific*, a two-country PremiseComposition of trade in two currencies, export controls, industrial competence, financial repression and the dollar, about economic arrangements that grow costlier to change.
 - [07 Simulator](07_simulator.md): simulation, the run store, the dashboard, analysis, and tests.
 - [08 Architecture](08_architecture.md): guidelines and the structure of the implementation.
