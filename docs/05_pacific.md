@@ -11,8 +11,8 @@ Each country is played by two seats: its **state** and its **firm**. Behind them
 
 | Seat | Abroad | At home |
 |---|---|---|
-| State | **Press or protect.** Raise a barrier on the other country's good, a tariff its own importers pay or a ban, to cut the other side's sales, at the cost of its own supply and of retaliation. Or invest in a substitute, which costs goods now and pays only later. | **Direct or release.** Keep its Money, and set the terms of its firm's investment, or release Money to its private sector, whose demand absorbs output at home. |
-| Firm | **Export or sell at home.** The world Exchange is larger but exposed to the barriers the states decide; the home Exchange pays a premium but is only as large as its private sector's demand. Its production needs a unit of the other country's good each round, which it can stockpile against a ban. | **Accumulate or spend.** Invest its goods in more capacity, or pay its private sector, whose demand grows the home market the firm sells into. |
+| State | **Press or protect.** Raise a trade barrier on the other country's good, a tariff its own importers pay or an import ban, to cut the other side's sales, at the cost of its own supply and of retaliation. Or pursue industrial policy, building its own capacity in place of imports, which costs goods now and pays only later. | **Direct or stimulate.** Keep its Money, and set the terms of its firm's investment, or give households a fiscal stimulus, whose spending absorbs output at home. |
+| Firm | **Export or sell at home.** The world Exchange is larger but exposed to the barriers the states decide; the home Exchange pays a premium but is only as large as its private sector's demand. Its production needs a unit of the other country's good each round, which it can hold in inventory against a ban. | **Invest or distribute.** Spend its goods on capital investment in more capacity, or distribute Money to households as wages and dividends, whose spending grows the home market the firm sells into. |
 
 The two countries are built differently, so the same dilemmas weigh differently.
 
@@ -21,10 +21,10 @@ The two countries are built differently, so the same dilemmas weigh differently.
 | Capacity | The state holds most of China's industrial capacity (8 of 10). | The firm holds most of America's technology capacity (8 of 10). |
 | Exports | Mostly the state's. | Mostly the firm's. |
 | State income | Its own export sales. | A tax on US exports, in force from the start, and any tariff, so it lives off what its firm and its importers pay. |
-| The firm's investment | Draws on state credit, at the rate the state sets. | Free, and the state may subsidise it. |
+| The firm's investment | Draws on state credit, at the lending rate the state sets. | Free, and the state may subsidise it. |
 | Private sector | Saves most of what it holds. | Spends most of what it holds. |
 
-So in China the state's choice between direction and release is a choice about control: whether to let the market expand, and how dearly its firm borrows. In the US it is a choice about distribution: whether the gains the firm earns reach the private sector. A barrier binds the whole country that raises it, its firm too: a US ban on industrial inputs cuts the US firm's own input.
+So in China the state's choice between direction and stimulus is a choice about control: whether to let the market expand, and how dearly its firm borrows. In the US it is a choice about distribution: whether the gains the firm earns reach the private sector. A barrier binds the whole country that raises it, its firm too: a US ban on industrial inputs cuts the US firm's own input.
 
 ```text
              UNITED STATES                                          CHINA
@@ -32,30 +32,30 @@ So in China the state's choice between direction and release is a choice about c
   ┌─────────────────────────────────┐                    ┌─────────────────────────────────┐
   │ state                           │                    │ state                           │
   │  abroad   press  ◀─▶ protect    │                    │  abroad   press  ◀─▶ protect    │
-  │    barrier · substitute         │ ◀── US bars I ✕ ── │    barrier · substitute         │
-  │  at home  direct ◀─▶ release    │ ── CN bars T ✕ ──▶ │  at home  direct ◀─▶ release    │
-  │    release · subsidy            │                    │    release · credit rate        │
+  │    barrier · industrial policy  │ ◀── US bars I ✕ ── │    barrier · industrial policy  │
+  │  at home  direct ◀─▶ stimulate  │ ── CN bars T ✕ ──▶ │  at home  direct ◀─▶ stimulate  │
+  │    stimulus · capex subsidy     │                    │    stimulus · lending rate      │
   │                                 │                    │                                 │
   │  holds 2 of 10 T capacity       │ ◀──── sells I ──── │  holds 8 of 10 I capacity       │
   │  lives on the export tax        │ ─── pays for I ──▶ │  lives on its own sales         │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
-         subsidy ▼ │  ▲ tax on its                               credit ▼ │  ▲ fee at its
-        for its    │    exports $                              for its    │    rate $
+         subsidy ▼ │  ▲ tax on its                               credit ▼ │  ▲ interest
+        for its    │    exports $                              for its    │    on credit $
         investment │                                           investment │
                    │                                                      │
   ┌────────────────┴────────────────┐                    ┌────────────────┴────────────────┐
   │ firm                            │                    │ firm                            │
   │  abroad   export ◀─▶ home       │                    │  abroad   export ◀─▶ home       │
-  │    share abroad · stockpile I   │ ──── sells T ────▶ │    share abroad · stockpile T   │
-  │  at home  build  ◀─▶ spend      │ ◀──── sells I ──── │  at home  build  ◀─▶ spend      │
-  │    invest · pay                 │                    │    invest on credit · pay       │
+  │    export share · inventory I   │ ──── sells T ────▶ │    export share · inventory T   │
+  │  at home  invest ◀─▶ distribute │ ◀──── sells I ──── │  at home  invest ◀─▶ distribute │
+  │    capex · wages                │                    │    capex on credit · wages      │
   │                                 │                    │                                 │
   │  holds 8 of 10 T capacity       │ ◀── pays for T ─── │  holds 2 of 10 I capacity       │
   │  needs 1 I a round              │ ─── pays for I ──▶ │  needs 1 T a round              │
   └────────────────┬────────────────┘                    └────────────────┬────────────────┘
                    │                                                      │
-   release and pay ▼                                      release and pay ▼
+stimulus and wages ▼                                   stimulus and wages ▼
          private sector                                         private sector
         spends most of it                                      saves most of it
 ```
@@ -68,24 +68,24 @@ Each seat faces the same two dilemmas, one abroad and one at home (§1), and hol
 
 | Seat | Actor | # | Tool | Off / low / high | What it trades off |
 |---|---|---|---|---|---|
-| US state | `US` | 1 | Barrier on Chinese industrial inputs | none / tariff, paid by the importer / ban | Tariff income and pressure on China's sales, against its own importers' cost, its own supply and retaliation |
-| | | 2 | Invest technology in industrial capacity | none / 1 unit / 2 units a round | Technology now, for less dependence on China later |
-| | | 3 | Release Money to US households | none / 5% / 15% of its Money a round | Its own Money, for home demand for the US firm's technology |
-| | | 4 | Subsidise the US firm's investment | none / 1 M / 2 M per unit begun the round before | Its own Money, for the firm's growth |
-| China state | `CN` | 1 | Barrier on US technology | none / tariff, paid by the importer / ban | Tariff income and pressure on the US firm's sales, against its own supply and retaliation |
-| | | 2 | Invest industrial inputs in technology capacity | none / 1 unit / 2 units a round | Industrial inputs now, and the export income they would earn, for less dependence on the US later |
-| | | 3 | Release Money to Chinese households | none / 5% / 15% of its Money a round | Its own Money, for home demand; households save most of it, so it acts slowly |
-| | | 4 | Set the rate on its firm's credit | none / 1 M / 2 M per unit invested, paid to the state | State income and control, against the firm's growth |
-| US firm | `US-firm` | 1 | Share of its technology sold abroad, the rest at home | none / half / all | A larger market abroad, against exposure to China's barrier and the export tax |
-| | | 2 | Stockpile industrial inputs | none / 1 / 2 units a round | A hedge for its own production against a Chinese ban, against Money tied up and supply its own state cannot buy |
-| | | 3 | Invest technology in capacity | none / 1 unit / 2 units a round | Capacity and future sales, against goods not sold now |
-| | | 4 | Pay US households | none / 5% / 15% of its Money a round | Its own Money, for a larger home market |
-| China firm | `CN-firm` | 1 | Share of its industrial inputs sold abroad, the rest at home | none / half / all | A larger market abroad, against exposure to the US barrier |
-| | | 2 | Stockpile technology | none / 1 / 2 units a round | A hedge for its own production against a US ban, against Money tied up and supply its own state cannot buy |
-| | | 3 | Invest industrial inputs in capacity, on state credit | none / 1 unit / 2 units a round | Capacity and future sales, against the credit's cost and goods not sold now |
-| | | 4 | Pay Chinese households | none / 5% / 15% of its Money a round | Its own Money, for a home market that grows slowly, since households save |
+| US state | `US` | 1 | Trade barrier on Chinese industrial inputs | none / tariff, paid by the importer / import ban | Tariff income and pressure on China's sales, against its own importers' cost, its own supply and retaliation |
+| | | 2 | Industrial policy: build industrial capacity from technology, in place of imports | none / 1 unit / 2 units a round | Technology now, for less dependence on China later |
+| | | 3 | Fiscal stimulus to US households | none / 5% / 15% of its Money a round | Its own Money, for home demand for the US firm's technology |
+| | | 4 | Investment subsidy to the US firm | none / 1 M / 2 M per unit begun the round before | Its own Money, for the firm's growth |
+| China state | `CN` | 1 | Trade barrier on US technology | none / tariff, paid by the importer / import ban | Tariff income and pressure on the US firm's sales, against its own supply and retaliation |
+| | | 2 | Industrial policy: build technology capacity from industrial inputs, in place of imports | none / 1 unit / 2 units a round | Industrial inputs now, and the export income they would earn, for less dependence on the US later |
+| | | 3 | Fiscal stimulus to Chinese households | none / 5% / 15% of its Money a round | Its own Money, for home demand; households save most of it, so it acts slowly |
+| | | 4 | Lending rate on its firm's state credit | none / 1 M / 2 M per unit invested, paid to the state | State income and control, against the firm's growth |
+| US firm | `US-firm` | 1 | Export share: technology sold abroad, the rest at home | none / half / all | A larger market abroad, against exposure to China's barrier and the export tax |
+| | | 2 | Input inventory: stockpile industrial inputs | none / 1 / 2 units a round | A hedge for its own production against a Chinese ban, against Money tied up and supply its own state cannot buy |
+| | | 3 | Capital investment in technology capacity | none / 1 unit / 2 units a round | Capacity and future sales, against goods not sold now |
+| | | 4 | Wages and dividends to US households | none / 5% / 15% of its Money a round | Its own Money, for a larger home market |
+| China firm | `CN-firm` | 1 | Export share: industrial inputs sold abroad, the rest at home | none / half / all | A larger market abroad, against exposure to the US barrier |
+| | | 2 | Input inventory: stockpile technology | none / 1 / 2 units a round | A hedge for its own production against a US ban, against Money tied up and supply its own state cannot buy |
+| | | 3 | Capital investment in industrial capacity, on state credit | none / 1 unit / 2 units a round | Capacity and future sales, against the credit's cost and goods not sold now |
+| | | 4 | Wages and dividends to Chinese households | none / 5% / 15% of its Money a round | Its own Money, for a home market that grows slowly, since households save |
 
-The tools meet across the seats. A state's barrier cuts the other country's sales and its own firm's input, which is why a firm stockpiles. A state's subsidy or rate sets what its firm's investment costs. A state's release and its firm's pay grow the same home market, which is where the firm sells what it does not export.
+The tools meet across the seats. A state's barrier cuts the other country's sales and its own firm's input, which is why a firm holds inventory. A state's subsidy or lending rate sets what its firm's investment costs. A state's stimulus and its firm's wages and dividends grow the same home market, which is where the firm sells what it does not export.
 
 The private sectors, `US-private` and `CN-private`, are Aggregates that spend by a fixed rule (§6.2). A state's routine trade and a firm's purchase of its input are automatic (§6.1). Each seat may be played by a human, an AI agent or a preset (§6.3), and is briefed with its description, which names its four tools, and its objective (§7).
 
@@ -141,7 +141,7 @@ Each round follows the canonical sequence ([02 §8.1](02_kernel.md#81-canonical-
 2. **Decide.** Each seat sets its tools from its View (§2).
 3. **Routines.** Each state's commerce routine drafts its trades, each firm's supply routine buys its input, and each private sector drafts its purchases.
 4. **Resolve.** Orders are funded from opening holdings. The Exchanges clear; bans refuse their pairs and levies are charged on theirs; investments use their inputs and pay their fees; requirements are consumed.
-5. **Commit.** The round-end World is stored. Money received this round, from sales, a release, pay or a subsidy, is spendable from the next.
+5. **Commit.** The round-end World is stored. Money received this round, from sales, a stimulus, wages or a subsidy, is spendable from the next.
 
 ## 5. The levers
 
@@ -168,11 +168,11 @@ A Rule takes effect at the next round boundary and stays in force until repealed
 | `cn-firm-investment-low` | CN firm | the same, and 1 `M` (a dial) to China | +1 `K_I` | the next round |
 | `cn-firm-investment-high` | CN firm | the same, and 2 `M` (a dial) to China | +1 `K_I` | the next round |
 
-At most two units per Actor per round. Capacity produces from the round after it arrives. The Chinese firm's investment draws on the state's credit, so each order is a joint candidate Transaction the Chinese state must sign. The firm offers its investment at all three rates, and the state signs only the one at the rate it has set, so its rate is the price of credit and the others lapse.
+At most two units per Actor per round. Capacity produces from the round after it arrives. The Chinese firm's investment draws on the state's credit, so each order is a joint candidate Transaction the Chinese state must sign. The firm offers its investment at all three rates, and the state signs only the one at the lending rate it has set, so the rate is the price of credit and the others lapse.
 
-### 5.3 Release, pay and the subsidy
+### 5.3 Stimulus, wages and the subsidy
 
-A state releases Money to its own private sector, and a firm pays its own, by an ordinary Transfer of a share of its Money. The Money is the private sector's to spend from the next round. The US subsidy is a Transfer from the US state to its firm, 1 or 2 `M` (dials) for each unit of investment the firm began the round before.
+A state's fiscal stimulus to its own private sector, and a firm's wages and dividends to its own, are ordinary Transfers of a share of its Money. The Money is the private sector's to spend from the next round. The US subsidy is a Transfer from the US state to its firm, 1 or 2 `M` (dials) for each unit of investment the firm began the round before.
 
 ## 6. Strategies
 
@@ -180,7 +180,7 @@ A state releases Money to its own private sector, and a firm pays its own, by an
 
 `pacific-commerce-v0` is each state's routine ([04 §6](04_run.md#6-strategy-initialization)). It runs after the state's player and reads what the player put forward. For each good it sells `max(0, holding − requirement − planned inputs)` and buys `max(0, requirement − holding)`, on the world Exchange at its price. It reads each state's own requirement (`Due`) and planned investment (`Planned`), so one routine serves both.
 
-`pacific-supply-v0` is each firm's routine: it buys `max(0, input requirement − holding)` of its foreign input on the world Exchange, so a stockpile is used before anything is bought.
+`pacific-supply-v0` is each firm's routine: it buys `max(0, input requirement − holding)` of its foreign input on the world Exchange, so an inventory is used before anything is bought.
 
 ### 6.2 Private demand
 
@@ -190,7 +190,7 @@ Each private sector buys its own country's good at home and the other good on th
 
 A preset is the policy every seat plays in a simulated run, written as each tool's level (`Premises.Pacific.Strategies`: `statePolicy`, `firmPolicy`). A state preset sets both states' tools, with each firm exporting all it holds and its other tools off; a firm preset sets both firms' tools, with each state's tools off. The default is `FreeTrade`.
 
-| Preset | Seat | Barrier / share abroad | Substitute / stockpile | Release / invest | Subsidy or rate / pay |
+| Preset | Seat | Trade barrier / export share | Industrial policy / input inventory | Stimulus / capital investment | Subsidy or lending rate / wages and dividends |
 |---|---|---|---|---|---|
 | `FreeTrade` | state | none | none | none | none |
 | `Tariff` | state | tariff | none | none | none |
@@ -207,7 +207,7 @@ A preset is the policy every seat plays in a simulated run, written as each tool
 | `Patron` | firm | none | none | none | 15% |
 | `Hedger` | firm | all | 2 units | none | none |
 
-Two state presets react to the other side: `Adaptive` substitutes one unit while the other country keeps a barrier against it, and `Retaliate` bans the other's good the round after the other raised a barrier. No preset repeals, since a repeal names the Rule's id; a human or agent seat can.
+Two state presets react to the other side: `Adaptive` builds one unit of capacity while the other country keeps a barrier against it, and `Retaliate` bans the other's good the round after the other raised a barrier. No preset repeals, since a repeal names the Rule's id; a human or agent seat can.
 
 ## 7. Objectives and reporting
 
@@ -228,7 +228,7 @@ Pacific is three Premises, each at version `v0`, each a layer on the ones before
 
 | Premise | Adds |
 |---|---|
-| `bilateral-economy` | The states and firms, the goods, capacities and credit, production and requirements (the firms' inputs among them), all four Exchanges, the firms' investments at each credit rate, the groups, both routines, and the criteria that read only these. It is a complete economy on its own. |
+| `bilateral-economy` | The states and firms, the goods, capacities and credit, production and requirements (the firms' inputs among them), all four Exchanges, the firms' investments at each lending rate, the groups, both routines, and the criteria that read only these. It is a complete economy on its own. |
 | `strategic-dependence` | The tariffs, the bans and the export tax (in force), the states' investments, and, by `extends`, each state's authority over its own. |
 | `private-sector` | The private sectors, their demand and requirements, the parameters of the tools' levels, and, by `extends`, their access to the Exchanges and each seat's private-sector criterion. |
 
@@ -270,14 +270,14 @@ Firms on the default (export all) unless named.
 
 ### 9.2 Firms, credit and the private sectors
 
-- **I. Credit.** China's firm `Exporter`: at the high rate (China `Planner`) it pays 2 `M` for its unit and holds 48 `M` after round 1, against 50 at no rate (China `Reformer`); either way it holds 3 `K_I` in round 2.
+- **I. Credit.** China's firm `Exporter`: at the high lending rate (China `Planner`) it pays 2 `M` for its unit and holds 48 `M` after round 1, against 50 at no rate (China `Reformer`); either way it holds 3 `K_I` in round 2.
 - **P. Subsidy.** US `Hawk` (high subsidy) against `Restrict` (none), US firm `Exporter`: after round 2 the subsidised firm holds 2 `M` more.
-- **J. Paying households.** Both firms `Patron`. After round 1 each private sector holds 7.5 `M`; in round 2 the US firm sells 3 `T` at home.
+- **J. Wages and dividends.** Both firms `Patron`. After round 1 each private sector holds 7.5 `M`; in round 2 the US firm sells 3 `T` at home.
 - **K. Accumulating into a weak market.** Both firms `Builder`: China's firm holds 8 `K_I` after round 6, and the US firm, with little demand at home, holds over 40 unsold `T`.
 - **L. Levies.** US `Tariff`: levies are 2, 8, 8, 8, 8, 8 `M` by round, the export tax alone and then with the tariff on the US's 5 imports and its firm's 1.
-- **M. China saves, America spends.** Both states `Rebalance`: after round 6 China's private sector holds 49.5238 `M` and America's 31.0646.
+- **M. China saves, America spends.** Both states `Rebalance` (high stimulus): after round 6 China's private sector holds 49.5238 `M` and America's 31.0646.
 - **N. Who a ban hurts.** After six rounds under a US ban China's state holds 20 unsold `I` and its firm 10; under a Chinese ban the US firm holds 20 unsold `T` and the US state none.
-- **O. Stockpiling.** Both firms `Hedger`. Under a US ban the US firm, whose input it cuts, is short 0, 0, 0.75, 1, 1, 1 `I` by round, against 0, 1, 1, 1, 1, 1 without a stock; under a Chinese ban China's firm is short 0, 0, 0.6, 1, 1, 1 `T`.
+- **O. Input inventory.** Both firms `Hedger`. Under a US ban the US firm, whose input it cuts, is short 0, 0, 0.75, 1, 1, 1 `I` by round, against 0, 1, 1, 1, 1, 1 without an inventory; under a Chinese ban China's firm is short 0, 0, 0.6, 1, 1, 1 `T`.
 
 ### 9.3 Engine fixtures
 
@@ -288,7 +288,7 @@ Literal worlds cut from Pacific with no production or requirements, run through 
 - **P-B.** China enacts its ban on US technology in round 1; in round 2 the same exports move nothing, leaving the firm with 50 `M` and 8 `T` and China with 80 `M` and no `T`.
 - **P-G.** The Chinese firm offers 2 `I` and nobody buys: it keeps 50 `M` and 2 `I`.
 - **P-C.** The Chinese firm orders an investment that China signs: in round 2 it holds no `I` and 3 `K_I`.
-- **P-R.** China releases 10 `M` to its private sector, which in round 2 buys 2 `I` at home from China at 2.5: China ends with 75 `M` and 6 `I`, its private sector with 5 `M` and 2 `I`.
+- **P-R.** China gives its private sector a stimulus of 10 `M`, which in round 2 buys 2 `I` at home from China at 2.5: China ends with 75 `M` and 6 `I`, its private sector with 5 `M` and 2 `I`.
 
 ### 9.4 Balance
 
@@ -296,4 +296,4 @@ Over 400 settings of every seat's four tools, drawn deterministically from the 8
 
 ## 10. Sensitivity
 
-Each dial changed alone: spend shares of 0.6 (US) and 0.3 (China), a US capacity split of 4 : 6, a Chinese split of 6 : 4, a tax rate of 0.25 or 1, 4 units of credit, and a home premium of 1.5. In every variant a US ban leaves China holding industrial inputs it could not export, a firm's stockpile shortens its shortfall under a ban on its input, released alike China's private sector saves more than America's, and the US state collects tax on its firm's exports.
+Each dial changed alone: spend shares of 0.6 (US) and 0.3 (China), a US capacity split of 4 : 6, a Chinese split of 6 : 4, a tax rate of 0.25 or 1, 4 units of credit, and a home premium of 1.5. In every variant a US ban leaves China holding industrial inputs it could not export, a firm's input inventory shortens its shortfall under a ban on its input, given the same stimulus China's private sector saves more than America's, and the US state collects tax on its firm's exports.
