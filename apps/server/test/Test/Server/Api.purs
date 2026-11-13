@@ -2,6 +2,7 @@
 -- | Pins: the status rules and reply JSON of docs/07 §8.1.
 module Test.Server.Api (spec) where
 
+import Views.Compare (CompareView)
 import Prelude
 
 import Test.Server.Seed (serve)
@@ -51,7 +52,7 @@ import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
 import Testkit.Run (anyRounds, pacificParts)
 
-inCache :: ServerCache -> Run (CACHE StoredRun Unit + EFFECT + ()) ~> Effect
+inCache :: ServerCache -> Run (CACHE StoredRun CompareView + EFFECT + ()) ~> Effect
 inCache c = runBaseEffect <<< interpret (on _cache (liftEffect <<< interpretCache c) send)
 
 type Env =

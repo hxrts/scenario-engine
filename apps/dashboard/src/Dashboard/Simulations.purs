@@ -14,7 +14,7 @@ import Dashboard.Layout as Layout
 import Dashboard.Route (Route(..), navigate)
 import Data.Array (elem, filter, find, head, index, null, zip)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Tuple (Tuple(..))
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
@@ -49,7 +49,9 @@ mkSimulations grid = do
       { title: "Simulations"
       , purpose: "The static suite: one run per preset, and one run per seat playing its alternative, played at build time and reused while nothing that decides them has changed."
       , children:
-          [ loaded list.value \t ->
+          -- the baseline is the composition's default preset's run, so nothing loads until both have arrived: a run
+          -- opened before would be fetched again once the baseline is known
+          [ loaded (if isJust offered.value then list.value else Nothing) \t ->
               let
                 runs = listed t
                 baseline = maybe "" _.id (find (\r -> r.name == defaultPreset) runs <|> head runs)

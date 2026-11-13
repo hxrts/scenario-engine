@@ -254,8 +254,7 @@ type CONSOLE r = (console :: ConsoleF | r)
 _console :: Proxy "console"
 _console = Proxy
 
--- | What a process keeps between requests, by key: decoded runs, which a write forgets, and replies,
--- | which last. The row is generic in both because the types belong to the program that asks.
+-- | What a process keeps between requests, by key: decoded runs and replies, both of which a write forgets. The row is generic in both because the types belong to the program that asks.
 data CacheF run reply a
   = LookupRun String (Maybe run -> a)
   | KeepRun String run a

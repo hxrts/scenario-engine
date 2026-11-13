@@ -218,7 +218,7 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 ### 8.1 Read API
 
-The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every PremiseComposition under the PremiseComposition root; an operation on a run uses the run's own PremiseComposition, and a run whose PremiseComposition is not loaded is refused with the reason.
+The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every PremiseComposition under the PremiseComposition root; an operation on a run uses the run's own PremiseComposition, and a run whose PremiseComposition is not loaded is refused with the reason. The server keeps each finished run once decoded, and each comparison whose runs are all finished once computed (`Server.Cache`); any write forgets both.
 
 | Operation | Purpose | Replies |
 |---|---|---|

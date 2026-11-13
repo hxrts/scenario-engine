@@ -2,6 +2,7 @@
 -- | devices (`implementOn`); `implement` passes the real ones.
 module Server.Stack (Devices, ServerCache, newServerCache, openDatabase, localStore, systemDevices, implement, newHost, implementOn, runServer) where
 
+import Views.Compare (CompareView)
 import Prelude
 
 import Data.Maybe (fromMaybe)
@@ -30,7 +31,7 @@ import Server.Compositions (Compositions)
 import Views.Common (StoredRun)
 import Views.Metrics (roundMetrics)
 
-type ServerCache = Cache StoredRun Unit
+type ServerCache = Cache StoredRun CompareView
 
 type Devices = { system :: SystemDevices, store :: StoreBackend, cache :: ServerCache, sessions :: SessionHost }
 

@@ -18,13 +18,13 @@ import Prelude
 
 import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
 import Schema.View (View)
-import Schema.Run (RunClass(..))
+import Schema.Run (RunClass(..), RunStatus(..))
 import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
-import Server.Cache (cached)
+import Server.Cache (cached, cachedCompare)
 
 import Laws.Types (Id(..))
 
-import Data.Array (catMaybes, concat, concatMap, filter, find, length, null, uncons, zip, zipWith)
+import Data.Array (all, catMaybes, concat, concatMap, filter, find, length, null, uncons, zip, zipWith)
 import Data.Either (Either(..), either, hush)
 
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -198,33 +198,40 @@ compareView :: forall r. Compositions -> { runs :: Array String, exchange :: May
 compareView compositions { runs: asked, exchange } = do
   -- no run named compares every simulated run, in list order
   ids <- if null asked then map _.id <<< filter (\s -> s.runClass == Simulated) <<< catMaybes <<< map hush <$> runSummaries (Just Simulated) else pure asked
-  loaded <- traverse loadRun ids
-  let
-    good = catMaybes (map hush loaded)
-    -- each composition's agency runs among the runs compared, against their baselines
-    profiles = concatMap (\ctx -> agencyOfRuns ctx.composition (filter (\r -> map _.id (ofRun compositions r) == Just ctx.composition.id) good)) compositions
-    skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
-  case uncons good of
-    Nothing -> badRequest (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
-    Just { head: base, tail: others } -> case traverse (Exchanges.trajectories good) exchange of
-      Left e -> badRequest e
-      Right trajectory -> ok
-        ( { compatibility: Compare.compatible good
-          , trajectory
-          , exchanges: filter Compare.moving (Exchanges.exchangeCharts good)
-          , netWorth: Compare.netWorthCharts good
-          , standings: Compare.standingsBars good
-          , balance: Compare.balanceBars good
-          , keyValues: Compare.keyValues (ofRun compositions) good
-          , final: Compare.finalState good
-          , baseline: base.id
-          , diff: Compare.baselineDiff base others
-          , config: Compare.configDiff base others
-          , seeds: Balance.seedVariation (Compare.sameSpecification good)
-          , runs: map (\r -> { id: r.id, name: r.name }) good
-          , summary: Compare.summary good
-          , agency: agencyTable profiles
-          , agencyCriteria: agencyCriteria profiles
-          , skipped
-          } :: CompareView
-        )
+  cachedCompare (joinWith "," ids <> "|" <> fromMaybe "" exchange) (compared ids)
+  where
+  compared ids = do
+    loaded <- traverse loadRun ids
+    let good = catMaybes (map hush loaded)
+    answer <- compareLoaded ids loaded good
+    pure { answer, final: all (\r -> r.status /= Running) good && length good == length ids }
+  compareLoaded ids loaded good =
+    let
+      -- each composition's agency runs among the runs compared, against their baselines
+      profiles = concatMap (\ctx -> agencyOfRuns ctx.composition (filter (\r -> map _.id (ofRun compositions r) == Just ctx.composition.id) good)) compositions
+      skipped = catMaybes (map (\(Tuple id l) -> either (\e -> Just (id <> ": " <> describe e)) (const Nothing) l) (zip ids loaded))
+    in
+      case uncons good of
+        Nothing -> badRequest (joinWith "; " ([ "no valid runs to compare" ] <> skipped))
+        Just { head: base, tail: others } -> case traverse (Exchanges.trajectories good) exchange of
+          Left e -> badRequest e
+          Right trajectory -> ok
+            ( { compatibility: Compare.compatible good
+              , trajectory
+              , exchanges: filter Compare.moving (Exchanges.exchangeCharts good)
+              , netWorth: Compare.netWorthCharts good
+              , standings: Compare.standingsBars good
+              , balance: Compare.balanceBars good
+              , keyValues: Compare.keyValues (ofRun compositions) good
+              , final: Compare.finalState good
+              , baseline: base.id
+              , diff: Compare.baselineDiff base others
+              , config: Compare.configDiff base others
+              , seeds: Balance.seedVariation (Compare.sameSpecification good)
+              , runs: map (\r -> { id: r.id, name: r.name }) good
+              , summary: Compare.summary good
+              , agency: agencyTable profiles
+              , agencyCriteria: agencyCriteria profiles
+              , skipped
+              } :: CompareView
+            )

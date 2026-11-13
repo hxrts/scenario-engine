@@ -21,4 +21,4 @@ interpretCache c = case _ of
   KeepRun key value next -> next <$ Ref.modify_ (Map.insert key value) c.runs
   LookupReply key k -> k <<< Map.lookup key <$> Ref.read c.replies
   KeepReply key value next -> next <$ Ref.modify_ (Map.insert key value) c.replies
-  ForgetRuns next -> next <$ Ref.write Map.empty c.runs
+  ForgetRuns next -> next <$ (Ref.write Map.empty c.runs *> Ref.write Map.empty c.replies)
