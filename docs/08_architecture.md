@@ -53,13 +53,13 @@ What runs, and what it connects to. Arrows point from the caller to what it call
         ┌─────────────┬───────────────┬─────────────┼─────────────┐
         ▼             ▼               ▼             ▼             ▼
      Adapters.     Adapters.       Adapters.     Adapters.    Adapters.Clock
-     Pi            db              Filesystem    Console      Random, Process
+     Pi            SQLite          Filesystem    Console      Random, Process
         │             │               │             │         Digest, Exit
         ▼             ▼               ▼             ▼             ▼
      pi process    runs.db         Premise files,  terminal   operating
         │          (Run Store)     (CLI only)       system
         ▼                          evidence,
-     Interence                     .env,
+     Inference                     .env,
      provider                       openapi/
 ```
 

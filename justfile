@@ -64,7 +64,7 @@ openapi composition="pacific" *args:
 # fmt-check, deps, layout, derived, build, test
 check: _fmt-check build _deps _layout _impurity _derived test _docs
 
-# docs/06's marked tables against the compiled composition
+# the docs keep docs/01's vocabulary (anchors defined once, no retired word)
 _docs: _premises
     node scripts/check/docs.js --samples
     node scripts/check/docs.js

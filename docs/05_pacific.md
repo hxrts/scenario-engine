@@ -301,7 +301,7 @@ The households' demand and lending are in §3.3 and §3.4; the rest of the world
 
 ### 7.3 Presets
 
-A preset is the policy every seat plays in a simulated run, written as each tool's level (`Premises.Pacific.Strategies`: `statePolicy`, `firmPolicy`). A state preset sets each state's tools, with each firm offering all it holds on the world Exchange and its other tools off; a firm preset sets both firms' tools, with each state's tools off. The default is `FreeTrade`.
+A preset is the policy every seat plays in a simulated run, written as each tool's level (`Premises.Pacific.Strategies`: `statePolicy`, `firmPolicy`). A state preset sets each state's tools, with each firm offering all it holds on the world Exchange and its other tools off; a firm preset sets both firms' tools, with each state's tools off. The default is `FreeTrade`, played for six rounds of the 1 to 12 the composition allows; each seat's alternative, which the suite's agency runs cast it to ([04 §2](04_run.md#2-instantiation-configuration)), is `Hawk` for a state and `Builder` for a firm.
 
 | Preset | Seat | US: barrier · industrial policy · transfer · asset fee | China: barrier · industrial policy · repression · reserves |
 |---|---|---|---|
@@ -354,7 +354,7 @@ No indicator is a Resource or a stored score: each is read from the record by a 
 | Leverage | For each good a country imports: the other country's exposure, `max(0, requirement − capacity)`, which its export control would turn into a shortfall; and the other's sales abroad of the good it exports, which its import ban would cut | What a barrier can cost the other (§11, international leverage) |
 | Resilience | For each state and good: `coverage = min(1, capacity / requirement)`, capacity being the least it holds of what each unit of its production draws, capacity or competence | How far it could carry on under the other's control |
 
-The dashboard's headline shows them by round, and the Simulations comparison by run ([07 §9.3](07_simulator.md#93-run-details)). The Regimes view shows each country's capability, demand and finance by round, and the Clearing view its goods, capital and the Rules at its borders.
+The run page's headline shows them at the round chosen, beside the Regimes and Clearing views ([07 §9.3](07_simulator.md#93-run-details)).
 
 ## 9. How it is built
 

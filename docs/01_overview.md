@@ -90,7 +90,7 @@ The explicit economy contains the actors whose decisions are played one by one. 
 
 The implicit economy works like a backdrop: a compact representation of a much larger world. Millions of small businesses might be one aggregate that holds their combined resources and responds to conditions. It is not scenery. Its demand, supply, and investment move prices and shape the results of player decisions.
 
-Three relationships are kept separate, so overlapping groups never double-count:
+Three relationships are kept separate, so overlapping groups never double-count ([02 §2.2](02_kernel.md#22-three-projections-of-an-actor)):
 
 - **Membership** lists which actors belong to a group. Membership confers no authority and no holdings.
 - **Account ownership** gives every account and responsibility exactly one owner.

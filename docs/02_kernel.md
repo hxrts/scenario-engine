@@ -14,7 +14,7 @@ The sections below specify the anchors and the types built on them: Actor and it
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced.Pacific's are in [05 §2](05_pacific.md#2-seats).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Pacific's are in [05 §2](05_pacific.md#2-seats).
 
 ### 2.2 Three projections of an Actor
 
@@ -68,7 +68,7 @@ Stocks and Flows take Laws in parallel: a Law's subject is one or the other, and
 | Stock | decay, depreciation, interest | wear from use |
 | Flow | delay, expiry | levy, block |
 
-The kernel has no concept of decay, depreciation, tariff or tax. Those are values the authoring layer writes ([03 §15](03_premise.md#15-authoring-laws-and-agreements)). The table names patterns, not kernel kinds. Not every cell is used yet: in the shipped engine a stock law runs only each round, and a flow law only on the action that moves it.
+The kernel has no concept of decay, depreciation, tariff or tax. Those are values the authoring layer writes ([03 §15](03_premise.md#15-authoring-laws-and-agreements)). The table names patterns, not kernel kinds. Not every cell is used yet: in the shipped engine a flow law runs only on the action that moves it, and a stock law runs each round or on an authored action ([03 §15.1](03_premise.md#151-laws-and-bilateral-agreements)).
 
 A law's operation is one of three:
 
@@ -271,7 +271,7 @@ The engine has no effects. In-world randomness uses a pure keyed draw ([§9.1](#
 
 Everything else impure is a named effect: an operation a program declares it needs, interpreted by a handler over device primitives. The request and reply shapes are in [08 §4](08_architecture.md#4-key-interfaces).
 
-The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the HTTP API, [07 §8.1](07_simulator.md#81-read-api-and-run-operations)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); Sessions (the live sessions a server hosts); and Platform (the clock, process identity, files, the terminal, and one operating-system number, drawn only for a player seed nobody gave).
+The effects are: Seat input (a seat's input, consents and transcript); Interpret (the round's transcripts read together into input, with no confirmation in live play); Record (appends a round's result to the run); Observe (Run Store reads, which cannot write); Store (Run Store lifecycle writes); API (every route of the HTTP API, [07 §8.1](07_simulator.md#81-read-api)); Cache (what a process keeps between requests); Play (one whole stored play); Live (one live session, settled at its end); Sessions (the one live run a host holds, and its lifecycle); and the system rows: Clock, Process (process identity), Files (files and the environment), Console (the terminal) and Entropy (one operating-system number, drawn only for a player seed nobody gave).
 
 Every program is typed by the effects it asks for, so its type states all it can touch. Handlers choose the context (live session, simulation, replay or test). The round runner is the same code under every context. The per-context behavior is in [04](04_run.md) and [07](07_simulator.md).
 

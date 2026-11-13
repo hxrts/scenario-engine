@@ -26,7 +26,7 @@ The configuration is the choice of each Run that the PremiseComposition leaves o
 | `preset` | preset name | no | The default preset: the cast's default, and the baseline of the suite's agency runs. It must be one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
 | `alternatives` | Actor to preset name | no | Each seat's alternative preset, which the suite's agency runs cast it to ([07 §10.3](07_simulator.md#103-agency-analysis)). Each must be one of the presets. |
 
-Pacific's values are in [05 §3.1](05_pacific.md#31-resources-and-holdings).
+Pacific's default preset, alternatives and round count are in [05 §7.3](05_pacific.md#73-presets).
 
 The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The PremiseComposition fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)).
 
@@ -196,6 +196,10 @@ Assembly builds what a runner plays. It resolves the overrides, runs instantiati
 | `UnboundSeat` / `NotASeat` | A configured seat has no binding, or a binding names something that is not a configured seat. |
 | `LiteralOverrides` | Overrides are given to a literal PremiseComposition. |
 | `RoundsOutside` | A launch's round count is outside the round range. |
+| `UnknownPreset` | A preset named by the cast or a launch is not one of the PremiseComposition's. |
+| `NotCastable` / `SeatForbidden` | The cast names an Aggregate or an unknown id, or makes a seat of an Actor whose definition permits none ([§2](#2-instantiation-configuration)). |
+| `NotSimulable` | A simulated Run is given a human or an agent seat. |
+| `IncompleteAgreement` | A Strategy enters a template without an argument or a party it needs. |
 
 ## 11. Round Execution
 
@@ -226,10 +230,10 @@ Replay answers seats from the recorded candidate Transactions and signatures, so
 
 ### 11.2 Live session
 
-Live play turns transcripts into candidate Transactions and signatures. Players give no input after their transcript. A live run is held by one host, from the console (`just session`) or the server, which holds one at a time: `POST /api/live` starts it, `GET /api/live` reports its round and who has spoken, `POST /api/live/transcripts` takes a seat's text and `POST /api/live/submissions` a facilitator's for it, and advance, pause, resume, end and clear drive its lifecycle. Their contract is in [07 §8.2](07_simulator.md#82-external-services). Both use the same host, the same round rules and one path into a round.
+Live play turns transcripts into candidate Transactions and signatures. Players give no input after their transcript. A live run is held by one host, from the console (`just session`) or the server, which holds one at a time; its routes and lifecycle are in [07 §8.2](07_simulator.md#82-external-services). Both use the same host, the same round rules and one path into a round.
 
 - **Human players.** Each human gives one transcript per round, within the propose window: typed at the console, or posted once per seat per round to the transcript route, usually by the external speech component, or entered for the seat by a facilitator, which the stored transcript records. Nothing further is asked: no clarification and no confirmation. Inadmissible Intents are rejected by the engine with their reason ([§11.1](#111-round-record)).
-- **Joint pass.** One model call reads all the transcripts together into candidate Transactions. If the reply does not decode, the pass makes up to two corrections, so at most three calls. If the last reply still does not decode, the pass yields no candidate Transactions, each human is told that nothing was submitted, and the round proceeds. A spoken policy is enacted only in a declared form: the payload lists every Rule a Strategy of the PremiseComposition can enact, its presets' and its catalog's, with their parameters resolved, and the pass copies one of them exactly, governed by the seat that spoke of it. A policy with no Rule in that list is not enacted.
+- **Joint pass.** One model call reads all the transcripts together into candidate Transactions. If the reply does not decode, or names something the payload does not list, the pass makes up to two corrections, so at most three calls. A reply that decodes stands after the last correction, and the engine refuses what it cannot use. If the last reply still does not decode, the pass yields no candidate Transactions, each human is told that nothing was submitted, and the round proceeds. A spoken policy is enacted only in a declared form: the payload lists every Rule a Strategy of the PremiseComposition can enact, its presets' and its catalog's, with their parameters resolved, and the pass copies one of them exactly, governed by the seat that spoke of it. A policy with no Rule in that list is not enacted.
 - AI agent seats speak in the same round pass. Their transcripts are read with the human transcripts.
 - **Signatures.** Negotiation happens out of band, and human and AI agent seats give no separate signature. Each speaker whose transcript describes a candidate Transaction counts as signing it. The joint pass reconciles the transcripts into one candidate Transaction.
 - `StrategyRules` and Script seats answer through their binding.
