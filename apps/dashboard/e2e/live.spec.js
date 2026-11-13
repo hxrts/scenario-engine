@@ -58,6 +58,7 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   // the run's results and balance sheets show beneath, and it is listed among the past runs, tagged mock
   await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + id + "/") }).first()).toBeVisible();
+  await expect(section(page, "Balance sheets").getByRole("link").first()).toHaveAttribute("target", "_blank");
   await expect(rowWith(section(page, "Past runs"), [id, "rehearsal", "completed", "interactive", "mock"])).toHaveCount(1);
 });
 

@@ -69,7 +69,7 @@ mkLinks = (origin =<< location =<< window) >>= \here -> component "BalanceSheetL
                     { className: "border-b bg-muted/50 text-left text-muted-foreground"
                     , children: [ D.tr_ (map (\(Tuple h def) -> D.th { className: "px-3 py-2 font-medium", title: def, children: [ D.text h ] }) [ Tuple "Actor" "An Actor of the run.", Tuple "Kind" "Playable Actor, non-playable Actor or Aggregate.", Tuple "Page" "The Actor's own balance sheet page, to hand to whoever plays it: it shows only that Actor's data." ]) ]
                     }
-                , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: here <> x.path, className: "break-all font-mono text-xs underline-offset-4 hover:underline", children: [ D.text (here <> x.path) ] } ] ] }) ls)
+                , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: here <> x.path, target: "_blank", rel: "noopener noreferrer", className: "break-all font-mono text-xs underline-offset-4 hover:underline", children: [ D.text (here <> x.path) ] } ] ] }) ls)
                 ]
             }
         ]
