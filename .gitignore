@@ -29,3 +29,6 @@ packages/premises/capstone/
 
 # local pi agent state: never source
 .pi/
+
+# Live-run evidence and model output, written beside a run (docs/07 §8)
+runs/
