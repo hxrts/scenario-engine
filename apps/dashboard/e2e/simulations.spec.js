@@ -19,8 +19,8 @@ test("the suite's runs are buttons by name, presets apart from agency runs, and 
 test("the runs at a glance: one row per run by name, with its leader, spread, Gini, units short and Rules enacted", async ({ page }) => {
   await page.goto("/admin/#/simulations");
   const glance = section(page, "The runs at a glance");
-  await expect(rowWith(glance, ["FreeTrade", "CN", "119.81", "86.35", "0.27"])).toHaveCount(1);
-  await expect(rowWith(glance, ["Hawk", "US", "123.22", "78", "0.22"])).toHaveCount(1);
+  await expect(rowWith(glance, ["FreeTrade", "CN", "123.76", "89.45", "0.27"])).toHaveCount(1);
+  await expect(rowWith(glance, ["Hawk", "US", "123.34", "78.08", "0.22"])).toHaveCount(1);
   await expect(glance.getByRole("row")).toHaveCount(23);
 });
 
@@ -34,8 +34,9 @@ test("the plots draw the ticked runs only, as many as are ticked, named in their
     await chooser.locator("label").filter({ hasText: new RegExp("^" + name + "$") }).getByRole("checkbox").click();
   await expect(plot.locator(".recharts-line")).toHaveCount(8);
   await expect(plot.getByText("Hawk", { exact: true })).toBeVisible();
-  // a price no plotted run moves is not plotted
-  await expect(page.getByRole("figure", { name: "Price, industry-world", exact: true })).toHaveCount(0);
+  // a price no plotted run moves is not plotted: the home Exchanges keep theirs
+  await expect(page.getByRole("figure", { name: "Price, technology-us", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("figure", { name: "Price, industry-world", exact: true })).toHaveCount(1);
 });
 
 test("the Agency section reads the suite's agency runs: each seat on its alternative, against FreeTrade", async ({ page }) => {
@@ -54,10 +55,10 @@ test("the open run shows one section per economic object, the headline at the ro
     await expect(page.getByRole("heading", { name: gone, exact: true })).toHaveCount(0);
   const headline = section(page, "Who is trapped, and how tightly?");
   await expect(headline.getByRole("combobox", { name: "Round" })).toHaveValue("6");
-  await expect(rowWith(headline, ["6", "US", "-20.51"])).toHaveCount(1);
+  await expect(rowWith(headline, ["6", "US", "-19.1"])).toHaveCount(1);
   await headline.getByRole("combobox", { name: "Round" }).selectOption("1");
   await expect(rowWith(headline, ["1", "US"]).first()).toBeVisible();
-  await expect(rowWith(headline, ["6", "US", "-20.51"])).toHaveCount(0);
+  await expect(rowWith(headline, ["6", "US", "-19.1"])).toHaveCount(0);
   // a country with no productive capacity has no regime panels
   for (const panel of ["Capability", "Demand", "Finance"]) await expect(page.getByText(panel + ", ROW", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Capability, US", { exact: true })).toBeVisible();
