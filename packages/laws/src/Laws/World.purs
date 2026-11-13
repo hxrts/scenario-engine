@@ -13,9 +13,10 @@ import Data.Maybe (Maybe(..))
 import Core.Draw (Seed(..), drawVersion)
 import Core.Kernel.Types (Law, Endpoint(..), Flow, KernelShapes, Pending, dynamicShape, Template, TemplateId, endpointShape, flowShape, pendingShape, templateShape)
 import Core.Num (Q, qShape)
+import Core.Num as Q
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
+import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, defaultsTo, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -625,7 +626,7 @@ holdingsShape :: forall t. Shape (Map (Id t) Q)
 holdingsShape = mapOf idShape qShape
 
 exchangeShape :: Shape Exchange
-exchangeShape = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape) }
+exchangeShape = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: holdingsShape, access: (arrayOf idShape), adjustment: defaultsTo Q.zero qShape }
 
 drawShape :: Shape Draw
 drawShape = recordShape "Draw" { resource: idShape, from: drawSourceShape, perUnit: qShape }

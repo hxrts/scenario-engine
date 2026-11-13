@@ -34,6 +34,7 @@ import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
+import Core.Types as Core
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Tuple (Tuple(..), fst)
 
@@ -42,6 +43,7 @@ import Data.Tuple (Tuple(..), fst)
 type Settlement =
   { ledger :: Ledger
   , positions :: Map ExchangeId Q
+  , intercepts :: Map ExchangeId Q -- each adjusting Exchange's next intercept (docs/02 §5.6)
   , spawned :: Array PendingTransaction
   , events :: Array Event
   }
@@ -54,7 +56,7 @@ settle w due scaled0 =
     -- a joint candidate Transaction settles as a unit (docs/02 §3.3), so its inputs are checked before any settled Flow moves
     { yes: short, no: scaled } = partition (jointShort w allocation) afterPools
     shortEvents = concatMap (\s -> map (rejection w.round s.item.candidateTransaction.id <<< InputsNotHeld) (shortInputs w allocation s)) short
-    start = { ledger: due.ledger, positions: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
+    start = { ledger: due.ledger, positions: Map.empty, intercepts: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
       [ exchanges w scaled
@@ -227,7 +229,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
           charged = foldl (\a (Tuple (Tuple actor _) q) -> applyActionLaws w actor (idText id) q a) paired (entries settledBy)
         in
           addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
-            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions }
+            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions, intercepts = adjusted m r charged.intercepts }
 
 -- | Settle one candidate Transaction's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule delayed flows.
@@ -321,3 +323,15 @@ transfer w cause from to resource quantity st
 -- | What an Actor holds after the settlement so far.
 net :: WorldState -> ActorId -> ResourceId -> Settlement -> Q
 net w e r st = Q.add (holding w e r) (lookupQ (Tuple (Ent e) r) st.ledger)
+
+-- | An adjusting Exchange's price after its round (docs/02 §5.6): it moves by its adjustment times the gap between what
+-- | its orders asked to buy and to sell, as a share of the larger, so a shortage raises it and a glut lowers it, by at
+-- | most the adjustment. Its curve's intercept carries the move, so its slope and position still apply.
+adjusted :: forall r. Core.Exchange -> { price :: Q, demand :: Q, supply :: Q | r } -> Map ExchangeId Q -> Map ExchangeId Q
+adjusted m r acc =
+  let
+    larger = if r.demand > r.supply then r.demand else r.supply
+  in
+    case Q.divMaybe (Q.sub r.demand r.supply) larger of
+      Just gap | m.adjustment /= Q.zero -> Map.insert m.id (Q.add m.cost.intercept (Q.mul (Q.mul r.price m.adjustment) gap)) acc
+      _ -> acc

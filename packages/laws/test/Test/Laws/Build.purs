@@ -79,6 +79,7 @@ priced id base access p =
   , position: Q.zero
   , reserves: Map.fromFoldable [ Tuple (Id base) (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
   , access: map Id access
+  , adjustment: Q.zero
   }
 
 -- | An Exchange for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
@@ -91,6 +92,7 @@ exchange access =
   , position: Q.zero
   , reserves: Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
   , access: map Id access
+  , adjustment: Q.zero
   }
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).

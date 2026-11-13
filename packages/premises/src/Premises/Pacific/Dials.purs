@@ -25,6 +25,7 @@ type Dials =
   { technologyPrice :: Q
   , industryPrice :: Q
   , homePremium :: Q
+  , priceAdjustment :: Q
   , currency :: { rate :: Q, slope :: Q, depth :: Q, reserves :: Q }
   , money :: { us :: Q, cn :: Q }
   , foreignMoney :: { us :: Q, cn :: Q, usFirm :: Q, cnFirm :: Q }
@@ -87,6 +88,9 @@ defaultDials =
   { technologyPrice: q 1
   , industryPrice: q 2
   , homePremium: q "1.25"
+  -- after each round a world good's price moves by a fifth of the gap between its buy and sell orders, as a share of
+  -- the larger: a shortage raises it, a glut lowers it (docs/02 §5.6)
+  , priceAdjustment: q "0.1"
   -- one RMB per USD to start; the price moves half a hundredth for each USD of net buying, within 100 USD either way
   , currency: { rate: q 1, slope: q "0.005", depth: q 100, reserves: q 150 }
   , money: { us: q 112, cn: q 88 }

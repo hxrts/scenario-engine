@@ -33,13 +33,13 @@ playing us cn = do
 
 spec :: Spec Unit
 spec = describe "Dependence" do
-  it "against the run without it, the US export control costs China 15 T of shortfall against 2.69, and the US firm most of its sales abroad" do
+  it "against the run without it, the US export control costs China 15 T of shortfall against 2.6, and the US firm most of its sales abroad" do
     controlled <- playing "Restrict" "FreeTrade"
     free <- playing "FreeTrade" "FreeTrade"
     let
       t = keyValues (const Nothing) [ controlled, free ]
       rowOf label = map (drop 2) (filter (\x -> index x 0 == Just label) t.rows)
-    [ rowOf "Shortfall over the run, CN T", rowOf "Receipts from sales, US-firm", rowOf "Sales at home over the run, US-firm", rowOf "Sales abroad over the run, US-firm", rowOf "Orders blocked over the run, US-firm", rowOf "Final coverage, CN T" ] `shouldEqual` [ [ [ "15", "2.69" ] ], [ [ "27.56", "45.9" ] ], [ [ "23.56", "20.41" ] ], [ [ "11.77", "35.07" ] ], [ [ "5", "0" ] ], [ [ "0.00", "0.00" ] ] ]
+    [ rowOf "Shortfall over the run, CN T", rowOf "Receipts from sales, US-firm", rowOf "Sales at home over the run, US-firm", rowOf "Sales abroad over the run, US-firm", rowOf "Orders blocked over the run, US-firm", rowOf "Final coverage, CN T" ] `shouldEqual` [ [ [ "15", "2.6" ] ], [ [ "27.25", "47.02" ] ], [ [ "23.56", "20.53" ] ], [ [ "12.05", "35.47" ] ], [ [ "5", "0" ] ], [ [ "0.00", "0.00" ] ] ]
 
   it "a private sector's demand is its purchases: China's private sector buys technology abroad, with no capacity to cover it" do
     r <- playing "FreeTrade" "FreeTrade"
@@ -47,7 +47,7 @@ spec = describe "Dependence" do
       t = dependence r
       row round actor resource = filter (\x -> index x 0 == Just round && index x 1 == Just actor && index x 2 == Just resource) t.rows
       kv = keyValues (const Nothing) [ r ]
-    [ row "3" "CN-private" "T", map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) ] `shouldEqual` [ [ [ "3", "CN-private", "T", "0.77", "0", "n/a", "n/a", "0.77", "0", "0", "0", "0", "0", "0" ] ], [ [ "4.78" ] ] ]
+    [ row "3" "CN-private" "T", map (drop 2) (filter (\x -> index x 0 == Just "Purchases over the run, CN-private T") kv.rows) ] `shouldEqual` [ [ [ "3", "CN-private", "T", "0.76", "0", "n/a", "n/a", "0.76", "0", "0", "0", "0", "0", "0" ] ], [ [ "4.6" ] ] ]
 
   it "China under the US export control: exposure 3 and short 3 every round from round 2, while its industrial inputs sell" do
     r <- playing "Restrict" "FreeTrade"

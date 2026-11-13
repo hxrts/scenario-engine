@@ -58,6 +58,9 @@ type Exchange =
   , position :: Quantity
   , reserves :: Holdings
   , access :: Array ActorId
+  -- the share of the gap between a round's buy and sell orders its price moves by after the round, 0 for a
+  -- price that moves only with its position (docs/02 §5.6)
+  , adjustment :: Q
   }
 
 idShape :: forall t. Shape (Id t)

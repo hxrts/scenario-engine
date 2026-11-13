@@ -38,7 +38,7 @@ kernel = describe "Core.Kernel" do
   describe "Clear: pairs" do
     let
       order actor quantity = { actor: Id actor :: ResourceId, quantity: q quantity, limitPrice: Nothing }
-      exchangeWith reserves lo = { id: Id "x", base: Id "G", quote: m, cost: { intercept: q "1", slope: q "0", domain: { lo: q lo, hi: q "100" } }, position: q "0", reserves, access: [] }
+      exchangeWith reserves lo = { id: Id "x", base: Id "G", quote: m, cost: { intercept: q "1", slope: q "0", domain: { lo: q lo, hi: q "100" } }, position: q "0", reserves, access: [], adjustment: q "0" }
       matched = exchangeWith Map.empty "0"
       sideOf = case _ of
         Party o -> show o.actor

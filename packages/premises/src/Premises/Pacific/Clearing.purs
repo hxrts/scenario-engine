@@ -50,8 +50,8 @@ clearing d = emptyParts
   , reservable = [ p.technologyCapacity, p.industryCapacity, p.technologyCompetence, p.industryCompetence ]
   , decays = map (\r -> { resource: r, rate: d.competence.decay }) [ p.technologyCompetence, p.industryCompetence ]
   , exchanges =
-      [ Tuple p.technologyWorld (market everyone p.technology p.usd d.technologyPrice)
-      , Tuple p.industryWorld (market everyone p.industry p.rmb d.industryPrice)
+      [ Tuple p.technologyWorld ((market everyone p.technology p.usd d.technologyPrice) { adjustment = d.priceAdjustment })
+      , Tuple p.industryWorld ((market everyone p.industry p.rmb d.industryPrice) { adjustment = d.priceAdjustment })
       ]
         <> map (\c -> Tuple c.home (market [ c.state, c.firm, c.private ] c.good c.money (Q.mul d.homePremium (priceOf c.good)))) countries
         <> [ Tuple p.currency (currencyExchange d (everyone <> [ p.row ])) ]

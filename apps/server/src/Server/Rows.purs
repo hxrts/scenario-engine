@@ -4,7 +4,6 @@ module Server.Rows (READS, module Exported, SERVER) where
 import Views.Compare (CompareView)
 import Effects.Launch (LAUNCHES) as Exported
 import Effects.Signatures (CACHE, CLOCK, ENTROPY, OBSERVE, PLAY, PROCESS, SESSIONS, STORE)
-import Prelude (Unit)
 import Type.Row (type (+))
 import Views.Common (StoredRun)
 

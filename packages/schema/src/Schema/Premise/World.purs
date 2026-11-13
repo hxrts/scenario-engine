@@ -78,9 +78,10 @@ exchangeShape k = object "Exchange"
       <*> fieldOf "reserves" "the reserves, by Resource" (idMap qShape) _.reserves
       <*> fieldOf "access" "the Actors that may trade" (listOf idShape) _.access
       <*> fieldOf "position" "the starting net position (default 0)" (defaultsTo Q.zero qShape) _.position
+      <*> fieldOf "adjustment" "the share of the gap between a round's buy and sell orders the price moves by after it (default 0)" (defaultsTo Q.zero qShape) _.adjustment
   )
   where
-  mk b q' c r a p = { id: k, base: b, quote: q', cost: c, position: p, reserves: r, access: a }
+  mk b q' c r a p adj = { id: k, base: b, quote: q', cost: c, position: p, reserves: r, access: a, adjustment: adj }
 
 drawSourceShape :: Shape DrawSource
 drawSourceShape = genericPremiseSum "DrawSource"

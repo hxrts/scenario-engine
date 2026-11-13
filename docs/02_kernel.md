@@ -158,7 +158,7 @@ This section defines how quantity is priced and exchanged, and what stays closed
 
 ### 5.1 Cost function
 
-A cost function is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round. So an Exchange with a positive slope and reserves of both its Resources is a dealer whose price moves: each round's net, which its reserves take, moves its position, and the next round starts from there. Its price rises after net buying and falls after net selling, within its domain and as far as its reserves allow. No other mechanism moves a price.
+A cost function is a linear cumulative cost curve. Its marginal price at cumulative position q is p(q) = intercept + slope·q, and moving the position by Δq costs C(q + Δq) − C(q). It has a supported domain. An Exchange's position persists across rounds, and an authored price curve's position is its total for the current round. So an Exchange with a positive slope and reserves of both its Resources is a dealer whose price moves: each round's net, which its reserves take, moves its position, and the next round starts from there. Its price rises after net buying and falls after net selling, within its domain and as far as its reserves allow. The only other mechanism that moves a price is adjustment ([§5.6](#56-price-adjustment)).
 
 ### 5.2 Exchanges
 
@@ -191,6 +191,10 @@ All orders in a round are resolved as one batch, and each Exchange clears at one
 6. Each pair settles as one transaction: the delivery of the base and the payment of the quote, bound `Performed … Whole` to each other ([§3.3](#33-transactions-and-conditions)). A refused pair moves neither and leaves the price as it is, since a pair between two orders adds to buying and selling alike and the price reads only the net.
 
 The result does not depend on the order of submissions ([INV-11](#inv-11)). A `Settled` event records one settlement: its settled Flows settle together at one exact stored rate, when it has one. A pair's settlement names both its sides (`OfMatch`): the order behind each, or the reserve.
+
+### 5.6 Price adjustment
+
+An Exchange may carry an adjustment, a share between 0 and 1, which is 0 unless authored. After a round in which its batch had orders, its price moves by the adjustment times the gap between what the batch's orders asked to buy and to sell, as a share of the larger: price × adjustment × (demand − supply) / max(demand, supply). Demand and supply are the orders' quantities before any limit or reserve, so the move reads the pressure on the Exchange, not what cleared. A shortage raises the price and a glut lowers it, each by at most the adjustment, and the next round clears at the new price; within a round a short side is still rationed ([§5.5](#55-simultaneous-clearing)). The cost function's intercept carries the move, so its slope and position still apply. The move is part of the round's settlement (`Laws.Engine.Settle`), reads only the set of orders ([INV-11](#inv-11)), and is recorded in the round-end World.
 
 ## 6. Economic Circulation
 

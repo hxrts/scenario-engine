@@ -177,7 +177,7 @@ fillIn exchangeId who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == exchange
 -- | The Exchange record as hand-written fields, which `recordShape` must reproduce (format pin).
 exchangeObject :: Shape Exchange
 exchangeObject = object "Exchange"
-  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _ }
+  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _, adjustment: _ }
       <$> fieldOf "id" "" idShape _.id
       <*> fieldOf "base" "" idShape _.base
       <*> fieldOf "quote" "" idShape _.quote
@@ -185,6 +185,7 @@ exchangeObject = object "Exchange"
       <*> fieldOf "position" "" qShape _.position
       <*> fieldOf "reserves" "" (mapOf idShape qShape) _.reserves
       <*> fieldOf "access" "" (Shape.arrayOf idShape) _.access
+      <*> fieldOf "adjustment" "" (Shape.defaultsTo Q.zero qShape) _.adjustment
   )
 
 main :: Effect Unit
@@ -989,7 +990,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "recordShape encodes an Exchange byte for byte as a hand-written object, in both formats, and reads it back" do
       let
         m = exchange [ "US" ]
-        derived = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape }
+        derived = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape, adjustment: Shape.defaultsTo Q.zero qShape }
         written = exchangeObject
       for_ [ Snapshot, Authored ] \fmt -> do
         stringify (encodeWith fmt derived m) `shouldEqual` stringify (encodeWith fmt written m)

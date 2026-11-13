@@ -11,8 +11,6 @@ import Views.Composition (RoundRange, CompositionInfo)
 import Dashboard.Route (Route(..), route)
 import Dashboard.Palette (runLabel)
 
-import Schema.Run (RunClass(..))
-
 import Data.Argonaut.Core (toNumber, toString)
 import Core.Shape (Format(Snapshot))
 import Core.Shape as Shape
@@ -23,7 +21,7 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), isLeft)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Views.Overview (RunFlags, RunList)
+import Views.Overview (RunList)
 import Data.Foldable (for_)
 import Foreign.Object as Object
 import Routing.Duplex (parse, print)
@@ -93,20 +91,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       isLeft (Shape.parse Snapshot (Keys.viewShape :: Shape.Shape RunList) runListJson) `shouldEqual` false
       isLeft (Shape.parse Snapshot (Keys.viewKey @"Overview").shape overviewJson) `shouldEqual` false
   where
-  row1 = [ "run-1", "base", "simulated" ]
-  row2 = [ "run-2", "seed", "simulated" ]
-  row3 = [ "run-3", "old", "interactive" ]
-
-  flag :: String -> Boolean -> Boolean -> RunFlags
-  flag id live readable = { id, runClass: if live then Interactive else Simulated, readable, tag: if live then Just "mock" else Nothing }
-
-  -- a run list whose rows are one row per run, in the order given
-  listOf :: Array RunFlags -> RunList
-  listOf fs = { title: "Simulation runs", columns: [ "Run", "Name", "Class" ], rows: map (\f -> [ f.id, f.id, show f.runClass ]) fs, runs: fs }
-
-  runList :: RunList
-  runList = { title: "Simulation runs", columns: [ "Run", "Name", "Class" ], rows: [ row1, row2, row3 ], runs: [ flag "run-1" false true, flag "run-2" false true, flag "run-3" true true ] }
-
   -- an example composition's round range: 4 to 8, with 5 by default
   premiseRounds :: RoundRange
   premiseRounds = { min: 4, max: 8, default: 5 }

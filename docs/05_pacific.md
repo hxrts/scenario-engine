@@ -1,13 +1,12 @@
-# PremiseComposition: Pacific
+# Pacific Rivalry
 
-**Status:** Experimental configuration.  
 **PremiseComposition ID:** `pacific`, version `v0`
 
 ## 1. The game
 
-Two countries, the United States and China, each make something the other needs. The US makes technology and China makes industrial inputs, and each needs some of both. Each has its own currency, the dollar (`USD`) and the renminbi (`RMB`). Trading leaves both better off, and gives each a hold over the other.
+Two countries, the United States and China, each make something the other needs. The US makes technology and China makes industrial inputs, and each needs some of both. Each has its own currency, the dollar (`USD`) and the renminbi (`RMB`). Trading leaves both better off financially, but gives each country a hold over the other.
 
-Pacific is three economic objects: two national reproduction regimes, one per country, connected by one international clearing system ([01 design principles](01_overview.md)).
+Pacific has three economic objects: two national reproduction regimes, one per country, connected by one international clearing system ([01 design principles](01_overview.md)).
 
 1. **The US regime** reproduces American production, household demand and financing. Its central tension: a strong dollar supports purchasing power and borrowing, while making domestic industrial production less competitive and harder to rebuild.
 2. **The China regime** reproduces the same three things under different arrangements. Its central tension: directing resources to industrial production strengthens manufacturing but suppresses household demand, so its industry depends on exports and debt-financed investment.
@@ -157,9 +156,9 @@ Each round America's households lend their state 10% of their USD and their firm
 
 Each investment is at most two units per Actor per round. Capacity and competence produce from the round after they arrive.
 
-### 3.6 The two configurations
+### 3.6 The two starting configurations
 
-The regimes are one builder's, configured twice (§9). Their configurations differ in ownership, holdings, wages, institutions, instruments and objectives:
+The US and Chinese regimes are one builder, configured in two different ways (§9). Their configurations differ in ownership, holdings, wages, institutions, instruments and objectives:
 
 | | China: state-led | United States: market-led |
 |---|---|---|
@@ -171,7 +170,7 @@ The regimes are one builder's, configured twice (§9). Their configurations diff
 | Adjustment difficulty | Rebalancing income while keeping production and employment. | Rebuilding industry while keeping purchasing power. |
 | Viability measure | Its industrial output every round, and its firm current on its loans. | Its households' purchases every round. |
 
-These are stylized starting configurations, not permanent traits of either country.
+These are starting configurations, not permanent traits of either country.
 
 ## 4. The international clearing system
 
@@ -188,13 +187,13 @@ The clearing system's three categories, likewise:
 
 | Exchange | Base | Quote | Open to | Price |
 |---|---|---|---|---:|
-| `technology-world` | `T` | `USD` | every Actor | 1 |
-| `industry-world` | `I` | `RMB` | every Actor | 2 |
+| `technology-world` | `T` | `USD` | every Actor | 1 to start, moving |
+| `industry-world` | `I` | `RMB` | every Actor | 2 to start, moving |
 | `technology-us` | `T` | `USD` | the US, its firm and its households | 1.25 |
 | `industry-cn` | `I` | `RMB` | China, its firm and its households | 2.5 |
 | `usd-rmb` | `USD` | `RMB` | every Actor and the rest of the world | 1, moving |
 
-Each good is priced in its producer's currency, so an import needs the other currency first and the exchange rate is what an import costs. A home Exchange pays its sellers a premium of a quarter (a dial). The goods Exchanges hold no reserves, so every trade is a pair between a buyer and a seller ([02 §5.2](02_kernel.md#52-exchanges)). Each firm and each household sector counts as its country for Rules.
+Each good is priced in its producer's currency, so an import needs the other currency first and the exchange rate is what an import costs. A home Exchange pays its sellers a premium of a quarter (a dial). The goods Exchanges hold no reserves, so every trade is a pair between a buyer and a seller ([02 §5.2](02_kernel.md#52-exchanges)), and a short side is rationed pro rata. After each round a world Exchange's price moves by a tenth (a dial) of the gap between what its orders asked to buy and to sell, as a share of the larger ([02 §5.6](02_kernel.md#56-price-adjustment)): a shortage raises it and a glut lowers it. The home Exchanges keep their prices. Each firm and each household sector counts as its country for Rules.
 
 | Rule kind | Governor | Effect |
 |---|---|---|
@@ -258,12 +257,13 @@ Twelve loops arise from the rules; none is scripted. Each holds under conditions
 | F4 | Debt burden | Regime: finance | Reinforcing | Loans fall due with interest and are rolled over | The loan rate is above zero |
 | F5 | Currency adjustment | Clearing | Balancing | America's imports sell USD on the dealer | Reserves and world savings do not buy it back |
 | F6 | Recycling blocks adjustment | Clearing, from China's finance | Counters F5 | China's reserves and world savings buy USD | They are on, and the asset fee is not |
-| F7 | Strong-dollar trap | Clearing into America's capability | Reinforcing | A substitute runs only when cheaper than importing at the rate, and an idle one decays (F2) | Its cost is within the dollar's swing of the import price, as at the default dials |
+| F7 | Strong-dollar trap | Clearing into America's capability | Reinforcing | A substitute runs only when cheaper than importing at the rate, and an idle one decays (F2) | Its cost is within the dollar's swing of the import price, and no shortage raises that price (F13); at the default dials a shortage does |
 | F8 | Home market | Regime: demand | Reinforcing | Wages and dividends are household purchases at home | The firm offers at home |
 | F9 | Tariff erosion | Clearing into demand | Balancing | Under its own tariff a private sector sends less abroad | A tariff is in force |
 | F10 | Supply leverage | Clearing into the other's capability | Reinforcing | Under the other's export control a substitute runs only as far as its competence | Competence was lost before the control |
 | F11 | Political constraint | Regime: objectives | Balancing, through behaviour | Viability is an objective, not a limit; a Strategy that weighs it delays adjustment | A Strategy responds to it, such as `Cautious` |
 | F12 | Overcapacity cost | Regime: capability and demand | Balancing | Output nobody buys still pays its wages and its capacity its upkeep | A producer cannot sell what it makes |
+| F13 | Shortage pricing | Clearing into both capabilities | Balancing | A world Exchange whose buyers ask for more than its sellers offer raises its price after the round, which cuts what the next round's orders can pay for and makes the importer's substitute pay | Demand exceeds supply, as for China's industrial inputs at the default dials |
 
 ### 6.3 The two traps
 
@@ -274,6 +274,8 @@ Twelve loops arise from the rules; none is scripted. Each holds under conditions
 3. America's substitute industry stands idle, and its competence wears away through disuse (F2).
 4. Substituting becomes harder: capacity built later runs only as fast as the lost competence is relearned (F10).
 5. America depends more on Chinese supply, and is more exposed to a Chinese export control.
+
+The trap needs the inputs to stay cheap. When demand for them exceeds China's supply, their world price rises after each round (F13) until US industry pays whatever the dollar does, and the trap does not spring: at the default dials it does not (§10.5 F7, §11).
 6. Chinese exporters' dollar earnings, through reserves, are lent back to the US state, financing the next round of imports.
 
 It holds when US industry costs nearly what imports do, as at the default dials; where US industry is cheap, the dollar does not decide (§11, dollar trap). It supports US consumption and financing in the short run while making industrial independence harder.
@@ -368,7 +370,7 @@ Pacific is three Premises at version `v0`, one per economic object ([03 §2](03_
 
 A regime does not load alone: its Exchanges, Rules and Resources are the clearing system's.
 
-**Dials.** `Premises.Pacific.Dials` holds every number: prices and the home premium, the currency Exchange, opening money in each currency, each country's capacity split, requirements, each investment's goods, construction wages, yield and delay, competence, the input share and input per unit, each production's wage, upkeep, the tariff and tax rates, `Cautious`'s threshold, the households' shares (`PrivateDials`) and the money between the countries (`WorldDials`: bond rates, repression's three settings, the fee, the reserves, world savings), each tool's low and high level, and the objectives' bars.
+**Dials.** `Premises.Pacific.Dials` holds every number: prices, the world prices' adjustment and the home premium, the currency Exchange, opening money in each currency, each country's capacity split, requirements, each investment's goods, construction wages, yield and delay, competence, the input share and input per unit, each production's wage, upkeep, the tariff and tax rates, `Cautious`'s threshold, the households' shares (`PrivateDials`) and the money between the countries (`WorldDials`: bond rates, repression's three settings, the fee, the reserves, world savings), each tool's low and high level, and the objectives' bars.
 
 **Engine features it uses.** Trades settling as pairs, and a dealer Exchange whose price moves with its position ([02 §5](02_kernel.md#5-cost-functions-exchanges-and-solvers)); Rules acting on pairs and Transfers, and a levy paid by the receiver ([03 §5.5](03_premise.md#55-geography-access-and-rules)); Actor groups; an executor's draws on two reservable Resources, and depreciation ([03 §5.3](03_premise.md#53-transformations)); action laws charged on a Transformation's units, and stock laws charged on what each holder holds ([03 §15](03_premise.md#15-authoring-laws-and-agreements)); multi-round agreements entered by a joint candidate Transaction that Transfers and enters; a routine beside a player ([04 §6](04_run.md#6-strategy-initialization)); Aggregates ([02 §7](02_kernel.md#7-aggregates-and-representation)); the `acting` condition, kind-specific "Rules in force", last round's Transformations and the quotient expression ([03 §8](03_premise.md#8-strategy-catalog)); every-round criteria, criteria with further conditions, and the `bought`, `produced` and `arrears` measures ([03 §10.5](03_premise.md#105-evaluation)); INV-38; and a composition's default preset ([04 §2](04_run.md#2-instantiation-configuration)).
 
@@ -393,7 +395,7 @@ Firms on the default (all offered on the world Exchange) unless named.
 
 - **A. Free trade.** Every seat `FreeTrade`, six rounds. In round 1 the US firm exports 8 `T`; China buys 3 and its firm 1; the US buys 5 `I`, China's state sells 4 and its firm 2; the export tax is 2 `USD`. After round 1 the US holds 112.5 `USD`, the US firm 18, China 93.6 `RMB` and China's firm 17.9. Every round, 317 `USD` and 334 `RMB`.
 - **B. US export control.** US `Restrict`. From round 2 China is short 3 `T`; 4 orders are `Blocked` in round 2. China's firm produces 2, 2, 1, 1, 1, 1.
-- **C. China's export control.** China `Restrict`. From round 2 the US is short 5 `I`; the US firm produces 8, 8, 4, 4, 4, 4, and China, whose technology came from it, goes short of 0, 0.331, 0.327, 1.6903, 1.8295, 1.8641 `T`. By round 6 China's state holds 20 unsold `I`.
+- **C. China's export control.** China `Restrict`. From round 2 the US is short 5 `I`; the US firm produces 8, 8, 4, 4, 4, 4, and China, whose technology came from it, goes short of 0, 0.331, 0.3242, 1.6848, 1.812, 1.8222 `T`. By round 6 China's state holds 20 unsold `I`.
 - **S. US import ban, demand pressure.** US `Ban`. China's state sells 4 `I` in round 1 and none after; its unsold inputs pile up, 4, 8, 12, 16, 20; the US, with no industrial capacity, is short 5 a round from round 2.
 - **D. US substitution.** US `Substitute`. Its industrial capacity is 0, 2, 3.996, 5.992, 5.992, 5.992 by round, but its competence, 0.225, 1.1025, 2.0555, 3.0565, 3.2093, 3.3698, lets it run only 0, 1.2226, 2.2839, 3.3961, 3.5659, 3.7442.
 - **E. The importer pays the tariff.** The US enacts its tariff in round 1. China still sells 4 `I` in round 2; the US firm, paying the tariff on its input, holds 19.6593 `USD` after round 2.
@@ -401,48 +403,48 @@ Firms on the default (all offered on the world Exchange) unless named.
 - **H. Invariants.** US `Hawk`, China `Reformer`, firms `Exporter`: every round passes `checkRun`, INV-38 included; the replay handler reproduces every round-end World; every reordering of each round's inputs settles to the same World; and each currency's total holds. A control enacted every round is one Rule beside the export tax. Under the US control in round 2, a US gift of 3 `T`, a joint candidate Transaction moving 1 `T`, and a Chinese routed purchase of 4 `T` at limit 1 all fail: China holds no `T`, is short 3, and at least three `Blocked` records are written.
 - **Routine.** A human China seat with nothing to say: its routine sells 4 `I`. When its speech orders one technology investment, the routine sells none; an order of 4 against the maximum of 2 also leaves it selling none.
 - **Dependence view.** US `Restrict`. China's technology row after rounds 2 and 6: requirement 3, capacity 0, coverage 0.00, exposure 3, no trade, shortfall 3, one barrier against it. China's industrial row after round 2: capacity 8, coverage 1.00, exports 4, receipts 8.
-- **Counterfactual.** US `Restrict` against `FreeTrade`, six rounds: China's technology shortfall is 15 against 2.69; the US firm's receipts 27.56 against 45.9 `USD`, its sales at home 23.56 against 20.41 and abroad 11.77 against 35.07, and 5 of its orders blocked against none.
-- **Private demand.** Free trade: China's households buy 0.77 `T` abroad in round 3, with no capacity; 4.78 over six rounds.
+- **Counterfactual.** US `Restrict` against `FreeTrade`, six rounds: China's technology shortfall is 15 against 2.6; the US firm's receipts 27.25 against 47.02 `USD`, its sales at home 23.56 against 20.53 and abroad 12.05 against 35.47, and 5 of its orders blocked against none.
+- **Private demand.** Free trade: China's households buy 0.76 `T` abroad in round 3, with no capacity; 4.6 over six rounds.
 
 ### 10.2 Firms, loans and the households
 
 - **I. Loans.** China's firm `Exporter`: repressing (China `StatusQuo`), China lends it 17.6 `RMB` in round 1, a fifth of its RMB, free; rebalanced (`FreeTrade`), 4.4 at 5%. In round 2 China's households deposit 4.595 and 4.601. Either way the firm holds 3 `K_I` in round 2.
-- **J. Dividends.** Both firms `Patron`. In round 1 the US firm pays its households 2.25 `USD` and China's firm 1.5 `RMB`, on top of wages; in round 2 the US firm sells 1.52 `T` at home.
-- **K. Selling only at home.** Both firms `Builder`: China's firm loses its US input from round 2 and runs only its input-free half: 2, 1.5, 2, 0.0889, 1.1019, 2.3156 by round.
-- **L. Levies.** The US tariff in force: the tariffs and the export tax are 2, 8.2241, 8.2161, 7.8624, 8.3017, 7.8875 by round, wages and upkeep apart.
-- **M. China saves, America spends.** Both firms `Patron`: after round 6 China's households hold 9.519 `RMB` and America's 2.7215 `USD`; over the run China's bought 2.79 units of goods and America's 15.9745.
+- **J. Dividends.** Both firms `Patron`. In round 1 the US firm pays its households 2.25 `USD` and China's firm 1.5 `RMB`, on top of wages; in round 2 the US firm sells 1.4709 `T` at home.
+- **K. Selling only at home.** Both firms `Builder`: China's firm runs on its US input into round 3, then loses it, and its output falls to nearly nothing: 2, 1.5, 2, 0.0053, 0.056, 0 by round. With the world price of technology risen by the shortage, its investment no longer lifts it.
+- **L. Levies.** The US tariff in force: the tariffs and the export tax are 2, 8.2241, 8.2143, 7.8561, 2.3024, 10.7105 by round, wages and upkeep apart.
+- **M. China saves, America spends.** Both firms `Patron`: after round 6 China's households hold 11.0941 `RMB` and America's 3.1113 `USD`; over the run China's bought 2.242 units of goods and America's 15.0916.
 - **N. Who an export control hurts.** After six rounds under its own control China's state holds 20 unsold `I`; after four rounds under America's the US firm holds 11.45 unsold `T` and the US state none.
 - **O. Input inventory.** Both firms `Hedger`. Under China's control the US firm produces 8, 8, 6.8572, 4, 4, 4, against 8, 8, 4 without an inventory (C); under the US control China's firm produces 2, 2, 2, 1.4, 1, 1, against 2, 2, 1 (B).
 
 ### 10.3 Money between the countries
 
-- **Q. The currency.** Under free trade the dollar falls: 0.995, 0.9887, 0.9905, 0.9852, 0.973, 0.9563 `RMB` per `USD`. Under `StatusQuo` China's reserves hold it up: 1.025, 1.0344, 1.0533, 1.0657, 1.0735, 1.0774.
-- **T. The rate reaches the buyer.** America's households pay 1.8556 `USD` per unit of Chinese industrial inputs under a weak renminbi (`StatusQuo`), against 2.1302 under a strong one (US `Rebalance`), over rounds 2 to 6.
-- **R. The asset fee.** US `Rebalance` (the fee high): the rest of the world lends the US state 4.4 `USD` in round 2 against 11 without the fee, and sells dollars; the dollar falls to 0.995, 0.9074, 0.8321, 0.7625, 0.6918, 0.6186.
+- **Q. The currency.** Under free trade the dollar falls: 0.995, 0.9887, 0.988, 0.979, 0.9618, 0.9384 `RMB` per `USD`. Under `StatusQuo` China's reserves hold it up: 1.025, 1.0344, 1.0506, 1.0589, 1.0613, 1.0579.
+- **T. The rate reaches the buyer.** America's households pay 1.9047 `USD` per unit of Chinese industrial inputs under a weak renminbi (`StatusQuo`), against 2.1827 under a strong one (US `Rebalance`), over rounds 2 to 6.
+- **R. The asset fee.** US `Rebalance` (the fee high): the rest of the world lends the US state 4.4 `USD` in round 2 against 11 without the fee, and sells dollars; the dollar falls to 0.995, 0.9074, 0.8293, 0.7548, 0.6766, 0.592.
 
 ### 10.4 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 986, 961, 976 and 984 of the 1,600 criteria each holds over the sample (US, China, US firm, Chinese firm). The bars are set so; a change to any dial is checked against this sample.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each seat has, the seats meet 970, 957, 956 and 948 of the 1,600 criteria each holds over the sample (US, China, US firm, Chinese firm). The bars are set so; a change to any dial is checked against this sample.
 
 ### 10.5 Circuits, accounting and loops
 
 - **Circuits.** US transfer low, China repression and reserves low, both firms selling half at home with low investment and dividends, six rounds: every leg of the four circuits (§6.1) carries a flow, and no currency Flow has an end outside an Actor or the dealer.
 - **Bonds.** Under `StatusQuo`, after round 2, every open bond has a lender and a borrower that differ; the templates open are the two US bonds, China's high deposit and China's high loan, the last two at 0%.
 - **INV-38.** A currency added to China's account with no Flow behind it unbalances its account and trips INV-38; the run as played does not.
-- **Repression.** Under `StatusQuo` over six rounds China's households give up 2.2598 `RMB` against the 5% rate, and its firm saves 8.5761.
-- **Debt-driven postponement.** China's firm opening with no RMB, investing high and repressed: it repays every loan from the next and is never in arrears, while what it owes grows from 17.6 to 40.4807 `RMB` over eight rounds selling at home, and to 41.0457 selling abroad.
-- **Arrears.** Both firms opening with no money, China under its own export control, China's firm investing high and paying high dividends, eight rounds: it cannot repay 0.0882 `RMB` in round 4, rising to 1.647 in round 8. China's output is 8, 10, 9.6557, then 8 a round, clearing its floor every round, and its viability still fails, on the arrears alone.
+- **Repression.** Under `StatusQuo` over six rounds China's households give up 2.2629 `RMB` against the 5% rate, and its firm saves 8.6047.
+- **Debt-driven postponement.** China's firm opening with no RMB, investing high and repressed: it repays each loan from the next, falling behind only once, by 0.2774 `RMB` in round 5 selling at home, while what it owes grows from 17.6 to 42.2877 `RMB` over eight rounds selling at home, and to 41.8946 selling abroad.
+- **Arrears.** Both firms opening with no money and China's loans at 10% at every setting, China under its own export control, China's firm investing high and paying high dividends, eight rounds: it cannot repay 0.4092 `RMB` in round 7, rising to 1.1974 in round 8. China's output is 8, 10, 8.6194, 8.199, 8.1785, 8.0022, 8, 8, clearing its floor every round, and its viability still fails, on the arrears alone.
 - **F1, F2.** Under `Substitute` America's industrial competence grows from 1.1025 after round 2 to 3.3698 after round 6; idle under free trade it wears from 0.225 to 0.1329.
-- **F3.** China's firm investing high ends with 7.0785 `K_I` repressing against 4.7867 rebalanced; with no money of its own, 5.2098 against 3.7521.
-- **F4.** At the off setting China's firm pays 0.9422 `RMB` of interest on the loans it repaid by round 6; at the high setting, none.
-- **F5, F6.** The dollar ends round 6 at 0.9563 under free trade, and at 1.0774 with China's reserves.
-- **F7.** America builds a unit of industrial capacity a round. With China's reserves on, the dollar at 1.0596 leaves it idle: it makes 1.225 units over the run and its competence ends at 2.229. With the asset fee on, the dollar at 0.5841, it makes 14.2127 and its competence ends at 3.3698.
-- **F8.** Firms selling half at home: paying high dividends, America's households buy 12.5523 units at home, against 8.2937 without dividends.
-- **F9.** Under its own tariff America's households import 5.1744 `I` over the run, against 6.8236 without.
+- **F3.** China's firm investing high ends with 7.0243 `K_I` repressing against 4.7584 rebalanced; with no money of its own, 4.7441 against 3.8196.
+- **F4.** At the off setting China's firm pays 0.9425 `RMB` of interest on the loans it repaid by round 6; at the high setting, none.
+- **F5, F6.** The dollar ends round 6 at 0.9384 under free trade, and at 1.0579 with China's reserves.
+- **F7.** America builds a unit of industrial capacity a round. The shortage of industrial inputs raises their world price above what US industry costs, so the dollar no longer decides: with China's reserves on, the dollar at 1.0219, it makes 14.2316 units over the run and its competence ends at 3.3742; with the asset fee on, the dollar at 0.5795, 14.2127 and 3.3698. The trap holds only while the world price of the inputs stays near the US wage.
+- **F8.** Firms selling half at home: paying high dividends, America's households buy 12.3017 units at home, against 8.1399 without dividends.
+- **F9.** Under its own tariff America's households import 5.0621 `I` over the run, against 6.4389 without. The US state, whose requirement goes partly short without the tariff, takes most of what they give up, so America's imports in all barely move.
 - **F10.** Under China's export control with America building high, a US that kept 3 units of industrial competence is short 9.008 `I` over the run; one with a quarter of a unit, 14.5315.
 - **F11.** `Cautious` China has its high deposits open in 2 rounds without a shock, and in 5 under a US export control.
-- **F12.** Under its own export control the US firm ends round 6 with 19.8498 `USD` and 17.872 unsold `T`, against 26.9933 and none under free trade.
-- **Indicators.** Under `StatusQuo`, after round 6: China's net external position is 30.9835, America's −38.7715 and the rest of the world's 79.8735; neither country's households absorb any of its output (every firm exports all); China's firm owes 4.6215 times what it sells, China's state 0.5678 and the US firm 0.0955; China's viability margin is 1.7748 and America's −0.6; America's substitute gap is 0.087 (idle) and China's −0.0964 (running).
+- **F12.** Under its own export control the US firm ends round 6 with 18.3202 `USD` and 17.926 unsold `T`, against 27.1464 and none under free trade.
+- **Indicators.** Under `StatusQuo`, after round 6: China's net external position is 30.5948, America's −36.8861 and the rest of the world's 80.2695; neither country's households absorb any of its output (every firm exports all); China's firm owes 4.1443 times what it sells, China's state 0.509 and the US firm 0.0903; China's viability margin is 1.7771 and America's −0.6; America's substitute gap is −0.1306 and China's −0.1497, both running.
 - **No dead ends.** Over eight rounds of every preset, no Actor's currency runs out.
 
 ### 10.6 Engine fixtures
@@ -462,21 +464,21 @@ Literal worlds cut from Pacific with no production or requirements, run through 
 
 Each experiment states the conditions under which its feedback appears, and the case where a countervailing force undoes it.
 
-- **Political trap.** States with China's reserves on, firms exporting all, six rounds. China's industrial output is 10, 10, 9.8889, 9.9929, 9.7748, 9.9966 repressing and 10, 10, 9.8889, 9.9929, 9.7732, 9.9945 rebalanced: rebalancing costs it no output. A US export control cuts it to 9 a round, still above its floor of 8. Its households buy 4.5845 units rebalanced against 4.5198 repressed. Repression alone does not produce a political trap in Pacific; what keeps China repressing is a Strategy that weighs its viability (F11) and the debt its firm carries.
-- **Dollar trap.** America building one unit of industrial capacity a round, China repressing with reserves. The asset fee takes the dollar from 1.0589 to 0.7209 after round 6. US industry, costing nearly what imports do, makes 1.225 units under the strong dollar and 14.2316 under the weak one, and America's households, paid its wages, buy 11.4615 units against 9.3683. Where US industry is cheap (a wage of 1.5), it makes 14.2316 either way.
+- **Political trap.** States with China's reserves on, firms exporting all, six rounds. China's industrial output is 10, 10, 9.8889, 9.9939, 9.7771, 10 repressing and 10, 10, 9.8889, 9.9939, 9.7755, 10 rebalanced: rebalancing costs it no output. A US export control cuts it to 9 a round, still above its floor of 8. Its households buy 4.4174 units rebalanced against 4.3567 repressed. Repression alone does not produce a political trap in Pacific; what keeps China repressing is a Strategy that weighs its viability (F11) and the debt its firm carries.
+- **Dollar trap.** America building one unit of industrial capacity a round, China repressing with reserves. The asset fee takes the dollar from 1.0212 to 0.7129 after round 6. With the shortage raising the inputs' world price, US industry makes 14.2316 units under either dollar, as it does where it is cheap (a wage of 1.5), and the weaker dollar leaves America's households buying 8.1954 units against 9.041. The price, not the currency, closes the trap: it springs only where the inputs stay cheap.
 - **Lost knowledge.** Two US starting positions with 4 units of industrial capacity, one with 6 units of competence and one with a quarter, under China's export control. The skilled one makes 4 a round and is short 1 from round 2; the unskilled one makes 0.25 rising to 0.3191 and is short 4.75 falling to 4.6961. Dependence is a shortage of capital only where the workforce is still there.
-- **International leverage.** China's export control (supply) costs America 5 `I` a round while it builds nothing, and while it builds its substitute the shortfall falls 5, 3.7774, 2.7161, 1.6039, 1.4341, 1.2558, 1.0686 from round 2 to round 8: substitution erodes supply leverage. China's import ban (demand) cuts the US firm's sales abroad from 60.7592 to 35.5556 units over eight rounds and its money from 29.9179 to 20.7627 `USD`, while its debt barely moves (1.2118 against 1.2432): demand pressure costs sales and money, not solvency, since the firm's borrowing is set by its households' lending.
-- **Mutually reinforcing dependence.** Under the status quo China lends the US state 0, 3, 3.3333, 6.4692, 7.1919, 10.3526 `USD` by round, while America buys 6, 6, 6, 5.8889, 5.9929, 5.7748 units of China's industrial inputs and China's industry produces about 10 a round: China's export earnings finance US borrowing, and US purchasing power sustains Chinese output.
+- **International leverage.** China's export control (supply) costs America 5 `I` a round while it builds nothing, and while it builds its substitute the shortfall falls 5, 3.7774, 2.7161, 1.6039, 1.4341, 1.2558, 1.0686 from round 2 to round 8: substitution erodes supply leverage. China's import ban (demand) cuts the US firm's sales abroad from 57.6922 to 35.5556 units over eight rounds and its money from 27.8723 to 16.9259 `USD`, while its debt barely moves (1.3246 against 1.3372): demand pressure costs sales and money, not solvency, since the firm's borrowing is set by its households' lending.
+- **Mutually reinforcing dependence.** Under the status quo China lends the US state 0, 3, 3.2667, 6.3725, 6.9226, 10.0014 `USD` by round, while America buys 6, 6, 6, 5.8889, 5.9939, 5.7771 units of China's industrial inputs and China's industry produces about 10 a round: China's export earnings finance US borrowing, and US purchasing power sustains Chinese output.
 - **Status quo against rebalancing.** Over eight rounds, each country building one unit of its substitute a round and each firm selling half at home, four arms; then each arm again with the other country's export control from round 5.
 
 | Arm | US viability margin | China's | Dollar after round 8 | US owes abroad | US `S_I` after round 4 | China's `S_T` | US short under China's control | China short under America's |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Both keep their arrangements | 0.4872 | 0.2966 | 1.2221 | 83.1047 | 2.7519 | 1.845 | 11.9118 | 2.6403 |
-| America rebalances alone | 0.4872 | 0.2765 | 0.849 | 36.3737 | 3.0605 | 1.845 | 3.7437 | 5.5435 |
-| China rebalances alone | 0.4324 | 0.2924 | 1.007 | 46.8063 | 2.7519 | 1.845 | 11.8548 | 2.65 |
-| Both rebalance | 0.4838 | 0.2412 | 0.6205 | 2.4262 | 3.0605 | 1.71 | 3.7437 | 7.7485 |
+| Both keep their arrangements | 0.3583 | −0.2 | 1.2191 | 81.6137 | 3.0605 | 1.845 | 3.7437 | 3.1641 |
+| America rebalances alone | 0.3583 | −0.2 | 0.8047 | 34.8167 | 3.0605 | 1.845 | 3.7437 | 2.6623 |
+| China rebalances alone | 0.3551 | 0.3 | 0.9598 | 47.2636 | 3.0605 | 1.845 | 3.7437 | 2.6593 |
+| Both rebalance | 0.3551 | 0.3 | 0.6213 | 2.4262 | 3.0605 | 1.845 | 3.7437 | 2.6713 |
 
-The result is that, if both keep their arrangements, America is the more vulnerable. The strong dollar idles its substitute industry, its competence lags, and China's export control costs it 11.9118 `I` against 3.7437 when it has rebalanced. America's arrangement keeps China's exposure low: when America rebalances, the weak dollar makes US technology cheap, China's substitute stands idle, and China is short 5.5435 to 7.7485 `T` under America's control against 2.6403. Each country's rebalancing shifts exposure to the other; neither is less exposed in total.
+With prices that move, the arrangements no longer decide either country's exposure. A shortage of industrial inputs raises their price above what US industry costs, so America's substitute runs whatever the dollar does, and China's export control costs it 3.7437 `I` in every arm. China is short 2.6 to 3.2 `T` under America's control in every arm, a little more when both keep their arrangements. What the arrangements still decide is money: America owes abroad 81.6137 `USD` when both keep them against 2.4262 when both rebalance, and China's repression is what holds its own viability margin below its floor (−0.2) while it lasts.
 
 ## 12. Sensitivity
 
