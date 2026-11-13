@@ -180,8 +180,8 @@ spec = do
       map (const unit) (parts pacific) `shouldEqual` Right unit
     it "both regimes are one builder's: their Premises have the same sections, with as many of each kind" do
       let kinds = [ "actors", "transformations", "laws", "templates", "strategies", "parameters" ]
-      map (sizeOf "us-regime") kinds `shouldEqual` [ 3, 6, 8, 4, 3, 6 ]
-      map (sizeOf "china-regime") kinds `shouldEqual` [ 3, 6, 8, 12, 3, 6 ]
+      map (sizeOf "us-regime") kinds `shouldEqual` [ 3, 6, 8, 4, 4, 6 ]
+      map (sizeOf "china-regime") kinds `shouldEqual` [ 3, 6, 8, 12, 4, 6 ]
     it "the clearing system holds every Exchange, every kind of Rule, the Rules in force and world savings; no regime does" do
       map (sizeOf "international-clearing") [ "exchanges", "ruleKinds", "rules", "groups", "actors" ] `shouldEqual` [ 5, 10, 1, 4, 1 ]
       map (\id -> map (sizeOf id) [ "exchanges", "ruleKinds", "rules", "groups" ]) [ "us-regime", "china-regime" ] `shouldEqual` [ [ 0, 0, 0, 0 ], [ 0, 0, 0, 0 ] ]

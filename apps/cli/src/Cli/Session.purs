@@ -28,7 +28,7 @@ import Views.BalanceSheet (linksOf)
 import Effects.System (closeInput, files, now, ownerOf, readLine, resolveSeed, writeLine)
 import Assembly.Assemble (assembleCast, checkRounds, liveCast, unknownSeats, withRounds)
 import Assembly.Recipe (encodeSpec)
-import Assembly.Composition (CompositionParts)
+import Assembly.Composition (CompositionParts, enactable)
 import Assembly.Types (PreparedRun)
 import Run (Run, lift)
 import Schema.Composition (gameIdOf, compositionRef, premisesText)
@@ -74,7 +74,7 @@ session o { parts, game } = do
       writeLine (compositionRef parts.composition <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       for_ (linksOf o.id (unwrap seed) game.manifest.initial.actors) \l -> writeLine ("Balance sheet of " <> l.actor <> ": " <> l.path)
       for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
-      lift _sessions (Host { request: { seed, game, id: o.id, window: o.window, briefing, report: report humans }, humans, tag: "mock" } unit)
+      lift _sessions (Host { request: { seed, game, id: o.id, window: o.window, briefing, report: report humans, rules: enactable parts game.inWorld }, humans, tag: "mock" } unit)
       writeLine "Type SEAT: text for a human seat, or /advance, /pause, /resume, /end, /clear."
       final <- console
       closeInput

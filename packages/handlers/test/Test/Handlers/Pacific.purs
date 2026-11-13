@@ -29,7 +29,7 @@ import Control.Monad.Error.Class (throwError)
 import Effect.Aff (Aff)
 import Effect.Exception (error)
 import Effect.Class (liftEffect)
-import Premises.Pacific.Strategies (firmPolicy, presetId, statePolicy, tariffRule)
+import Premises.Pacific.Strategies (firmPolicy, presetId, statePolicy, tariffing)
 import Foreign.Object as Object
 import Handlers.Replay (runReplay)
 import Handlers.Simulate (SimRun)
@@ -43,7 +43,7 @@ import Premises.Load (loadFrom, parts)
 import Premises.Pacific as Pacific
 import Premises.Pacific.Names (p, pacificId, pacificVersion)
 import Schema.Build.Quantity (q)
-import Schema.Build.Decision (asTemplate, eqQ, joint, lit, roundQ, rule, selfActor, selfEnact, signAll)
+import Schema.Build.Decision (asTemplate, eqQ, joint, lit, roundQ, rule, selfActor, signAll)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Testkit.Run (orThrow, run)
@@ -121,11 +121,11 @@ levied :: RoundResult -> Q
 levied r = Q.sumQ (map _.amount (select levies r.record.events))
 
 -- | Every seat on FreeTrade, with the US state enacting its tariff on Chinese industrial inputs from round 1: the
--- | tariff is a Rule kind no tool level or preset enacts, so a test enacts it itself.
+-- | tariff is a Rule kind no tool level or preset enacts, so the state also plays the catalog's tariff Strategy.
 playTariffed :: CompositionParts -> Int -> Aff SimRun
 playTariffed parts rounds = do
   free <- preset parts presetId.freeTrade
-  let tariffed = free { rules = free.rules <> [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfEnact (tariffRule p.us)) ] ] }
+  let tariffed = free { rules = free.rules <> (tariffing p.us).rules }
   g <- orThrow (assemble (FromComposition parts) (strategyRulesBindings [ Tuple p.us tariffed, Tuple p.cn free, Tuple p.usFirm free, Tuple p.cnFirm free ]) [])
   r <- run (Seed 1) (withRounds (Just rounds) g)
   checkRun r.manifest.initial r.records `shouldEqual` []

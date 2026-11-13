@@ -8,11 +8,13 @@ import Prelude
 import Test.Server.Seed (serve)
 
 import Core.Shape (kindsNamed)
-import Data.Array (fromFoldable, sort)
+import Data.Array (elem, filter, fromFoldable, sort)
+import Data.Foldable (for_)
+import Assembly.Composition (enactable)
 import Data.Map as Map
 import Handlers.Llm.Call (interpretCall)
 import Handlers.Llm.Joint (jointRequest)
-import Laws.Types (idText, Actor, ActorId, Id(..), Transferability(..))
+import Laws.Types (idText, Actor, ActorId, FlowEffect(..), Id(..), RuleF(..), RuleForm(..), Transferability(..))
 import Data.Maybe (Maybe(..))
 
 import Test.Server.Host (testHost)
@@ -42,7 +44,7 @@ import Server.Stack (newServerCache)
 import Data.Argonaut.Core (stringify)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
-import Testkit.Run (pacificParts)
+import Testkit.Run (pacificParts, presetSeats)
 import Premises.Pacific as Pacific
 
 focus :: Focus
@@ -145,13 +147,29 @@ spec = describe "A second Premise" do
 
   it "a preset naming what the Composition lacks is refused" do
     isLeft (parts harbor { presets = [ Tuple "Bad" { rules: [ rule [] [ asTemplate (selfTransform { transformation: "no-such", quantity: lit 1 }) ] ], sign: [] } ] }) `shouldEqual` true
+  it "a live run offers the joint pass every Rule Pacific's seats can enact, each in its kind's declared form" do
+    pacificP <- pacificParts
+    game <- presetSeats pacificP [] "FreeTrade" Nothing
+    let
+      rules = enactable pacificP game.inWorld
+      kindOf = case _ of
+        FlowRule r -> r.kind
+        HoldingRule r -> r.kind
+      declared r = case r, map _.form (Map.lookup (kindOf r) game.world.ruleKinds) of
+        FlowRule { effect: Levy _ }, Just (LevyFlows _) -> true
+        FlowRule { effect: Block }, Just (BlockFlows _) -> true
+        HoldingRule _, Just ReduceHolding -> true
+        _, _ -> false
+    filter (not <<< declared) rules `shouldEqual` []
+    for_ [ "us-import-tariff", "cn-import-tariff", "us-import-ban", "cn-import-ban", "us-export-control", "cn-export-control", "us-asset-fee" ] \k ->
+      (k `elem` map (idText <<< kindOf) rules) `shouldEqual` true
   it "a joint pass over it offers this Composition's own names, for every kind a reply can hold" do
     case parts harbor of
       Left e -> fail e
       Right h -> do
         let
           world = h.composition.world
-          names = (jointRequest world 1 []).names
+          names = (jointRequest world [] 1 []).names
         sort (Object.keys names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
         Object.lookup "resource" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.resources)))
         Object.lookup "actor" names `shouldEqual` Just (map idText (fromFoldable (Map.keys world.actors)))

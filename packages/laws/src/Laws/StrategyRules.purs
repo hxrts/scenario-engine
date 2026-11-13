@@ -12,6 +12,7 @@ module Laws.StrategyRules
   , InWorld
   , ExchangeRef(..)
   , IntentTemplate
+  , enactableRules
   , selfName
   , selfId
   ) where
@@ -20,7 +21,11 @@ import Prelude
 
 import Core.Num (Q)
 import Laws.World (LegQuery)
-import Laws.Types (Id(..), BehaviorDomain, CollectiveProcedureId, ActorId, IntentF, ExchangeId, RuleKindId, StrategyId, CandidateTransactionF, ResourceId, TransformationId)
+import Laws.Types (Id(..), BehaviorDomain, CollectiveProcedureId, ActorId, IntentF(..), ExchangeId, RuleKindId, StrategyId, CandidateTransactionF, ResourceId, TransformationId, RuleChangeF(..), RuleF)
+import Data.Array (concatMap, mapMaybe, nubEq)
+import Data.Maybe (Maybe(..))
+import Data.Traversable (traverse)
+import Foreign.Object as Object
 import Data.Generic.Rep (class Generic)
 import Data.Map (Map)
 import Data.Show.Generic (genericShow)
@@ -125,3 +130,22 @@ derive instance Eq Expr
 derive instance Eq Cond
 derive instance Eq Template
 derive instance Eq SignRule
+
+-- | Every Rule the Strategies given can enact, in its declared form, with each parameter resolved from `params`: what
+-- | a reading of speech is offered to copy when a seat says it enacts a policy (docs/04 §11). A Rule whose terms are
+-- | not literals or parameters depends on the round, and is left out.
+enactableRules :: Object Q -> Array StrategyRules -> Array (RuleF Q)
+enactableRules params strategies = nubEq (mapMaybe resolve (concatMap (\s -> concatMap (\c -> concatMap rulesOf c.propose) s.rules) strategies))
+  where
+  rulesOf = case _ of
+    IntentT i -> ofIntent i
+    CandidateTransactionT t -> concatMap ofIntent t.intents
+    Choose ts -> concatMap rulesOf ts
+    _ -> []
+  ofIntent = case _ of
+    ChangeRule (Enact r) -> [ r ]
+    _ -> []
+  resolve = traverse case _ of
+    Lit q -> Just q
+    Param n -> Object.lookup n params
+    _ -> Nothing

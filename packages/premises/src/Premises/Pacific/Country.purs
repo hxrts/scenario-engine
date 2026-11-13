@@ -25,6 +25,7 @@ type Country =
   , demand :: StrategyId
   , commerce :: StrategyId
   , supply :: StrategyId
+  , tariffStrategy :: StrategyId -- the state enacting its tariff, which no preset does
   , good :: ResourceId
   , foreign :: ResourceId
   , capacity :: ResourceId
@@ -58,6 +59,7 @@ america =
   , demand: p.usPrivateDemand
   , commerce: p.usCommerce
   , supply: p.usSupply
+  , tariffStrategy: p.usTariff
   , good: p.technology
   , foreign: p.industry
   , capacity: p.technologyCapacity
@@ -91,6 +93,7 @@ china =
   , demand: p.cnPrivateDemand
   , commerce: p.cnCommerce
   , supply: p.cnSupply
+  , tariffStrategy: p.cnTariff
   , good: p.industry
   , foreign: p.technology
   , capacity: p.industryCapacity

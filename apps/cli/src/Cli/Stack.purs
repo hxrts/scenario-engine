@@ -15,6 +15,7 @@ import Adapters.Random (drawOsSeed)
 import Adapters.SQLite (open)
 import Cli.Session (Options, SESSION, evidenceDir)
 import Laws.World (WorldState)
+import Laws.Types (Rule)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effects.Launch (LAUNCHES)
@@ -41,8 +42,8 @@ runSystem :: Run (FILES + CONSOLE + ENTROPY + ()) ~> Aff
 runSystem = run (case_ # on _files (interpretFiles fileDevice) # on _console (interpretConsole console) # on _entropy (interpretEntropy system))
 
 -- | Programs over one joint pass of a backend, against a world.
-runInterpret :: Backend -> WorldState -> Run (INTERPRET + ()) ~> Aff
-runInterpret llm w = run (case_ # on _interpret \(Interpret round transcripts k) -> k <$> interpreter llm w round transcripts)
+runInterpret :: Backend -> Array Rule -> WorldState -> Run (INTERPRET + ()) ~> Aff
+runInterpret llm rules w = run (case_ # on _interpret \(Interpret round transcripts k) -> k <$> interpreter llm rules w round transcripts)
 
 -- | Programs that launch and store runs, over the store in the file named.
 runLaunches :: forall a. String -> Run (LAUNCHES + STORE + FILES + CONSOLE + ()) a -> Aff a

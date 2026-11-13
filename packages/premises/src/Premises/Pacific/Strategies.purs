@@ -11,6 +11,7 @@ module Premises.Pacific.Strategies
   , controlRule
   , banRule
   , tariffRule
+  , tariffing
   , inputParam
   , inputShare
   , outputParam
@@ -29,7 +30,7 @@ import Laws.Types (ActorId, Direction(..), FlowEffect(..), IntentF(..), LevyBasi
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Country (Country, countries, countryOf, level)
 import Premises.Pacific.Private (addQ, deposit, feeParam, lendTo, loan, loanShareParam, neg, ofForeign, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
-import Schema.Build.Decision (acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
+import Schema.Build.Decision (eqQ, roundQ, acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
 
 -- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §2). For a state: its trade barrier, its
 -- | industrial policy, and two at home (America's transfer and asset fee, China's financial repression and dollar
@@ -318,3 +319,9 @@ presets =
   -- under a US export control, China represses at the high setting. Its reserves stay on throughout
   kept = transformedLastRound { by: p.cnFirm, transformation: p.cnFirmProduction, atLeast: param viabilityParam }
   cautious = combine ([ statePolicy p.us (lv 0 0 0 0), withoutHome3 p.cn (lv 0 0 0 2), repression [ kept ] 0, repression [ not' kept ] 2 ] <> exporting)
+
+-- | A state enacting its import tariff in round 1: the tariff is a Rule kind no tool level or preset enacts (docs/05
+-- | §4.1), so the catalog holds it as a Strategy of its own, which a test or a cast can give the state, and from which a
+-- | live run's joint pass copies the tariff's form when a seat says it enacts one.
+tariffing :: ActorId -> StrategyRules
+tariffing a = { rules: [ rule [ eqQ roundQ (lit 1) ] [ asTemplate (selfEnact (tariffRule a)) ] ], sign: [] }

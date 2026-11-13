@@ -18,7 +18,7 @@ import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
-import Laws.Types (RefKind, ExchangeId, RoundIndex)
+import Laws.Types (RefKind, ExchangeId, RoundIndex, Rule)
 import Core.Map (values)
 import Schema.Joint (JointCandidateTransaction, ProposedJoint, Transcript, jointCandidateTransactions)
 import Data.Either (Either(..))
@@ -51,18 +51,19 @@ joint b request = go 0 original
 -- | decode after the corrections is a `Left` (the caller tells the speakers and submits nothing).
 -- | Entries the engine could not use are dropped by the joint pass rule (`Laws.candidate Transaction.jointProposals`).
 -- | `w` supplies only the ids and agreement templates, which no round changes, so the initial world serves.
-interpreter :: Backend -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
-interpreter b w round transcripts = do
+interpreter :: Backend -> Array Rule -> WorldState -> RoundIndex -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
+interpreter b rules w round transcripts = do
   let
     request :: JointRequest
-    request = jointRequest w round transcripts
+    request = jointRequest w rules round transcripts
   r <- joint b request
   pure (map (jointCandidateTransactions (\s -> Map.member s w.actors) transcripts) r)
 
 -- | The one way a joint pass's payload is built. Its names are the World's, for every kind the reply's description
--- | can name, so any Premise supplies them and none can leave a kind out.
-jointRequest :: forall r. Record (WorldFields r) -> RoundIndex -> Array Transcript -> JointRequest
-jointRequest w round transcripts = { round, transcripts, names: Object.fromFoldable (map entry kinds), templates: map templateTerms w.templates }
+-- | can name, so any Premise supplies them and none can leave a kind out; and the Rules a seat can enact, each in its
+-- | declared form, for the reply to copy.
+jointRequest :: forall r. Record (WorldFields r) -> Array Rule -> RoundIndex -> Array Transcript -> JointRequest
+jointRequest w rules round transcripts = { round, transcripts, names: Object.fromFoldable (map entry kinds), templates: map templateTerms w.templates, rules }
   where
   kinds = filter (\k -> show k `elem` kindsNamed interpretCall.wire.desc) (allValues :: Array RefKind)
   entry k = Tuple (show k) (namesOfKind w k)

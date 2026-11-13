@@ -24,7 +24,7 @@ import Core.Shape (objectValuesOf, mapOf, Format(..), Shape, arrayOf, field, int
 
 import Data.Map (Map)
 import Laws.World (TemplateTerms, View, viewShape)
-import Laws.Types (ActorId, RoundIndex, idShape)
+import Laws.Types (ActorId, RoundIndex, Rule, idShape, ruleShape)
 
 import Schema.Joint (ProposedJoint, Transcript, jointReplyShape, transcriptShape)
 import Data.Argonaut.Core (Json)
@@ -39,10 +39,10 @@ import Schema.Decode (decodeError)
 
 -- | The joint pass's payload: the round, its seat transcripts, the names a reply may use by
 -- | kind, and what each agreement needs.
-type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, names :: Object (Array String), templates :: Map String TemplateTerms }
+type JointRequest = { round :: RoundIndex, transcripts :: Array Transcript, names :: Object (Array String), templates :: Map String TemplateTerms, rules :: Array Rule }
 
 jointRequestShape :: Shape JointRequest
-jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), names: objectValuesOf (arrayOf stringShape), templates: (mapOf stringShape (recordShape "TemplateTerms" { params: arrayOf stringShape, parties: arrayOf stringShape })) }
+jointRequestShape = recordShape "JointRequest" { round: intShape, transcripts: (arrayOf transcriptShape), names: objectValuesOf (arrayOf stringShape), templates: (mapOf stringShape (recordShape "TemplateTerms" { params: arrayOf stringShape, parties: arrayOf stringShape })), rules: arrayOf ruleShape }
 
 -- | An AI-agent seat's payload: the seat, its briefing, and what it can see.
 type SpeakRequest = { explicitActor :: ActorId, briefing :: String, view :: View }

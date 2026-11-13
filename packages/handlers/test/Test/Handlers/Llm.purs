@@ -57,7 +57,7 @@ answerWith text = do
 
 -- | One joint pass over the transcripts.
 jointWith :: PreparedRun -> Backend -> Array Transcript -> Aff (Either String (Array JointCandidateTransaction))
-jointWith g backend ts = interpreter backend g.world 1 ts
+jointWith g backend ts = interpreter backend [] g.world 1 ts
 
 -- | The one candidate Transaction a joint pass must return.
 single :: Either String (Array JointCandidateTransaction) -> Aff JointCandidateTransaction
@@ -136,7 +136,7 @@ spec = do
 
     it "the payload names every kind a reply can hold, from the World played" do
       g <- pacificParts >>= unseated
-      let request = jointRequest g.world 1 []
+      let request = jointRequest g.world [] 1 []
       sort (Object.keys request.names) `shouldEqual` sort (kindsNamed interpretCall.wire.desc)
       Object.lookup "resource" request.names `shouldEqual` Just (map idText (fromFoldable (Map.keys g.world.resources)))
 

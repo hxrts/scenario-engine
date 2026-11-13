@@ -55,7 +55,7 @@ interpretLive d (PlayLive r k) = do
     , window: if r.window > 0 then Just (pausableDelay d.paused (r.window * 1000)) else Nothing
     , say: d.say
     , notify: \_ text -> liftEffect (d.say ("  " <> text))
-    , interpret: interpreter (d.llm Nothing) r.game.world
+    , interpret: interpreter (d.llm Nothing) r.rules r.game.world
     , speak: \model -> speak (d.llm model) r.briefing
     , record: \result transcripts -> do
         marked <- traverse (\t -> (\by -> t { enteredBy = by <|> t.enteredBy }) <$> d.enteredBy t.seat result.record.round) transcripts

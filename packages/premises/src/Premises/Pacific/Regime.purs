@@ -31,7 +31,7 @@ import Premises.Pacific.Dials (Dials, Investment)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Parts (Parts, emptyParts)
 import Premises.Pacific.Private (deposit, demandStrategies, firmBond, loan, usBond)
-import Premises.Pacific.Strategies (commerce, supply)
+import Premises.Pacific.Strategies (commerce, supply, tariffing)
 import Schema.Build.Agreement (agreement, clause, guard, onAction, perHeld, spawn, step)
 import Schema.Build.Base (arrears, bought, cumulative, everyRound, holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, producedOf, shortfallOf, volumeOf, (:=))
 import Schema.Build.Quantity (q)
@@ -79,7 +79,7 @@ regime d cfg = emptyParts
       ]
   , laws = map (\(Tuple t w) -> wageLaw t w) wageTable <> map upkeepLaw [ c.capacity, c.foreignCapacity ]
   , templates = concatMap bondTemplates cfg.bonds
-  , strategies = [ Tuple c.commerce (commerce c cfg.signs.state), Tuple c.supply (supply c cfg.signs.firm) ] <> filter (\x -> fst' x == c.demand) demandStrategies
+  , strategies = [ Tuple c.commerce (commerce c cfg.signs.state), Tuple c.supply (supply c cfg.signs.firm), Tuple c.tariffStrategy (tariffing c.state) ] <> filter (\x -> fst' x == c.demand) demandStrategies
   , requirements =
       [ need c.state c.good (Just cfg.needs.own)
       , need c.state c.foreign (Just cfg.needs.foreign)

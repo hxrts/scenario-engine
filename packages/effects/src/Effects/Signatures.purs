@@ -69,7 +69,7 @@ import Schema.Joint (JointCandidateTransaction, Transcript)
 import Schema.Run (RunStatus, Spec)
 import Core.Draw (Seed)
 import Laws.Engine.Commit (EngineError)
-import Laws.Types (ActorId, CandidateTransactionId, RoundIndex)
+import Laws.Types (ActorId, CandidateTransactionId, RoundIndex, Rule)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Assembly.Types (PreparedRun)
@@ -292,7 +292,8 @@ _play :: Proxy "play"
 _play = Proxy
 
 -- | A live session of a run already registered: its game and id, what the seats are briefed with, how
--- | long a propose window lasts in seconds (0 for none), and the lines shown after each round.
+-- | long a propose window lasts in seconds (0 for none), the lines shown after each round, and the Rules a seat can
+-- | enact, in their declared forms, which the joint pass copies (`Laws.StrategyRules.enactableRules`).
 type LiveRequest =
   { seed :: Seed
   , game :: PreparedRun
@@ -300,6 +301,7 @@ type LiveRequest =
   , window :: Int
   , briefing :: ActorId -> String
   , report :: RoundResult -> Array String
+  , rules :: Array Rule
   }
 
 -- | Play a live run and settle it: what the live handler (`Handlers.Session.interpretLive`) is given, by the host

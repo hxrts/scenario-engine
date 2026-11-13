@@ -2,7 +2,7 @@
 -- | composition, its instantiation configuration, and the shared seat presets; a literal premise is a
 -- | World State written out in full (fixtures). `checkComposition` is the one place a decoded
 -- | composition is validated against its configuration and against every StrategyRules it names.
-module Assembly.Composition (CompositionParts, Origin(..), checkComposition, checkRefs, presetNames, presetOr) where
+module Assembly.Composition (CompositionParts, Origin(..), checkComposition, checkRefs, enactable, presetNames, presetOr) where
 
 import Prelude
 
@@ -15,8 +15,8 @@ import Core.Map (entries, values)
 
 import World.Error (ValidationError(..))
 import World.Composition.Validate (Names, compositionNames, unknownNames, validateComposition)
-import Laws.StrategyRules (StrategyRules)
-import Laws.Types (Id(..), RefKind(..))
+import Laws.StrategyRules (InWorld, StrategyRules, enactableRules)
+import Laws.Types (Id(..), RefKind(..), Rule)
 import Laws.World (WorldState)
 import Data.Either (Either(..))
 import Data.Maybe (fromMaybe, maybe)
@@ -78,3 +78,8 @@ presetOr :: String -> CompositionParts -> String
 presetOr name p
   | name /= "" = name
   | otherwise = fromMaybe "" (p.config.preset <|> Array.head (presetNames p))
+
+-- | Every Rule a Strategy of the composition can enact, in its declared form: its presets' and its catalog's, with the
+-- | game's parameters (`enactableRules`). A live run's joint pass copies them.
+enactable :: CompositionParts -> InWorld -> Array Rule
+enactable parts inWorld = enactableRules inWorld.params (Object.values parts.presets <> values parts.composition.strategies)

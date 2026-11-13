@@ -48,7 +48,7 @@ check :: Aff Unit
 check = do
   w <- world
   let llm = backend { model: defaultModel, call: pi { model: defaultModel, rawDir: "work/live-interpret" }, digest: sha256 }
-  out <- interpreter llm w 1 transcripts
+  out <- interpreter llm [] w 1 transcripts
   js <- case out of
     Right js -> pure js
     Left why -> throwError (error ("the reply did not decode: " <> why))

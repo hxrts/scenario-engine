@@ -79,7 +79,7 @@ liveWith g0 n seat input backend = do
     , window: Nothing
     , say: \_ -> pure unit
     , notify: \_ text -> liftEffect (Ref.modify_ (_ <> [ text ]) notes)
-    , interpret: interpreter backend g.world
+    , interpret: interpreter backend [] g.world
     , speak: \_ -> speak backend (const "Secure energy at a fair price.")
     , record: \r _ -> Ref.modify_ (_ <> [ r ]) recs
     }
@@ -191,7 +191,7 @@ spec = do
         , window: Just (AVar.read closing)
         , say: \_ -> pure unit
         , notify: \_ _ -> pure unit
-        , interpret: interpreter backend g.world
+        , interpret: interpreter backend [] g.world
         , speak: \_ -> speak backend (const "")
         , record: \_ _ -> pure unit
         }

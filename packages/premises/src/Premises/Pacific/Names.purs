@@ -68,6 +68,8 @@ type Names =
   , cnCommerce :: StrategyId
   , usSupply :: StrategyId
   , cnSupply :: StrategyId
+  , usTariff :: StrategyId
+  , cnTariff :: StrategyId
   , usPrivateDemand :: StrategyId
   , cnPrivateDemand :: StrategyId
   , rowSavings :: StrategyId
@@ -121,6 +123,8 @@ p =
   , cnCommerce: Id "cn-commerce-v0"
   , usSupply: Id "us-supply-v0"
   , cnSupply: Id "cn-supply-v0"
+  , usTariff: Id "us-tariff-v0"
+  , cnTariff: Id "cn-tariff-v0"
   , usPrivateDemand: Id "us-private-demand-v0"
   , cnPrivateDemand: Id "cn-private-demand-v0"
   , rowSavings: Id "row-savings-v0"
