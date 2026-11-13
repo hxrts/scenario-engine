@@ -18,18 +18,18 @@ async function castWithoutAgents(page) {
 }
 
 // The value of one fact of the live run's state, by its exact label.
-const fact = (page, name) => section(page, "Live run").locator("dt").filter({ hasText: new RegExp("^" + name + "$") }).locator("xpath=following-sibling::dd[1]");
+const fact = (page, name) => section(page, "State and controls").locator("dt").filter({ hasText: new RegExp("^" + name + "$") }).locator("xpath=following-sibling::dd[1]");
 
 test("with no live run the page says so, and a production start with blank fields is refused, naming each", async ({ page }) => {
   await page.goto("/admin/#/live");
-  await expect(section(page, "Live run").getByText("No live run yet. Start one below.")).toBeVisible();
+  await expect(section(page, "State and controls").getByText("No live run yet. Start one below.")).toBeVisible();
   const start = await castWithoutAgents(page);
   await start.getByRole("combobox", { name: "Tag", exact: true }).selectOption("production");
   await expect(start.getByText("Name (required)", { exact: true })).toBeVisible();
   await expect(start.getByText("Player of US (required)", { exact: true })).toBeVisible();
   await start.getByRole("button", { name: "Start", exact: true }).click();
   await expect(start.getByText(/missing: name, facilitator, date, venue, players\.US/)).toBeVisible();
-  await expect(section(page, "Live run").getByText("No live run yet. Start one below.")).toBeVisible();
+  await expect(section(page, "State and controls").getByText("No live run yet. Start one below.")).toBeVisible();
 });
 
 test("a mock run starts from the form, takes a facilitator's text, advances, pauses and resumes, and ends", async ({ page }) => {
@@ -42,7 +42,7 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await expect(fact(page, "Awaiting")).toHaveText("US");
   const id = (await fact(page, "Run").textContent()).replace(" (mock)", "");
   // the facilitator enters the US's text (here, nothing): the round closes
-  const live = section(page, "Live run");
+  const live = section(page, "State and controls");
   await live.getByRole("button", { name: "Submit for US", exact: true }).click();
   await expect(fact(page, "Round")).toHaveText("2");
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
@@ -58,7 +58,7 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   // the run's results and balance sheets show beneath, and it is listed among the past runs, tagged mock
   await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + id + "/") }).first()).toBeVisible();
-  await expect(rowWith(section(page, "Past interactive runs"), [id, "rehearsal", "completed", "interactive", "mock"])).toHaveCount(1);
+  await expect(rowWith(section(page, "Past runs"), [id, "rehearsal", "completed", "interactive", "mock"])).toHaveCount(1);
 });
 
 test("a live run can be cleared, and clear and start replaces it", async ({ page }) => {
@@ -73,14 +73,14 @@ test("a live run can be cleared, and clear and start replaces it", async ({ page
   await expect(start.getByText("Run " + first + " is live. Starting another clears it first.")).toBeVisible();
   await start.getByRole("button", { name: "Clear and start", exact: true }).click();
   await expect(fact(page, "Run")).not.toHaveText(first + " (mock)");
-  await expect(rowWith(section(page, "Past interactive runs"), [first, "cleared"])).toHaveCount(1);
-  await section(page, "Live run").getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(rowWith(section(page, "Past runs"), [first, "cleared"])).toHaveCount(1);
+  await section(page, "State and controls").getByRole("button", { name: "Clear", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("cleared");
 });
 
 test("a past run opens its results and balance sheets from the list", async ({ page }) => {
   await page.goto("/admin/#/live");
-  const past = section(page, "Past interactive runs");
+  const past = section(page, "Past runs");
   // a run that is no longer live: its results are not already shown as the live run's
   const firstId = await rowWith(past, ["completed"]).first().getByRole("cell").first().textContent();
   await past.getByRole("button", { name: firstId, exact: true }).first().click();

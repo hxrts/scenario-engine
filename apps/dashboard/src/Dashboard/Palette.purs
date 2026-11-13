@@ -1,8 +1,8 @@
 -- | The colours and labels of the plots and their legends, in one place. A metric chart's series get a
--- | colour by position; the compared runs get a theme colour by their position among the ids, so a run
--- | keeps its colour in every plot and in the choice list. The theme has five chart colours, which repeat
--- | after the fifth run; each is a theme variable, so both themes use the same plots.
-module Dashboard.Palette (seriesColour, runColour, runSwatch, runLabel) where
+-- | colour by position; the compared runs get a colour by their position among the ids, so a run keeps its colour in
+-- | every plot and in the choice list: the theme's five chart colours first, then distinct hues, so any number of runs
+-- | can be told apart.
+module Dashboard.Palette (seriesColour, runColour, runLabel) where
 
 import Prelude
 
@@ -14,22 +14,14 @@ import Data.Maybe (fromMaybe)
 seriesColour :: Int -> String
 seriesColour i = "hsl(" <> show ((i * 137) `mod` 360) <> " 70% 58%)"
 
--- | The position of a run among the compared ids, folded onto the five theme colours.
+-- | The position of a run among the compared ids.
 slot :: Array String -> String -> Int
-slot ids id = fromMaybe 0 (elemIndex id ids) `mod` 5
+slot ids id = fromMaybe 0 (elemIndex id ids)
 
--- | A run's plot colour: a theme chart variable (`--chart-1` to `--chart-5`).
+-- | A run's plot colour: a theme chart variable (`--chart-1` to `--chart-5`) for the first five runs, then a
+-- | distinct hue for each run after them.
 runColour :: Array String -> String -> String
-runColour ids id = "var(--chart-" <> show (slot ids id + 1) <> ")"
-
--- | A run's swatch class: the same theme colour, named in full so Tailwind finds each class.
-runSwatch :: Array String -> String -> String
-runSwatch ids id = case slot ids id of
-  0 -> "bg-[var(--chart-1)]"
-  1 -> "bg-[var(--chart-2)]"
-  2 -> "bg-[var(--chart-3)]"
-  3 -> "bg-[var(--chart-4)]"
-  _ -> "bg-[var(--chart-5)]"
+runColour ids id = let i = slot ids id in if i < 5 then "var(--chart-" <> show (i + 1) <> ")" else seriesColour (i + 3)
 
 -- | A run's legend label: its id, and the word `baseline` for the comparison's baseline run.
 runLabel :: String -> String -> String

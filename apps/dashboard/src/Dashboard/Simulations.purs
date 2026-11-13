@@ -47,7 +47,7 @@ mkSimulations grid = do
         _ -> []
     pure $ Layout.page
       { title: "Simulations"
-      , purpose: "The static suite: one run per preset, and one agency run per seat on its alternative preset, played at build time and reused while nothing that decides them has changed."
+      , purpose: "The static suite: one run per preset, and one run per seat playing its alternative, played at build time and reused while nothing that decides them has changed."
       , children:
           [ loaded list.value \t ->
               let
@@ -58,18 +58,15 @@ mkSimulations grid = do
                 nameOf id = maybe id _.name (find (\r -> r.id == id) runs)
               in
                 if null runs then note "No simulated run yet: play the suite with `just suite`."
-                else D.div
-                  { className: "flex min-w-0 flex-col gap-section"
-                  , children:
-                      [ Layout.section
-                          { title: "Suite runs"
-                          , purpose: "Every simulated run. Click one to open its results below."
-                          , children: [ runButtons presetNames runs current ]
-                          }
-                      , comparison { ids: ordered, names: nameOf, initial: [ baseline ] }
-                      , runPage { id: current }
-                      ]
-                  }
+                else React.fragment
+                  [ Layout.group
+                      { title: "Choose a run"
+                      , purpose: "Every run of the suite by name: one per preset, then one per seat playing its alternative. The run chosen opens in The selected run, at the foot of the page."
+                      , children: [ runButtons presetNames runs current ]
+                      }
+                  , comparison { ids: ordered, names: nameOf, initial: [ baseline ] }
+                  , runPage { id: current, title: "The selected run: " <> nameOf current, purpose: "One run in full: its facts, then the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }
+                  ]
           ]
       }
 
@@ -77,7 +74,7 @@ mkSimulations grid = do
 -- | own), the open one marked; a run that did not complete says so.
 runButtons :: Array String -> Array Listed -> String -> JSX
 runButtons presetNames runs current = D.div
-  { className: "flex min-w-0 flex-col gap-3"
+  { className: "flex min-w-0 flex-col gap-stack"
   , children: [ group "Presets" presets, group "Agency runs" agency ]
   }
   where
@@ -87,13 +84,13 @@ runButtons presetNames runs current = D.div
   group title rs =
     if null rs then D.span_ []
     else D.div
-      { className: "flex flex-wrap items-center gap-2"
-      , children: [ D.span { className: "w-28 shrink-0 text-sm text-muted-foreground", children: [ D.text title ] } ] <> map button rs
+      { className: "flex min-w-0 flex-col gap-2"
+      , children: [ Layout.caption title, D.div { className: "flex flex-wrap gap-2", children: map button rs } ]
       }
   button r = D.button
     { key: r.id
     , title: r.id
-    , className: "rounded-md border px-3 py-1 text-sm " <> (if r.id == current then "border-foreground bg-accent font-medium" else "border-border hover:bg-accent")
+    , className: "rounded-md border px-3 py-1 text-sm font-medium transition-colors " <> (if r.id == current then "border-foreground bg-accent text-foreground" else "border-border text-muted-foreground hover:bg-accent hover:text-foreground")
     , onClick: handler_ (navigate (Simulation r.id))
     , children: [ D.text (r.name <> (if r.ok then "" else " (failed)")) ]
     }

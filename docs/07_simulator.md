@@ -333,22 +333,23 @@ The Dashboard is served at `/admin`, behind the password (§8.3). It has two pag
 
 ### 9.1 Simulations
 
-Simulations shows the static suite (§3), its default preset's run open to start:
+Simulations shows the static suite (§3) in four groups, in order, each with a one-line description, its default preset's run open to start:
 
-- **Suite runs.** One button per simulated run, by name: the presets' runs, then the agency runs. A run that did not complete says so. Selecting one, or opening `#/simulations/:id`, opens it below.
-- **The runs at a glance.** One row per run, by name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`).
-- **Plotted runs.** Up to five runs are ticked for the plots, one per chart colour, the default preset's run first and the baseline. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
+- **Choose a run.** One button per simulated run, by name: the presets' runs, then the agency runs. A run that did not complete says so. Selecting one, or opening `#/simulations/:id`, opens it in the last group.
+- **Compare the runs.** First the runs at a glance: one row per run, by name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`).
+Then the runs to plot: any number of runs ticked, the default preset's run first and the baseline, each in its own colour. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
 - **Agency.** Each agency run against the preset run it deviates from, and its seat's criteria under each (§10.3).
-- **The open run.** Its results (§9.3), set apart beneath a rule.
+- **The selected run.** Its results (§9.3).
 
 ### 9.2 Live
 
-Live shows the one live run (§8.2) and the past interactive runs. The live run's state is read every second and a half:
+Live shows the one live run (§8.2) and the past interactive runs in groups, in order, each with a one-line description. The live run's state is read every second and a half:
 
-- **Live run.** Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
+- **The live run.** Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
 - **Start a live run.** The composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field. When a run is live the form says so and starts with "Clear and start", which clears it first.
-- **The live run's balance sheets and results so far** (§9.4, §9.3).
-- **Past interactive runs.** A table of every interactive run with its tag; selecting one opens its balance sheets and results.
+Its balance sheets (§9.4) are beside its controls.
+- **The live run's results** so far (§9.3).
+- **Past runs.** A table of every interactive run with its tag; selecting one shows its balance sheets, and its results follow in **The selected past run**.
 
 ### 9.3 Run Details
 

@@ -7,7 +7,7 @@ import { rowWith, section } from "./helpers.js";
 
 test("the suite's runs are buttons by name, presets apart from agency runs, and FreeTrade opens first", async ({ page }) => {
   await page.goto("/admin/#/simulations");
-  const runs = section(page, "Suite runs");
+  const runs = section(page, "Choose a run");
   for (const name of ["Adaptive", "FreeTrade", "Substitute", "FreeTrade with CN on Hawk", "FreeTrade with US-firm on Builder"])
     await expect(runs.getByRole("button", { name, exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Run run-6" })).toBeVisible();
@@ -24,15 +24,15 @@ test("the runs at a glance: one row per run by name, with its leader, spread, Gi
   await expect(glance.getByRole("row")).toHaveCount(23);
 });
 
-test("the plots draw the ticked runs only, named in their legends, at most five", async ({ page }) => {
+test("the plots draw the ticked runs only, as many as are ticked, named in their legends", async ({ page }) => {
   await page.goto("/admin/#/simulations");
-  const chooser = section(page, "Plotted runs");
+  const chooser = section(page, "Runs to plot");
   const plot = page.getByRole("figure", { name: "Price, usd-rmb", exact: true });
   await expect(plot.locator(".recharts-line")).toHaveCount(1);
   await expect(plot.getByText("FreeTrade (baseline)", { exact: true })).toBeVisible();
-  for (const name of ["Hawk", "Restrict", "StatusQuo", "Rebalance", "Ban"])
+  for (const name of ["Hawk", "Restrict", "StatusQuo", "Rebalance", "Ban", "Builder", "Patron"])
     await chooser.locator("label").filter({ hasText: new RegExp("^" + name + "$") }).getByRole("checkbox").click();
-  await expect(plot.locator(".recharts-line")).toHaveCount(5);
+  await expect(plot.locator(".recharts-line")).toHaveCount(8);
   await expect(plot.getByText("Hawk", { exact: true })).toBeVisible();
   // a price no plotted run moves is not plotted
   await expect(page.getByRole("figure", { name: "Price, industry-world", exact: true })).toHaveCount(0);

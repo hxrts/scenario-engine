@@ -87,6 +87,7 @@ mkLive grid = do
         Just (Right st) -> Just st
         _ -> Nothing
       live = maybe false (\st -> st.status == Running) current
+      pastSelected = p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id
 
       pastRuns :: RunList -> JSX
       pastRuns t =
@@ -98,25 +99,32 @@ mkLive grid = do
           }
     pure $ Layout.page
       { title: "Live"
-      , purpose: "The one live run: start it, follow it round by round, take a facilitator's text for a seat, and drive its lifecycle. Below it, every past interactive run."
+      , purpose: "The one live run, followed round by round and driven from here, then every past interactive run."
       , children:
-          [ Layout.section
-              { title: "Live run"
-              , purpose: "The run being played: its round, whether it is paused or ending after this round, and which human seats have spoken."
-              , children: [ maybe (note "No live run yet. Start one below.") (\st -> controls { state: st, bump }) current ]
+          [ Layout.group
+              { title: "The live run"
+              , purpose: "The run being played: its round and status, the human seats it is waiting on, its controls, and each Actor's balance sheet to hand to whoever plays it."
+              , children:
+                  [ Layout.subsection
+                      { title: "State and controls"
+                      , purpose: "Advance the round, pause or resume its clock, end it after this round, or clear it. A facilitator can enter the text of an awaited human seat."
+                      , children: [ maybe (note "No live run yet. Start one below.") (\st -> controls { state: st, bump }) current ]
+                      }
+                  , maybe (D.span_ []) (\st -> Layout.subsection { title: "Balance sheets", purpose: "Each Actor's own page for the live run. A page shows only that Actor's data.", children: [ links st.id ] }) current
+                  ]
               }
-          , Layout.section
+          , Layout.group
               { title: "Start a live run"
-              , purpose: "A mock run, or a production run, which needs its name, facilitator, date, venue and a player for each human seat."
+              , purpose: "Choose the composition, who plays each seat, the rounds and window, and the run's tag and metadata. A production run needs its name, facilitator, date, venue and a player for each human seat."
               , children: [ start { live, liveId: maybe "" _.id current, bump } ]
               }
-          , maybe (D.span_ []) (\st -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ Layout.section { title: "Balance sheets", purpose: "Each Actor's own page for the live run, to hand to whoever plays it.", children: [ links st.id ] }, runPage { id: st.id } ] }) current
-          , Layout.section
-              { title: "Past interactive runs"
-              , purpose: "Every interactive run, live or past, with its tag. Click one to open its results and balance sheets."
-              , children: [ loaded past.value \t -> pastRuns t ]
+          , maybe (D.span_ []) (\st -> runPage { id: st.id, title: "The live run's results", purpose: "The live run so far: its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
+          , Layout.group
+              { title: "Past runs"
+              , purpose: "Every interactive run, live or past, with its tag. Click one to open it below."
+              , children: [ loaded past.value \t -> pastRuns t ] <> maybe [] (\id -> [ Layout.subsection { title: "Balance sheets of " <> id, purpose: "Each Actor's own page for the selected past run.", children: [ links id ] } ]) pastSelected
               }
-          , maybe (D.span_ []) (\id -> D.div { className: "flex min-w-0 flex-col gap-section", children: [ Layout.section { title: "Balance sheets of " <> id, purpose: "Each Actor's own page for the selected past run.", children: [ links id ] }, runPage { id } ] }) (p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id)
+          , maybe (D.span_ []) (\id -> runPage { id, title: "The selected past run: " <> id, purpose: "One past run in full: its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) pastSelected
           ]
       }
 
@@ -215,8 +223,8 @@ view cs c form setForm failure setFailure p = D.div
               , labelled (D.text "Player seed (blank draws one)") (textInput { value: form.seed, required: false, onChange: \v -> setForm form { seed = v } })
               ]
           }
-      , Layout.captioned "Cast" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2", children: c.castable <#> castRow } ]
-      , Layout.captioned "Metadata" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2", children: metadataFields <> playerFields } ]
+      , Layout.captioned "Cast" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3", children: c.castable <#> castRow } ]
+      , Layout.captioned "Metadata" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3", children: metadataFields <> playerFields } ]
       , D.div { className: "flex gap-2", children: [ element UI.button { onClick: handler_ (submit p.live), children: [ D.text (if p.live then "Clear and start" else "Start") ] } ] }
       , errorBlock failure
       ]

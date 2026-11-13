@@ -4,7 +4,20 @@
 -- |   * section: a titled group of content, stacked with `gap-stack`
 -- |   * grid: a 12-column grid of panels
 -- |   * panel: a card placed on `span` of the 12 columns (full width below `lg`)
-module Dashboard.Layout (Tab, topBar, page, section, grid, panel, tabbed, caption, captioned, purpose) where
+module Dashboard.Layout
+  ( Tab
+  , topBar
+  , page
+  , section
+  , grid
+  , panel
+  , tabbed
+  , caption
+  , captioned
+  , purpose
+  , group
+  , subsection
+  ) where
 
 import Prelude
 
@@ -43,6 +56,38 @@ page p = D.div
               ]
           }
       ] <> p.children
+  }
+
+-- | A group: one of a page's top-level blocks, in the order the page reads. A rule above it sets it apart from the one
+-- | before; its heading and a one-line description say what is in it; its subsections follow at one spacing.
+group :: { title :: String, purpose :: String, children :: Array JSX } -> JSX
+group g = D.section
+  { className: "flex min-w-0 flex-col gap-section border-t border-border pt-section"
+  , children:
+      [ D.div
+          { className: "flex flex-col gap-1"
+          , children:
+              [ D.h2 { className: "text-xl font-semibold tracking-tight", children: [ D.text g.title ] }
+              , purpose g.purpose
+              ]
+          }
+      ] <> g.children
+  }
+
+-- | A subsection of a group: a smaller heading, its one-line description, and its content.
+subsection :: { title :: String, purpose :: String, children :: Array JSX } -> JSX
+subsection s = D.section
+  { className: "flex min-w-0 flex-col gap-stack"
+  , children:
+      [ D.div
+          { className: "flex flex-col gap-1"
+          , children:
+              [ D.h3 { className: "text-base font-semibold", children: [ D.text s.title ] }
+              , purpose s.purpose
+              ]
+          }
+      , D.div { className: "flex min-w-0 flex-col gap-stack", children: s.children }
+      ]
   }
 
 -- | A titled group of content inside a page.

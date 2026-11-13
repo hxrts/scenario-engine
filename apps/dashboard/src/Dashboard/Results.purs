@@ -43,7 +43,7 @@ header :: Lookup -> String -> Array Fact -> JSX
 header glossary id facts = D.div
   { className: "flex min-w-0 flex-col gap-2"
   , children:
-      [ D.h2 { className: "text-lg font-semibold", children: [ D.text ("Run " <> id) ] }
+      [ D.h3 { className: "text-base font-semibold", children: [ D.text ("Run " <> id) ] }
       , D.dl
           { className: "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm"
           , children: facts >>= \f ->
@@ -93,7 +93,7 @@ mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-section"
     , children:
-        [ Layout.section
+        [ Layout.subsection
             { title: "Who is trapped, and how tightly?"
             , purpose: "The run's headline at the round chosen. For each country: its substitute gap (what making a good it imports costs in wages, less what importing it costs: above 0, its own industry stands idle), its net external position, and how much of its own output its households absorb. For each seat: what it owes over what it sells, and how far its every-round criteria cleared their bounds in the worst round so far."
             , children:
@@ -102,12 +102,12 @@ mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
                 , viewAt (Keys.viewKey @"Indicators") (titled grid <<< atRound <<< _.seats)
                 ]
             }
-        , Layout.section
+        , Layout.subsection
             { title: "National regimes"
             , purpose: "How each country reproduces itself, the same three panels for each: its productive capability (capacity, the competence to run it, what ran and what stood idle), its effective demand (what its households earned, spent and saved, and what it sold at home and abroad), and its financial capacity (what it is owed, what it owes, and what it paid on its debts). A country with no productive capacity is left out."
             , children: [ view (Keys.viewKey @"Regimes") \rs -> let held = filter (\r -> not (null r.capability.rows)) rs in if null held then note "No country in this run holds productive capacity." else D.div { className: "flex min-w-0 flex-col gap-section", children: map regimePanels held } ]
             }
-        , Layout.section
+        , Layout.subsection
             { title: "International clearing"
             , purpose: "What moves between the countries: the goods traded across each border, the exchange rate and every Exchange's price, the capital lent and repaid across borders, each country's current account, and the Rules that stand at the borders."
             , children:
@@ -118,7 +118,7 @@ mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
                 , view (Keys.viewKey @"Clearing") (\c -> if null c.rules.rows then note "No Rule stands at a border in this run." else titled grid c.rules)
                 ]
             }
-        , Layout.section
+        , Layout.subsection
             { title: "Seat scorecards"
             , purpose: "Each seat's criteria, met, not met or not evaluated, with the measured values. A state's security and industry read its regime's capability panel; its viability and prosperity, its demand panel; a firm's wealth and output, its finance and capability panels."
             , children: [ view (Keys.viewKey @"Objectives") (titled grid) ]
