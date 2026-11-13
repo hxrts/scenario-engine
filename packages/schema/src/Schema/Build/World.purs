@@ -92,7 +92,7 @@ fromExecutor resource perUnit = { resource, from: Executor, perUnit }
 
 -- | An Exchange with no terms; its id comes from its key.
 noExchange :: Exchange
-noExchange = { id: Id "", base: Id "", quote: Id "", cost: { intercept: Q.zero, slope: Q.zero, domain: { lo: Q.zero, hi: Q.zero } }, position: Q.zero, reserves: Map.empty, access: [], adjustment: Q.zero }
+noExchange = { id: Id "", base: Id "", quote: Id "", cost: { intercept: Q.zero, slope: Q.zero, domain: { lo: Q.zero, hi: Q.zero } }, position: Q.zero, reserves: Map.empty, access: [], reserveParty: Nothing }
 
 -- | An Actor with no holdings or capabilities; its id and seat come from its key.
 noActor :: Actor

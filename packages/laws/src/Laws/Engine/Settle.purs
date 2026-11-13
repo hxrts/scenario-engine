@@ -34,7 +34,6 @@ import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Core.Types as Core
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
 import Data.Tuple (Tuple(..), fst)
 
@@ -43,7 +42,6 @@ import Data.Tuple (Tuple(..), fst)
 type Settlement =
   { ledger :: Ledger
   , positions :: Map ExchangeId Q
-  , intercepts :: Map ExchangeId Q -- each adjusting Exchange's next intercept (docs/02 §5.6)
   , spawned :: Array PendingTransaction
   , events :: Array Event
   }
@@ -56,7 +54,7 @@ settle w due scaled0 =
     -- a joint candidate Transaction settles as a unit (docs/02 §3.3), so its inputs are checked before any settled Flow moves
     { yes: short, no: scaled } = partition (jointShort w allocation) afterPools
     shortEvents = concatMap (\s -> map (rejection w.round s.item.candidateTransaction.id <<< InputsNotHeld) (shortInputs w allocation s)) short
-    start = { ledger: due.ledger, positions: Map.empty, intercepts: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
+    start = { ledger: due.ledger, positions: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
       [ exchanges w scaled
@@ -175,8 +173,8 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
   -- and escrow funds them (docs/02 §8.2). Their quote settled Flow is escrowed at the limit or the domain ceiling.
   -- Each cleared pair settles as one transaction between its two sides (docs/02 §5.5). A flows Rule applies to
   -- the base moving from the seller to the buyer as it does to a Transfer: a Block refuses the pair, and a Levy
-  -- is charged to the seller with it, once (docs/03 §5.5). The reserve has no jurisdiction, so no Rule applies
-  -- to a pair with the reserve. Trade fills are not capped by `pay`: clearing bounds them by the Exchange's
+  -- is charged to the seller with it, once (docs/03 §5.5). The reserve answers to Rules as the Exchange's
+  -- reserveParty, when it names one; with none, no Rule applies to a pair with the reserve. Trade fills are not capped by `pay`: clearing bounds them by the Exchange's
   -- domain and reserves, and escrow funds them (docs/02 §8.2).
   clearOne acc (Tuple id m) =
     let
@@ -185,7 +183,11 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
       actorOf = case _ of
         Party o -> Just o.actor
         Reserve -> Nothing
-      blockOn x = case actorOf x.seller, actorOf x.buyer of
+      -- who a side is for Rules: its order's Actor, or the Exchange's reserveParty for the reserve
+      ruledAs = case _ of
+        Party o -> Just o.actor
+        Reserve -> m.reserveParty
+      blockOn x = case ruledAs x.seller, ruledAs x.buyer of
         Just from, Just to -> blockOf w { from, to, resource: m.base }
         _, _ -> Nothing
       { yes: settling, no: refused } = partition (isNothing <<< blockOn) r.pairs
@@ -211,7 +213,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
       settlePair a x = maybe a (\who -> settleWith who a x) (answerers x)
       settleWith { sellerActor, buyerActor } a x =
         let
-          levies = case actorOf x.seller, actorOf x.buyer of
+          levies = case ruledAs x.seller, ruledAs x.buyer of
             Just from, Just to -> filter (\l -> l.amount > Q.zero) (leviesOn w { from, to, resource: m.base } x.quantity)
             _, _ -> []
           cause = OfMatch { exchange: id, buyer: ref x.buyer, seller: ref x.seller }
@@ -229,7 +231,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
           charged = foldl (\a (Tuple (Tuple actor _) q) -> applyActionLaws w actor (idText id) q a) paired (entries settledBy)
         in
           addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
-            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions, intercepts = adjusted m r charged.intercepts }
+            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions }
 
 -- | Settle one candidate Transaction's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule delayed flows.
@@ -323,15 +325,3 @@ transfer w cause from to resource quantity st
 -- | What an Actor holds after the settlement so far.
 net :: WorldState -> ActorId -> ResourceId -> Settlement -> Q
 net w e r st = Q.add (holding w e r) (lookupQ (Tuple (Ent e) r) st.ledger)
-
--- | An adjusting Exchange's price after its round (docs/02 §5.6): it moves by its adjustment times the gap between what
--- | its orders asked to buy and to sell, as a share of the larger, so a shortage raises it and a glut lowers it, by at
--- | most the adjustment. Its curve's intercept carries the move, so its slope and position still apply.
-adjusted :: forall r. Core.Exchange -> { price :: Q, demand :: Q, supply :: Q | r } -> Map ExchangeId Q -> Map ExchangeId Q
-adjusted m r acc =
-  let
-    larger = if r.demand > r.supply then r.demand else r.supply
-  in
-    case Q.divMaybe (Q.sub r.demand r.supply) larger of
-      Just gap | m.adjustment /= Q.zero -> Map.insert m.id (Q.add m.cost.intercept (Q.mul (Q.mul r.price m.adjustment) gap)) acc
-      _ -> acc

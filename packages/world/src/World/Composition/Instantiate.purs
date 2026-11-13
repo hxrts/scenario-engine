@@ -88,7 +88,7 @@ applyFallback w (Tuple e fb) = case fb of
   ImplicitCoverage agg -> mergeInto agg e w
 
 -- | Implicit coverage: the Actor's accounts, procedure weight, exchange access,
--- | circulation, and jurisdiction pass to the Aggregate that covers it.
+-- | circulation, and reserveParty pass to the Aggregate that covers it.
 mergeInto :: ActorId -> ActorId -> UnseededWorld -> UnseededWorld
 mergeInto agg e w = case Map.lookup e w.actors of
   Nothing -> w

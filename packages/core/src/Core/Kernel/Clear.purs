@@ -41,20 +41,21 @@ type Cleared r =
   , pairs :: Array (Pair r)
   , rejected :: Array (Order r)
   , unpaid :: Array (Order r)
-  -- what the batch's orders asked to buy and to sell, before any limit or reserve: the gap a price adjusts by
-  , demand :: Quantity
-  , supply :: Quantity
   }
 
 -- | Clear an Exchange's batch, given in canonical order.
 clearSolvent :: forall r. Exchange -> Array (Order r) -> Cleared r
 clearSolvent m orders =
-  { price: result.price, net: result.net, fills: result.fills, pairs: pairsOf result.net result.fills, rejected: result.rejected, unpaid, demand: Q.sumQ (map _.quantity (filter (\o -> o.quantity > Q.zero) orders)), supply: Q.neg (Q.sumQ (map _.quantity (filter (\o -> o.quantity < Q.zero) orders))) }
+  { price: result.price, net: result.net, fills: result.fills, pairs: pairsOf result.net result.fills, rejected: result.rejected, unpaid }
   where
   limits = bounds m
   first = Exchange.clear m.cost m.position limits orders
-  quoteIn = Q.sumQ (map (\f -> Q.mul first.price f.quantity) first.fills)
-  solvent = Q.add (lookupQ m.quote m.reserves) quoteIn >= Q.zero
+  -- what the reserve takes in and pays out over its own pairs, each priced as settlement prices it
+  reserveFlow = Q.sumQ (map (\x -> Q.sub (sideOf x.seller x) (sideOf x.buyer x)) (pairsOf first.net first.fills))
+  sideOf side x = case side of
+    Reserve -> Q.mul first.price x.quantity
+    Party _ -> Q.zero
+  solvent = Q.add (lookupQ m.quote m.reserves) reserveFlow >= Q.zero
   result = if solvent then first else Exchange.clear m.cost m.position limits (filter (\o -> o.quantity > Q.zero) orders)
   unpaid = if solvent then [] else filter (\o -> o.quantity < Q.zero) orders
 

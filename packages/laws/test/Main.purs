@@ -59,8 +59,8 @@ genCapability = oneOf $ cons' (MayTrade <$> genId)
 
 genRule :: Gen Rule
 genRule = oneOf $ cons'
-  ((\j o r -> tariffR { jurisdiction: j, origin: o, rate: r }) <$> genId <*> genId <*> genQ)
-  [ (\j t -> banR { jurisdiction: j, target: t }) <$> genId <*> genId
+  ((\j o r -> tariffR { reserveParty: j, origin: o, rate: r }) <$> genId <*> genId <*> genQ)
+  [ (\j t -> banR { reserveParty: j, target: t }) <$> genId <*> genId
   , (\c u -> holdR { capacity: c, units: u }) <$> genId <*> genQ
   ]
 
@@ -177,7 +177,7 @@ fillIn exchangeId who r = Q.sumQ (map snd (filter (\(Tuple m _) -> m == exchange
 -- | The Exchange record as hand-written fields, which `recordShape` must reproduce (format pin).
 exchangeObject :: Shape Exchange
 exchangeObject = object "Exchange"
-  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _, adjustment: _ }
+  ( { id: _, base: _, quote: _, cost: _, position: _, reserves: _, access: _, reserveParty: _ }
       <$> fieldOf "id" "" idShape _.id
       <*> fieldOf "base" "" idShape _.base
       <*> fieldOf "quote" "" idShape _.quote
@@ -185,7 +185,7 @@ exchangeObject = object "Exchange"
       <*> fieldOf "position" "" qShape _.position
       <*> fieldOf "reserves" "" (mapOf idShape qShape) _.reserves
       <*> fieldOf "access" "" (Shape.arrayOf idShape) _.access
-      <*> fieldOf "adjustment" "" (Shape.defaultsTo Q.zero qShape) _.adjustment
+      <*> fieldOf "reserveParty" "" (Shape.optionalOf idShape) _.reserveParty
   )
 
 main :: Effect Unit
@@ -402,11 +402,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let w = baseWorld [ explicitActor "US" [] ]
       rejections (resolveRound w [ submit "US" 0 [], submit "US" 0 [] ])
         `shouldEqual` [ "duplicate candidateTransaction id", "duplicate candidateTransaction id" ]
-    it "a procedure's enactment is limited to its own jurisdiction" do
+    it "a procedure's enactment is limited to its own reserveParty" do
       let
         proc = { weights: Map.empty, residualWeight: Q.fromInt 1, threshold: q "0.5", authorizes: [ MayEnact (Id "tariff") ] }
         eu = (explicitActor "EU" []) { kind = Aggregate { strategy: Id "p", members: [], procedures: Map.singleton (Id "trade") proc } }
-        tariff j = tariffR { jurisdiction: j, origin: Id "US", rate: q "0.1" }
+        tariff j = tariffR { reserveParty: j, origin: Id "US", rate: q "0.1" }
         procedureSubmit j =
           { candidateTransaction: { id: candidateTransactionId 1 (Id "EU") 0, author: Id "EU", intents: [ ChangeRule (Enact (tariff j)) ], signers: [], procedure: Just (Id "trade") }
           , signatures: []
@@ -718,7 +718,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (resolveRound plain [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` []
     it "with no declared kinds, no Rule can be enacted" do
       let w = (baseWorld [ explicitActor "US" [ MayEnact (Id "tariff") ] ]) { ruleKinds = Map.empty }
-      rejections (resolveRound w [ submit "US" 0 [ ChangeRule (Enact (tariffR { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" })) ] ])
+      rejections (resolveRound w [ submit "US" 0 [ ChangeRule (Enact (tariffR { reserveParty: Id "US", origin: Id "EU", rate: q "0.1" })) ] ])
         `shouldEqual` [ "a Rule of kind tariff applies only to its governing Actor or owner, and only in its declared form" ]
     it "a new Rule kind, declared only as data, is enforced by the mechanism" do
       let
@@ -747,7 +747,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         us = explicitActor "US" [ MayEnact (Id "tariff") ]
         w = baseWorld [ us ]
-        tariff = tariffR { jurisdiction: Id "US", origin: Id "EU", rate: q "0.1" }
+        tariff = tariffR { reserveParty: Id "US", origin: Id "EU", rate: q "0.1" }
         next = either (const w) _.world (resolveRound w [ submit "US" 0 [ ChangeRule (Enact tariff) ] ])
         enacted = (matches (event @"Enacted") (const true))
       length (filter enacted (eventsOf (resolveRound next []))) `shouldEqual` 1
@@ -807,7 +807,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "One authority predicate" do
     it "a World State and an Actor's View of it answer every Intent the same" do
       let
-        rule = banR { jurisdiction: Id "A", target: Id "B" }
+        rule = banR { reserveParty: Id "A", target: Id "B" }
         base = baseWorld [ explicitActor "A" [ MayEnact (Id "tariff"), MayTransfer (Id "E"), MayTrade (Id "EM") ], explicitActor "B" [] ]
         w = prepareRound (base { rules = Map.singleton (Id "ban") rule, resources = Map.update (\x -> Just x { transferability = Restricted }) (Id "E") base.resources })
         a = fromMaybe (explicitActor "A" []) (Map.lookup (Id "A") w.actors)
@@ -990,7 +990,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "recordShape encodes an Exchange byte for byte as a hand-written object, in both formats, and reads it back" do
       let
         m = exchange [ "US" ]
-        derived = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape, adjustment: Shape.defaultsTo Q.zero qShape }
+        derived = recordShape "Exchange" { id: idShape, base: idShape, quote: idShape, cost: costFunctionShape, position: qShape, reserves: mapOf idShape qShape, access: Shape.arrayOf idShape, reserveParty: Shape.optionalOf idShape }
         written = exchangeObject
       for_ [ Snapshot, Authored ] \fmt -> do
         stringify (encodeWith fmt derived m) `shouldEqual` stringify (encodeWith fmt written m)
@@ -1043,8 +1043,8 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "Transferability" $ quickCheck (roundTrip (elements (cons' Free [ Restricted, NonTransferable ])))
     it "a rejection reason compares by its value, and a stored reason reads back equal" do
       let
-        r1 = OutOfScope (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })
-        r2 = OutOfScope (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.25" })
+        r1 = OutOfScope (tariffR { reserveParty: Id "EU", origin: Id "US", rate: q "0.5" })
+        r2 = OutOfScope (tariffR { reserveParty: Id "EU", origin: Id "US", rate: q "0.25" })
       (r1 /= r2) `shouldEqual` true
       renderReason r1 `shouldEqual` renderReason r2
       for_ [ r1, PoolExceeded, NoRouteAccess (Id "A") (Id "E") (Id "M"), Blocked (Id "tariff") ] \r ->
@@ -1053,5 +1053,5 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       stringify (encodeJson (Trade { exchange: Id "energy-asia", quantity: q "12", limitPrice: Nothing } :: Intent))
         `shouldEqual` "{\"values\":[{\"quantity\":\"12.0000\",\"limitPrice\":null,\"exchange\":\"energy-asia\"}],\"tag\":\"Trade\"}"
     it "the snapshot form of a rule enactment nests the Rule the same way" do
-      stringify (encodeJson (ChangeRule (Enact (tariffR { jurisdiction: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
+      stringify (encodeJson (ChangeRule (Enact (tariffR { reserveParty: Id "EU", origin: Id "US", rate: q "0.5" })) :: Intent))
         `shouldEqual` "{\"values\":[{\"values\":[{\"values\":[{\"scope\":{\"over\":[\"E\"],\"governor\":\"EU\",\"direction\":{\"values\":[],\"tag\":\"Inbound\"},\"counterparty\":\"US\"},\"kind\":\"tariff\",\"effect\":{\"values\":[{\"to\":{\"values\":[],\"tag\":\"LevyToDestination\"},\"rate\":\"0.5000\",\"payer\":{\"values\":[],\"tag\":\"PaidBySender\"},\"in\":\"M\",\"basis\":{\"values\":[],\"tag\":\"PerUnit\"}}],\"tag\":\"Levy\"}}],\"tag\":\"FlowRule\"}],\"tag\":\"Enact\"}],\"tag\":\"ChangeRule\"}"

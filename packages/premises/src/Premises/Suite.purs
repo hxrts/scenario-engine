@@ -30,13 +30,12 @@ import Core.Shape (Format(..), encodeWith)
 import Data.Argonaut.Core (stringify)
 import Data.Array (catMaybes, concatMap, elem, filter, length, notElem, nub)
 import Data.Array as Array
-import Data.Maybe (maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Foreign.Object as Object
 import Schema.Premise.StrategyRules (presetsShape)
 import Data.Tuple (Tuple(..))
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Laws.Types (ActorId, idText)
 import Schema.Cast (Cast, Role(..), castShape)

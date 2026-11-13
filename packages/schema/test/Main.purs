@@ -101,8 +101,8 @@ roundTripIntents =
   , Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt (-3), limitPrice: Nothing }
   , Transfer { from: Id "US", to: Id "CN", resource: Id "E", quantity: Q.fromInt 2 }
   , Transform { by: Id "US", transformation: Id "t", quantity: Q.fromInt 1 }
-  , ChangeRule (Enact (tariffR { jurisdiction: Id "US", origin: Id "CN", rate: qv "0.25" }))
-  , ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "IN" }))
+  , ChangeRule (Enact (tariffR { reserveParty: Id "US", origin: Id "CN", rate: qv "0.25" }))
+  , ChangeRule (Enact (banR { reserveParty: Id "US", target: Id "IN" }))
   , ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 5 }))
   ]
 
@@ -175,7 +175,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rule (json """{ "holding": { "kind": "withholding", "resource": "semiconductors", "reduce": "3" } }""")
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
       rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } }""")
-        `shouldEqual` Right (banR { jurisdiction: Id "US", target: Id "CN" })
+        `shouldEqual` Right (banR { reserveParty: Id "US", target: Id "CN" })
     -- Pins the premise format the schema decoders read (docs/03).
     it "rejects an unknown rule key with a typed error" do
       case rule (json """{ "embargo": {} }""") of
@@ -208,7 +208,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     -- Pins the premise format the schema decoders read (docs/03).
     it "decodes an enactment through its rule" do
       intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
-        `shouldEqual` Right (ChangeRule (Enact (banR { jurisdiction: Id "US", target: Id "CN" })))
+        `shouldEqual` Right (ChangeRule (Enact (banR { reserveParty: Id "US", target: Id "CN" })))
     -- Pins the premise format the schema decoders read (docs/03).
     it "a Repeal round-trips through the premise form, as one key naming the Rule" do
       intent (json """{ "repeal": { "rule": "r2/US/0/rule-0" } }""") `shouldEqual` Right (ChangeRule (Repeal (Id "r2/US/0/rule-0")))
@@ -296,11 +296,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` false
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
+tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

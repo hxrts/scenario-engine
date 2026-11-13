@@ -90,8 +90,8 @@ coverageComposition =
     , numeraire = money
     , ruleKinds = testKinds
     , rules = Map.fromFoldable
-        [ Tuple (Id "tariff") (tariffR { jurisdiction: eu, origin: us, rate: Q.fromInt 1 })
-        , Tuple (Id "ban") (banR { jurisdiction: eu, target: us })
+        [ Tuple (Id "tariff") (tariffR { reserveParty: eu, origin: us, rate: Q.fromInt 1 })
+        , Tuple (Id "ban") (banR { reserveParty: eu, target: us })
         ]
     }
 
@@ -216,11 +216,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       show initial.world.seed `shouldEqual` "9"
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
+tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

@@ -72,10 +72,10 @@ step name params parties transaction = Tuple name (WorldTemplate ({ params, part
 -- | A law charged every round on what each named holder holds of a Resource: it pays `rate` of another Resource per
 -- | unit held, such as upkeep on capacity.
 perHeld :: RuleKindId -> Array ActorId -> ResourceId -> Account -> ResourceId -> Q -> AuthoredLaw
-perHeld kind holders held to resource rate = AuthoredLaw
-  { subject: OfStock { holders: Just holders, resource: held }
+perHeld kind holders heldResource to resource rate = AuthoredLaw
+  { subject: OfStock { holders: Just holders, resource: heldResource }
   , trigger: EachRound
-  , operation: Emit { from: HeldBy (Bound holderParam), to, resource, owed: Times { ratio: rate, amount: Stock { at: HeldBy (Bound holderParam), resource: held } } }
+  , operation: Emit { from: HeldBy (Bound holderParam), to, resource, owed: Times { ratio: rate, amount: Stock { at: HeldBy (Bound holderParam), resource: heldResource } } }
   , guard: []
   , phase: 1
   , cause: OfRule { kind }

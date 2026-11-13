@@ -185,10 +185,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       (editWorld \w -> w { recurring = w.recurring <> [ requirementRule { actor: Id "NOBODY", resource: Id "T", amount: Just (Q.fromInt 1), penalty: Q.zero } ] })
       (UnknownReference RefActor "NOBODY")
     rejects "UnknownReference: a ban whose counterparty is not an Actor"
-      (editWorld \w -> w { rules = Map.insert (Id "rule-y") (banR { jurisdiction: Id "US", target: Id "NOBODY" }) w.rules })
+      (editWorld \w -> w { rules = Map.insert (Id "rule-y") (banR { reserveParty: Id "US", target: Id "NOBODY" }) w.rules })
       (UnknownReference RefActor "NOBODY")
     rejects "UnknownReference: a tariff whose origin is not an Actor"
-      (editWorld \w -> w { rules = Map.insert (Id "rule-z") (tariffR { jurisdiction: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
+      (editWorld \w -> w { rules = Map.insert (Id "rule-z") (tariffR { reserveParty: Id "US", origin: Id "NOBODY", rate: Q.zero }) w.rules })
       (UnknownReference RefActor "NOBODY")
     rejects "UnknownReference: a Withholding rule names a capacity no Actor holds"
       (editWorld \w -> w { rules = Map.insert (Id "rule-x") (holdR { capacity: Id "nowhere", units: Q.fromInt 1 }) w.rules })
@@ -284,11 +284,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     _ -> false
 
 -- Rules of the three kinds the validation tests add (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "us-import-tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "I" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "USD", to: LevyToDestination, payer: PaidBySender } }
+tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "us-import-tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "I" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "USD", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "us-export-control", scope: { governor: r.jurisdiction, counterparty: r.target, direction: Outbound, over: [ Id "T" ] }, effect: Block }
+banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banR r = FlowRule { kind: Id "us-export-control", scope: { governor: r.reserveParty, counterparty: r.target, direction: Outbound, over: [ Id "T" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "us-export-control", resource: r.capacity, reduce: r.units }

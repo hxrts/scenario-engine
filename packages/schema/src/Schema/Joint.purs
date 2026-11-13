@@ -16,7 +16,7 @@ module Schema.Joint
 import Prelude
 
 import Laws.CandidateTransaction (CandidateTransactionBody, candidateTransactionAt)
-import Core.Shape (recordShape, Shape, arrayOf, field, fieldOf, object, optionalOf, recordOf, requiredOf, stringShape, (&.))
+import Core.Shape (Shape, arrayOf, field, fieldOf, object, optionalOf, recordOf, requiredOf, stringShape, (&.))
 import Core.Num (Q)
 import Laws.Types (refIdShape, ActorId, ExchangeId, CandidateTransaction, CandidateTransactionCore, RoundIndex, idShape, intentShape)
 import Data.Array (elem, filter, mapMaybe, nub, null)

@@ -168,7 +168,7 @@ applyActor byAccount e = (\accounts -> e { accounts = accounts })
 -- | An Exchange with the Settlement's net change to its reserves and its new position applied, if no
 -- | reserve goes negative.
 applyExchange :: Settlement -> Map Account (Map ResourceId Q) -> Tuple ExchangeId Exchange -> Either EngineError (Tuple ExchangeId Exchange)
-applyExchange st byAccount (Tuple id m) = (\reserves -> Tuple id m { reserves = reserves, position = fromMaybe m.position (Map.lookup id st.positions), cost = m.cost { intercept = fromMaybe m.cost.intercept (Map.lookup id st.intercepts) } })
+applyExchange st byAccount (Tuple id m) = (\reserves -> Tuple id m { reserves = reserves, position = fromMaybe m.position (Map.lookup id st.positions) })
   <$> checkNonNegative (Mkt id) (applyHoldings byAccount (Mkt id) m.reserves)
 
 -- | The holdings of one Account after the Settlement's ledger entries for it.

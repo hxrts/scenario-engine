@@ -79,7 +79,7 @@ priced id base access p =
   , position: Q.zero
   , reserves: Map.fromFoldable [ Tuple (Id base) (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
   , access: map Id access
-  , adjustment: Q.zero
+  , reserveParty: Nothing
   }
 
 -- | An Exchange for E against M, cost base 1 and slope 0 over [0, 100], with the given access.
@@ -92,15 +92,15 @@ exchange access =
   , position: Q.zero
   , reserves: Map.fromFoldable [ Tuple (Id "E") (Q.fromInt 50), Tuple (Id "M") (Q.fromInt 50) ]
   , access: map Id access
-  , adjustment: Q.zero
+  , reserveParty: Nothing
   }
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
+tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

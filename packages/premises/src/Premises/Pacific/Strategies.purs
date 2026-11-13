@@ -135,8 +135,9 @@ commerce c signs =
   , sign: if signs == [] then [] else [ SignAgreements signs ]
   }
   where
-  sell r x = rule [] [ orderAt (named x) (neg (max' (lit 0) (subQ (subQ (holding r) (due r)) (planned r)))) (Just (priceAt (named x))) ]
-  buy r x = rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) (Just (priceAt (named x))) ]
+  -- a world Exchange's price moves along its curve as its stock is drawn, so its orders take the batch price
+  sell r x = rule [] [ orderAt (named x) (neg (max' (lit 0) (subQ (subQ (holding r) (due r)) (planned r)))) Nothing ]
+  buy r x = rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) Nothing ]
   q1 = minQ (runnable c.capacity c.skill) (divQ (holding c.money) (param (wageParam c.production)))
   q2 = minQ (runnable c.foreignCapacity c.foreignSkill) (divQ (subQ (holding c.money) (mulQ q1 (param (wageParam c.production)))) (param (wageParam c.substitute)))
   -- the foreign good cannot come in: the other country controls its export, or this one bans it
@@ -153,7 +154,7 @@ supply :: Country -> Array String -> StrategyRules
 supply c signs =
   { rules:
       [ rule [] [ asTemplate (selfTransform { transformation: c.firmBase, quantity: base }), asTemplate (selfTransform { transformation: c.firmProduction, quantity: runs }) ]
-      , rule [] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) (Just (priceAt (named c.world))) ]
+      , rule [] [ orderAt (named c.world) (max' (lit 0) (subQ (mulQ (lit 2) need) (holding c.foreign))) Nothing ]
       , rule [] [ ofForeign c cover ]
       ]
   , sign: if signs == [] then [] else [ SignAgreements signs ]
@@ -223,11 +224,10 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
     1 -> lit "0.5"
     _ -> lit 1
   abroad = mulQ abroadShare available
-  sellAt x qty = orderAt (named x) (neg qty) (Just (priceAt (named x)))
-  sell = [ rule [ acting f ] [ sellAt c.ownWorld abroad, sellAt c.home (subQ available abroad) ] ]
+  sell = [ rule [ acting f ] [ orderAt (named c.ownWorld) (neg abroad) Nothing, orderAt (named c.home) (neg (subQ available abroad)) (Just (priceAt (named c.home))) ] ]
   -- no more than half the foreign currency it holds buys, so the stockpile never crowds out its input
   units = minQ (param (stockpileParam (level lv.two))) (divQ (mulQ (lit "0.5") (holding c.foreignMoney)) (priceAt (named c.world)))
-  stockpile = if lv.two == 0 then [] else [ rule [ acting f ] [ orderAt (named c.world) units (Just (priceAt (named c.world))), ofForeign c (mulQ units (priceAt (named c.world))) ] ]
+  stockpile = if lv.two == 0 then [] else [ rule [ acting f ] [ orderAt (named c.world) units Nothing, ofForeign c (mulQ units (priceAt (named c.world))) ] ]
   invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: c.firmInvestment, quantity: affordable lv.three c.firmInvestment c.good c.money }) ] ]
   pay = if lv.four == 0 then [] else [ rule [ acting f ] [ asTemplate (Transfer { from: selfActor, to: c.private, resource: c.money, quantity: mulQ (param (payParam (level lv.four))) (holding c.money) }) ] ]
 

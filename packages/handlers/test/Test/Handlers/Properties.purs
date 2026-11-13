@@ -39,7 +39,7 @@ import Premises.Pacific.Strategies (tariffing)
 import Strategy.InWorld (inWorldOf)
 import Schema.Build.Decision (asTemplate, eqQ, lit, roundQ, rule, selfEnact)
 import Schema.Build.Quantity (q)
-import Test.Handlers.Pacific (fx, moved, playAll, roundOf, traded)
+import Test.Handlers.Pacific (boughtBy, fx, moved, playAll, roundOf, traded)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Testkit.Run (orThrow, run)
@@ -251,15 +251,13 @@ spec = describe "Pacific over many runs (docs/07 §14)" do
 
   describe "Each dial moves its outcome the way the model says" do
     let d = Pacific.defaultDials
-    -- the tariff is levied on what America's households and firm import; its revenue goes to the US state, which
-    -- imports more with it, so America's imports in all barely move (docs/05 F9)
-    it "a higher tariff rate never raises the industrial inputs America's households import" do
+    it "a higher tariff rate never raises the industrial inputs America imports" do
       imports <- for (map q [ "0.5", "1", "1.5", "2", "3" ]) \rate -> do
         source <- orThrow (parts (Pacific.pacific d { tariffRate = rate }))
         free <- presetOf source "FreeTrade"
         g <- orThrow (assemble (FromComposition source) (strategyRulesBindings [ Tuple p.us (free { rules = free.rules <> (tariffing p.us).rules }), Tuple p.cn free, Tuple p.usFirm free, Tuple p.cnFirm free ]) [])
         r <- run (Seed 1) (withRounds (Just 6) g)
-        pure (Q.sumQ (map (\x -> max Q.zero (traded x p.usPrivate p.industry)) r.records))
+        pure (usImports r)
       Tuple (map Q.format imports) (nonIncreasing imports) `shouldEqual` Tuple (map Q.format imports) true
     it "China's export control never raises the industrial inputs America imports, at any spend share or tax rate" do
       for_ [ d, d { private = d.private { spendShare = { us: q "0.6", cn: q "0.3" } } }, d { taxRate = q "0.25" }, d { taxRate = Q.one } ] \dials -> do
@@ -271,12 +269,10 @@ spec = describe "Pacific over many runs (docs/07 §14)" do
         r <- playUnder d { world = d.world { loanRate = d.world.loanRate { off = rate } } } [ "FreeTrade", "FreeTrade", "FreeTrade", "FreeTrade" ] 6
         pure (Q.sumQ (map (\x -> moved x p.cnFirm p.cn p.rmb) r.records))
       Tuple (map Q.format paid) (nonDecreasing paid) `shouldEqual` Tuple (map Q.format paid) true
-    -- what they then buy need not rise: China's industrial inputs are short, every buyer is filled pro rata, and at a
-    -- high share the US state's and firm's larger orders take the households' place (docs/02 §5)
-    it "a higher spend share never lowers the dollars America's households sell for renminbi" do
+    it "a higher spend share never lowers what America's households buy" do
       bought <- for (map q [ "0.5", "0.6", "0.7", "0.8", "0.9" ]) \share -> do
         r <- playUnder d { private = d.private { spendShare = d.private.spendShare { us = share } } } [ "FreeTrade", "FreeTrade", "FreeTrade", "FreeTrade" ] 6
-        pure (Q.neg (Q.sumQ (map (\x -> min Q.zero (traded x p.usPrivate p.usd)) r.records)))
+        pure (Q.sumQ (map (\x -> boughtBy x p.usPrivate) r.records))
       Tuple (map Q.format bought) (nonDecreasing bought) `shouldEqual` Tuple (map Q.format bought) true
     it "more Chinese reserves never weaken the dollar" do
       rates <- for (map q [ "0", "3", "6", "9" ]) \level -> do

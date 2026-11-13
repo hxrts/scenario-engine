@@ -1,4 +1,4 @@
--- | The international clearing system (docs/05 §4.4; work/loops.md §4): how goods, currencies and financial claims move
+-- | The international clearing system (docs/05 §4; work/loops.md §4): how goods, currencies and financial claims move
 -- | between the two regimes. It settles the trade and financial decisions the regimes' Actors make, under the Rules
 -- | in force; it decides no policy of its own.
 -- |
@@ -18,7 +18,7 @@ import Core.Num (Q)
 import Core.Num as Q
 import Data.Array (concatMap)
 import Data.Map as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object as Object
 import Laws.Types (ActorId, ActorKind(..), Direction(..), Exchange, FlowEffect(..), FlowGovernance(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, Rule, RuleF(..), RuleForm(..), Transferability(..))
@@ -50,8 +50,8 @@ clearing d = emptyParts
   , reservable = [ p.technologyCapacity, p.industryCapacity, p.technologyCompetence, p.industryCompetence ]
   , decays = map (\r -> { resource: r, rate: d.competence.decay }) [ p.technologyCompetence, p.industryCompetence ]
   , exchanges =
-      [ Tuple p.technologyWorld ((market everyone p.technology p.usd d.technologyPrice) { adjustment = d.priceAdjustment })
-      , Tuple p.industryWorld ((market everyone p.industry p.rmb d.industryPrice) { adjustment = d.priceAdjustment })
+      [ Tuple p.technologyWorld (stockist everyone p.us p.technology p.usd d.technologyPrice d.stock.technology d.stockSlope.technology)
+      , Tuple p.industryWorld (stockist everyone p.cn p.industry p.rmb d.industryPrice d.stock.industry d.stockSlope.industry)
       ]
         <> map (\c -> Tuple c.home (market [ c.state, c.firm, c.private ] c.good c.money (Q.mul d.homePremium (priceOf c.good)))) countries
         <> [ Tuple p.currency (currencyExchange d (everyone <> [ p.row ])) ]
@@ -96,7 +96,15 @@ clearing d = emptyParts
 market :: Array ActorId -> ResourceId -> ResourceId -> Q -> Exchange
 market access base quote price = exchange { base, quote, cost: { intercept: price, slope: q 0, domain: { lo: q 0, hi: q 1000000 } }, reserves: Map.empty } access
 
--- | The currency Exchange (docs/05 §4.5): a dealer in USD for RMB, holding reserves of both, whose price, RMB per
+-- | A world Exchange holding a stock of its good (docs/05 §4.4): every trade between orders is a pair, and what buyers
+-- | take beyond the sellers comes from the stock, moving the position and raising the price along the curve. Its
+-- | domain starts at its opening position, so it buys back only what it has sold, never output nobody ordered, and
+-- | a seller is otherwise paid only for what a buyer takes (docs/02 §5.2). The stock is the producing country's for
+-- | Rules, so its export controls and taxes and the other's bans and tariffs reach it as they reach its sellers.
+stockist :: Array ActorId -> ActorId -> ResourceId -> ResourceId -> Q -> Q -> Q -> Exchange
+stockist access producer base quote price held slope = (exchange { base, quote, cost: { intercept: price, slope, domain: { lo: q 0, hi: held } }, reserves: Map.fromFoldable [ Tuple base held ] } access) { reserveParty = Just producer }
+
+-- | The currency Exchange (docs/05 §4.2): a dealer in USD for RMB, holding reserves of both, whose price, RMB per
 -- | USD, rises after net buying of USD and falls after net selling (docs/02 §5.1).
 currencyExchange :: Dials -> Array ActorId -> Exchange
 currencyExchange d = exchange

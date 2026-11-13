@@ -67,8 +67,8 @@ genIntent w self = do
     limit = pick Nothing [ Just (Q.fromInt 2) ]
     enacted = oneOf
       ( NEA.cons'
-          (map tariffR ({ jurisdiction: _, origin: _, rate: _ } <$> actor <*> actor <*> quantity))
-          [ map banR ({ jurisdiction: _, target: _ } <$> actor <*> actor)
+          (map tariffR ({ reserveParty: _, origin: _, rate: _ } <$> actor <*> actor <*> quantity))
+          [ map banR ({ reserveParty: _, target: _ } <$> actor <*> actor)
           , map holdR ({ capacity: _, units: _ } <$> capacity <*> quantity)
           ]
       )
@@ -210,10 +210,10 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a standalone transfer from self resolves to the acting Actor, as a joint CandidateTransaction's does" do
       intentsOf (propose ({ rules: [ rule [] [ asTemplate (transfer { from: "self", to: "DE", resource: "E", quantity: lit 2 }) ] ], sign: [] }) env { view = seat { self = seat.self { capabilities = [ MayTransfer (Id "E") ] } } })
         `shouldEqual` [ [ Transfer { from: Id "EU", to: Id "DE", resource: Id "E", quantity: Q.fromInt 2 } ] ]
-    it "every actor position resolves self, including a condition's jurisdiction" do
-      let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
+    it "every actor position resolves self, including a condition's reserveParty" do
+      let e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { reserveParty: Id "CN", target: Id "EU" } } ] } }
       intentsOf (propose ({ rules: [ rule [ restrictedLastRound { by: "CN", target: "self" } ] [ reciprocate { target: "CN" } ] ], sign: [] }) e)
-        `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
+        `shouldEqual` [ [ ChangeRule (Enact (banR { reserveParty: Id "EU", target: Id "CN" })) ] ]
     it "each runs the clause once per accessible Exchange for the Resource, in id order" do
       intentsOf (propose ({ rules: [ rule [] [ orderAt (each "E") (lit 3) Nothing ] ], sign: [] }) env { view = twoExchanges })
         `shouldEqual` [ [ trade "energy-asia" "3" ], [ trade "energy-atlantic" "3" ] ]
@@ -255,7 +255,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       let
         w = (prepareRound g.world)
           { rules = Map.fromFoldable
-              [ Tuple (Id "r-tariff") (tariffR { jurisdiction: Id "US", origin: Id "CN", rate: Q.fromInt 1 })
+              [ Tuple (Id "r-tariff") (tariffR { reserveParty: Id "US", origin: Id "CN", rate: Q.fromInt 1 })
               , Tuple (Id "r-held") (holdR { capacity: Id "K_T", units: Q.fromInt 1 })
               ]
           }
@@ -264,27 +264,27 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   describe "Conditions and restrictions" do
     it "reciprocate enacts the mirror of a restriction enacted against this Actor last round" do
       let
-        e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
+        e = env { view = seat { events = [ Enacted { round: 3, id: Id "rule-0", rule: banR { reserveParty: Id "CN", target: Id "EU" } } ] } }
       intentsOf (propose ({ rules: [ rule [] [ reciprocate { target: "CN" } ] ], sign: [] }) e)
-        `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
+        `shouldEqual` [ [ ChangeRule (Enact (banR { reserveParty: Id "EU", target: Id "CN" })) ] ]
     it "reciprocate draws nothing when the restriction was enacted at an earlier boundary" do
       let
-        e = env { view = seat { events = [ Enacted { round: 2, id: Id "rule-0", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ] } }
+        e = env { view = seat { events = [ Enacted { round: 2, id: Id "rule-0", rule: banR { reserveParty: Id "CN", target: Id "EU" } } ] } }
       intentsOf (propose ({ rules: [ rule [] [ reciprocate { target: "CN" } ] ], sign: [] }) e) `shouldEqual` []
     it "restrictedLastRound holds only for a restriction enacted at this round's boundary" do
       let
         text = { rules: [ rule [ restrictedLastRound { by: "CN", target: "EU" } ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }
         fires events = intentsOf (propose (text) env { view = seat { events = events } })
-        fired = [ Enacted { round: 3, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
-        stale = [ Enacted { round: 2, id: Id "r", rule: banR { jurisdiction: Id "CN", target: Id "EU" } } ]
+        fired = [ Enacted { round: 3, id: Id "r", rule: banR { reserveParty: Id "CN", target: Id "EU" } } ]
+        stale = [ Enacted { round: 2, id: Id "r", rule: banR { reserveParty: Id "CN", target: Id "EU" } } ]
       fires fired `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
       fires stale `shouldEqual` []
-    it "restrictionInForce holds when a rule by that jurisdiction is in force" do
+    it "restrictionInForce holds when a rule by that reserveParty is in force" do
       let
         text = { rules: [ rule [ restrictionInForce { by: "US" } ] [ orderAt (named "energy-atlantic") (lit 1) Nothing ] ], sign: [] }
         at r = intentsOf (propose text env { view = seat { rules = Map.singleton (Id "r") r } })
-      at (banR { jurisdiction: Id "US", target: Id "CN" }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
-      at (tariffR { jurisdiction: Id "CN", origin: Id "US", rate: Q.zero }) `shouldEqual` []
+      at (banR { reserveParty: Id "US", target: Id "CN" }) `shouldEqual` [ [ trade "energy-atlantic" "1" ] ]
+      at (tariffR { reserveParty: Id "CN", origin: Id "US", rate: Q.zero }) `shouldEqual` []
 
   describe "Parameters and factors" do
     it "transformedLastRound reads its threshold as an expression, so a parameter sweep changes the outcome" do
@@ -325,15 +325,15 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     let
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
-    it "enactAccessBan drafts a ban by the author's jurisdiction on its target" do
-      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { jurisdiction: selfActor, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
-        `shouldEqual` [ [ ChangeRule (Enact (banR { jurisdiction: Id "EU", target: Id "CN" })) ] ]
+    it "enactAccessBan drafts a ban by the author's reserveParty on its target" do
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { reserveParty: selfActor, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
+        `shouldEqual` [ [ ChangeRule (Enact (banR { reserveParty: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
       intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (holdR { capacity: Id "semiconductors", units: lit 5 })) ] ], sign: [] }) (enacting [ MayEnact (Id "withholding") ]))
         `shouldEqual` [ [ ChangeRule (Enact (holdR { capacity: Id "semiconductors", units: Q.fromInt 5 })) ] ]
     it "repeal drafts a repeal of the named rule, and needs enactment authority" do
       let text = { rules: [ rule [] [ asTemplate (repeal { rule: "r2/US/0/rule-0" }) ] ], sign: [] }
-      let inForce e = e { view = e.view { rules = Map.singleton (Id "r2/US/0/rule-0") (banR { jurisdiction: Id "EU", target: Id "CN" }) } }
+      let inForce e = e { view = e.view { rules = Map.singleton (Id "r2/US/0/rule-0") (banR { reserveParty: Id "EU", target: Id "CN" }) } }
       intentsOf (propose text (inForce (enacting [ MayEnact (Id "accessBan") ]))) `shouldEqual` [ [ ChangeRule (Repeal (Id "r2/US/0/rule-0")) ] ]
       intentsOf (propose text (inForce (enacting []))) `shouldEqual` []
       -- the engine also needs the capability for the repealed Rule's kind, and a Rule in force
@@ -363,11 +363,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         [ Tuple RefResource "E", Tuple RefActor "bogus" ]
 
 -- Rules of the three kinds the test premises declare (S8: the forms are what these tests pin).
-tariffR :: forall v. { jurisdiction :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
-tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.jurisdiction, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
+tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
+tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { jurisdiction :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.jurisdiction, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

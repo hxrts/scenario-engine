@@ -266,7 +266,7 @@ demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c false,
   convert c tariffed =
     if tariffed then rule [ inForce c ] [ toForeign c (mulQ (holding c.money) (param (tariffedShareParam c.private))) ]
     else rule [ not' (inForce c) ] [ toForeign c (mulQ (holding c.money) (param (abroadShareParam c.private))) ]
-  abroad c = rule [] [ orderAt (named c.world) (mulQ (holding c.foreignMoney) (param (priceParam c.world))) (Just (priceAt (named c.world))) ]
+  abroad c = rule [] [ orderAt (named c.world) (divQ (holding c.foreignMoney) (priceAt (named c.world))) Nothing ]
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead
   lend c =

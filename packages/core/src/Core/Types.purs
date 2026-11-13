@@ -3,6 +3,7 @@ module Core.Types where
 
 import Prelude
 import Core.Num (Q)
+import Data.Maybe (Maybe)
 import Core.Shape (Shape, prim)
 import Data.Argonaut.Core (fromString, toString)
 import Data.Argonaut.Decode (class DecodeJson)
@@ -58,9 +59,9 @@ type Exchange =
   , position :: Quantity
   , reserves :: Holdings
   , access :: Array ActorId
-  -- the share of the gap between a round's buy and sell orders its price moves by after the round, 0 for a
-  -- price that moves only with its position (docs/02 §5.6)
-  , adjustment :: Q
+  -- the Actor its reserve stands for when Rules are read, so a stock of one party's good meets the Rules that
+  -- party's goods meet; none for a reserve no Rule reaches (docs/02 §5.2)
+  , reserveParty :: Maybe ActorId
   }
 
 idShape :: forall t. Shape (Id t)

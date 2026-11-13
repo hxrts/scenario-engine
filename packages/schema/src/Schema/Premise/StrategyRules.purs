@@ -1,7 +1,7 @@
 -- | The premise format of a StrategyRules (docs/02_kernel.md §4.4): its expressions, conditions,
 -- | candidate Transaction templates, sign rules and clauses, and the presets file that holds the seat Strategies.
 -- | The premise tags are private to this module. `self` is implicit where the premise does not
--- | write it: the jurisdiction or Actor that runs an Intent, and a transform's `by`.
+-- | write it: the reserveParty or Actor that runs an Intent, and a transform's `by`.
 module Schema.Premise.StrategyRules
   ( strategyRulesShape
   , presetsShape
@@ -98,7 +98,7 @@ transferObject = transferBody exprShape
 transformObject :: Shape TransformRec
 transformObject = ownTransformBody exprShape
 
--- | An Intent a StrategyRules writes as a template. `self` is implicit: the jurisdiction of an enactment,
+-- | An Intent a StrategyRules writes as a template. `self` is implicit: the reserveParty of an enactment,
 -- | and the `by` of a transform.
 intentTemplateShape :: Shape IntentTemplate
 intentTemplateShape = genericPremiseSum "Intent template"
