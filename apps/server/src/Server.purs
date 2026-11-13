@@ -18,11 +18,12 @@ import Flags (parseWith, serveFlags, usageOf)
 import Handlers.Api.Route (apiPrefix)
 import Gate (gated, parseEnv, secretsFrom)
 import Adapters.Digest (sha256)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Foreign.Object as Object
 import Handlers.Store (runStore)
 import Handlers.System (interpretFiles)
 import Http (serve)
+import Effects.Api (ApiRequest(..))
 import Node.Process (argv)
 import Run (case_, on, run)
 import Server.Launch (startup)
@@ -42,7 +43,10 @@ main = do
         runStore store startup >>= flip for_ log
         cache <- newServerCache
         host <- newHost store
-        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets (implement compositions store cache host))
+        let implementation = implement compositions store cache host
+        serve flags.port flags.static apiPrefix { password: fromMaybe "" (Object.lookup "ADMIN_PASSWORD" env), session: fromMaybe "" secrets.session } (gated secrets implementation)
+        -- decode every simulated run once, at start, so the first visit to the dashboard does not wait for it
+        void (implementation (Compare { runs: [], exchange: Nothing }))
       Left e -> fail e
   where
   -- a missing file is an empty one: every secret is unset, and what they guard stays locked
