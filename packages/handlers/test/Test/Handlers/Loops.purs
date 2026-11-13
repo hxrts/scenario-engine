@@ -354,7 +354,7 @@ experiments = describe "Experiments (docs/05 §9)" do
       [ [ q "0.7421", q "0.4059", q "1.0629", q "78.6372", q "2.3443", q "1.845", q "3.2255", q "2.5671" ]
       , [ q "0.7421", q "0.3613", q "0.6948", q "31.0814", q "2.3443", q "1.845", q "3.2255", q "2.5834" ]
       , [ q "0.7393", q "-1.1488", q "0.8877", q "48.3995", q "2.3279", q "1.6258", q "3.2856", q "3.4947" ]
-      , [ q "0.7393", q "-1.1488", q "0.501", q "2.4262", q "2.3279", q "1.6258", q "3.2856", q "5.9952" ]
+      , [ q "0.7393", q "-1.1488", q "0.5019", q "2.4262", q "2.3279", q "1.6258", q "3.2856", q "5.9952" ]
       ]
   where
   minOf xs = fromMaybe Q.zero (minimum xs)
@@ -381,7 +381,7 @@ arrearsSpec = it "Arrears: a Chinese firm with no money of its own, borrowing at
       _ -> false
   let unpaid who r = map (\x -> Q.sumQ (map (\l -> Q.sub l.owed l.moved) (filter (\l -> l.from == Held who && isAgreement l.cause) (select legs x.record.events)))) r.records
   let viability = concatMap (\o -> take 1 (drop 2 o.criteria)) (filter (\o -> o.explicitActor == p.cn) (evaluateObjectives poor.composition b.records))
-  unpaid p.cnFirm b `shouldEqual` [ q 0, q 0, q 0, q 0, q "0.2745", q "0.9928", q "1.6845", q "2.4901" ]
-  map _.values viability `shouldEqual` [ [ q 8, q 10, q "8.4563", q "8.0057", q 8, q 8, q 8, q 8 ] ]
+  unpaid p.cnFirm b `shouldEqual` [ q 0, q 0, q 0, q 0, q "0.1885", q "0.9314", q "1.6136", q "2.4056" ]
+  map _.values viability `shouldEqual` [ [ q 8, q 10, q "8.4563", q "8.0218", q 8, q 8, q 8, q 8 ] ]
   map _.bound viability `shouldEqual` [ [ q 8, q 8, q 8, q 8, q 8, q 8, q 8, q 8 ] ]
   map (\c -> c.outcome == Met) viability `shouldEqual` [ false ]

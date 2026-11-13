@@ -179,7 +179,27 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
   clearOne acc (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.actor o.pid) (filter (\o -> o.exchange == id) orders)
-      r = clearSolvent m os
+      -- an order a Rule refuses a pair with the reserve is removed and the batch cleared again, as a violated limit is,
+      -- so the reserve moves along its curve only as far as it trades and the price is that move's
+      cleared = reclear [] os
+      reclear dropped xs =
+        let
+          res = clearSolvent m xs
+          barred = nubEq (concatMap (\x -> if onReserve x.buyer || onReserve x.seller then maybe [] (\k -> map (\o -> Tuple o k) (partyOrders x)) (blockOn x) else []) res.pairs)
+          key o = Tuple o.pid o.position
+          onReserve = case _ of
+            Reserve -> true
+            Party _ -> false
+          partyOrders x = mapMaybe
+            ( case _ of
+                Party o -> Just o
+                Reserve -> Nothing
+            )
+            [ x.buyer, x.seller ]
+          isBarred o = any (\(Tuple b _) -> key b == key o) barred
+        in
+          if null barred then { res, dropped } else reclear (dropped <> barred) (filter (not <<< isBarred) xs)
+      r = cleared.res
       actorOf = case _ of
         Party o -> Just o.actor
         Reserve -> Nothing
@@ -191,7 +211,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
         Just from, Just to -> blockOf w { from, to, resource: m.base }
         _, _ -> Nothing
       { yes: settling, no: refused } = partition (isNothing <<< blockOn) r.pairs
-      blockedEvents = nubEq (concatMap (\x -> maybe [] (\k -> map (\o -> orderRemoved w.round o.pid (Blocked k)) (ordersOf x)) (blockOn x)) refused)
+      blockedEvents = nubEq (map (\(Tuple o k) -> orderRemoved w.round o.pid (Blocked k)) cleared.dropped <> concatMap (\x -> maybe [] (\k -> map (\o -> orderRemoved w.round o.pid (Blocked k)) (ordersOf x)) (blockOn x)) refused)
       ordersOf x = mapMaybe
         ( case _ of
             Party o -> Just o
@@ -213,14 +233,22 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
       settlePair a x = maybe a (\who -> settleWith who a x) (answerers x)
       settleWith { sellerActor, buyerActor } a x =
         let
+          -- a levy the reserve would pay is not charged: the reserve answers to Rules, but pays out only along its curve
           levies = case ruledAs x.seller, ruledAs x.buyer of
-            Just from, Just to -> filter (\l -> l.amount > Q.zero) (leviesOn w { from, to, resource: m.base } x.quantity)
+            Just from, Just to -> filter (\l -> l.amount > Q.zero && not (paidByReserve l)) (leviesOn w { from, to, resource: m.base } x.quantity)
             _, _ -> []
+          paidByReserve l = if l.from /= l.sender then isReserve x.buyer else isReserve x.seller
           cause = OfMatch { exchange: id, buyer: ref x.buyer, seller: ref x.seller }
           posted = runTransaction w a.ledger (pairTransaction { base: m.base, quote: m.quote, seller: account x.seller, buyer: account x.buyer, sellerActor, buyerActor, quantity: x.quantity, paid: Q.mul r.price x.quantity, levies: map (\l -> { to: l.to, in: l.in, amount: l.amount, byBuyer: l.from /= l.sender }) levies, cause })
           levyEvents = zipWith (\l leg -> settledEvent w.round [ leg ] Nothing (OfRule { kind: l.kind })) levies (drop 2 posted.flows)
         in
           addEvents ([ settledEvent w.round (take 2 posted.flows) (Just r.price) cause ] <> levyEvents) a { ledger = posted.ledger }
+      isReserve = case _ of
+        Reserve -> true
+        Party _ -> false
+      -- the position moves by what the reserve sold less what it bought over the pairs that settled, so a pair the Rules
+      -- refuse moves neither the reserve nor the price
+      reserveNet ps = Q.sub (Q.sumQ (map _.quantity (filter (isReserve <<< _.seller) ps))) (Q.sumQ (map _.quantity (filter (isReserve <<< _.buyer) ps)))
       -- what each order settled across its pairs, for the action laws it is charged
       settledBy = foldl (\mp x -> foldl (\m' o -> sumInto (Tuple o.actor (Tuple o.pid o.position)) x.quantity m') mp (ordersOf x)) Map.empty settling
     in
@@ -231,7 +259,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
           charged = foldl (\a (Tuple (Tuple actor _) q) -> applyActionLaws w actor (idText id) q a) paired (entries settledBy)
         in
           addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
-            charged { positions = Map.insert id (Q.add m.position r.net) charged.positions }
+            charged { positions = Map.insert id (Q.add m.position (reserveNet settling)) charged.positions }
 
 -- | Settle one candidate Transaction's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule delayed flows.

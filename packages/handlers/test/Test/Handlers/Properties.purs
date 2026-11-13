@@ -151,6 +151,25 @@ soundness r = map (\f -> "invariant: " <> show f) (checkRun r.manifest.initial r
       <> concatMap (\e -> if e.position < e.cost.domain.lo || e.position > e.cost.domain.hi then [ "round " <> show x.record.round <> ": " <> idText e.id <> " position " <> Q.format e.position <> " outside its domain" ] else if price e <= Q.zero then [ "round " <> show x.record.round <> ": " <> idText e.id <> " price " <> Q.format (price e) ] else []) (values x.world.exchanges)
   price e = Q.add e.cost.intercept (Q.mul e.cost.slope e.position)
 
+-- | Every Exchange is a bonding curve: each round its reserve of the base falls by exactly what its position rises,
+-- | and its reserve of the quote changes by the area under its curve over that move, within a grid step of rounding.
+-- | A flat Exchange with no reserve has no position to move, and passes trivially.
+curves :: SimRun -> Array String
+curves r = concat' (zipWith perRound (zip worlds (drop 1 worlds)) r.records)
+  where
+  concat' = concatMap identity
+  worlds = [ r.manifest.initial ] <> map _.world r.records
+  perRound (Tuple w0 w1) x = concatMap (\e1 -> maybe [] (check x e1) (Map.lookup e1.id w0.exchanges)) (values w1.exchanges)
+  check x e1 e0 =
+    let
+      dPos = Q.sub e1.position e0.position
+      dBase = Q.sub (lookupQ e1.base e1.reserves) (lookupQ e1.base e0.reserves)
+      dQuote = Q.sub (lookupQ e1.quote e1.reserves) (lookupQ e1.quote e0.reserves)
+      area = Q.mul (Q.add e0.cost.intercept (Q.div (Q.mul e0.cost.slope (Q.add e0.position e1.position)) (Q.fromInt 2))) dPos
+    in
+      if Q.add dBase dPos == Q.zero && Q.abs (Q.sub dQuote area) <= q "0.001" then []
+      else [ "round " <> show x.record.round <> ", " <> idText e1.id <> ": position moved " <> Q.format dPos <> ", its base reserve " <> Q.format dBase <> ", its quote reserve " <> Q.format dQuote <> " against the curve's " <> Q.format area ]
+
 -- | The sector an endpoint belongs to: each country's state, firm and private sector; the rest of the world; the
 -- | Exchanges; and the boundary.
 sectorOf :: Endpoint -> String
@@ -237,17 +256,17 @@ spec = describe "Pacific over many runs (docs/07 §14)" do
     enacted <- for (range 1 60) \i -> do
       let s = sampleOf presetNames rules i
       played <- playSample s
-      Tuple (describeSample i s) (soundness played.run <> runBalances played.run) `shouldEqual` Tuple (describeSample i s) []
+      Tuple (describeSample i s) (soundness played.run <> runBalances played.run <> curves played.run) `shouldEqual` Tuple (describeSample i s) []
       -- whether the run ends with more Rules in force than it opened with
       pure (maybe 0 (\x -> Map.size x.world.rules) (last played.run.records) > Map.size played.run.manifest.initial.rules)
     -- the samples exercise what they claim: a good share enact a Rule that takes effect
     (length (filter identity enacted) >= 20) `shouldEqual` true
 
-  it "sector balances: under every preset, each sector's money reconciles with the round's recorded flows, and each currency's net financial assets sum to what crossed the boundary" do
+  it "sector balances and curves: under every preset, each sector's money reconciles with the round's recorded flows, each currency's net financial assets sum to what crossed the boundary, and every Exchange moves along its curve" do
     source <- orThrow (parts (Pacific.pacific Pacific.defaultDials))
     for_ (Object.keys source.presets) \name -> do
       r <- playAll source name name name name 8
-      Tuple name (runBalances r) `shouldEqual` Tuple name []
+      Tuple name (runBalances r <> curves r) `shouldEqual` Tuple name []
 
   describe "Each dial moves its outcome the way the model says" do
     let d = Pacific.defaultDials

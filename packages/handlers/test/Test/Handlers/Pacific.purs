@@ -154,7 +154,7 @@ spec = describe "Pacific (docs/05 §9)" do
     it "C China's export control: the US is short 5 I from round 2; its firm produces 8, 8, then 4 a round, so China goes short of T; China keeps the industrial inputs it cannot sell" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "Restrict" "FreeTrade" "FreeTrade" 6
-      (map (\x -> output x p.usFirm) r.records <> map (\x -> shortOf x p.us p.industry) r.records <> map (\x -> shortOf x p.cn p.technology) r.records) `shouldEqual` [ q 8, q 8, q 4, q 4, q 4, q 4, q "0.385", q 5, q 5, q 5, q 5, q 5, q 0, q "0.5001", q "0.5001", q "0.5559", q "1.8517", q "1.783" ]
+      (map (\x -> output x p.usFirm) r.records <> map (\x -> shortOf x p.us p.industry) r.records <> map (\x -> shortOf x p.cn p.technology) r.records) `shouldEqual` [ q 8, q 8, q 4, q 4, q 4, q 4, q "0.385", q 5, q 5, q 5, q 5, q 5, q 0, q "0.5001", q "0.5001", q "0.5559", q "1.8511", q "1.7781" ]
       r6 <- roundOf r 6
       [ holdingAt r6 p.cn p.industry ] `shouldEqual` [ q "14.5031" ]
     it "S US import ban, demand pressure: China's state sells no industrial inputs from round 2 and its unsold inputs pile up by 4 a round, while the US, with no industrial capacity of its own, is short 5 a round" do
@@ -268,7 +268,7 @@ spec = describe "Pacific (docs/05 §9)" do
       parts <- pacificParts
       us <- playAll parts "FreeTrade" "Restrict" "Hedger" "Hedger" 6
       cn <- playAll parts "Restrict" "FreeTrade" "Hedger" "Hedger" 6
-      (map (\x -> output x p.usFirm) us.records <> map (\x -> output x p.cnFirm) cn.records) `shouldEqual` [ q "6.1536", q 8, q "7.0768", q 4, q 4, q 4, q 2, q 2, q 2, q 2, q 1, q 1 ]
+      (map (\x -> output x p.usFirm) us.records <> map (\x -> output x p.cnFirm) cn.records) `shouldEqual` [ q "6.1536", q 8, q "6.7923", q "4.1236", q 4, q 4, q 2, q 2, q 2, q 2, q 1, q 1 ]
 
   describe "Money between the countries (docs/05 §9)" do
     it "Q The currency: under free trade America's imports sell USD and the dollar falls; with China's reserves it holds up" do
@@ -308,7 +308,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 997, 1017, 1077, 1154 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 1003, 1024, 1098, 1165 ]
 
   describe "Sensitivity (docs/05 §9)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do
