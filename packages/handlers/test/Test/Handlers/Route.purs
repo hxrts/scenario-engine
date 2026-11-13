@@ -5,6 +5,8 @@ module Test.Handlers.Route (spec) where
 
 import Prelude
 
+import Handlers.Api.Client (replyText)
+
 import Schema.Run (RunClass(..))
 
 import Schema.View (View(..), allViews, viewName)
@@ -100,6 +102,11 @@ spec = describe "Handlers.Api.Route's endpoint table" do
     map viewName [ Overview, NetWorth ] `shouldEqual` [ "overview", "networth" ]
   it "the examples cover every endpoint of the table" do
     sort (nub (map (\(Tuple r _) -> nameOf r) examples)) `shouldEqual` sort endpointNames
+  it "a refusal shows the server's own error; a proxy's page when the server is down is named, never shown" do
+    replyText { status: 409, body: "{\"error\":\"run-1 is live\"}" } `shouldEqual` Left "run-1 is live"
+    replyText { status: 502, body: "<html><head><title>502 Bad Gateway</title></head></html>" } `shouldEqual` Left "The server is not answering (HTTP 502). It may be restarting: reload the page in a moment."
+    replyText { status: 500, body: "<html>oops</html>" } `shouldEqual` Left "The server's reply could not be read (HTTP 500)."
+    replyText { status: 200, body: "{}" } `shouldEqual` Right "{}"
   it "an unknown route or view is a 404 naming it, and a body that does not decode a 400" do
     let
       bad r = case parse r of

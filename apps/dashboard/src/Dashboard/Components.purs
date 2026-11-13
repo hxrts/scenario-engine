@@ -234,8 +234,8 @@ overlayChart ids label baseline c = plotFrame c.title $ lineChartOf
 
 -- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
 -- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
-groupedBars :: Array String -> (String -> String) -> String -> String -> Bars -> JSX
-groupedBars ids label baseline xLabel b = plotFrame b.title $ barChartOf
+groupedBars :: Array String -> (String -> String) -> String -> Bars -> JSX
+groupedBars ids label xLabel b = plotFrame b.title $ barChartOf
   { config: Object.fromFoldable (map (\s -> Tuple s.name { label: label s.name, color: runColour ids s.name }) b.series)
   , className: "h-full w-full"
   , rows: barRows b

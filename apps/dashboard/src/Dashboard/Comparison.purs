@@ -139,6 +139,6 @@ mkComparison grid = component "Comparison" \p -> React.do
         , Layout.subsection
             { title: "Final standings"
             , purpose: "Each player's net worth after the final round: one group per player, with one bar per plotted run."
-            , children: withPlots \c -> [ groupedBars plotted (label c) baseline "Player" c.standings ]
+            , children: withPlots \c -> [ groupedBars plotted (label c) "Player" c.standings ]
             }
         ]

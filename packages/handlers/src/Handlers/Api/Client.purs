@@ -52,8 +52,9 @@ send fetch p = (\reply -> replyText reply >>= decodeError <<< parse sent.op.form
   where
   sent = request @name p
 
--- | The reply's body when it is a success (2xx); otherwise the error the reply carries: the `error` field
--- | of its JSON body, or its text, or its status.
+-- | The reply's body when it is a success (2xx); otherwise the error the reply carries: the `error` field of its JSON
+-- | body. A reply that is not the server's own (a proxy's HTML page when the server is down or restarting) is never
+-- | shown as it came: it is named by its status, and a gateway status says the server is not answering.
 replyText :: Reply -> Either String String
 replyText r
   | r.status >= 200 && r.status < 300 = Right r.body
@@ -61,4 +62,6 @@ replyText r
       where
       errorOf reply = case parse Snapshot errorShape reply.body of
         Right { error } -> error
-        Left _ -> if reply.body == "" then "HTTP " <> show reply.status else reply.body
+        Left _
+          | reply.status == 502 || reply.status == 503 || reply.status == 504 -> "The server is not answering (HTTP " <> show reply.status <> "). It may be restarting: reload the page in a moment."
+          | otherwise -> "The server's reply could not be read (HTTP " <> show reply.status <> ")."
