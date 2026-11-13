@@ -126,7 +126,7 @@ mkComparison grid = component "Comparison" \p -> React.do
         [ Layout.subsection
             { title: "Prices that move"
             , purpose: "Each Exchange price that changes in any plotted run, after every round: one line per run, on the same axes."
-            , children: withPlots \c -> if null c.exchanges then [ note "No price moves in the plotted runs." ] else [ Layout.grid (c.exchanges <#> \m -> D.div { className: "col-span-12 min-w-0 lg:col-span-6", children: [ Layout.captioned m.title [ overlayChart plotted (label c) baseline m ] ] }) ]
+            , children: withPlots \c -> if null c.exchanges then [ note "No price moves in the plotted runs." ] else [ D.div { className: "flex min-w-0 flex-col gap-stack", children: c.exchanges <#> \m -> Layout.captioned m.title [ overlayChart plotted (label c) baseline m ] } ]
             }
         , Layout.subsection
             { title: "Net worth over time"

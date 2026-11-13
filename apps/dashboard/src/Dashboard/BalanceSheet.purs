@@ -40,8 +40,8 @@ mkBalanceSheet grid = do
     , purpose: x.kind
     , children:
         [ Layout.grid
-            [ Layout.panel { span: 6, title: "Holdings", purpose: "Every Resource it holds, round by round.", children: [ metricChart x.chart ] }
-            , Layout.panel { span: 6, title: "Net worth", purpose: "What its holdings are worth at the round's prices.", children: [ metricChart x.netWorth ] }
+            [ Layout.panel { span: 12, title: "Holdings", purpose: "Every Resource it holds, round by round.", children: [ metricChart x.chart ] }
+            , Layout.panel { span: 12, title: "Net worth", purpose: "What its holdings are worth at the round's prices.", children: [ metricChart x.netWorth ] }
             , Layout.panel { span: 12, title: "What it has available", purpose: "Every Resource it holds, and what it owes or is owed.", children: [ Layout.captioned "Holdings by round" [ table x.holdings ], Layout.captioned "Obligations" [ table x.owed ] ] }
             , Layout.panel { span: 4, title: "What it can do", purpose: "Every action it is allowed.", children: [ table x.capabilities ] }
             , Layout.panel { span: 8, title: "Where it can do it", purpose: "The Exchanges it trades on and the Transformations it runs.", children: [ Layout.captioned "Exchanges" [ table x.exchanges ], Layout.captioned "Transformations" [ table x.transformations ] ] }
