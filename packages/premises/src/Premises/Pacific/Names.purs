@@ -10,7 +10,7 @@ pacificId = "pacific"
 pacificVersion :: String
 pacificVersion = "v0"
 
--- | The three Premises: one per economic object (docs/05 §9).
+-- | The three Premises: one per economic object (docs/05 §7).
 usRegimeId :: String
 usRegimeId = "us-regime"
 

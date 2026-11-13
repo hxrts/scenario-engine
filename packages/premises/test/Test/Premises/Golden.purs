@@ -1,7 +1,7 @@
--- | Literal premises (docs/05_pacific.md §9.3) through the shared checker. The fixtures are
+-- | Literal premises (docs/05_pacific.md §7) through the shared checker. The fixtures are
 -- | decoded from the DSL's own JSON, so these tests need no compiled output, and the golden names are
 -- | the fixture list itself. Every fixture plays through `simulate` (`Testkit.Fixture.checkLiteral`).
--- | Pins: expected values are those of docs/05 §10.6, held in the fixture modules.
+-- | Pins: expected values are those of docs/05 §9, held in the fixture modules.
 module Test.Premises.Golden (golden, fixture, failWith) where
 
 import Prelude

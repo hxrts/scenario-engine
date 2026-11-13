@@ -1,4 +1,4 @@
--- | The Clearing view (docs/07 §9.3; docs/05 §4): what crossed between countries, round by round, in the clearing
+-- | The Clearing view (docs/07 §9.3; docs/05 §4.4): what crossed between countries, round by round, in the clearing
 -- | system's three categories, and the Rules that stood at the borders. Generic: a country is an Actor group;
 -- | everything outside it, the Exchanges' reserves included, is abroad. The exchange rate is the currency Exchanges'
 -- | price, in the Exchanges view, and the current account is in the Finance view.

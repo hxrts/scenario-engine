@@ -1,4 +1,4 @@
--- | Every number Pacific is built from (docs/05 §9): a variant changes these and nothing else. The regime and the
+-- | Every number Pacific is built from (docs/05 §7): a variant changes these and nothing else. The regime and the
 -- | clearing builders read them.
 module Premises.Pacific.Dials
   ( Dials
@@ -17,7 +17,7 @@ import Schema.Build.Quantity (q)
 gameSeed :: Int
 gameSeed = 1949
 
--- | Every authored number (docs/05 §9): prices (technology in USD, industrial inputs in RMB) and the home premium,
+-- | Every authored number (docs/05 §7): prices (technology in USD, industrial inputs in RMB) and the home premium,
 -- | the currency Exchange, opening holdings and how each country's capacity is split between its state and its
 -- | firm, requirements, each investment, competence, wages, the tariff and tax rates, the private sectors' and the
 -- | rest of the world's. A variant changes these and nothing else.
@@ -53,7 +53,7 @@ type Dials =
 -- | yields, and the rounds until it arrives.
 type Investment = { cost :: Q, wages :: Q, yield :: Q, delay :: Int }
 
--- | Industrial competence (docs/05 §3.2): what each producer opens with of each good's competence, the share of it
+-- | Industrial competence (docs/05 §4.1): what each producer opens with of each good's competence, the share of it
 -- | that wears away each round, what each unit produced teaches, and what a unit of investment trains.
 type Competence =
   { decay :: Q
@@ -66,7 +66,7 @@ type Competence =
   , firmTraining :: Q
   }
 
--- | The bars each seat's four criteria set (docs/05 §8). A state: the most of the good it imports it may go short
+-- | The bars each seat's four criteria set (docs/05 §6). A state: the most of the good it imports it may go short
 -- | over the run, the capacity its firm ends with, its political viability every round (America's households'
 -- | purchases, China's industrial output), and its households' purchases over the run. A firm: the money it ends
 -- | with in its home currency, its capacity (the same bar as its state's), its production on the foreign input, and
@@ -81,7 +81,7 @@ type Objectives =
   , market :: { us :: Q, cn :: Q }
   }
 
--- | The reference numbers (docs/05 §3). The US splits its technology capacity 2 : 8 between state and firm, China
+-- | The reference numbers (docs/05 §4). The US splits its technology capacity 2 : 8 between state and firm, China
 -- | its industrial capacity 8 : 2, so each country's exports come mostly from a different seat.
 defaultDials :: Dials
 defaultDials =
@@ -123,7 +123,7 @@ defaultDials =
   , upkeep: q "0.05"
   , private: defaultPrivate
   , world: defaultWorld
-  -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §10.4), so a seat
+  -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §8.3), so a seat
   -- meets each about three times in five
   , objectives:
       { security: { us: q "19.52", cn: q "13.6" }

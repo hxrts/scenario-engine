@@ -1,4 +1,4 @@
--- | A Pacific country's names (docs/05 §3): its seats and private sector, the good it makes and the one it needs, its
+-- | A Pacific country's names (docs/05 §4): its seats and private sector, the good it makes and the one it needs, its
 -- | capacities and competences, its Transformations, its Exchanges, its barriers and the other country's, its
 -- | currency and the foreign one, and its routines. The regime builder, the clearing system and the Strategies read a
 -- | country only through this record, so each is written once for both countries.

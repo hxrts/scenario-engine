@@ -1,4 +1,4 @@
--- | The Finance view (docs/07_simulator.md §9.3; docs/05_pacific.md §9.3): the bonds open after each round, and each
+-- | The Finance view (docs/07_simulator.md §9.3; docs/05_pacific.md §7): the bonds open after each round, and each
 -- | country's external accounts. A country is a group of Actors (an Actor with no group is its own); everything
 -- | outside it, the Exchanges' reserves included, is abroad. Generic: it reads the world's agreements, Exchanges and
 -- | settled Flows, and names nothing of a composition's.

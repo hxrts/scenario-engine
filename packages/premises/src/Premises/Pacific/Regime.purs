@@ -1,4 +1,4 @@
--- | A national reproduction regime (docs/05 §3; work/loops.md §3): how one country reproduces its productive
+-- | A national reproduction regime (docs/05 §4; work/loops.md §3): how one country reproduces its productive
 -- | capability, its effective demand and its financial capacity, on the World's own Stocks and Flows. One builder
 -- | serves both countries; they differ only in their `RegimeConfig`, which `configOf` reads from the dials.
 -- |

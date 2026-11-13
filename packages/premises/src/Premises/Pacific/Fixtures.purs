@@ -1,4 +1,4 @@
--- | Pacific's engine-level golden fixtures (docs/05_pacific.md §9.3): small worlds cut from Pacific with no
+-- | Pacific's engine-level golden fixtures (docs/05_pacific.md §7): small worlds cut from Pacific with no
 -- | circulation, whose decisions are literal candidate Transactions. They pin the matched-only Exchange and an
 -- | export control, the US export tax, a home Exchange, an investment and the competence it trains, a transfer, the
 -- | currency dealer, and a foreign loan under the asset fee, through `resolveRound` alone. Every expected value is a

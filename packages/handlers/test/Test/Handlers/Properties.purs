@@ -83,7 +83,7 @@ governorOf = case _ of
   FlowRule r -> Just r.scope.governor
   HoldingRule _ -> Nothing
 
--- | The sample of an index: every number drawn within the range docs/05 §12 sweeps, or around the reference.
+-- | The sample of an index: every number drawn within the range docs/05 §9 sweeps, or around the reference.
 sampleOf :: Array String -> Array Rule -> Int -> Sample
 sampleOf presetNames rules i =
   { presets: map (\x -> pick "FreeTrade" presetNames x) [ x1, x2, x3, x4 ]

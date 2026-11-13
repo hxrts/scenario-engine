@@ -32,7 +32,7 @@ import Premises.Pacific.Country (Country, countries, countryOf, level)
 import Premises.Pacific.Private (addQ, deposit, feeParam, lendTo, loan, loanShareParam, neg, ofForeign, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
 import Schema.Build.Decision (eqQ, roundQ, acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
 
--- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §2). For a state: its trade barrier, its
+-- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §3). For a state: its trade barrier, its
 -- | industrial policy, and two at home (America's transfer and asset fee, China's financial repression and dollar
 -- | reserves). For a firm: how much it sells abroad, its stockpile, its investment, and its dividends.
 type Levels = { one :: Int, two :: Int, three :: Int, four :: Int }
@@ -112,7 +112,7 @@ importCost c =
   if c.money == p.usd then divQ (priceAt (named c.world)) (priceAt (named p.currency))
   else mulQ (priceAt (named c.world)) (priceAt (named p.currency))
 
--- | A state's commerce routine (docs/05 §7.1). For each good, sell what is left after the round's requirement and the
+-- | A state's commerce routine (docs/05 §7). For each good, sell what is left after the round's requirement and the
 -- | inputs the Strategy's earlier clauses committed, and buy what the requirement needs beyond what is held, both on
 -- | the good's world Exchange. Buy the foreign currency that two rounds of the foreign requirement cost. Produce its
 -- | own good as far as its capacity, competence and the wages it can pay allow; and the foreign good only when that
@@ -146,7 +146,7 @@ commerce c signs =
   substitute conds = rule conds [ asTemplate (selfTransform { transformation: c.substitute, quantity: q2 }) ]
   cover = max' (lit 0) (subQ (mulQ (mulQ (lit 2) (due c.foreign)) (priceAt (named c.world))) (holding c.foreignMoney))
 
--- | A firm's supply routine (docs/05 §7.1): produce as much as its capacity, competence, the foreign input it holds
+-- | A firm's supply routine (docs/05 §7): produce as much as its capacity, competence, the foreign input it holds
 -- | and the wages it can pay allow; buy on the world Exchange what brings its input back to two rounds' full use; and
 -- | buy the foreign currency that three rounds of its input cost. It signs the loans its firm borrows on.
 supply :: Country -> Array String -> StrategyRules
@@ -170,7 +170,7 @@ supply c signs =
   runs = minQ (minQ dependent (mulQ (holding c.foreign) (param (outputParam c.firm)))) (subQ budget base)
   cover = max' (lit 0) (subQ (mulQ (mulQ (lit 3) need) (priceAt (named c.world))) (holding c.foreignMoney))
 
--- | China's financial repression at a setting, while some conditions hold (docs/05 §3.4): it lends its firm a
+-- | China's financial repression at a setting, while some conditions hold (docs/05 §4.3): it lends its firm a
 -- | share of its RMB at the setting's rate, and signs its households' deposits at the setting's rate.
 repression :: Array Cond -> Int -> StrategyRules
 repression conds n =
@@ -178,7 +178,7 @@ repression conds n =
   , sign: [ (if conds == [] then identity else signIf conds) (SignAgreements [ deposit n ]) ]
   }
 
--- | A state's policy at its four levels (docs/05 §2). Every clause names its seat, so one policy serves either.
+-- | A state's policy at its four levels (docs/05 §3). Every clause names its seat, so one policy serves either.
 statePolicy :: ActorId -> Levels -> StrategyRules
 statePolicy a lv = (withoutHome3 a lv) `withPolicy` (if a == p.us then { rules: transfer, sign: [] } else repression [] lv.three)
   where
@@ -212,7 +212,7 @@ withoutHome3 a lv = { rules: barrier <> industrial <> home4, sign: [] }
         , rule [ acting a ] [ lendTo { template: usBond, lender: p.cn, borrower: p.us, money: p.usd, principal: max' (lit 0) (subQ (holding p.usd) (mulQ (mulQ (lit 2) (due p.technology)) (priceAt (named p.technologyWorld)))) } ]
         ]
 
--- | A firm's policy at its four levels (docs/05 §2).
+-- | A firm's policy at its four levels (docs/05 §3).
 firmPolicy :: ActorId -> Levels -> StrategyRules
 firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
   where
@@ -231,7 +231,7 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
   invest = if lv.three == 0 then [] else [ rule [ acting f ] [ asTemplate (selfTransform { transformation: c.firmInvestment, quantity: affordable lv.three c.firmInvestment c.good c.money }) ] ]
   pay = if lv.four == 0 then [] else [ rule [ acting f ] [ asTemplate (Transfer { from: selfActor, to: c.private, resource: c.money, quantity: mulQ (param (payParam (level lv.four))) (holding c.money) }) ] ]
 
--- | The presets' names (docs/05 §7.3).
+-- | The presets' names (docs/05 §8.2).
 presetId
   :: { freeTrade :: String
      , ban :: String
@@ -273,7 +273,7 @@ presetId =
   , hedger: "Hedger"
   }
 
--- | A preset is the policy every seat plays in a simulated run (docs/05 §7.3): a state preset sets each state's
+-- | A preset is the policy every seat plays in a simulated run (docs/05 §8.2): a state preset sets each state's
 -- | levels, with each firm exporting all it holds; a firm preset sets both firms' levels, with each state's tools off.
 presets :: Array (Tuple String StrategyRules)
 presets =

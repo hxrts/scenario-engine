@@ -1,4 +1,4 @@
--- | Pacific's private sector and its money (docs/05_pacific.md §2, §3.4, §6.2): each country's private sector, an
+-- | Pacific's private sector and its money (docs/05_pacific.md §3, §4.3, §5.2): each country's private sector, an
 -- | Aggregate holding its home currency and demand; the rest of the world's savings, an Aggregate without a seat;
 -- | the two currencies and the currency Exchange between them; and the loans every lender makes, all on one bond
 -- | template. A private sector is paid wages, transfers, dividends and interest, spends a share of what it holds
@@ -80,7 +80,7 @@ defaultPrivate =
   , privateMoney: { us: q 10, cn: q 10 }
   }
 
--- | The money between the countries (docs/05 §3.4, §4): the interest on US bonds; financial repression's three
+-- | The money between the countries (docs/05 §4.3, §4.4): the interest on US bonds; financial repression's three
 -- | settings (the rate China pays its households, the rate it charges its firm, and the share of its RMB it lends
 -- | the firm each round); the US asset fee per USD a foreigner lends; the USD China buys as reserves each round;
 -- | and the rest of the world's savings, the share of its RMB it turns into USD each round, the share of its USD it

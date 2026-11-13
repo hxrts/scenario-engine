@@ -1,4 +1,4 @@
--- | Derived indicators (docs/05 §8.2; docs/07 §9.3): what a run's record says about each country and each seat, read
+-- | Derived indicators (docs/05 §6; docs/07 §9.3): what a run's record says about each country and each seat, read
 -- | from production, purchases, agreements and positions and never stored. Generic: a country is an Actor group, its
 -- | households are the Aggregates in it, its goods are what its Transformations deliver, and its debts are its open
 -- | agreements (`Laws.External`).

@@ -14,7 +14,7 @@ The sections below specify the anchors and the types built on them: Actor and it
 
 Every participant, explicit or implicit, is one Actor with an identifier, accounts, capabilities and a kind.
 
-Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Pacific's are in [05 §2](05_pacific.md#2-seats).
+Its kind is Playable Actor, non-playable Actor or Aggregate. Playable and non-playable Actors are represented explicitly and driven by a controller: for a Playable Actor a seat, whose Strategy is supplied from outside the PremiseComposition, and for a non-playable Actor a Strategy that is part of the PremiseComposition. An Aggregate has a baseline Strategy and descriptive members ([§2.2](#22-three-projections-of-an-actor)). All three own accounts and act through the same kernel. They differ only in how their decisions are produced. Pacific's are in [05 §3](05_pacific.md#3-seats).
 
 ### 2.2 Three projections of an Actor
 

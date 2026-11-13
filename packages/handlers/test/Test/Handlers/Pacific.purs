@@ -1,4 +1,4 @@
--- | The Pacific composition's golden scenarios (docs/05_pacific.md §9): free trade, each ban, each investment,
+-- | The Pacific composition's golden scenarios (docs/05_pacific.md §7): free trade, each ban, each investment,
 -- | a ban met by substitution, no phantom trade, and the kernel invariants across them. Expected values are
 -- | literals from docs/05, never computed.
 module Test.Handlers.Pacific (spec, pacificParts, playAll, playTariffed, playFour, roundOf, holdingAt, traded, shortOf, output, taxes, totalOf, fx, ran, boughtBy, moved) where
@@ -136,8 +136,8 @@ playAll :: CompositionParts -> String -> String -> String -> String -> Int -> Af
 playAll parts us cn usFirm cnFirm = playFour parts { us, cn, usFirm, cnFirm }
 
 spec :: Spec Unit
-spec = describe "Pacific (docs/05 §10)" do
-  describe "Trade, barriers and substitution (docs/05 §10.1)" do
+spec = describe "Pacific (docs/05 §9)" do
+  describe "Trade, barriers and substitution (docs/05 §9)" do
     it "A Free trade: the US firm exports 8 T, China imports 3 and its firm 1, the US imports 5 I for RMB it bought; the tax is 2 USD in round 1; each currency's total never changes" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
@@ -228,7 +228,7 @@ spec = describe "Pacific (docs/05 §10)" do
           sells (view { proposed = invests 4 }) `shouldEqual` Q.zero
         _, _ -> throwError (error "the China seat is not composed with its routine")
 
-  describe "The firms, loans and the households (docs/05 §10.2)" do
+  describe "The firms, loans and the households (docs/05 §9)" do
     it "I Loans: repressing, China lends its firm a fifth of its RMB, free; rebalanced, a twentieth at 5%, repaid the next round" do
       parts <- pacificParts
       high <- playAll parts "FreeTrade" "StatusQuo" "FreeTrade" "Exporter" 3
@@ -270,7 +270,7 @@ spec = describe "Pacific (docs/05 §10)" do
       cn <- playAll parts "Restrict" "FreeTrade" "Hedger" "Hedger" 6
       (map (\x -> output x p.usFirm) us.records <> map (\x -> output x p.cnFirm) cn.records) `shouldEqual` [ q 8, q 8, q "6.8572", q 4, q 4, q 4, q 2, q 2, q 2, q "1.4", q 1, q 1 ]
 
-  describe "Money between the countries (docs/05 §10.3)" do
+  describe "Money between the countries (docs/05 §9)" do
     it "Q The currency: under free trade America's imports sell USD and the dollar falls; with China's reserves it holds up" do
       parts <- pacificParts
       free <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
@@ -292,7 +292,7 @@ spec = describe "Pacific (docs/05 §10)" do
       n2 <- roundOf free 2
       (map fx fee.records <> [ moved f2 p.row p.us p.usd, moved n2 p.row p.us p.usd ]) `shouldEqual` [ q "0.995", q "0.9074", q "0.8293", q "0.7548", q "0.6766", q "0.592", q "4.4", q 11 ]
 
-  describe "Balance (docs/05 §10.4)" do
+  describe "Balance (docs/05 §8.3)" do
 
     it "over 400 sampled settings of every seat's four tools, each seat meets a like number of its four criteria" do
       parts <- pacificParts
@@ -310,7 +310,7 @@ spec = describe "Pacific (docs/05 §10)" do
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
       map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 970, 957, 956, 948 ]
 
-  describe "Sensitivity (docs/05 §12)" do
+  describe "Sensitivity (docs/05 §9)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do
       let
         d = Pacific.defaultDials

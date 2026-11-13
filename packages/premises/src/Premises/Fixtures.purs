@@ -1,4 +1,4 @@
--- | Every engine-level golden fixture (docs/05_pacific.md §9.3). The golden test and the compiler both enumerate
+-- | Every engine-level golden fixture (docs/05_pacific.md §7). The golden test and the compiler both enumerate
 -- | this one list; a new composition adds its fixtures here.
 module Premises.Fixtures (fixtures) where
 

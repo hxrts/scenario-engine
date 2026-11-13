@@ -1,4 +1,4 @@
--- | Pacific's circuits and feedback loops (docs/05_pacific.md §4.3, §9.5): every leg of each circular flow carries a
+-- | Pacific's circuits and feedback loops (docs/05_pacific.md §4.5, §7): every leg of each circular flow carries a
 -- | flow; the bonds and the external accounts balance; and each feedback loop shows its sign under the conditions
 -- | docs/05 states, with the counter-case where a countervailing force undoes it. Expected values are literals from
 -- | docs/05.
@@ -91,7 +91,7 @@ variant :: (Pacific.Dials -> Pacific.Dials) -> Aff CompositionParts
 variant f = orThrow (parts (Pacific.pacific (f Pacific.defaultDials)))
 
 spec :: Spec Unit
-spec = describe "Pacific's circuits and loops (docs/05 §6, §10.5)" do
+spec = describe "Pacific's circuits and loops (docs/05 §5, §9)" do
   arrearsSpec
   describe "Circular flows" do
     it "every leg of the domestic, savings, external and world-savings circuits carries a flow" do
@@ -244,9 +244,9 @@ spec = describe "Pacific's circuits and loops (docs/05 §6, §10.5)" do
     InExchange _ -> true
     _ -> false
 
--- | The derived indicators on Pacific runs (docs/05 §8.2).
+-- | The derived indicators on Pacific runs (docs/05 §6).
 indicatorsSpec :: Spec Unit
-indicatorsSpec = describe "Derived indicators (docs/05 §8.2)" do
+indicatorsSpec = describe "Derived indicators (docs/05 §6)" do
   it "each indicator on a Pacific run: the status quo's net external positions, domestic absorption, the firms' debt service, the states' viability margins and each country's substitute gap" do
     source <- pacificParts
     r <- playAll source "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
@@ -262,9 +262,9 @@ indicatorsSpec = describe "Derived indicators (docs/05 §8.2)" do
     -- the strong dollar leaves America's substitute dearer than importing, so it stands idle; China's runs
     map (\c -> Tuple c.country (map (\g -> Tuple g.good g.gap) c.gaps)) cs `shouldEqual` [ Tuple p.cn [ Tuple p.technology (q "-0.1497") ], Tuple p.row [], Tuple p.us [ Tuple p.industry (q "-0.1306") ] ]
 
--- | The experiments (docs/05 §11).
+-- | The experiments (docs/05 §9).
 experiments :: Spec Unit
-experiments = describe "Experiments (docs/05 §11)" do
+experiments = describe "Experiments (docs/05 §9)" do
   it "Political trap: rebalancing costs China no industrial output; a US export control cuts it to 9 a round, still above its floor of 8; its households gain the interest repression took" do
     source <- pacificParts
     let arm cn us = { us, cn, usFirm: lv 2 0 0 0, cnFirm: lv 2 0 0 0 }
@@ -367,7 +367,7 @@ experiments = describe "Experiments (docs/05 §11)" do
     run (Seed 1) (withRounds (Just 8) g)
   boughtBy' x a = Q.sumQ (map _.quantity (filter (\f -> f.actor == a && f.quantity > Q.zero && (f.resource == p.technology || f.resource == p.industry)) (select exchangeFills x.record.events)))
 
--- | China's firm in arrears (docs/05 §8.1, §10.5): opening with no money, investing high and paying high dividends
+-- | China's firm in arrears (docs/05 §6, §9): opening with no money, investing high and paying high dividends
 -- | under China's own export control, it cannot repay what falls due from round 4. China's viability reads its output,
 -- | which clears its floor of 8 every round, and the further condition that its firm owes nothing in arrears, which
 -- | does not: the criterion fails on the arrears alone.

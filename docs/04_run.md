@@ -26,7 +26,7 @@ The configuration is the choice of each Run that the PremiseComposition leaves o
 | `preset` | preset name | no | The default preset: the cast's default, and the baseline of the suite's agency runs. It must be one of the PremiseComposition's presets ([07 §4.2](07_simulator.md#42-presets)). |
 | `alternatives` | Actor to preset name | no | Each seat's alternative preset, which the suite's agency runs cast it to ([07 §10.3](07_simulator.md#103-agency-analysis)). Each must be one of the presets. |
 
-Pacific's default preset, alternatives and round count are in [05 §7.3](05_pacific.md#73-presets).
+Pacific's default preset, alternatives and round count are in [05 §8.2](05_pacific.md#82-presets).
 
 The configuration may not set holdings, Exchange state, Rules, Strategy parameters, or round intervals. The PremiseComposition fixes them and determines which choices are eligible ([03 §11](03_premise.md#11-initialization-constraints)).
 

@@ -1,4 +1,4 @@
--- | Builders for a golden fixture's rounds and expectations (docs/05_pacific.md §9.3):
+-- | Builders for a golden fixture's rounds and expectations (docs/05_pacific.md §7):
 -- | candidate Transactions and their references, procedure outcomes, and the `expect` checks. Every expected value
 -- | is a literal. An `expect` is `noExpect` with the keys it checks given by record update:
 -- | `noExpect { accounts = balances [ Tuple N.us (keyed [ N.money := 260 ]) ] }`.
