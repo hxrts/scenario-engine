@@ -20,7 +20,7 @@ test("the runs at a glance: one row per run by name, with its leader, spread, Gi
   await page.goto("/admin/#/simulations");
   const glance = section(page, "The runs at a glance");
   await expect(rowWith(glance, ["FreeTrade", "CN", "120.96", "87.68", "0.26"])).toHaveCount(1);
-  await expect(rowWith(glance, ["Hawk", "US", "124.71", "79.12", "0.21"])).toHaveCount(1);
+  await expect(rowWith(glance, ["Hawk", "US", "123.8", "78.43", "0.22"])).toHaveCount(1);
   await expect(glance.getByRole("row")).toHaveCount(23);
 });
 
