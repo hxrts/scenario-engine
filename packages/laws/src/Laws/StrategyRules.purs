@@ -67,11 +67,11 @@ data Expr
   | Factor BehaviorDomain -- the stored Representation factor, 1 when none
   | Due ResourceId -- the fixed amount of a Resource the Actor's recurring flows take from it each round
   | Scheduled ResourceId -- what scheduled Flows still pending will deliver of a Resource to the Actor
-  | Owing ResourceId -- what the transactions pending against the Actor and due this round take of a Resource from it
   | Planned ResourceId -- what the Transforms the Strategy drafted earlier this round consume of a Resource
   | Mul Expr Expr
   | Sub Expr Expr
   | Max Expr Expr
+  | Min Expr Expr
   | Div Expr Expr -- a quotient, zero when the divisor is zero
 
 data Cond

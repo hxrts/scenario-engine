@@ -554,26 +554,26 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       fillsOf "EU" (resolveRound w [ eu, us ]) `shouldEqual` fillsOf "EU" (resolveRound w [ us, eu ])
 
   describe "Reservations (docs/02 §2.3, §8.2)" do
-    it "a reservation escrows the holder's Mil, scales a competing Transfer, and consumes nothing" do
+    it "a reservation escrows the holder's Mil before a competing Transfer, which scales to what is left, and consumes nothing" do
       let
         mil = resource "Mil"
         dep = (transformation "dep") { draws = [ ownDraw (Id "Mil") (Q.fromInt 3) ] }
         us = (explicitActor "US" [ MayTransform (Id "dep"), MayTransfer (Id "Mil") ]) { accounts = Map.singleton (Id "Mil") (Q.fromInt 10) }
         w = (baseWorld [ us, explicitActor "JP" [] ]) { resources = Map.insert (Id "Mil") mil (baseWorld []).resources, transformations = Map.singleton (Id "dep") dep }
-        -- 2 units reserve 6 Mil and the Transfer asks 10: 16 escrowed against 10 held, so both scale by 5/8
+        -- 2 units reserve 6 Mil, funded first, and the Transfer asks 10 of the 4 left, so it scales by 2/5
         r = resolveRound w [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "dep", quantity: Q.fromInt 2 } ], submit "US" 1 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.fromInt 10 } ] ]
       case r of
         Left e -> show e `shouldEqual` "a round"
         Right res -> do
           check w res `shouldEqual` []
-          holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 15) (Q.fromInt 4)
-          holding res.world (Id "JP") (Id "Mil") `shouldEqual` Q.div (Q.fromInt 25) (Q.fromInt 4)
-          concatMap transformedQ res.record.events `shouldEqual` [ Q.fromInt 5 `Q.div` Q.fromInt 4 ]
+          holding res.world (Id "US") (Id "Mil") `shouldEqual` Q.fromInt 6
+          holding res.world (Id "JP") (Id "Mil") `shouldEqual` Q.fromInt 4
+          concatMap transformedQ res.record.events `shouldEqual` [ Q.fromInt 2 ]
           filter
             (matches legs (\l -> l.to == Sink))
             res.record.events `shouldEqual` []
           -- the reservation is released at commit: the next round starts with nothing reserved
-          case resolveRound res.world [ submit "US" 0 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.div (Q.fromInt 15) (Q.fromInt 4) } ] ] of
+          case resolveRound res.world [ submit "US" 0 [ Transfer { from: Id "US", to: Id "JP", resource: Id "Mil", quantity: Q.fromInt 6 } ] ] of
             Left e -> show e `shouldEqual` "a round"
             Right next -> holding next.world (Id "US") (Id "Mil") `shouldEqual` Q.zero
     it "a reservation alongside inputs leaves the reserved Resource unchanged and still consumes the inputs" do

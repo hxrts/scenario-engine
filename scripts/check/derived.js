@@ -202,6 +202,7 @@ const fixes = {
   "intent-walk": "derive the walk from traverseIntent; a dispatch that is not a walk goes in scripts/check/derived.allow",
   "enum-list": "list a sum's constructors through Generic (genericEnum, genericNameShape, allValues in Core.Shape) rather than writing them all out",
   "banned-word": "Core carries no premise names; say what the mechanism does, and put the name in the DSL (docs/08 §3)",
+  "json-eq": "compare JSON with Premises.Compose.sameJson: argonaut's Eq visits every key twice and is exponential in depth",
 };
 
 const ruleIds = Object.keys(fixes);
@@ -252,6 +253,9 @@ function scan(file, text, ctx) {
       const jsonMarker = /\b(encodeJson|fromString|fromNumber|fromBoolean|jsonNull|fromArray|Json)\b/;
       if (/\bfromObject\b/.test(l) || (/\bObject\.fromFoldable\b/.test(l) && jsonMarker.test(l))) add("hand-json", i);
     }
+
+    // json-eq: two encoded values compared with argonaut's Eq
+    if (!/\bdecode/.test(l) && /\bencode(With|Json)\b[^\n]*\)\s*(==|\/=)|(==|\/=)\s*\(?encode(With|Json)\b/.test(l)) add("json-eq", i);
 
     // event-match: not the engine that produces the Events, nor the Event's own shape
     if (!file.startsWith(enginePath) && sym !== "eventShape" && eventArm.test(l)) add("event-match", i);

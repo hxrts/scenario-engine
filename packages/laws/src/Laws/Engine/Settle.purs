@@ -15,7 +15,7 @@ import Prelude
 
 import Laws.Engine.Compile (entered, actionTransactions, delivery, jointInputs, named, pairTransaction, payTransaction, ruleChange, runTransaction, transformTransaction)
 
-import Laws.Engine.Fund (Scaled, scaleOf)
+import Laws.Engine.Fund (Scaled, scaleOf, transformScaleOf)
 import Core.Map (entries, groupBy, sumInto)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (Side(..), clearSolvent)
@@ -110,7 +110,7 @@ transformationOrders w = concatMap \s -> concat (mapWithIndex (order s) s.item.c
         group = poolOf t.transformation tr
         use = maybe (Q.fromInt 1) _.perUnit (poolDraw tr)
       in
-        [ { key: Tuple s.item.candidateTransaction.id i, joint: s.item.joint, quantity: Q.mul (scaleOf s t.by) t.quantity, use, group, tid: t.transformation, minimum: tr.minimum } ]
+        [ { key: Tuple s.item.candidateTransaction.id i, joint: s.item.joint, quantity: Q.mul (transformScaleOf s t.by) t.quantity, use, group, tid: t.transformation, minimum: tr.minimum } ]
     _ -> []
 
 -- | One pool: joint candidate Transactions fill in full or are rejected as a unit; single orders share what remains

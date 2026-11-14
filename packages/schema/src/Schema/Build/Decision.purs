@@ -9,7 +9,6 @@ module Schema.Build.Decision
   , factor
   , due
   , scheduled
-  , owing
   , planned
   , acting
   , mulQ
@@ -45,6 +44,7 @@ module Schema.Build.Decision
   , tradeAt
   , priceAt
   , max'
+  , min'
   , divQ
   , not'
   ) where
@@ -117,11 +117,6 @@ due = Due <<< N.named
 scheduled :: forall a. Named a ResourceTag => a -> Expr
 scheduled = Scheduled <<< N.named
 
--- | What the transactions pending against the Actor and due this round, such as a bond's repayment, take of a
--- | Resource from it: they are funded before its orders, so what it can spend is what it holds less this.
-owing :: forall a. Named a ResourceTag => a -> Expr
-owing = Owing <<< N.named
-
 -- | What the Transforms drafted earlier this round consume of a Resource.
 planned :: forall a. Named a ResourceTag => a -> Expr
 planned = Planned <<< N.named
@@ -134,6 +129,10 @@ subQ = Sub
 
 max' :: Expr -> Expr -> Expr
 max' = Max
+
+-- | The lesser of two.
+min' :: Expr -> Expr -> Expr
+min' = Min
 
 -- | A quotient, zero when the divisor is zero.
 divQ :: Expr -> Expr -> Expr

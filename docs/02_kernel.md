@@ -256,7 +256,7 @@ This is the single authoritative sequence. The other docs reference it and do no
 
 Rationing is configured by tier, whole or scaled, and scale group ([§5.4](#54-rationing)). Three shortage behaviours hold for every PremiseComposition. The authored tiers that produce them are in [03 §10.1](03_premise.md#101-candidate-transaction-rules).
 
-1. **One short Resource scales everything a scale group executes.** Its funding scale is the smallest ratio of available to claimed across all Resources it claims, and that one factor scales every scaled claim in the group.
+1. **Production is funded before trade.** What the laws charged every round take, such as upkeep, is set aside first. An Actor's Transformations, with what its action laws charge on them, such as wages, then fill a tier before its Trades, Transfers and levies, so a shortage scales its trade, not its production. Within a tier one short Resource scales everything the Actor executes there, by the smallest ratio of available to claimed.
 2. **Whole claims fill first, and overflow drops them all.** They are funded before scaled claims and are never scaled. A party whose whole demand on a Resource exceeds its holding loses every whole claim on it. Scaled claims then share a pool pro rata.
 3. **A quote-reserve shortage drops the whole sell side.** If a batch would overdraw an Exchange's quote reserves, its sell orders are removed and the batch clears on its buys alone.
 

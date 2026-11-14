@@ -94,15 +94,17 @@ defaultDials =
   -- each world Exchange holds a stock of its good: it sells from it when buyers want more than sellers offer, its
   -- price rising along its curve, and buys back only what it sold, its price falling back (docs/02 §5.1)
   , stock: { technology: q 4, industry: q 6 }
-  , stockSlope: { technology: q "0.05", industry: q "0.1" }
+  -- industrial inputs' price rises slowly enough that, drawn down, it stays within the dollar's swing of what US
+  -- industry costs (the strong-dollar trap, F7)
+  , stockSlope: { technology: q "0.05", industry: q "0.03" }
   -- each home Exchange holds a stock of its country's good likewise, its price rising a quarter more per unit
   , homeStock: { technology: q 4, industry: q 6 }
-  , homeStockSlope: { technology: q "0.0625", industry: q "0.125" }
+  , homeStockSlope: { technology: q "0.0625", industry: q "0.0375" }
   -- one RMB per USD to start; the price moves half a hundredth for each USD of net buying, within 100 USD either way
   , currency: { rate: q 1, slope: q "0.005", depth: q 100, reserves: q 150 }
   , money: { us: q 112, cn: q 88 }
   -- China's state and the firms open with two rounds or more of the other currency their imports need; America's
-  -- state with a little over one, so it imports a little under its requirement in round 1
+  -- state with a little over one
   , foreignMoney: { us: q 12, cn: q 6, usFirm: q 4, cnFirm: q 4 }
   , technologyCapacity: { us: q 2, usFirm: q 8 }
   -- America opens with no industrial capacity of its own
@@ -120,10 +122,11 @@ defaultDials =
   -- half of a firm's capacity runs on the foreign input, at this much per unit: each firm's uses one unit a round
   , inputPerUnit: { usFirm: q "0.25", cnFirm: q 1 }
   , inputShare: q "0.5"
-  -- what a unit produced pays its producer's households, in its currency. Each country makes its own good cheaply;
-  -- the other's it can make for a little under what importing it costs at one RMB per USD (2 RMB is 2 USD for
-  -- industrial inputs, 1 USD is 1 RMB for technology), so the exchange rate decides whether its substitute runs
-  , wage: { usTechnology: q "0.25", usIndustry: q "1.95", cnTechnology: q "0.97", cnIndustry: q "0.25" }
+  -- what a unit produced pays its producer's households, in its currency. Each country makes its own good cheaply,
+  -- and the other's for about what importing it costs: US industry for a little more than industrial inputs cost at
+  -- one RMB per USD (2.2 USD against 2 RMB), so it runs only under a weaker dollar; China's technology for a little
+  -- under (0.97 RMB against 1 USD). The exchange rate decides whether a substitute runs
+  , wage: { usTechnology: q "0.25", usIndustry: q "2.2", cnTechnology: q "0.97", cnIndustry: q "0.25" }
   , tariffRate: q 1
   , taxRate: q "0.5"
   , cautiousOutput: q "0.5"
@@ -134,13 +137,13 @@ defaultDials =
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §10.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q "19.52", cn: q "13.6" }
-      , viability: { us: q "0.6", cn: q 8 }
-      , prosperity: { us: q "12.5", cn: q "0.63" }
-      , industry: { us: q "10.9", cn: q 4 }
-      , wealth: { us: q "3.35", cn: q "8.85" }
-      , output: { us: q "5.1", cn: q "1.5" }
-      , market: { us: q "12.5", cn: q "0.63" }
+      { security: { us: q "15.53", cn: q "11.6" }
+      , viability: { us: q "1.26", cn: q 8 }
+      , prosperity: { us: q "13.41", cn: q "3.56" }
+      , industry: { us: q "10.08", cn: q 4 }
+      , wealth: { us: q "2.29", cn: q "8.07" }
+      , output: { us: q 9, cn: q 2 }
+      , market: { us: q "13.41", cn: q "3.56" }
       }
   }
 

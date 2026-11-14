@@ -108,13 +108,18 @@ observationsOf w p = concatMap trade p.intents
     Route r -> [ { explicitActor: p.author, resource: r.pair.base, quantity: r.quantity } ]
     _ -> []
 
+-- | An authored tier's place in funding (`Laws.Engine.Fund`), which ranks an order's production before its trade
+-- | between authored tier 0 and tier 1: each authored tier is doubled, so an order at tier 1 sits at 2 with its trade.
+fundingTier :: Int -> Int
+fundingTier t = 2 * t
+
 -- | What a due transaction asks to set aside: each whole-quantity settled Flow out of a named holder's account.
 dueClaims :: Tuple Int PendingTransaction -> Array (Claim (Either Int CandidateTransactionId))
 dueClaims (Tuple i (PendingTransaction p)) = concatMap claim p.transaction.obligations
   where
   claim o = case o.effect of
     K.Move { from: K.HeldBy (K.Named e), resource, owed: K.Exactly amount } ->
-      [ { key: Left i, tier: p.transaction.ration.tier, whole: p.transaction.ration.whole, party: e, resource, amount } ]
+      [ { key: Left i, tier: fundingTier p.transaction.ration.tier, whole: p.transaction.ration.whole, party: e, resource, amount } ]
     _ -> []
 
 -- | Settle what fell due in a settlement phase, before the round's orders. A transaction rationing dropped
@@ -132,7 +137,7 @@ settleDue w dropped scales = foldl one { ledger: Map.empty, events: [], spawned:
         in
           record acc posted.ledger posted.flows posted.consumed scaled
   scaleBy tier o = case o.effect of
-    K.Move l@{ from: K.HeldBy (K.Named e), owed: K.Exactly amount } | Just x <- Map.lookup (Tuple tier e) scales -> o { effect = K.Move l { owed = K.Exactly (Q.mul x amount) } }
+    K.Move l@{ from: K.HeldBy (K.Named e), owed: K.Exactly amount } | Just x <- Map.lookup (Tuple (fundingTier tier) e) scales -> o { effect = K.Move l { owed = K.Exactly (Q.mul x amount) } }
     _ -> o
   record acc ledger flows consumed c =
     let

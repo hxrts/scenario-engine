@@ -40,11 +40,11 @@ type ExprAlg a =
   , factor :: BehaviorDomain -> a
   , due :: ResourceId -> a
   , scheduled :: ResourceId -> a
-  , owing :: ResourceId -> a
   , planned :: ResourceId -> a
   , mul :: a -> a -> a
   , sub :: a -> a -> a
   , max :: a -> a -> a
+  , min :: a -> a -> a
   , div :: a -> a -> a
   }
 
@@ -94,11 +94,11 @@ monoidExpr =
   , factor: const mempty
   , due: const mempty
   , scheduled: const mempty
-  , owing: const mempty
   , planned: const mempty
   , mul: append
   , sub: append
   , max: append
+  , min: append
   , div: append
   }
 
@@ -114,11 +114,11 @@ foldExpr alg = go
     Factor d -> alg.factor d
     Due r -> alg.due r
     Scheduled r -> alg.scheduled r
-    Owing r -> alg.owing r
     Planned r -> alg.planned r
     Mul a b -> alg.mul (go a) (go b)
     Sub a b -> alg.sub (go a) (go b)
     Max a b -> alg.max (go a) (go b)
+    Min a b -> alg.min (go a) (go b)
     Div a b -> alg.div (go a) (go b)
 
 foldCond :: forall a c. ExprAlg a -> CondAlg a c -> Cond -> c
@@ -182,7 +182,6 @@ refsExpr = monoidExpr
   , factor = \d -> [ Tuple RefResource (idText d) ]
   , due = \r -> [ Tuple RefResource (idText r) ]
   , scheduled = \r -> [ Tuple RefResource (idText r) ]
-  , owing = \r -> [ Tuple RefResource (idText r) ]
   , planned = \r -> [ Tuple RefResource (idText r) ]
   }
 

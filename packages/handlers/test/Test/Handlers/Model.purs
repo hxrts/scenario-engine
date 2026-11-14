@@ -11,7 +11,6 @@ import Assembly.Assemble (assemble, withRounds)
 import Assembly.Bindings (strategyRulesBindings)
 import Assembly.Composition (CompositionParts, Origin(..), enactable)
 import Core.Draw (Seed(..))
-import Core.Kernel.Types (Account(..), Amount(..), Effect(..), Party(..)) as K
 import Core.Map (values)
 import Core.Num (Q)
 import Core.Num as Q
@@ -20,7 +19,6 @@ import Data.Foldable (for_)
 import Data.Map as Map
 import Data.Either (note)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Newtype (unwrap)
 import Data.Traversable (for)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -81,23 +79,11 @@ rounds r = zip (map prepareRound ([ r.manifest.initial ] <> map _.world r.record
 held :: WorldState -> ActorId -> ResourceId -> Q
 held w a res = maybe Q.zero (\x -> lookupQ res x.accounts) (Map.lookup a w.actors)
 
--- | What the transactions pending against an Actor and due by the round take of a Resource from it.
-owing :: WorldState -> ActorId -> ResourceId -> Q
-owing w a res = Q.sumQ (concatMap (\pending -> let x = unwrap pending in if x.due <= w.round then mapMaybe takes x.transaction.obligations else []) w.pending)
-  where
-  takes o = case o.effect of
-    K.Move { from: K.HeldBy (K.Named e), resource, owed } | e == a && resource == res -> Just (fixed owed)
-    _ -> Nothing
-  fixed = case _ of
-    K.Exactly x -> x
-    K.Times t -> Q.mul t.ratio (fixed t.amount)
-    _ -> Q.zero
-
 at :: RoundResult -> String
 at x = "round " <> show x.record.round
 
--- | 1. Every Transformation an Actor orders runs in full: its routines size each order within what it holds, so
--- | funding scales nothing down.
+-- | 1. Every Transformation an Actor orders runs in full: funding sets its wages aside before the Actor's other
+-- | orders, and its routines order no more production than its capacity runs.
 unscaled :: SimRun -> Array String
 unscaled r = concatMap perRound r.records
   where
@@ -110,20 +96,19 @@ unscaled r = concatMap perRound r.records
         if done == t.quantity then [] else [ at x <> ": " <> idText t.by <> " ordered " <> Q.format t.quantity <> " of " <> idText t.transformation <> " and ran " <> Q.format done ]
     _ -> []
 
--- | 4. No Actor's signed orders, Transfers and loans claim more of a currency than it holds after what falls due
--- | from it, each unlimited buy at the highest price its Exchange reaches.
+-- | 4. No household or the rest of the world claims more of a currency than it holds: their shares of what they hold
+-- | sum to no more than all of it, each unlimited buy at the highest price its Exchange reaches.
 claims :: SimRun -> Array String
 claims r = concatMap perRound (rounds r)
   where
-  perRound (Tuple w x) = concatMap (\a -> concatMap (check w x a) [ p.usd, p.rmb ]) (map _.id (values w.actors))
+  perRound (Tuple w x) = concatMap (\a -> concatMap (check w x a) [ p.usd, p.rmb ]) [ p.usPrivate, p.cnPrivate, p.row ]
   check w x a c =
     let
       claimed = Q.sumQ (concatMap (\s -> if signed s then mapMaybe (claim w a c s.candidateTransaction.author) s.candidateTransaction.intents else []) x.record.inputs)
-      due = owing w a c
       has = held w a c
     in
-      if due > has || Q.add claimed due <= Q.add has (q "0.001") then []
-      else [ at x <> ": " <> idText a <> " claims " <> Q.format claimed <> " " <> idText c <> " and owes " <> Q.format due <> ", holding " <> Q.format has ]
+      if claimed <= Q.add has (q "0.001") then []
+      else [ at x <> ": " <> idText a <> " claims " <> Q.format claimed <> " " <> idText c <> ", holding " <> Q.format has ]
   signed s = all (\x -> x == s.candidateTransaction.author || elem x s.signatures) s.candidateTransaction.signers
   claim w a c author = case _ of
     Trade o | author == a -> Map.lookup o.exchange w.exchanges >>= \m ->
@@ -140,19 +125,21 @@ charged x a kinds =
   in
     { owed: Q.sumQ (map _.owed ls), paid: Q.sumQ (map _.amount ls) }
 
--- | 3. A seat that opened the round with the money for its wages and upkeep, after what fell due from it, paid them
--- | in full.
+-- | 3. Every seat pays its wages in full, and its upkeep whenever it opened the round holding as much: funding sets
+-- | both aside before anything else it orders. A tariff it pays as an importer is not escrowed (docs/03 §5.5), so
+-- | its wages may fall short by what that took.
 wagesPaid :: SimRun -> Array String
 wagesPaid r = concatMap (\(Tuple w x) -> concatMap (check w x) seats) (rounds r)
   where
   check w x a =
     let
-      money = (countryOf a).money
-      bill = charged x a [ "wage", "upkeep" ]
-      spendable = Q.sub (held w a money) (owing w a money)
+      wages = charged x a [ "wage" ]
+      tariffs = (charged x a [ idText (countryOf a).tariff ]).paid
+      upkeep = charged x a [ "upkeep" ]
+      opened = held w a (countryOf a).money
     in
-      if bill.paid < bill.owed && spendable >= bill.owed then [ at x <> ": " <> idText a <> " owed " <> Q.format bill.owed <> " in wages and upkeep, paid " <> Q.format bill.paid <> ", and opened with " <> Q.format spendable <> " to spend" ]
-      else []
+      (if Q.add wages.paid tariffs >= wages.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format wages.owed <> " in wages and paid " <> Q.format wages.paid ])
+        <> (if upkeep.paid == upkeep.owed || opened < upkeep.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format upkeep.owed <> " in upkeep, paid " <> Q.format upkeep.paid <> ", and opened with " <> Q.format opened ])
 
 -- | 8. The wages a seat owes are its dials' wage on every unit it ran, and its upkeep the dials' rate on the capacity
 -- | it holds: income to its households that no other flow stands in for.
@@ -195,7 +182,7 @@ substituteRuns source r = { wrong: concatMap _.wrong each, ran: length (filter _
       rate' = priceOn p.currency w
       importCost = if c.money == p.usd then fromMaybe Q.zero (Q.divFloor (priceOn c.world w) rate') else Q.mul (priceOn c.world w) rate'
       cheaper = rate (wageParam c.substitute) <= importCost
-      able = held w c.state c.foreignCapacity > Q.zero && held w c.state c.foreignSkill > Q.zero && Q.sub (held w c.state c.money) (owing w c.state c.money) > q 10
+      able = held w c.state c.foreignCapacity > Q.zero && held w c.state c.foreignSkill > Q.zero && held w c.state c.money > q 10
     in
       { wrong:
           (if ordered > Q.zero && not (shut || cheaper) then [ at x <> ": " <> idText c.state <> " ordered " <> Q.format ordered <> " of its substitute though importing costs " <> Q.format importCost ] else [])
@@ -209,9 +196,11 @@ substituteRuns source r = { wrong: concatMap _.wrong each, ran: length (filter _
 
 spec :: Spec Unit
 spec = describe "Pacific's model checked against itself (docs/07 §14)" do
-  it "nothing is scaled: in every preset and 20 generated runs, every Transformation an Actor orders runs in full" do
+  -- every preset and 20 generated runs, played once for the four properties that read them; a failure names its
+  -- property and its run
+  it "over every preset and 20 generated runs: nothing is scaled (every Transformation ordered runs in full); every seat pays its wages in full, and its upkeep when it can; households and the rest of the world claim no more than they hold; and wages and upkeep are what the dials say" do
     runs <- everyRun
-    for_ runs \x -> Tuple x.name (unscaled x.run) `shouldEqual` Tuple x.name []
+    for_ runs \x -> Tuple x.name (map ("scaled: " <> _) (unscaled x.run) <> map ("unpaid: " <> _) (wagesPaid x.run) <> map ("over budget: " <> _) (claims x.run) <> map ("dials: " <> _) (namedFlows x.source x.run)) `shouldEqual` Tuple x.name []
   it "every law and Rule kind is charged somewhere: across the presets and each state's tariff, each kind levies or blocks at least once" do
     source <- reference
     byPreset <- presetRuns
@@ -224,12 +213,6 @@ spec = describe "Pacific's model checked against itself (docs/07 §14)" do
       seen = nub (concatMap (\x -> map _.kind (select levies x.record.events) <> blockedKinds x) records)
       kinds = [ p.wage, p.upkeep, p.usExportControl, p.cnExportControl, p.usImportBan, p.cnImportBan, p.usImportTariff, p.cnImportTariff, p.usExportTax, p.usAssetFee ]
     map idText (filter (\k -> not (elem k seen)) kinds) `shouldEqual` []
-  it "wages are paid: in every preset and 20 generated runs, a seat that opened with the money for its wages and upkeep paid them in full" do
-    runs <- everyRun
-    for_ runs \x -> Tuple x.name (wagesPaid x.run) `shouldEqual` Tuple x.name []
-  it "nobody claims more than it holds: in every preset and 20 generated runs, each Actor's orders, Transfers and loans fit each currency it holds after what falls due" do
-    runs <- everyRun
-    for_ runs \x -> Tuple x.name (claims x.run) `shouldEqual` Tuple x.name []
   it "a steady economy repeats: under free trade with ample stock at a flat price, production and competence are the same every round from the second and no requirement goes short" do
     source <- orThrow (parts (Pacific.pacific (Pacific.defaultDials { stock = { technology: q 1000, industry: q 1000 }, stockSlope = { technology: q 0, industry: q 0 }, homeStock = { technology: q 1000, industry: q 1000 }, homeStockSlope = { technology: q 0, industry: q 0 } })))
     r <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
@@ -264,6 +247,3 @@ spec = describe "Pacific's model checked against itself (docs/07 §14)" do
     concatMap _.wrong results `shouldEqual` []
     -- both branches are exercised: a substitute that ran, and one with capacity left idle
     [ any (\x -> x.ran > 0) results, any (\x -> x.idle > 0) results ] `shouldEqual` [ true, true ]
-  it "wages and upkeep are what the dials say: in every preset and 20 generated runs, each seat owes its wage on every unit it ran and its upkeep on the capacity it holds" do
-    runs <- everyRun
-    for_ runs \x -> Tuple x.name (namedFlows x.source x.run) `shouldEqual` Tuple x.name []
