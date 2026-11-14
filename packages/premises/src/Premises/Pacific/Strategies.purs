@@ -135,7 +135,7 @@ commerce c signs =
   , sign: if signs == [] then [] else [ SignAgreements signs ]
   }
   where
-  -- a world Exchange's price moves along its curve as its stock is drawn, so its orders take the batch price
+  -- an Exchange's price moves along its curve as its stock is drawn, so its orders take the batch price
   sell r x = rule [] [ orderAt (named x) (neg (max' (lit 0) (subQ (subQ (holding r) (due r)) (planned r)))) Nothing ]
   buy r x = rule [] [ orderAt (named x) (max' (lit 0) (subQ (due r) (holding r))) Nothing ]
   q1 = minQ (runnable c.capacity c.skill) (divQ (holding c.money) (param (wageParam c.production)))
@@ -224,7 +224,7 @@ firmPolicy f lv = { rules: invest <> sell <> stockpile <> pay, sign: [] }
     1 -> lit "0.5"
     _ -> lit 1
   abroad = mulQ abroadShare available
-  sell = [ rule [ acting f ] [ orderAt (named c.ownWorld) (neg abroad) Nothing, orderAt (named c.home) (neg (subQ available abroad)) (Just (priceAt (named c.home))) ] ]
+  sell = [ rule [ acting f ] [ orderAt (named c.ownWorld) (neg abroad) Nothing, orderAt (named c.home) (neg (subQ available abroad)) Nothing ] ]
   -- no more than half the foreign currency it holds buys, so the stockpile never crowds out its input
   units = minQ (param (stockpileParam (level lv.two))) (divQ (mulQ (lit "0.5") (holding c.foreignMoney)) (priceAt (named c.world)))
   stockpile = if lv.two == 0 then [] else [ rule [ acting f ] [ orderAt (named c.world) units Nothing, ofForeign c (mulQ units (priceAt (named c.world))) ] ]

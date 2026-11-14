@@ -27,6 +27,8 @@ type Dials =
   , homePremium :: Q
   , stock :: { technology :: Q, industry :: Q }
   , stockSlope :: { technology :: Q, industry :: Q }
+  , homeStock :: { technology :: Q, industry :: Q }
+  , homeStockSlope :: { technology :: Q, industry :: Q }
   , currency :: { rate :: Q, slope :: Q, depth :: Q, reserves :: Q }
   , money :: { us :: Q, cn :: Q }
   , foreignMoney :: { us :: Q, cn :: Q, usFirm :: Q, cnFirm :: Q }
@@ -93,6 +95,9 @@ defaultDials =
   -- price rising along its curve, and buys back only what it sold, its price falling back (docs/02 §5.1)
   , stock: { technology: q 4, industry: q 6 }
   , stockSlope: { technology: q "0.05", industry: q "0.1" }
+  -- each home Exchange holds a stock of its country's good likewise, its price rising a quarter more per unit
+  , homeStock: { technology: q 4, industry: q 6 }
+  , homeStockSlope: { technology: q "0.0625", industry: q "0.125" }
   -- one RMB per USD to start; the price moves half a hundredth for each USD of net buying, within 100 USD either way
   , currency: { rate: q 1, slope: q "0.005", depth: q 100, reserves: q 150 }
   , money: { us: q 112, cn: q 88 }

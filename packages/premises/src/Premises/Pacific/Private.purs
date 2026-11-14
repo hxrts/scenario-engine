@@ -40,7 +40,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Laws.StrategyRules (Expr, StrategyRules, Template(..))
-import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, StrategyId, idText)
+import Laws.Types (ActorId, IntentF(..), ResourceId, StrategyId, idText)
 import Premises.Pacific.Country (Country, countries, levelName)
 import Premises.Pacific.Names (p)
 import Schema.Build.Decision (divQ, holding, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
@@ -176,9 +176,6 @@ abroadShareParam private = idText private <> "-abroad-share"
 tariffedShareParam :: ActorId -> String
 tariffedShareParam private = idText private <> "-abroad-share-tariffed"
 
-priceParam :: ExchangeId -> String
-priceParam x = idText x <> "-per-unit"
-
 releaseParam :: String -> String
 releaseParam l = "release-" <> l
 
@@ -231,12 +228,6 @@ parameters d w prices = Object.fromFoldable
       <> levels stockpileParam d.stockpile
       <> levels feeParam w.fee
       <> levels reserveParam w.reserves
-      <> map (\(Tuple x pr) -> Tuple (priceParam x) (fromMaybe Q.zero (Q.divMaybe Q.one pr)))
-        [ Tuple p.technologyWorld prices.technologyPrice
-        , Tuple p.industryWorld prices.industryPrice
-        , Tuple p.technologyUs (Q.mul prices.homePremium prices.technologyPrice)
-        , Tuple p.industryCn (Q.mul prices.homePremium prices.industryPrice)
-        ]
       <> do
         c <- countries
         let share = if c.state == p.us then d.spendShare.us else d.spendShare.cn
@@ -261,7 +252,7 @@ parameters d w prices = Object.fromFoldable
 demandStrategies :: Array (Tuple StrategyId StrategyRules)
 demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c false, convert c true, abroad c ] <> lend c, sign: [] }) countries
   where
-  home c = rule [] [ orderAt (named c.home) (mulQ (mulQ (holding c.money) (param (homeShareParam c.private))) (param (priceParam c.home))) (Just (priceAt (named c.home))) ]
+  home c = rule [] [ orderAt (named c.home) (divQ (mulQ (holding c.money) (param (homeShareParam c.private))) (priceAt (named c.home))) Nothing ]
   inForce c = ruleInForce { by: c.state, kinds: [ c.tariff ] }
   convert c tariffed =
     if tariffed then rule [ inForce c ] [ toForeign c (mulQ (holding c.money) (param (tariffedShareParam c.private))) ]

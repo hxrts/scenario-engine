@@ -53,7 +53,7 @@ clearing d = emptyParts
       [ Tuple p.technologyWorld (stockist everyone p.us p.technology p.usd d.technologyPrice d.stock.technology d.stockSlope.technology)
       , Tuple p.industryWorld (stockist everyone p.cn p.industry p.rmb d.industryPrice d.stock.industry d.stockSlope.industry)
       ]
-        <> map (\c -> Tuple c.home (market [ c.state, c.firm, c.private ] c.good c.money (Q.mul d.homePremium (priceOf c.good)))) countries
+        <> map (\c -> Tuple c.home (stockist [ c.state, c.firm, c.private ] c.state c.good c.money (Q.mul d.homePremium (priceOf c.good)) (homeStockOf c.good) (homeSlopeOf c.good))) countries
         <> [ Tuple p.currency (currencyExchange d (everyone <> [ p.row ])) ]
   , ruleKinds = [ Tuple p.wage { form: LevyFlows GovernedBySource, text: "{governor} pays wages of {amount} per unit produced" }, Tuple p.upkeep { form: LevyFlows GovernedBySource, text: "{governor} pays upkeep of {amount} per unit of capacity held" } ] <> ruleKinds
   , rules = [ Tuple "us-export-tax" (exportTax d) ]
@@ -79,6 +79,8 @@ clearing d = emptyParts
   where
   everyone = concatMap (\c -> [ c.state, c.firm, c.private ]) countries
   priceOf good = if good == p.technology then d.technologyPrice else d.industryPrice
+  homeStockOf good = if good == p.technology then d.homeStock.technology else d.homeStock.industry
+  homeSlopeOf good = if good == p.technology then d.homeStockSlope.technology else d.homeStockSlope.industry
   perInput x = fromMaybe Q.zero (Q.divMaybe Q.one x)
   ruleKinds =
     [ Tuple p.usExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls technology exports to {counterparty}" }
@@ -91,12 +93,7 @@ clearing d = emptyParts
     , Tuple p.usAssetFee { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} per USD lent to it from {counterparty}, paid by the lender" }
     ]
 
--- | A constant price with no reserves and a domain that starts at the position: every trade is a pair between two
--- | orders (docs/02 §5.2).
-market :: Array ActorId -> ResourceId -> ResourceId -> Q -> Exchange
-market access base quote price = exchange { base, quote, cost: { intercept: price, slope: q 0, domain: { lo: q 0, hi: q 1000000 } }, reserves: Map.empty } access
-
--- | A world Exchange holding a stock of its good (docs/05 §4.4): every trade between orders is a pair, and what buyers
+-- | An Exchange holding a stock of its good, world or home (docs/05 §4.4): every trade between orders is a pair, and what buyers
 -- | take beyond the sellers comes from the stock, moving the position and raising the price along the curve. Its
 -- | domain starts at its opening position, so it buys back only what it has sold, never output nobody ordered, and
 -- | a seller is otherwise paid only for what a buyer takes (docs/02 §5.2). The stock is the producing country's for
