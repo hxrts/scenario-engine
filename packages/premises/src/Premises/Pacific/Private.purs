@@ -1,8 +1,8 @@
 -- | Pacific's private sector and its money (docs/05_pacific.md §3, §4.3, §5.2): each country's private sector, an
 -- | Aggregate holding its home currency and demand; the rest of the world's savings, an Aggregate without a seat;
 -- | the two currencies and the currency Exchange between them; and the loans every lender makes, all on one bond
--- | template. A private sector is paid wages, transfers, dividends and interest, spends a share of what it holds
--- | (China's saves most, America's spends most), and lends part of the rest to its state. What it buys abroad it
+-- | template. A private sector is paid wages, transfers, dividends and interest, spends most of what it holds, so
+-- | what it buys follows what it is paid, and lends part of the rest to its state. What it buys abroad it
 -- | buys with the other currency, bought first on the currency Exchange.
 module Premises.Pacific.Private
   ( PrivateDials
@@ -20,9 +20,10 @@ module Premises.Pacific.Private
   , tariffRate
   , ceilingParam
   , upkeepParam
-  , feeParam
+  , easeParam
   , reserveParam
   , loanShareParam
+  , returnParam
   , usBond
   , firmBond
   , deposit
@@ -60,7 +61,7 @@ type Level2 = { low :: Q, high :: Q }
 type Level3 = { off :: Q, low :: Q, high :: Q }
 
 -- | The private sectors' numbers and the firms': the share of what each private sector holds that it spends each
--- | round (China's low, America's high), the share of its home currency a state transfers and a firm pays at each
+-- | round, the share of its home currency a state transfers and a firm pays at each
 -- | level, the units of its foreign input a stockpiling firm buys at each level, the share of its savings (what it
 -- | does not spend) each private sector lends its state and America's lends its firm, and each firm's and private
 -- | sector's opening money. A private sector's shares of what it holds therefore never sum to more than all of it.
@@ -77,29 +78,33 @@ type PrivateDials =
 
 defaultPrivate :: PrivateDials
 defaultPrivate =
-  { spendShare: { us: q "0.8", cn: q "0.2" }
+  -- both spend most of what they hold, so what each buys follows what it is paid; China's order for USD escrows the
+  -- dealer's highest price, so its households keep more unspent
+  { spendShare: { us: q "0.8", cn: q "0.6" }
   , release: { low: q "0.05", high: q "0.15" }
   , pay: { low: q "0.05", high: q "0.15" }
   , stockpile: { low: q 1, high: q 2 }
-  -- half of what each does not spend: a tenth of what America's households hold, two fifths of what China's do
+  -- half of what each does not spend: a tenth of what America's households hold, a fifth of what China's do
   , lend: { us: q "0.5", cn: q "0.5" }
   -- the share of what they do not spend America's households lend their firm each round, on its bond: the other half
   , lendFirm: q "0.5"
   , firmMoney: { us: q 15, cn: q 10 }
-  , privateMoney: { us: q 10, cn: q 10 }
+  , privateMoney: { us: q 10, cn: q 5 }
   }
 
 -- | The money between the countries (docs/05 §4.3, §4.4): the interest on US bonds; financial repression's three
--- | settings (the rate China pays its households, the rate it charges its firm, and the share of its RMB it lends
--- | the firm each round); the US asset fee per USD a foreigner lends; the USD China buys as reserves each round;
+-- | settings (the rate China pays on its households' deposits and the share of its RMB it pays them as the return on
+-- | their savings, the rate it charges its firm, and the share of its RMB it lends the firm each round); what
+-- | easing the US policy rate takes off each USD lent; the USD China buys as reserves each round;
 -- | and the rest of the world's savings, the share of its RMB it turns into USD each round, the share of its USD it
--- | lends the US state, and while the fee is in force the share it lends and the share it sells.
+-- | lends the US state, and while the policy rate is eased the share it lends and the share it sells.
 type WorldDials =
   { usRate :: Q
   , depositRate :: Level3
   , loanRate :: Level3
   , loanShare :: Level3
-  , fee :: Level2
+  , ease :: Level2
+  , savingsReturn :: Level3
   , reserves :: Level2
   , savings :: { usd :: Q, rmb :: Q, buy :: Q, lend :: Q, lendUnderFee :: Q, flight :: Q }
   }
@@ -110,7 +115,10 @@ defaultWorld =
   , depositRate: { off: q "0.05", low: q "0.02", high: q 0 }
   , loanRate: { off: q "0.05", low: q "0.01", high: q 0 }
   , loanShare: { off: q "0.05", low: q "0.1", high: q "0.2" }
-  , fee: { low: q "0.02", high: q "0.05" }
+  -- what easing takes off the 5% a dollar bond yields: to 2%, and to nothing
+  , ease: { low: q "0.03", high: q "0.05" }
+  -- the share of what its wages and upkeep leave it that China's state pays its households at each setting
+  , savingsReturn: { off: q "0.02", low: q "0.01", high: q 0 }
   , reserves: { low: q 3, high: q 6 }
   , savings: { usd: q 20, rmb: q 60, buy: q "0.2", lend: q "0.5", lendUnderFee: q "0.2", flight: q "0.3" }
   }
@@ -150,12 +158,13 @@ exportTax c = if c.state == p.us then levyRate { by: p.us, kind: p.usExportTax, 
 
 -- | Turn an amount of a country's home currency into the foreign currency on the currency Exchange, whose base is
 -- | USD and whose price is RMB per USD: America sells that many USD; China buys the USD that many RMB buy at the
--- | round's price. Its order escrows the dealer's highest price, more than the amount, which the shares a private
--- | sector leaves unspent cover; sizing it at that price would cut what it converts by a third.
-toForeign :: Country -> Expr -> Template
-toForeign c amount =
+-- | round's price. Its order escrows the dealer's highest price, more than the amount, so it buys no more than
+-- | `room`, what its other shares leave it, pays for at that price; sizing it all at that price would cut what it
+-- | converts by a third.
+toForeign :: Country -> Expr -> Expr -> Template
+toForeign c amount room =
   if c.money == p.usd then orderAt (named p.currency) (neg amount) Nothing
-  else orderAt (named p.currency) (divQ amount (priceAt (named p.currency))) Nothing
+  else orderAt (named p.currency) (minQ (divQ amount (priceAt (named p.currency))) (divQ room (param (ceilingParam p.currency)))) Nothing
 
 -- Loans ----------------------------------------------------------------------------------------
 
@@ -180,14 +189,20 @@ loan n = "cn-loan-" <> levelName n
 
 -- | A loan, on the bond template (§3.4): the lender Transfers the principal to the borrower, and they enter the
 -- | bond for the principal, which the borrower repays the next round with the bond's interest. The borrower signs. The
--- | principal moves as a Transfer, so the Rules in force screen it, which is how the US asset fee is charged.
+-- | principal moves as a Transfer, so the Rules in force screen it, which is how a foreign lender meets the US policy rate.
 lendTo :: { template :: String, lender :: ActorId, borrower :: ActorId, money :: ResourceId, principal :: Expr } -> Template
-lendTo l = CandidateTransactionT
+lendTo l = lendEased (lit 0) l
+
+-- | A loan whose lender gives up `ease` of each unit it lends: it Transfers the principal, and the bond is entered for
+-- | what is left of it, so the bond yields it that much less. This is how America's households meet the policy rate
+-- | (docs/05 §4.3), which a foreign lender meets as a levy.
+lendEased :: Expr -> { template :: String, lender :: ActorId, borrower :: ActorId, money :: ResourceId, principal :: Expr } -> Template
+lendEased ease l = CandidateTransactionT
   { signers: [ l.borrower ]
   , procedure: Nothing
   , intents:
       [ Transfer { from: l.lender, to: l.borrower, resource: l.money, quantity: l.principal }
-      , Enter { template: l.template, args: [ { name: "principal", value: l.principal } ], parties: [ { role: "lender", actor: l.lender }, { role: "borrower", actor: l.borrower } ] }
+      , Enter { template: l.template, args: [ { name: "principal", value: mulQ l.principal (subQ (lit 1) ease) } ], parties: [ { role: "lender", actor: l.lender }, { role: "borrower", actor: l.borrower } ] }
       ]
   }
 
@@ -209,16 +224,19 @@ payParam l = "pay-" <> l
 stockpileParam :: String -> String
 stockpileParam l = "stockpile-" <> l
 
--- | The US asset fee per USD lent at a level, and the USD China buys as reserves in a round at one.
-feeParam :: String -> String
-feeParam l = "asset-fee-" <> l
+-- | What easing the US policy rate takes off each USD lent at a level, and the USD China buys as reserves in a round at one.
+easeParam :: String -> String
+easeParam l = "policy-easing-" <> l
 
 reserveParam :: String -> String
 reserveParam l = "reserves-" <> l
 
--- | The share of its RMB China's state lends its firm at a repression setting.
+-- | The share of its RMB China's state lends its firm at a repression setting, and the share it pays its households.
 loanShareParam :: Int -> String
 loanShareParam n = "loan-share-" <> levelName n
+
+returnParam :: Int -> String
+returnParam n = "savings-return-" <> levelName n
 
 -- | The share of its home currency a private sector lends its state each round.
 lendParam :: ActorId -> String
@@ -257,11 +275,14 @@ parameters d w prices = Object.fromFoldable
     , Tuple (loanShareParam 0) w.loanShare.off
     , Tuple (loanShareParam 1) w.loanShare.low
     , Tuple (loanShareParam 2) w.loanShare.high
+    , Tuple (returnParam 0) w.savingsReturn.off
+    , Tuple (returnParam 1) w.savingsReturn.low
+    , Tuple (returnParam 2) w.savingsReturn.high
     ]
       <> levels releaseParam d.release
       <> levels payParam d.pay
       <> levels stockpileParam d.stockpile
-      <> levels feeParam w.fee
+      <> levels easeParam w.ease
       <> levels reserveParam w.reserves
       <> do
         c <- countries
@@ -294,15 +315,17 @@ demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, abroad c ] <> le
       want = divQ (holding c.foreignMoney) (param (ceilingParam c.world))
       met i = fromMaybe (lit 0) (index (spend budget [ mulQ want (importTariff c), budget ]) i)
     in
-      rule [] [ orderAt (named c.world) (afford want (importTariff c) (met 0)) Nothing, toForeign c (met 1) ]
+      rule [] [ orderAt (named c.world) (afford want (importTariff c) (met 0)) Nothing, toForeign c (met 1) (subQ (mulQ (holding c.money) (subQ (subQ (lit 1) (param (homeShareParam c.private))) (param (lendParam c.private)))) (met 0)) ]
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
+  -- what the US policy rate takes off a dollar lent
+  eased = levyRate { by: p.us, kind: p.usPolicyRate, on: p.usd }
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead
   lend c =
     -- America's also lend its firm, on the firm's bond
-    if c.state == p.us then [ rule [] [ lendTo { template: usBond, lender: c.private, borrower: c.state, money: c.money, principal: principal c } ], rule [] [ lendTo { template: firmBond, lender: c.private, borrower: c.firm, money: c.money, principal: mulQ (param lendFirmParam) (holding c.money) } ] ]
+    if c.state == p.us then [ rule [] [ lendEased eased { template: usBond, lender: c.private, borrower: c.state, money: c.money, principal: principal c } ], rule [] [ lendEased eased { template: firmBond, lender: c.private, borrower: c.firm, money: c.money, principal: mulQ (param lendFirmParam) (holding c.money) } ] ]
     else [ rule [] (map (\n -> lendTo { template: deposit n, lender: c.private, borrower: c.state, money: c.money, principal: principal c }) [ 0, 1, 2 ]) ]
 
--- | The rest of the world's savings (§6.2): while the US asset fee is not in force it turns a share of its RMB into
+-- | The rest of the world's savings (§6.2): while the US policy rate is not eased it turns a share of its RMB into
 -- | USD and lends the US state a share of its USD; while it is, it lends less and sells a share of its USD.
 worldStrategy :: StrategyRules
 worldStrategy =
@@ -315,5 +338,5 @@ worldStrategy =
   , sign: []
   }
   where
-  fee = ruleInForce { by: p.us, kinds: [ p.usAssetFee ] }
+  fee = ruleInForce { by: p.us, kinds: [ p.usPolicyRate ] }
   lendAt share = lendTo { template: usBond, lender: p.row, borrower: p.us, money: p.usd, principal: max' (lit 0) (mulQ (param share) (holding p.usd)) }

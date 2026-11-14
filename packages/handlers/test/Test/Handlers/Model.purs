@@ -213,7 +213,7 @@ spec = describe "Pacific's model checked against itself (docs/07 §14)" do
     let
       records = concatMap _.records (map _.run byPreset <> tariffed)
       seen = nub (concatMap (\x -> map _.kind (select levies x.record.events) <> blockedKinds x) records)
-      kinds = [ p.wage, p.upkeep, p.usExportControl, p.cnExportControl, p.usImportBan, p.cnImportBan, p.usImportTariff, p.cnImportTariff, p.usExportTax, p.usAssetFee ]
+      kinds = [ p.wage, p.upkeep, p.usExportControl, p.cnExportControl, p.usImportBan, p.cnImportBan, p.usImportTariff, p.cnImportTariff, p.usExportTax, p.usPolicyRate ]
     map idText (filter (\k -> not (elem k seen)) kinds) `shouldEqual` []
   it "a steady economy repeats: under free trade with ample stock at a flat price and a flat exchange rate, production and competence are the same every round from the second and no requirement goes short" do
     source <- orThrow (parts (Pacific.pacific (Pacific.defaultDials { stock = { technology: q 1000, industry: q 1000 }, stockSlope = { technology: q 0, industry: q 0 }, homeStock = { technology: q 1000, industry: q 1000 }, homeStockSlope = { technology: q 0, industry: q 0 }, currency = Pacific.defaultDials.currency { slope = q 0 } })))

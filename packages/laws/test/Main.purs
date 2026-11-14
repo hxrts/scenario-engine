@@ -696,7 +696,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       rejections (resolveRound shipWorld [ submit "A" 0 [ send "B" 5, send "C" 5, carry 10 ] ]) `shouldEqual` []
     it "a Rule applies to a flow with no gate and no carrier" do
       let
-        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block }
+        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block Q.zero }
         declared = Map.singleton (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }
         w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind embargo" ]
@@ -711,7 +711,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       holding r.world (Id "B") (Id "M") `shouldEqual` Q.fromInt 100
     it "a Rule does not cover a Resource outside its over" do
       let
-        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "M" ] }, effect: Block }
+        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "M" ] }, effect: Block Q.zero }
         declared = Map.singleton (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }
         w = shipWorld { flowGates = [], ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5 ] ]) `shouldEqual` []
@@ -724,7 +724,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` [ "a Rule of kind tariff applies only to its governing Actor or owner, and only in its declared form" ]
     it "a new Rule kind, declared only as data, is enforced by the mechanism" do
       let
-        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block }
+        embargo = FlowRule { kind: Id "embargo", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Block Q.zero }
         toll = FlowRule { kind: Id "toll", scope: { governor: Id "B", counterparty: Id "A", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: q "0.1", basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
         declared = Map.fromFoldable [ Tuple (Id "embargo") { form: BlockFlows GovernedByDestination, text: "" }, Tuple (Id "toll") { form: LevyFlows GovernedByDestination, text: "" } ]
         blocked = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") embargo }
@@ -733,7 +733,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       length (filter (matches levies (\l -> l.kind == Id "toll")) (eventsOf (resolveRound tolled [ submit "A" 0 [ send "B" 5, carry 5 ] ]))) `shouldEqual` 1
     it "an Outbound Rule covers what leaves its governor, and only that" do
       let
-        ban = FlowRule { kind: Id "exportBan", scope: { governor: Id "A", counterparty: Id "B", direction: Outbound, over: [ Id "E" ] }, effect: Block }
+        ban = FlowRule { kind: Id "exportBan", scope: { governor: Id "A", counterparty: Id "B", direction: Outbound, over: [ Id "E" ] }, effect: Block Q.zero }
         declared = Map.singleton (Id "exportBan") { form: BlockFlows GovernedBySource, text: "" }
         w = shipWorld { ruleKinds = declared, rules = Map.singleton (Id "r") ban }
         back = Transfer { from: Id "B", to: Id "A", resource: Id "E", quantity: Q.fromInt 5 }
@@ -794,7 +794,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "a Rule is checked against who its kind says governs" do
       let
         declared = Map.singleton (Id "exportBan") { form: BlockFlows GovernedBySource, text: "" }
-        inbound = FlowRule { kind: Id "exportBan", scope: { governor: Id "A", counterparty: Id "B", direction: Inbound, over: [ Id "E" ] }, effect: Block }
+        inbound = FlowRule { kind: Id "exportBan", scope: { governor: Id "A", counterparty: Id "B", direction: Inbound, over: [ Id "E" ] }, effect: Block Q.zero }
       conforms (fromMaybe { form: ReduceHolding, text: "" } (Map.lookup (Id "exportBan") declared)) inbound `shouldEqual` false
     it "a Rule enacted in one round is in the next round's record" do
       let

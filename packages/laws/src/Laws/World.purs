@@ -833,7 +833,7 @@ traverseWorld t w =
     HoldingRule x -> (\kind resource -> HoldingRule x { kind = kind, resource = resource }) <$> t.ruleKind x.kind <*> t.resource x.resource
   flowEffectAt = case _ of
     Levy l -> (\in' basis -> Levy l { in = in', basis = basis }) <$> t.resource l.in <*> levyBasisAt l.basis
-    Block -> pure Block
+    Block share -> pure (Block share)
   levyBasisAt = case _ of
     PerUnit -> pure PerUnit
     AdValorem m -> AdValorem <$> t.exchange m

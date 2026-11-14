@@ -326,7 +326,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       -- the seat, authorized to enact the given kinds of Rule (the interpreter filters by authority)
       enacting caps = env { view = seat { self = seat.self { capabilities = caps } } }
     it "enactAccessBan drafts a ban by the author's reserveParty on its target" do
-      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banR { reserveParty: selfActor, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
+      intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (banRAt (lit 0) { reserveParty: selfActor, target: Id "CN" })) ] ], sign: [] }) (enacting [ MayEnact (Id "accessBan") ]))
         `shouldEqual` [ [ ChangeRule (Enact (banR { reserveParty: Id "EU", target: Id "CN" })) ] ]
     it "enactWithholding drafts a withholding of units of a capacity the author holds" do
       intentsOf (propose ({ rules: [ rule [] [ asTemplate (selfEnact (holdR { capacity: Id "semiconductors", units: lit 5 })) ] ], sign: [] }) (enacting [ MayEnact (Id "withholding") ]))
@@ -366,8 +366,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF Q.Q
+banR = banRAt Q.zero
+
+banRAt :: forall v. v -> { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banRAt passes r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block passes }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

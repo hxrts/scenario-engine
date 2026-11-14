@@ -61,7 +61,7 @@ type Names =
   , cnImportBan :: RuleKindId
   , usExportControl :: RuleKindId
   , cnExportControl :: RuleKindId
-  , usAssetFee :: RuleKindId
+  , usPolicyRate :: RuleKindId
   , wage :: RuleKindId
   , upkeep :: RuleKindId
   , usCommerce :: StrategyId
@@ -116,7 +116,7 @@ p =
   , cnImportBan: Id "cn-import-ban"
   , usExportControl: Id "us-export-control"
   , cnExportControl: Id "cn-export-control"
-  , usAssetFee: Id "us-asset-fee"
+  , usPolicyRate: Id "us-policy-rate"
   , wage: Id "wage"
   , upkeep: Id "upkeep"
   , usCommerce: Id "us-commerce-v0"

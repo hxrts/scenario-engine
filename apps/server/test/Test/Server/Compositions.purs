@@ -157,11 +157,11 @@ spec = describe "A second Premise" do
         HoldingRule r -> r.kind
       declared r = case r, map _.form (Map.lookup (kindOf r) game.world.ruleKinds) of
         FlowRule { effect: Levy _ }, Just (LevyFlows _) -> true
-        FlowRule { effect: Block }, Just (BlockFlows _) -> true
+        FlowRule { effect: Block _ }, Just (BlockFlows _) -> true
         HoldingRule _, Just ReduceHolding -> true
         _, _ -> false
     filter (not <<< declared) rules `shouldEqual` []
-    for_ [ "us-import-tariff", "cn-import-tariff", "us-import-ban", "cn-import-ban", "us-export-control", "cn-export-control", "us-asset-fee" ] \k ->
+    for_ [ "us-import-tariff", "cn-import-tariff", "us-import-ban", "cn-import-ban", "us-export-control", "cn-export-control", "us-policy-rate" ] \k ->
       (k `elem` map (idText <<< kindOf) rules) `shouldEqual` true
   it "a joint pass over it offers this Composition's own names, for every kind a reply can hold" do
     case parts harbor of

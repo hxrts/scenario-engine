@@ -118,7 +118,7 @@ sampleOf presetNames rules i =
   x14 = at 14
   x15 = at 15
   flowRules = filter (\r -> maybe false (\g -> elem g seats) (governorOf r)) rules
-  dummy = fromMaybe (HoldingRule { kind: p.usAssetFee, resource: p.usd, reduce: Q.zero }) (index flowRules 0)
+  dummy = fromMaybe (HoldingRule { kind: p.usPolicyRate, resource: p.usd, reduce: Q.zero }) (index flowRules 0)
 
 -- | Play a sample: each seat on its preset, the enacting seat with one more clause enacting its Rule in its round.
 playSample :: Sample -> Aff { source :: CompositionParts, run :: SimRun }

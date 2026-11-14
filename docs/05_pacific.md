@@ -20,7 +20,7 @@ NationalReproductionRegime                 InternationalClearing
   productive capability: capacity,           currency market: the usd-rmb dealer, whose price is the exchange rate
     competence, inputs, production           capital: world savings, China's reserves, foreign bonds
   effective demand: wages, transfers,        settlement Rules: export controls, import bans, tariffs, the export tax,
-    dividends, household spending              the asset fee
+    dividends, household spending              the policy rate
   financial capacity: deposits, loans,       external balances: each country's accounts (INV-38)
     bonds, interest, arrears
 ```
@@ -30,9 +30,9 @@ One builder makes both regimes; they differ only in configuration, which is wher
 | | United States: market-led | China: state-led |
 |---|---|---|
 | Productive capability | The firm holds most technology capacity (8 of 10); a quarter of a unit of industrial competence. | The state holds most industrial capacity (8 of 10); strong industrial competence, none in technology. |
-| Effective demand | Households spend 80% of what they hold, supported by foreign financing. | Households spend 20%: weak relative to production. |
+| Effective demand | Households spend most of what they hold, supported by foreign financing. | Households spend most of what they hold too, but repression holds down what they are paid: demand is weak relative to production. |
 | Financial capacity | Foreign demand for dollar assets: the US bond, held by households, China and the world. | Directed savings and credit: deposits and loans at the state's rates. |
-| State income | The export tax, any tariff, its households' lending, foreign lending and the asset fee. | Its export sales, any tariff, its households' deposits, and interest on its loans. |
+| State income | The export tax, any tariff, its households' lending, foreign lending and what an eased policy rate takes off it. | Its export sales, any tariff, its households' deposits, and interest on its loans. |
 | Central tension | A strong dollar supports purchasing power and borrowing, but makes domestic industry less competitive and harder to rebuild. | Directing resources to industry strengthens manufacturing but suppresses household demand, so industry depends on exports and debt-financed investment. |
 | Viability | Its households' purchases every round. | Its industrial output every round, and its firm current on its loans. |
 
@@ -53,7 +53,7 @@ Each seat holds four tools, each off, low or high every round, so every seat cho
 │ · trade barrier                    │ dollar, lending │ · trade barrier                    │
 │ · industrial policy                │                 │ · industrial policy                │
 │ · transfer to households           │                 │ · financial repression             │
-│ · asset fee on foreign lending     │                 │ · dollar reserves                  │
+│ · policy rate                      │                 │ · dollar reserves                  │
 └─────────────────┬──────────────────┘                 └─────────────────┬──────────────────┘
                   ║ internal: renewal                                    ║ internal: industry
                   ║ against the firm's                                   ║ against households,
@@ -71,13 +71,13 @@ Each seat holds four tools, each off, low or high every round, so every seat cho
 
 | Seat | Its dilemma | Tool | Off / low / high |
 |---|---|---|---|
-| US state (`US`) | **Purchasing power or industrial renewal**, and whether to trade financial advantage for competitiveness | Trade barrier | none / import ban on Chinese inputs (demand pressure) / export control on US technology (supply pressure) |
+| US state (`US`) | **Purchasing power or industrial renewal**, and whether to trade financial advantage for competitiveness | Trade barrier | none / import ban on Chinese inputs (demand pressure) / export control on US technology (supply pressure); either lets a quarter through |
 | | | Industrial policy: build and staff industrial capacity | none / 1 / 2 units a round |
 | | | Transfer to households | none / 5% / 15% a round of the USD its wages and upkeep leave |
-| | | Asset fee on foreign lending | none / 0.02 / 0.05 USD per USD lent |
-| China state (`CN`) | **Producer support or household prosperity**, and whether to buy competitiveness with reserves | Trade barrier | none / import ban on US technology / export control on Chinese inputs |
+| | | The policy rate | 5% on every dollar bond / eased to 2% / eased to nothing |
+| China state (`CN`) | **Producer support or household prosperity**, and whether to buy competitiveness with reserves | Trade barrier | none / import ban on US technology / export control on Chinese inputs; either lets a quarter through |
 | | | Industrial policy: build and staff technology capacity | none / 1 / 2 units a round |
-| | | Financial repression | off: households paid 5%, firm lent 5% of the RMB the state's wages and upkeep leave, at 5% / low: 2%, 10% at 1% / high: nothing, 20% free |
+| | | Financial repression | off: households paid 2% of the RMB the state's wages and upkeep leave and 5% on their deposits, firm lent 5% of it at 5% / low: 1% and 2%, firm lent 10% at 1% / high: nothing, firm lent 20% free |
 | | | Dollar reserves | none / 3 / 6 USD bought a round, lent to the US state |
 | US firm (`US-firm`) | **Accumulation or distribution**: reinvest, or pay households, whose spending is its home market | World-market share | none / half / all of its technology offered abroad |
 | | | Input inventory | none / 1 / 2 units of inputs a round |
@@ -88,7 +88,7 @@ Each seat holds four tools, each off, low or high every round, so every seat cho
 | | | Capital investment | none / 1 / 2 units of industrial capacity a round |
 | | | Dividends | none / 5% / 15% a round of the RMB its wages and upkeep leave |
 
-The barrier is a ladder of pressure. An import ban is demand pressure: it cuts the other country's sales, and with them, slowly, its income and debt service. An export control is supply pressure: it cuts the other country's input at once, until it substitutes. The tariff is not a tool level but a Rule kind with its rate a dial (§4.4), which a human or agent seat may enact; the catalog holds each state's tariff as a Strategy of its own (`us-tariff-v0`, `cn-tariff-v0`) so a test or cast can give it to a state, and a live run's joint pass has its form to copy. No investment is ordered beyond the goods and wages its investor holds.
+The barrier is a ladder of pressure, and one abstract control on a flow: it lets through a share of what it covers, a quarter (a dial), which stands for what still reaches the other country by other routes. An import ban is demand pressure: it cuts the other country's sales, and with them, slowly, its income and debt service. An export control is supply pressure: it cuts the other country's input at once, until it substitutes. The tariff is not a tool level but a Rule kind with its rate a dial (§4.4), which a human or agent seat may enact; the catalog holds each state's tariff as a Strategy of its own (`us-tariff-v0`, `cn-tariff-v0`) so a test or cast can give it to a state, and a live run's joint pass has its form to copy. No investment is ordered beyond the goods and wages its investor holds.
 
 Each seat may be played by a human, an AI agent or a preset (§8.2), and is briefed with its description and objective (§6). What no seat decides runs by itself: each state's and firm's routine trade, currency and production, the households' and the rest of the world's spending and lending, wages, upkeep and the export tax (§7).
 
@@ -98,7 +98,7 @@ Each seat may be played by a human, an AI agent or a preset (§8.2), and is brie
 
 | Resource | Moves | Role |
 |---|---|---|
-| `USD`, `RMB` | Freely | Each country's currency. Totals are fixed (317 and 334): trades, Transfers, levies, wages, upkeep and bonds move money; lending creates a claim, never money. |
+| `USD`, `RMB` | Freely | Each country's currency. Totals are fixed (317 and 329): trades, Transfers, levies, wages, upkeep and bonds move money; lending creates a claim, never money. |
 | `T`, `I` | Freely | The goods, consumed by requirements, by households and as the other firm's input. |
 | `K_T`, `K_I` | Not at all | Capacity: each unit of production holds one for the round. |
 | `S_T`, `S_I` | Not at all | Competence: what a workforce can run, held for the round like capacity. |
@@ -111,7 +111,7 @@ Each seat may be played by a human, an AI agent or a preset (§8.2), and is brie
 
 ### 4.2 Demand
 
-Wages, transfers and dividends are household income. Households buy their own good at home with half their spend share of what they hold, buy the foreign good abroad with the foreign currency they hold, and from the other half pay the tariff they owe on it and convert the rest on the currency market. America spends 0.8 of what it holds and China 0.2: China's low consumption is a low propensity to spend, not low income. Each lends its state half of what it does not spend, and America's lend their firm the other half (§4.3), so a household never commits more than it holds. What a firm offers at home, its households buy as far as their budget reaches at the highest price the home Exchange could clear at (§4.4).
+Wages, transfers and dividends are household income. Households buy their own good at home with half their spend share of what they hold, buy the foreign good abroad with the foreign currency they hold, and from the other half pay the tariff they owe on it and convert the rest on the currency market. America's spend 0.8 of what they hold and China's 0.6, so what each buys follows what it is paid within a round or two: China's low consumption is low household income, which repression holds down (§4.3), not a low propensity to spend. Each lends its state half of what it does not spend, and America's lend their firm the other half (§4.3), so a household never commits more than it holds. What a firm offers at home, its households buy as far as their budget reaches at the highest price the home Exchange could clear at (§4.4).
 
 ### 4.3 Finance
 
@@ -124,13 +124,15 @@ Every loan is one bond template, set by currency and rate. The lender Transfers 
 | `cn-deposit-off`, `-low`, `-high` | 5%, 2%, 0% | China's households (40% of their RMB) → China's state, at its repression setting |
 | `cn-loan-off`, `-low`, `-high` | 5%, 1%, 0% | China's state → China's firm |
 
-**Financial repression** moves income only through those rates and volumes: households give up their deposits times 5% less their rate, and the firm saves its loans times 5% less its rate. With the firms investing on credit, it grows China's industry (F3). **Dollar reserves** buy USD on the currency market and lend China's surplus dollars to the US state.
+**Financial repression** diverts income from households to the firm. Unrepressed, China's state pays its households 2% of the RMB its wages and upkeep leave it each round, the return on their savings, and 5% on their deposits; repressed, it pays them less or nothing and lends the firm more, more cheaply. With the firms investing on credit, it grows China's industry (F3) and holds down household demand.
+
+**The policy rate** is what a dollar bond pays its lender, and the mirror of repression: both set the price of money, China's inward on savings that cannot leave, America's outward on bonds the world holds. Eased, it takes 0.03 or 0.05 off each USD lent, against the bond's 5%: a foreign lender pays it to the US state as a levy, and America's households enter their bonds for that much less than they lend. The US state and firm borrow more cheaply, households earn less, and foreign savings leave (§4.5). **Dollar reserves** buy USD on the currency market and lend China's surplus dollars to the US state.
 
 ### 4.4 Exchanges and Rules
 
 | Exchange | Base / quote | Open to | Price |
 |---|---|---|---|
-| `technology-world`, `industry-world` | `T`/`USD`, `I`/`RMB` | every Actor | 1 and 2 to start, rising 0.05 and 0.03 per unit drawn from their stock of 4 and 6 |
+| `technology-world`, `industry-world` | `T`/`USD`, `I`/`RMB` | every Actor | 1 and 2 to start, rising 0.025 and 0.03 per unit drawn from their stock of 8 and 6 |
 | `technology-us`, `industry-cn` | the same | the country's state, firm and households | 1.25 and 2.5 to start, rising 0.0625 and 0.0375 per unit drawn from their stock of 4 and 6 |
 | `usd-rmb` | `USD`/`RMB` | every Actor and the rest of the world | the exchange rate, moving with the dealer's position |
 
@@ -138,17 +140,17 @@ Every goods Exchange, world and home, holds a stock of its good (dials), counted
 
 | Rule kind | Effect |
 |---|---|
-| `us-import-ban`, `cn-import-ban` | Blocks the other's good coming in. |
-| `us-export-control`, `cn-export-control` | Blocks its own good leaving for the other. |
+| `us-import-ban`, `cn-import-ban` | Lets through a quarter of the other's good coming in. |
+| `us-export-control`, `cn-export-control` | Lets through a quarter of its own good leaving for the other. |
 | `us-import-tariff`, `cn-import-tariff` | 1 (a dial) per unit of the other's good coming in, paid by the importer to its state. |
 | `us-export-tax` | 0.5 `USD` per unit of `T` sold to China, paid by the seller; in force from the start. |
-| `us-asset-fee` | 0.02 or 0.05 `USD` per `USD` that China or the rest of the world lends the US, paid by the lender. |
+| `us-policy-rate` | The eased policy rate as a foreign lender meets it: 0.03 or 0.05 `USD` per `USD` that China or the rest of the world lends the US, paid by the lender. |
 
-Each regime gives its state the authority to enact its own kinds. A Rule takes effect at the next round boundary and stays until repealed. A block refuses each pair, gift Transfer or joint candidate Transaction it covers, so it holds however a trade is arranged ([03 §5.5](03_premise.md#55-geography-access-and-rules)).
+Each regime gives its state the authority to enact its own kinds. A Rule takes effect at the next round boundary and stays until repealed. A barrier passes its share of each pair on an Exchange, and refuses whole a gift Transfer or joint candidate Transaction it covers, so it holds however a trade is arranged ([03 §5.5](03_premise.md#55-geography-access-and-rules)).
 
 ### 4.5 Currency and capital
 
-`usd-rmb` is a dealer holding 150 of each currency. It trades each round's net from its reserves at a price that starts at 1 `RMB` per `USD` and moves half a hundredth per USD of net buying ([02 §5.1](02_kernel.md#51-cost-function)), so the exchange rate is the running balance of what has been bought and sold. Importers buy the other currency to cover their next imports, China's reserves buy USD, and world savings buy USD with a fifth of their RMB and lend half their USD to the US state while the asset fee is off; with the fee on they lend a fifth and sell 30% of their USD. America's deficit weakens the dollar; China's reserves and the world's demand for dollar assets hold it up.
+`usd-rmb` is a dealer holding 150 of each currency. It trades each round's net from its reserves at a price that starts at 1 `RMB` per `USD` and moves half a hundredth per USD of net buying ([02 §5.1](02_kernel.md#51-cost-function)), so the exchange rate is the running balance of what has been bought and sold. Importers buy the other currency to cover their next imports, China's reserves buy USD, and world savings buy USD with a fifth of their RMB and lend half their USD to the US state while the policy rate is not eased; eased, they lend a fifth and sell 30% of their USD. America's deficit weakens the dollar; China's reserves and the world's demand for dollar assets hold it up.
 
 ### 4.6 Accounting
 
@@ -184,7 +186,7 @@ Thirteen loops arise from the rules; none is scripted, and each holds only under
 | F3 | Repression growth model | Reinforcing | Repression lends the firm more, cheaply, and it invests on credit | At the default dials; the more, the less money the firm has of its own |
 | F4 | Debt burden | Reinforcing | Loans fall due with interest and are rolled over | The loan rate is above zero |
 | F5 | Currency adjustment | Balancing | America's imports sell USD on the dealer | Reserves and world savings do not buy it back |
-| F6 | Recycling blocks adjustment | Counters F5 | China's reserves and world savings buy USD | They are on, and the asset fee is not |
+| F6 | Recycling blocks adjustment | Counters F5 | China's reserves and world savings buy USD | They are on, and the policy rate is not eased |
 | F7 | Strong-dollar trap | Reinforcing | A substitute runs only when cheaper than importing at the rate, and an idle one decays (F2) | Its cost is within the dollar's swing of the import price, as at the default dials |
 | F8 | Home market | Reinforcing | Wages and dividends become household purchases at home | The firm offers at home |
 | F9 | Tariff erosion | Balancing | Under its tariff a private sector imports less, shrinking the tariff's base | A tariff is in force |
@@ -197,16 +199,16 @@ Thirteen loops arise from the rules; none is scripted, and each holds only under
 
 **The strong-dollar industrial trap.** Foreign demand for dollar assets holds the dollar up; a strong dollar makes Chinese inputs cheap in USD, so America's substitute stands idle and its competence wears away (F2); capacity built later runs only as fast as lost competence is relearned (F10), so America depends more on Chinese supply and is more exposed to an export control; and China's dollar earnings, lent back through reserves, finance the next round of imports. A shortage that draws down the inputs' stock raises their price (F13) and weakens the trap, but at the default dials it holds: US industry costs a little more than imports at par, so a strong dollar leaves America's substitute idle and a weak one runs it (§9).
 
-**The industrial-surplus trap.** Repression favours producers: the firm borrows cheaply and invests on credit (F3), production outgrows households that spend a fifth of what they hold, so the surplus depends on foreign demand; export income services the firm's loans and the state refinances them, so debt grows by refinancing rather than default (F4); and a state that weighs its viability is slow to rebalance (F11). Rebalancing costs China no output (§9), so what holds this trap in place is behaviour and debt, not a loss of production.
+**The industrial-surplus trap.** Repression favours producers: the firm borrows cheaply and invests on credit (F3), production outgrows households whose income repression holds down, so the surplus depends on foreign demand; export income services the firm's loans and the state refinances them, so debt grows by refinancing rather than default (F4); and a state that weighs its viability is slow to rebalance (F11). Rebalancing raises what China's households buy by a third and costs China no output today (§9), but its firm builds less; what holds this trap in place is the firm's growth, behaviour and debt, not a loss of production.
 
 ## 6. Objectives and indicators
 
-Each seat has four criteria, evaluated from the recorded run ([03 §10.5](03_premise.md#105-evaluation)); its score is the number it meets. Each bar sits near the 40th percentile of its measure over the balance sample (§8.3), so a seat meets each about three times in five; the bars are dials.
+Each seat has four criteria, evaluated from the recorded run ([03 §10.5](03_premise.md#105-evaluation)); its score is the number it meets. Each bar sits near the 40th percentile of its measure over the balance sample (§8.3), so a seat meets each about three times in five; China's viability floor is authored at 8. The bars are dials.
 
 | Seat | Criteria |
 |---|---|
-| Each state | **Security:** its shortfall of the good it imports at most 15.52 (US) or 11.56 (China) over the run. **Industry:** its firm ends with at least 9.87 `K_T` (US) or 3.79 `K_I` (China). **Viability, every round:** US households buy at least 2.52 units; China's state and firm produce at least 8 `I` with its firm owing nothing in arrears. **Prosperity:** its households buy at least 20.57 (US) or 3.64 (China) units over the run. |
-| Each firm | **Wealth:** it ends with at least 11.61 `USD` (US) or 11.56 `RMB` (China). **Growth:** its state's industry bar. **Output:** its input-dependent production at least 10.82 (US) or 2 (China) units. **Home demand:** its state's prosperity bar. |
+| Each state | **Security:** its shortfall of the good it imports at most 13.92 (US) or 10.32 (China) over the run. **Industry:** its firm ends with at least 9.82 `K_T` (US) or 3.93 `K_I` (China). **Viability, every round:** US households buy at least 2.66 units; China's state and firm produce at least 8 `I` with its firm owing nothing in arrears. **Prosperity:** its households buy at least 25.88 (US) or 7.1 (China) units over the run. |
+| Each firm | **Wealth:** it ends with at least 10.73 `USD` (US) or 13.9 `RMB` (China). **Growth:** its state's industry bar. **Output:** its input-dependent production at least 16.98 (US) or 3 (China) units. **Home demand:** its state's prosperity bar. |
 
 Viability is political support derived from the economy, not a Resource: what America's households can buy; China's industrial employment, which output stands for, and its financial stability. It is an objective, not a limit, so a state may break its floor and pay for it in its score (F11).
 
@@ -235,7 +237,7 @@ One builder makes both regimes (`Premises.Pacific.Regime`) from a configuration 
 
 Each regime has two routines ([04 §6](04_run.md#6-strategy-initialization)) that run beside whoever plays its seats. The state's commerce routine (`us-commerce-v0`, `cn-commerce-v0`) sells what is left after the requirement and buys what the requirement and its investments take beyond what it holds, orders production and its substitute (§4.1), buys the other currency for two rounds of imports and signs its state's bonds. The firm's supply routine (`us-supply-v0`, `cn-supply-v0`) orders production as far as capacity, input and wages allow while it holds less than two rounds' output, running its input first, keeps two rounds of input and three of the other currency, and signs its firm's loans.
 
-Every participant budgets the same way. Funding sets the round's wages and upkeep aside first ([02 §8.2](02_kernel.md#82-funding-and-settlement)); what a seat holds beyond them is shared out in fixed shares that sum to no more than all of it: six tenths for trade, its payouts' share (transfers or dividends), China's loan to its firm and up to a tenth for its reserves, and investment with the rest. The trade budget meets each cost in turn, levies among them: a state's export tax, own-good purchase, import tariff and currency; a firm's input tariff, currency, stockpile and export tax. A trade whose levy the budget cannot meet shrinks, and a firm offers at home what it cannot pay the export tax on. Households and the rest of the world spend fixed shares of what they hold, and households meet their tariff from their share for the foreign good through the same helpers. So no participant claims more than it holds, and the engine's compliance check ([03 §5.5](03_premise.md#55-geography-access-and-rules)) is a backstop for seats a person or an agent plays.
+Every participant budgets the same way. Funding sets the round's wages and upkeep aside first ([02 §8.2](02_kernel.md#82-funding-and-settlement)); what a seat holds beyond them is shared out in fixed shares that sum to no more than all of it: six tenths for trade, its payouts' share (transfers, dividends or China's return to its households), China's loan to its firm and up to a tenth for its reserves, and investment with the rest. The trade budget meets each cost in turn, levies among them: a state's export tax, own-good purchase, import tariff and currency; a firm's input tariff, currency, stockpile and export tax. A trade whose levy the budget cannot meet shrinks, and a firm offers at home what it cannot pay the export tax on. Households and the rest of the world spend fixed shares of what they hold, and households meet their tariff from their share for the foreign good through the same helpers. So no participant claims more than it holds, and the engine's compliance check ([03 §5.5](03_premise.md#55-geography-access-and-rules)) is a backstop for seats a person or an agent plays.
 
 ## 8. Initial configuration, balance and strategies
 
@@ -244,7 +246,7 @@ Every participant budgets the same way. Funding sets the round's wages and upkee
 | | US | US firm | US households | CN | CN firm | CN households | Rest of world | Dealer |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `USD` | 112 | 15 | 10 | 6 | 4 | | 20 | 150 |
-| `RMB` | 12 | 4 | | 88 | 10 | 10 | 60 | 150 |
+| `RMB` | 12 | 4 | | 88 | 10 | 5 | 60 | 150 |
 | `T` | 2 | 8 | | 0 | 1 | | | |
 | `I` | 0 | 1 | | 8 | 2 | | | |
 | `K_T` / `K_I` | 2 / 0 | 8 / — | | 0 / 8 | — / 2 | | | |
@@ -256,7 +258,7 @@ The goods are one production cycle's output. Each firm holds one round's input; 
 
 A preset is the policy every seat plays in a simulated run, as each tool's level (`Premises.Pacific.Strategies`). A state preset sets the states' tools with each firm offering all it holds abroad; a firm preset sets the firms' tools with the states' off. The default is `FreeTrade`, for six rounds of the 1 to 12 allowed; each seat's alternative for the suite's agency runs ([04 §2](04_run.md#2-instantiation-configuration)) is `Hawk` for a state and `Builder` for a firm.
 
-| State preset | US: barrier · industry · transfer · fee | China: barrier · industry · repression · reserves |
+| State preset | US: barrier · industry · transfer · policy rate | China: barrier · industry · repression · reserves |
 |---|---|---|
 | `FreeTrade` | none · none · none · none | none · none · off · none |
 | `Ban` | ban · none · none · none | ban · none · off · none |
@@ -281,7 +283,7 @@ Three state presets react: `Adaptive` builds its substitute while the other keep
 
 ### 8.3 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each has, the seats meet 959, 1,080, 962 and 970 of their 1,600 criteria (the US, China, the US firm and China's firm): each bar is set near the 40th percentile of its measure over this sample. A change to any dial is checked against it.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each has, the seats meet 992, 1,113, 961 and 963 of their 1,600 criteria (the US, China, the US firm and China's firm): each bar is set near the 40th percentile of its measure over this sample. A change to any dial is checked against it.
 
 ## 9. What the simulations show
 
@@ -297,19 +299,19 @@ The golden scenarios and experiments play whole runs and check their records aga
 | `packages/views/test/Test/Views/` | The Dependence view, Compare and the indicators |
 | `apps/server/test/Test/Server/Compositions.purs`, `zz-pacific.spec.js` | The composition served, launched and shown |
 
-**Trade and barriers.** Under free trade each country exports its good, the US collects its export tax, and both currencies' totals hold every round. An export control costs the target its import at once (China short 3 `T`, the US 5 `I` a round) and halves the other firm's output on its input, while the controller keeps goods it cannot sell; an import ban leaves the target's exports piling up. No gift, joint candidate Transaction or routed order gets round a block. A tariff is paid by the importer and cuts America's imports, the more the higher its rate; a higher spend share raises what households buy. Substitution is held back by competence, and an input inventory carries a firm a round further into a control.
+**Trade and barriers.** Under free trade each country exports its good, the US collects its export tax, and both currencies' totals hold every round. An export control costs the target three quarters of its import at once (China short 2.25 `T`, the US 3.75 `I` a round) and cuts the other firm's output by about three tenths, while the controller keeps goods it cannot sell; an import ban leaves the target's exports piling up. No gift, joint candidate Transaction or routed order gets round a barrier. A tariff is paid by the importer and cuts America's imports, the more the higher its rate; a higher spend share raises what households buy. Substitution is held back by competence, and an input inventory carries a firm a round further into a control.
 
-**Firms, money and households.** Repression lends China's firm a fifth of what the state's wages leave of its RMB, free, against a twentieth at 5% rebalanced; dividends become home demand (F8); China's households, spending a fifth of what they hold, end holding more and buying far fewer goods than America's. Under free trade America's imports sell USD and the dollar falls; China's reserves hold it up; the asset fee cuts foreign lending to the US and the dollar falls further.
+**Firms, money and households.** Repression lends China's firm a fifth of what the state's wages leave of its RMB, free, against a twentieth at 5% rebalanced; dividends become home demand (F8); China's households end holding more and buying fewer goods than America's. Under free trade America's imports sell USD and the dollar falls; China's reserves hold it up; an eased policy rate cuts foreign lending to the US and the dollar falls further.
 
-**Loops.** Competence grows while capacity runs and wears while it stands idle (F1, F2). Repression grows China's industry, the more so the less money the firm has (F3), at the cost of interest rolled over (F4). China's firm repays every loan from the next and its debt grows by refinancing, never by default; a firm with no money of its own borrowing at 30% falls into arrears, which fail China's viability though its output clears the floor. A US that kept its industrial competence is far less exposed to China's export control than one that lost it (F10); output nobody buys still costs its wages (F12). A strong dollar leaves the capacity America built idle where a weak one runs it, and its competence lags (F7); a shortage draws down an Exchange's stock and raises its price (F13).
+**Loops.** Competence grows while capacity runs and wears while it stands idle (F1, F2). Repression grows China's industry, the more so the less money the firm has (F3), at the cost of interest rolled over (F4). China's firm repays every loan from the next and its debt grows by refinancing, never by default; a firm with no money of its own borrowing at 60% falls into arrears, which fail China's viability though its output clears the floor. A US that kept its industrial competence is far less exposed to China's export control than one that lost it (F10); output nobody buys still costs its wages (F12). A strong dollar leaves the capacity America built idle where a weak one runs it, and its competence lags (F7); a shortage draws down an Exchange's stock and raises its price (F13).
 
 **Experiments.**
 
-- **Political trap.** Rebalancing costs China no industrial output, and a US export control cuts it to 9 a round, above its floor of 8; its households gain the interest repression took. What keeps China repressing is a Strategy that weighs its viability, and its firm's debt.
-- **Dollar trap.** The asset fee weakens the dollar, and US industry, costing a little more than imports at par, goes from about 2 units to about 9 over the run; US households, paid its wages, buy a little more. Where US industry is cheap, the dollar does not matter.
+- **Political trap.** Rebalancing costs China no industrial output, and a US export control cuts it to about 9.4 a round, above its floor of 8; its households, paid the return on their savings, buy a third more. What keeps China repressing is its firm's growth, a Strategy that weighs its viability, and its firm's debt.
+- **Dollar trap.** Easing the policy rate weakens the dollar, and US industry, costing a little more than imports at par, goes from nothing to about 9 units over the run; US households, paid its wages, buy a little more. Where US industry is cheap, the dollar does not matter.
 - **Lost knowledge.** With the same capacity under China's export control, a US that kept its workforce runs it all and one that lost it runs a quarter of a unit: dependence is a shortage of capital only where the workforce is still there.
-- **International leverage.** An export control costs America 5 `I` a round until it substitutes, and substitution erodes it to 1.06 by round 8. An import ban nearly halves the US firm's sales abroad and cuts its money by over two fifths, but not its solvency.
+- **International leverage.** An export control costs America 3.75 `I` a round until it substitutes, and substitution erodes it to 0.8 by round 8. An import ban cuts the US firm's sales abroad by a fifth and its money by a quarter, but not its solvency.
 - **Mutually reinforcing dependence.** Under the status quo China lends America more dollars over the run, rising to about 7 a round, while America keeps buying about 7 units of China's inputs and China's industry runs at about 10: each country's arrangement finances the other's.
-- **Status quo against rebalancing.** Over eight rounds, each country building its substitute and each firm selling half at home, with each country's arrangement kept or undone and then the other's export control from round 5. China's control costs America 12 `I` under the status quo's strong dollar against 4.4 when America weakens it, and America's control costs China most when both rebalance (5.5 `T` against 2.6 when both keep their arrangements). America owes abroad about 69 `USD` when both keep them against about 2 when both rebalance.
+- **Status quo against rebalancing.** Over eight rounds, each country building its substitute and each firm selling half at home, with each country's arrangement kept or undone and then the other's export control from round 5. China's control costs America 10.4 `I` under the status quo's strong dollar against 3.4 when America weakens it, and America's control costs China about 2.5 `T` whichever arrangements are kept. America owes abroad about 66 `USD` when both keep them against about 2 when both rebalance.
 
 **Sensitivity.** Across the spend shares, each country's capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect: China's own control leaves it with inputs it cannot export, an inventory keeps a firm's production on its input running under a control, China's households lend their state more than America's, and the US state collects its export tax.

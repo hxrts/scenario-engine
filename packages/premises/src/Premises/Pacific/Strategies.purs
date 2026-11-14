@@ -9,7 +9,9 @@ module Premises.Pacific.Strategies
   , presetId
   , presets
   , controlRule
+  , controlRuleAt
   , banRule
+  , barrierPasses
   , tariffRule
   , tariffing
   , inputParam
@@ -31,30 +33,38 @@ import Laws.StrategyRules (Clause, Cond, Expr, SignRule(..), StrategyRules, Temp
 import Laws.Types (ActorId, Direction(..), FlowEffect(..), IntentF(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId, idText)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Country (Country, countries, countryOf, level)
-import Premises.Pacific.Private (addQ, afford, exportTax, importTariff, minQ, spend, ceilingParam, upkeepParam, deposit, feeParam, lendTo, loan, loanShareParam, neg, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
+import Premises.Pacific.Private (addQ, afford, exportTax, importTariff, minQ, spend, ceilingParam, upkeepParam, deposit, easeParam, lendTo, loan, loanShareParam, returnParam, neg, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
 import Schema.Build.Decision (eqQ, roundQ, acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
 
 -- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §3). For a state: its trade barrier, its
--- | industrial policy, and two at home (America's transfer and asset fee, China's financial repression and dollar
+-- | industrial policy, and two at home (America's transfer and policy rate, China's financial repression and dollar
 -- | reserves). For a firm: how much it sells abroad, its stockpile, its investment, and its dividends.
 type Levels = { one :: Int, two :: Int, three :: Int, four :: Int }
 
--- | A state's export control: it blocks its own strategic good leaving for the other country.
-controlRule :: forall v. ActorId -> RuleF v
-controlRule a =
+-- | The share of a flow a state's barrier lets through (docs/05 §3): what reaches the other country by other routes.
+barrierPasses :: String
+barrierPasses = "barrier-passes"
+
+-- | A state's export control: a barrier on its own strategic good leaving for the other country, which lets through
+-- | the barrier's share of it.
+controlRule :: ActorId -> RuleF Expr
+controlRule = controlRuleAt (param barrierPasses)
+
+controlRuleAt :: forall v. v -> ActorId -> RuleF v
+controlRuleAt passes a =
   let
     c = countryOf a
   in
-    FlowRule { kind: c.control, scope: { governor: c.state, counterparty: c.other, direction: Outbound, over: [ c.good ] }, effect: Block }
+    FlowRule { kind: c.control, scope: { governor: c.state, counterparty: c.other, direction: Outbound, over: [ c.good ] }, effect: Block passes }
 
--- | A state's import ban: it blocks the other country's good coming in. Demand pressure: it cuts the other's sales
--- | abroad, and the importer's own supply.
-banRule :: forall v. ActorId -> RuleF v
+-- | A state's import ban: a barrier on the other country's good coming in, which lets through the barrier's share
+-- | of it. Demand pressure: it cuts the other's sales abroad, and the importer's own supply.
+banRule :: ActorId -> RuleF Expr
 banRule a =
   let
     c = countryOf a
   in
-    FlowRule { kind: c.ban, scope: { governor: c.state, counterparty: c.other, direction: Inbound, over: [ c.foreign ] }, effect: Block }
+    FlowRule { kind: c.ban, scope: { governor: c.state, counterparty: c.other, direction: Inbound, over: [ c.foreign ] }, effect: Block (param barrierPasses) }
 
 -- | A state's import tariff: a levy per unit of the other country's good coming in, paid by the importer to the
 -- | state in its own currency. Its rate is a parameter, so it is a dial.
@@ -65,10 +75,11 @@ tariffRule a =
   in
     FlowRule { kind: c.tariff, scope: { governor: c.state, counterparty: c.other, direction: Inbound, over: [ c.foreign ] }, effect: Levy { rate: param tariffRate, basis: PerUnit, in: c.money, to: LevyToGovernor, payer: PaidByReceiver } }
 
--- | The US asset fee at a level: a levy per USD a foreign lender, China's state or the rest of the world, Transfers
--- | to the US, paid by the lender to the US state.
+-- | The US policy rate eased at a level: a levy per USD a foreign lender, China's state or the rest of the world,
+-- | Transfers to the US, paid by the lender to the US state, which takes that much off what the bond yields it.
+-- | America's households give up the same on what they lend (`Premises.Pacific.Private`).
 feeRules :: String -> Array (RuleF Expr)
-feeRules l = map (\from -> FlowRule { kind: p.usAssetFee, scope: { governor: p.us, counterparty: from, direction: Inbound, over: [ p.usd ] }, effect: Levy { rate: param (feeParam l), basis: PerUnit, in: p.usd, to: LevyToGovernor, payer: PaidBySender } }) [ p.cn, p.row ]
+feeRules l = map (\from -> FlowRule { kind: p.usPolicyRate, scope: { governor: p.us, counterparty: from, direction: Inbound, over: [ p.usd ] }, effect: Levy { rate: param (easeParam l), basis: PerUnit, in: p.usd, to: LevyToGovernor, payer: PaidBySender } }) [ p.cn, p.row ]
 
 -- | The wage a unit of a production Transformation pays, in its producer's currency.
 wageParam :: TransformationId -> String
@@ -274,10 +285,15 @@ supply c signs =
   base = minQ independent (subQ budget runs)
 
 -- | China's financial repression at a setting, while some conditions hold (docs/05 §4.3): it lends its firm a
--- | share of its RMB at the setting's rate, and signs its households' deposits at the setting's rate.
+-- | share of its RMB at the setting's rate, pays its households the setting's share as the return on their savings,
+-- | and signs their deposits at the setting's rate.
 repression :: Array Cond -> Int -> StrategyRules
 repression conds n =
-  { rules: [ rule ([ acting p.cn ] <> conds) [ lendTo { template: loan n, lender: p.cn, borrower: p.cnFirm, money: p.rmb, principal: shareOf (loanShareParam n) (stateFree (countryOf p.cn)) } ] ]
+  { rules:
+      [ rule ([ acting p.cn ] <> conds) [ lendTo { template: loan n, lender: p.cn, borrower: p.cnFirm, money: p.rmb, principal: shareOf (loanShareParam n) (stateFree (countryOf p.cn)) } ]
+      -- what its households' savings return them: a share of what the state holds, which repression lends the firm instead
+      , rule ([ acting p.cn ] <> conds) [ asTemplate (Transfer { from: selfActor, to: p.cnPrivate, resource: p.rmb, quantity: shareOf (returnParam n) (stateFree (countryOf p.cn)) }) ]
+      ]
   , sign: [ (if conds == [] then identity else signIf conds) (SignAgreements [ deposit n ]) ]
   }
 
@@ -307,7 +323,7 @@ withoutHome3 a lv = { rules: barrier <> industrial <> home4, sign: [] }
   industrial = if lv.two == 0 then [] else [ rule [ acting a, gt (due c.foreign) (addQ (holding c.foreignCapacity) (scheduled c.foreignCapacity)) ] [ asTemplate (selfTransform { transformation: c.investment, quantity: affordable lv.two c.investment c.good (stateInvestable a lv) }) ] ]
   home4
     | lv.four == 0 = []
-    -- America levies foreign lenders
+    -- America eases its policy rate
     | a == p.us = [ rule [ acting a ] (map (asTemplate <<< selfEnact) (feeRules (level lv.four))) ]
     -- China buys USD and lends what it holds beyond two rounds of its technology imports to the US state
     | otherwise =
@@ -323,7 +339,7 @@ stateInvestable a lv = mulQ (max' (lit 0) (subQ (lit 1) shares)) (stateFree c)
   c = countryOf a
   shares
     | a == p.us = addQ (param tradeShare) (if lv.three == 0 then lit 0 else param (releaseParam (level lv.three)))
-    | otherwise = addQ (addQ (param tradeShare) (param (loanShareParam lv.three))) (if lv.four == 0 then lit 0 else param reserveShare)
+    | otherwise = addQ (addQ (addQ (param tradeShare) (param (loanShareParam lv.three))) (param (returnParam lv.three))) (if lv.four == 0 then lit 0 else param reserveShare)
 
 -- | A firm's policy at its four levels (docs/05 §3).
 firmPolicy :: ActorId -> Levels -> StrategyRules

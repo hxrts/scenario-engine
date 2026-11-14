@@ -30,7 +30,7 @@ import Premises.Pacific.Dials (Dials)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Parts (Parts, emptyParts)
 import Premises.Pacific.Private (ceilingParam, parameters, tariffRate, upkeepParam, worldStrategy)
-import Premises.Pacific.Strategies (costParam, inputParam, inputShare, outputParam, reserveShare, tradeShare, viabilityParam)
+import Premises.Pacific.Strategies (barrierPasses, costParam, inputParam, inputShare, outputParam, reserveShare, tradeShare, viabilityParam)
 import Schema.Build.Base (mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, noResource)
@@ -65,6 +65,7 @@ clearing d = emptyParts
       [ Tuple inputShare d.inputShare
       , Tuple viabilityParam d.cautiousOutput
       , Tuple tariffRate d.tariffRate
+      , Tuple barrierPasses d.barrierPasses
       , Tuple upkeepParam d.upkeep
       , Tuple tradeShare d.budget.trade
       , Tuple reserveShare d.budget.reserves
@@ -92,14 +93,14 @@ clearing d = emptyParts
   homeSlopeOf good = if good == p.technology then d.homeStockSlope.technology else d.homeStockSlope.industry
   perInput x = fromMaybe Q.zero (Q.divMaybe Q.one x)
   ruleKinds =
-    [ Tuple p.usExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls technology exports to {counterparty}" }
-    , Tuple p.cnExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls industrial input exports to {counterparty}" }
-    , Tuple p.usImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans industrial inputs from {counterparty}" }
-    , Tuple p.cnImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans technology from {counterparty}" }
+    [ Tuple p.usExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls technology exports to {counterparty}, letting through {amount}" }
+    , Tuple p.cnExportControl { form: BlockFlows GovernedBySource, text: "{governor} controls industrial input exports to {counterparty}, letting through {amount}" }
+    , Tuple p.usImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans industrial inputs from {counterparty}, letting through {amount}" }
+    , Tuple p.cnImportBan { form: BlockFlows GovernedByDestination, text: "{governor} bans technology from {counterparty}, letting through {amount}" }
     , Tuple p.usImportTariff { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} USD per unit on industrial inputs from {counterparty}, paid by the importer" }
     , Tuple p.cnImportTariff { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} RMB per unit on technology from {counterparty}, paid by the importer" }
     , Tuple p.usExportTax { form: LevyFlows GovernedBySource, text: "{governor} taxes technology exports at {amount} USD per unit" }
-    , Tuple p.usAssetFee { form: LevyFlows GovernedByDestination, text: "{governor} levies {amount} per USD lent to it from {counterparty}, paid by the lender" }
+    , Tuple p.usPolicyRate { form: LevyFlows GovernedByDestination, text: "{governor} eases its policy rate by {amount} per USD lent to it from {counterparty}, paid by the lender" }
     ]
 
 -- | An Exchange holding a stock of its good, world or home (docs/05 §4.4): every trade between orders is a pair, and what buyers

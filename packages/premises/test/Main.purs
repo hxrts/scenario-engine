@@ -287,8 +287,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "us-import-tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "I" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "USD", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "us-export-control", scope: { governor: r.reserveParty, counterparty: r.target, direction: Outbound, over: [ Id "T" ] }, effect: Block }
+banR :: { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF Q.Q
+banR = banRAt Q.zero
+
+banRAt :: forall v. v -> { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banRAt passes r = FlowRule { kind: Id "us-export-control", scope: { governor: r.reserveParty, counterparty: r.target, direction: Outbound, over: [ Id "T" ] }, effect: Block passes }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "us-export-control", resource: r.capacity, reduce: r.units }

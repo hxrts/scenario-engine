@@ -44,6 +44,7 @@ type Dials =
   , inputShare :: Q
   , wage :: { usTechnology :: Q, usIndustry :: Q, cnTechnology :: Q, cnIndustry :: Q }
   , tariffRate :: Q
+  , barrierPasses :: Q
   , taxRate :: Q
   , cautiousOutput :: Q
   , upkeep :: Q
@@ -94,10 +95,10 @@ defaultDials =
   , homePremium: q "1.25"
   -- each world Exchange holds a stock of its good: it sells from it when buyers want more than sellers offer, its
   -- price rising along its curve, and buys back only what it sold, its price falling back (docs/02 §5.1)
-  , stock: { technology: q 4, industry: q 6 }
+  , stock: { technology: q 8, industry: q 6 }
   -- industrial inputs' price rises slowly enough that, drawn down, it stays within the dollar's swing of what US
   -- industry costs (the strong-dollar trap, F7)
-  , stockSlope: { technology: q "0.05", industry: q "0.03" }
+  , stockSlope: { technology: q "0.025", industry: q "0.03" }
   -- each home Exchange holds a stock of its country's good likewise, its price rising a quarter more per unit
   , homeStock: { technology: q 4, industry: q 6 }
   , homeStockSlope: { technology: q "0.0625", industry: q "0.0375" }
@@ -129,6 +130,8 @@ defaultDials =
   -- under (0.97 RMB against 1 USD). The exchange rate decides whether a substitute runs
   , wage: { usTechnology: q "0.25", usIndustry: q "2.2", cnTechnology: q "0.97", cnIndustry: q "0.25" }
   , tariffRate: q 1
+  -- the share of a flow a barrier lets through: what reaches the other country by other routes
+  , barrierPasses: q "0.25"
   , taxRate: q "0.5"
   , cautiousOutput: q "0.5"
   -- what each unit of capacity held costs a round in maintenance, idle or not, paid to its country's households
@@ -141,13 +144,13 @@ defaultDials =
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §10.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q "15.52", cn: q "11.56" }
-      , viability: { us: q "2.52", cn: q 8 }
-      , prosperity: { us: q "20.57", cn: q "3.64" }
-      , industry: { us: q "9.87", cn: q "3.79" }
-      , wealth: { us: q "11.61", cn: q "11.56" }
-      , output: { us: q "10.82", cn: q 2 }
-      , market: { us: q "20.57", cn: q "3.64" }
+      { security: { us: q "13.92", cn: q "10.32" }
+      , viability: { us: q "2.66", cn: q 8 }
+      , prosperity: { us: q "25.88", cn: q "7.1" }
+      , industry: { us: q "9.82", cn: q "3.93" }
+      , wealth: { us: q "10.73", cn: q "13.9" }
+      , output: { us: q "16.98", cn: q 3 }
+      , market: { us: q "25.88", cn: q "7.1" }
       }
   }
 

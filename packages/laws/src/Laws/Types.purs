@@ -192,8 +192,8 @@ data LevyPayer = PaidBySender | PaidByReceiver
 -- | A levy: its rate on its basis, the Resource it is paid in, who receives it, and who pays it.
 type LevyF v = { rate :: v, basis :: LevyBasis, in :: ResourceId, to :: LevyRecipient, payer :: LevyPayer }
 
--- | What a flows Rule does: a levy on the flow, or a block on it.
-data FlowEffect v = Levy (LevyF v) | Block
+-- | What a flows Rule does: a levy on the flow, or a block on it, which lets through a share of it, none at zero.
+data FlowEffect v = Levy (LevyF v) | Block v
 
 -- | A Rule, with its amounts in the filling `v`: one on flows, or one reducing what the holder of a Resource can
 -- | have drawn. Its `kind` names a declared kind; the mechanism reads the rest, never the kind. A combination
@@ -229,7 +229,7 @@ ruleKind = case _ of
 conforms :: forall v. RuleKindDecl -> RuleF v -> Boolean
 conforms d = case d.form, _ of
   LevyFlows g, FlowRule { scope, effect: Levy _ } -> covers g scope
-  BlockFlows g, FlowRule { scope, effect: Block } -> covers g scope
+  BlockFlows g, FlowRule { scope, effect: Block _ } -> covers g scope
   ReduceHolding, HoldingRule _ -> true
   _, _ -> false
   where
@@ -306,7 +306,7 @@ traverseIntent t = case _ of
   where
   effectAt = case _ of
     Levy l -> (\rate in' -> Levy l { rate = rate, in = in' }) <$> t.value l.rate <*> t.resource l.in
-    Block -> pure Block
+    Block share -> Block <$> t.value share
 
 type Rule = RuleF Q
 type RuleKindId = Id RuleKindTag
@@ -519,7 +519,7 @@ flowScopeShape = recordOf "FlowScope"
 flowEffectShape :: forall v. Shape v -> Shape (FlowEffect v)
 flowEffectShape v = genericSum "FlowEffect"
   { "Levy": atTagged "a levy on the flow" (levyShape v)
-  , "Block": atTagged "the flow is refused" unitShape
+  , "Block": atTagged "the share of the flow let through, none at zero" v
   }
 
 levyBasisShape :: Shape LevyBasis

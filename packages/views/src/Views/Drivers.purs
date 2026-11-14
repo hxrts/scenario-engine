@@ -59,7 +59,7 @@ ruleText w r = case Map.lookup (ruleKind r) w.ruleKinds of
   fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
   amount = case r of
     FlowRule { effect: Levy l } -> ratio l.rate
-    FlowRule { effect: Block } -> ""
+    FlowRule { effect: Block share } -> ratio share
     HoldingRule x -> quantity x.reduce
   scopeFill t = case r of
     FlowRule x -> fill "governor" (show x.scope.governor) (fill "counterparty" (show x.scope.counterparty) t)

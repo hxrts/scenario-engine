@@ -179,7 +179,7 @@ blocks a g = case _ of
   HoldingRule _ -> false
   where
   isBlock = case _ of
-    Block -> true
+    Block _ -> true
     Levy _ -> false
 
 -- | What an Actor bought of a Resource on the Exchanges over the run.

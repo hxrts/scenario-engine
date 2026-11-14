@@ -74,7 +74,7 @@ roundTripStrategyRulesRules =
             , asTemplate (selfTransform { transformation: "t", quantity: mulQ (lit 2) (max' (lit 1) (subQ (lit 4) (divQ (lit 3) (lit 2)))) })
             , asTemplate (transfer { from: "self", to: "X", resource: "E", quantity: lit 1 })
             , asTemplate (selfEnact (FlowRule { kind: Id "tariff", scope: { governor: Id "self", counterparty: Id "CN", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: lit "0.5", basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }))
-            , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block }))
+            , asTemplate (selfEnact (FlowRule { kind: Id "accessBan", scope: { governor: Id "self", counterparty: Id "CN", direction: EitherWay, over: [ Id "E" ] }, effect: Block (lit 0) }))
             , asTemplate (enactRule (HoldingRule { kind: Id "withholding", resource: Id "c", reduce: lit 2 }))
             , asTemplate (repeal { rule: "r2/US/0/rule-0" })
             ]
@@ -174,7 +174,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
     it "decodes each rule key, including withholding" do
       rule (json """{ "holding": { "kind": "withholding", "resource": "semiconductors", "reduce": "3" } }""")
         `shouldEqual` Right (holdR { capacity: Id "semiconductors", units: Q.fromInt 3 })
-      rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } }""")
+      rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": { "block": "0" } } }""")
         `shouldEqual` Right (banR { reserveParty: Id "US", target: Id "CN" })
     -- Pins the premise format the schema decoders read (docs/03).
     it "rejects an unknown rule key with a typed error" do
@@ -183,7 +183,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         other -> fail ("expected a rule error, got " <> show (map (const "a rule") other))
     -- Pins the premise format the schema decoders read (docs/03).
     it "rejects a rule object with two keys" do
-      isLeft (rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "sideways" }, "effect": "block" } }"""))
+      isLeft (rule (json """{ "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "sideways" }, "effect": { "block": "0" } } }"""))
         `shouldEqual` true
 
   describe "Intents" do
@@ -207,7 +207,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         `shouldEqual` Right (Route { pair: { base: Id "E", quote: Id "M" }, quantity: Q.fromInt 10, limitPrice: Just (q "2.04") })
     -- Pins the premise format the schema decoders read (docs/03).
     it "decodes an enactment through its rule" do
-      intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": "block" } } }""")
+      intent (json """{ "enact": { "flows": { "kind": "accessBan", "scope": { "governor": "US", "counterparty": "CN", "direction": "eitherWay", "over": ["E"] }, "effect": { "block": "0" } } } }""")
         `shouldEqual` Right (ChangeRule (Enact (banR { reserveParty: Id "US", target: Id "CN" })))
     -- Pins the premise format the schema decoders read (docs/03).
     it "a Repeal round-trips through the premise form, as one key naming the Rule" do
@@ -299,8 +299,11 @@ main = runSpecAndExitProcess [ consoleReporter ] do
 tariffR :: forall v. { reserveParty :: Id ActorTag, origin :: Id ActorTag, rate :: v } -> RuleF v
 tariffR r = FlowRule { kind: Id "tariff", scope: { governor: r.reserveParty, counterparty: r.origin, direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: r.rate, basis: PerUnit, in: Id "M", to: LevyToDestination, payer: PaidBySender } }
 
-banR :: forall v. { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
-banR r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block }
+banR :: { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF Q
+banR = banRAt Q.zero
+
+banRAt :: forall v. v -> { reserveParty :: Id ActorTag, target :: Id ActorTag } -> RuleF v
+banRAt passes r = FlowRule { kind: Id "accessBan", scope: { governor: r.reserveParty, counterparty: r.target, direction: EitherWay, over: [ Id "E" ] }, effect: Block passes }
 
 holdR :: forall v. { capacity :: ResourceId, units :: v } -> RuleF v
 holdR r = HoldingRule { kind: Id "withholding", resource: r.capacity, reduce: r.units }

@@ -6,7 +6,6 @@ module Core.Kernel.Law
   , quantityParam
   , recipientParam
   , appliesTo
-  , refuses
   , emitted
   , withheld
   ) where
@@ -68,11 +67,6 @@ appliesTo :: forall cap query reason cause. { from :: ActorId, to :: ActorId, re
 appliesTo flow law = case law.subject of
   OfFlow s -> flow.from `elem` s.from && flow.to `elem` s.to && flow.resource `elem` s.resources
   OfStock _ -> false
-
-refuses :: forall cap query reason cause. Law cap query reason cause -> Boolean
-refuses law = case law.operation of
-  Refuse -> true
-  _ -> false
 
 -- | The settled Flow a flow law charges on a quantity, with its recipient bound.
 emitted :: forall cap query reason cause. Q -> ActorId -> Law cap query reason cause -> Maybe { to :: Maybe ActorId, resource :: ResourceId, amount :: Q }

@@ -19,7 +19,7 @@ import Laws.Engine.Fund (Scaled, charge, scaleOf, transformScaleOf)
 import Core.Map (entries, groupBy, sumInto)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (Side(..), clearSolvent)
-import Laws.Engine.Screen (blockOf, leviesOn)
+import Laws.Engine.Screen (barrierOf, leviesOn)
 import Core.Kernel.Post (Account(..), Ledger)
 import Core.Kernel.Types as K
 import Core.Kernel.Ration (fillPool)
@@ -29,12 +29,12 @@ import Core.Num as Q
 import Laws.Query (transformationPrice, drawable, holding, lookupQ, poolCeiling, poolOf)
 import Laws.Types (ActorId, IntentF(..), ExchangeId, CandidateTransactionId, ResourceId, RuleChangeF(..), TransformationId, poolDraw, ruleIdOf, idText)
 import Laws.World (Cause(..), Event, Mechanism(..), PendingTransaction, RejectReason(..), WorldState, addEvents, settledEvent, orderRemoved, rejection)
-import Data.Array (any, concat, concatMap, drop, filter, foldl, notElem, nub, nubEq, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
+import Data.Array (any, concat, concatMap, drop, filter, find, foldl, notElem, nub, nubEq, null, partition, sortWith, take, zipWith, index, mapMaybe, nubByEq)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.Tuple (Tuple(..), fst)
 
 -- | The round's batch result: the ledger and Exchange positions, plus the deliveries, Rule changes,
@@ -172,20 +172,26 @@ exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (e
   -- Trade fills are not capped by `pay`: clearing bounds them by the Exchange's domain and reserves,
   -- and escrow funds them (docs/02 §8.2). Their quote settled Flow is escrowed at the limit or the domain ceiling.
   -- Each cleared pair settles as one transaction between its two sides (docs/02 §5.5). A flows Rule applies to
-  -- the base moving from the seller to the buyer as it does to a Transfer: a Block refuses the pair, and a Levy
+  -- the base moving from the seller to the buyer as it does to a Transfer: a Block passes its share of the pair, and a Levy
   -- is charged to the seller with it, once (docs/03 §5.5). The reserve answers to Rules as the Exchange's
   -- reserveParty, when it names one; with none, no Rule applies to a pair with the reserve. Trade fills are not capped by `pay`: clearing bounds them by the Exchange's
   -- domain and reserves, and escrow funds them (docs/02 §8.2).
   clearOne { acc, used } (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.actor o.pid) (filter (\o -> o.exchange == id) orders)
-      -- an order a Rule refuses a pair with the reserve is removed and the batch cleared again, as a violated limit is,
-      -- so the reserve moves along its curve only as far as it trades and the price is that move's
-      cleared = reclear [] os 0
-      reclear dropped xs n =
+      -- a barrier passes its share of each pair it covers (docs/03 §5.5). An order it covers a pair of with the reserve
+      -- is cut to that share, once, and the batch cleared again, as a violated limit is, so the reserve moves along
+      -- its curve only as far as it trades and the price is that move's; what such an order then pairs settles whole
+      cleared = reclear [] [] os 0
+      reclear dropped held xs n =
         let
-          res = clearSolvent m xs
-          barred = nubEq (concatMap (\x -> if onReserve x.buyer || onReserve x.seller then maybe [] (\k -> map (\o -> Tuple o k) (partyOrders x)) (blockOn x) else []) res.pairs)
+          found = clearSolvent m xs
+          cut o = any (\(Tuple b _) -> key b == key o) dropped
+          barrierOn x = if any cut (partyOrders x) then Nothing else pairBarrier x
+          barred = nubEq (concatMap (\x -> if onReserve x.buyer || onReserve x.seller then maybe [] (\b -> map (\o -> Tuple o b) (partyOrders x)) (barrierOn x) else []) found.pairs)
+          res = found { pairs = filter (\x -> x.quantity > Q.zero) (map (\x -> x { quantity = Q.mul (maybe Q.one _.passes (barrierOn x)) x.quantity }) found.pairs) }
+          -- the pairs a barrier held back some of, each with its kind, over every pass
+          refused = held <> mapMaybe (\x -> map (\b -> Tuple x b.kind) (barrierOn x)) found.pairs
           key o = Tuple o.pid o.position
           onReserve = case _ of
             Reserve -> true
@@ -196,19 +202,19 @@ exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (e
                 Reserve -> Nothing
             )
             [ x.buyer, x.seller ]
-          isBarred o = any (\(Tuple b _) -> key b == key o) barred
+          passesOf o = maybe Q.one (\(Tuple _ b) -> b.passes) (find (\(Tuple b _) -> key b == key o) barred)
           over = overdrawn res.pairs
           -- a payer the levies on its pairs would overdraw buys or sells only what its unescrowed money pays them on;
           -- an order still short after eight passes trades nothing
           ratioOf o = foldl (\least (Tuple k x) -> if fst k == o.actor then min least (if n >= 8 then Q.zero else x) else least) Q.one over
         in
-          if not (null barred) then reclear (dropped <> barred) (filter (not <<< isBarred) xs) n
-          else if null over then { res, dropped }
-          else reclear dropped (map (\o -> o { quantity = Q.mul (ratioOf o) o.quantity }) xs) (n + 1)
+          if not (null barred) then reclear (dropped <> barred) refused (filter (\o -> o.quantity /= Q.zero) (map (\o -> o { quantity = Q.mul (passesOf o) o.quantity }) xs)) n
+          else if null over then { res, dropped, refused }
+          else reclear dropped refused (map (\o -> o { quantity = Q.mul (ratioOf o) o.quantity }) xs) (n + 1)
       -- the levies the Rules charge on the pairs that settle, by payer and Resource: a levy the reserve would pay is not
       -- charged, since the reserve pays out only along its curve
       pairLevies x = case ruledAs x.seller, ruledAs x.buyer of
-        Just from, Just to | isNothing (blockOn x) -> filter (\l -> l.amount > Q.zero && not (paidByReserve x l)) (leviesOn w { from, to, resource: m.base } x.quantity)
+        Just from, Just to -> filter (\l -> l.amount > Q.zero && not (paidByReserve x l)) (leviesOn w { from, to, resource: m.base } x.quantity)
         _, _ -> []
       paidByReserve x l = case (if l.from /= l.sender then x.buyer else x.seller) of
         Reserve -> true
@@ -226,7 +232,7 @@ exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (e
                 [ x.buyer, x.seller ]
             )
             Map.empty
-            (filter (isNothing <<< blockOn) ps)
+            ps
         in
           concatMap (\(Tuple actor quantity) -> map (\e -> Tuple (Tuple actor e.resource) e.amount) (concatMap (\c -> mapMaybe (charge actor) c.obligations) (actionTransactions w actor (idText id) quantity))) (entries settledOf)
       -- everything trading on this Exchange costs each payer beyond the price: the levies on its pairs and what the
@@ -249,11 +255,13 @@ exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (e
       ruledAs = case _ of
         Party o -> Just o.actor
         Reserve -> m.reserveParty
-      blockOn x = case ruledAs x.seller, ruledAs x.buyer of
-        Just from, Just to -> blockOf w { from, to, resource: m.base }
+      -- the barrier on a pair, when one lets through less than all of it
+      pairBarrier x = case ruledAs x.seller, ruledAs x.buyer of
+        Just from, Just to -> barrierOf w { from, to, resource: m.base } >>= \b -> if b.passes < Q.one then Just b else Nothing
         _, _ -> Nothing
-      { yes: settling, no: refused } = partition (isNothing <<< blockOn) r.pairs
-      blockedEvents = nubEq (map (\(Tuple o k) -> orderRemoved w.round o.pid (Blocked k)) cleared.dropped <> concatMap (\x -> maybe [] (\k -> map (\o -> orderRemoved w.round o.pid (Blocked k)) (ordersOf x)) (blockOn x)) refused)
+      settling = r.pairs
+      -- an order a barrier held back some of is recorded, with the barrier's kind
+      blockedEvents = nubEq (map (\(Tuple o b) -> orderRemoved w.round o.pid (Blocked b.kind)) cleared.dropped <> concatMap (\(Tuple x k) -> map (\o -> orderRemoved w.round o.pid (Blocked k)) (ordersOf x)) cleared.refused)
       ordersOf x = mapMaybe
         ( case _ of
             Party o -> Just o

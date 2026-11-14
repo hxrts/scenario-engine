@@ -277,7 +277,7 @@ flowLaws w = mapMaybe ofRule (rulesOf w)
     { subject: K.OfFlow { from: membersOf from, to: membersOf to, resources: r.scope.over }
     , trigger: K.OnAction { obligor: Nothing, cause: Nothing }
     , operation: case r.effect of
-        Block -> K.Refuse
+        Block _ -> K.Refuse
         Levy l -> K.Emit
           { from: K.HeldBy (K.Bound quantityParam)
           , to: case l.to of

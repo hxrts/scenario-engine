@@ -1,7 +1,7 @@
 -- | Pacific's engine-level golden fixtures (docs/05_pacific.md §7): small worlds cut from Pacific with no
 -- | circulation, whose decisions are literal candidate Transactions. They pin the matched-only Exchange and an
 -- | export control, the US export tax, a home Exchange, an investment and the competence it trains, a transfer, the
--- | currency dealer, and a foreign loan under the asset fee, through `resolveRound` alone. Every expected value is a
+-- | currency dealer, and a foreign loan under the eased policy rate, through `resolveRound` alone. Every expected value is a
 -- | literal from docs/05.
 module Premises.Pacific.Fixtures (fixtures) where
 
@@ -17,7 +17,7 @@ import Premises.Kit.Fixtures as Kit
 import Premises.Pacific (compositionWith, defaultDials, gameSeed, pacific)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Private (usBond)
-import Premises.Pacific.Strategies (controlRule)
+import Premises.Pacific.Strategies (controlRuleAt)
 import Schema.Build.Fixture (noRound)
 import Schema.Build.World (emptyCirculation)
 import Schema.Build.Base (mayEnact, mayTransform)
@@ -30,7 +30,7 @@ fixture = Kit.fixture { seed: gameSeed, base }
 
 -- | Each Actor a fixture keeps: its accounts, and exactly the Capabilities it uses.
 us :: KeptActor
-us = { key: p.us, accounts: Just [ p.usd, p.technology, p.industry ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.industryWorld, mayTrade p.technologyUs, mayTransfer p.usd, mayEnact p.usExportControl, mayEnact p.usAssetFee ] }
+us = { key: p.us, accounts: Just [ p.usd, p.technology, p.industry ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.industryWorld, mayTrade p.technologyUs, mayTransfer p.usd, mayEnact p.usExportControl, mayEnact p.usPolicyRate ] }
 
 usFirm :: KeptActor
 usFirm = { key: p.usFirm, accounts: Just [ p.usd, p.rmb, p.technology ], capabilities: Just [ mayTrade p.technologyWorld, mayTrade p.technologyUs, mayTrade p.currency ] }
@@ -61,7 +61,7 @@ exports =
 fixturePA :: Tuple String Json
 fixturePA = fixture "P-A" spec
   { candidateTransactions = Just exports
-  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 17, p.technology := 4 ]), Tuple p.cn (keyed [ p.usd := 2, p.technology := 4 ]), Tuple p.us (keyed [ p.usd := 114 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.usd := 0, p.technology := 4 ]) ] })
+  , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 17, p.technology := 4 ]), Tuple p.cn (keyed [ p.usd := 2, p.technology := 4 ]), Tuple p.us (keyed [ p.usd := 114 ]) ], reserves = balances [ Tuple p.technologyWorld (keyed [ p.usd := 0, p.technology := 8 ]) ] })
   }
 
 -- | P-H: the US firm sells 2 T at home to its own state, at the home price of 1.25 USD, and pays no tax.
@@ -79,7 +79,7 @@ fixturePH = fixture "P-H" spec
 fixturePB :: Tuple String Json
 fixturePB = fixture "P-B" spec
   { rounds = Just
-      [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.us, intents: [ ChangeRule (Enact (controlRule p.us)) ] } ] }
+      [ noRound { candidateTransactions = Just [ candidateTransaction { author: p.us, intents: [ ChangeRule (Enact (controlRuleAt (q 0) p.us)) ] } ] }
       , noRound
           { candidateTransactions = Just exports
           , expect = Just (noExpect { accounts = balances [ Tuple p.usFirm (keyed [ p.usd := 15, p.technology := 8 ]), Tuple p.cn (keyed [ p.usd := 6, p.technology := 0 ]) ] })
@@ -143,8 +143,8 @@ fixturePX = fixture "P-X" spec
       ]
   }
 
--- | P-F: the US enacts its high asset fee, 0.05 USD per USD a Chinese lender Transfers to it, in round 1. In round
--- | 2 China lends the US 4 USD on the US bond and pays 0.2 USD of fee. The bond runs two rounds: nothing moves in
+-- | P-F: the US eases its policy rate high, 0.05 USD per USD a Chinese lender Transfers to it, in round 1. In round
+-- | 2 China lends the US 4 USD on the US bond and pays 0.2 USD on it. The bond runs two rounds: nothing moves in
 -- | round 3, and in round 4 the US repays 4.2 USD.
 fixturePF :: Tuple String Json
 fixturePF = fixture "P-F" spec
@@ -160,7 +160,7 @@ fixturePF = fixture "P-F" spec
       ]
   }
   where
-  fee = FlowRule { kind: p.usAssetFee, scope: { governor: p.us, counterparty: p.cn, direction: Inbound, over: [ p.usd ] }, effect: Levy { rate: q "0.05", basis: PerUnit, in: p.usd, to: LevyToGovernor, payer: PaidBySender } }
+  fee = FlowRule { kind: p.usPolicyRate, scope: { governor: p.us, counterparty: p.cn, direction: Inbound, over: [ p.usd ] }, effect: Levy { rate: q "0.05", basis: PerUnit, in: p.usd, to: LevyToGovernor, payer: PaidBySender } }
 
 fixtures :: Array (Tuple String Json)
 fixtures = [ fixturePA, fixturePH, fixturePB, fixturePG, fixturePC, fixturePR, fixturePX, fixturePF ]

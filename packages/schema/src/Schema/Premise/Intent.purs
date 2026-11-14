@@ -64,7 +64,7 @@ payerShape = genericNameShape "LevyPayer" (\ns -> "who pays it: " <> orList ns) 
 effectShapeOf :: forall v. Shape v -> Shape (FlowEffect v)
 effectShapeOf v = genericPremiseSum "FlowEffect"
   { "Levy": atOneKey "levy" "a levy on the flow: its rate, its basis, the Resource it is paid in, and who receives it" (recordOf "Levy" (field @"rate" "its rate" v &. field @"basis" "what it is charged on" basisShape &. field @"in" "the Resource it is paid in" idShape &. field @"to" "who receives it" recipientShape &. field @"payer" "who pays it (default the sender)" (defaultsTo PaidBySender payerShape)))
-  , "Block": atBare { tag: "block", desc: "the flow is refused" }
+  , "Block": atOneKey "block" "a block on the flow: the share of it let through, none at zero" v
   }
 
 -- | A Rule, under `enact`. `governor` is how the governor is written: templates default it to the acting Actor.

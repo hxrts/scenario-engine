@@ -10,6 +10,7 @@ module Laws.Engine.Screen
   , duplicatedIds
   , withinMaximums
   , blockOf
+  , barrierOf
   , leviesOn
   ) where
 
@@ -17,7 +18,7 @@ import Prelude
 
 import Laws.Authority (executor, routeExchanges, validIntent, worldFacts)
 import Laws.Engine.Compile (flowLaws)
-import Core.Kernel.Law (appliesTo, emitted, refuses)
+import Core.Kernel.Law (appliesTo, emitted)
 import Core.Kernel.Resolve (consents)
 import Core.Kernel.Types (Condition(..))
 import Core.Map (sumInto)
@@ -26,7 +27,7 @@ import Core.Num as Q
 import Laws.Query (rulesOf, aggregateOf, capabilitiesOf, holderOf, lookupQ, exchangesOf, procedureSupport, transfersOf, transformsOf)
 import Laws.Types (FlowEffect(..), LevyPayer(..), RuleF(..), Capability, CollectiveProcedureId, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransaction, CandidateTransactionId, ResourceId, RuleKindId, SignedCandidateTransaction, holderDraw, jointIntent)
 import Laws.World (Cause(..), Event(..), RejectReason(..), WorldState, lapse, rejection)
-import Data.Array (all, any, concat, elem, foldl, filter, find, findMap, length, mapMaybe, nub, nubEq)
+import Data.Array (all, any, concat, elem, foldl, filter, find, findMap, length, mapMaybe, nub, nubEq, zip)
 import Data.Foldable (for_)
 import Data.Either (Either(..))
 import Data.FunctorWithIndex (mapWithIndex)
@@ -202,10 +203,26 @@ leviesOn w flow quantity = map levyOf (nubEq (map keyOf charged))
     )
   levyOf key = { kind: key.kind, from: if payerOf key.kind == PaidByReceiver then flow.to else flow.from, sender: flow.from, to: key.to, in: key.in, amount: Q.sumQ (map _.leg.amount (filter (\c -> keyOf c == key) charged)) }
 
--- | The kind of the first flows Rule in force that blocks a movement of a Resource from one Actor to another,
--- | if one does: a Transfer at screening, and a matched Exchange fill at clearing, share this one check.
+-- | The barrier the flows Rules in force put on a movement of a Resource from one Actor to another, if any does: the
+-- | kind of the block that lets through the least of it, and the share it passes, none at zero. A Transfer at
+-- | screening and a matched Exchange pair at clearing share this one check.
+barrierOf :: WorldState -> { from :: ActorId, to :: ActorId, resource :: ResourceId } -> Maybe { kind :: RuleKindId, passes :: Q }
+barrierOf w flow = foldl tighter Nothing (mapMaybe one (zip (filter isFlows (rulesOf w)) (flowLaws w)))
+  where
+  isFlows = case _ of
+    FlowRule _ -> true
+    HoldingRule _ -> false
+  one (Tuple r laws) = case r of
+    FlowRule { kind, effect: Block share } | any (appliesTo flow) laws -> Just { kind, passes: max Q.zero (min Q.one share) }
+    _ -> Nothing
+  tighter least b = case least of
+    Just a | a.passes <= b.passes -> Just a
+    _ -> Just b
+
+-- | The kind of the barrier that refuses a Transfer: outside an Exchange a barrier passes all of a movement or none,
+-- | so one that lets through less than all of it refuses the Transfer.
 blockOf :: WorldState -> { from :: ActorId, to :: ActorId, resource :: ResourceId } -> Maybe RuleKindId
-blockOf w flow = map kindOf (find refuses (mapMaybe (find (appliesTo flow)) (flowLaws w)))
+blockOf w flow = barrierOf w flow >>= \b -> if b.passes < Q.one then Just b.kind else Nothing
 
 -- | The kind of the Rule a law compiles from.
 kindOf :: forall r. { cause :: Cause | r } -> RuleKindId
