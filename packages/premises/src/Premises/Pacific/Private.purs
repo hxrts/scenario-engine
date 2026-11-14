@@ -18,6 +18,8 @@ module Premises.Pacific.Private
   , payParam
   , stockpileParam
   , tariffRate
+  , ceilingParam
+  , upkeepParam
   , feeParam
   , reserveParam
   , loanShareParam
@@ -40,7 +42,7 @@ import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
 import Laws.StrategyRules (Expr, StrategyRules, Template(..))
-import Laws.Types (ActorId, IntentF(..), ResourceId, StrategyId, idText)
+import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, StrategyId, idText)
 import Premises.Pacific.Country (Country, countries, levelName)
 import Premises.Pacific.Names (p)
 import Schema.Build.Decision (divQ, holding, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
@@ -54,8 +56,9 @@ type Level3 = { off :: Q, low :: Q, high :: Q }
 
 -- | The private sectors' numbers and the firms': the share of what each private sector holds that it spends each
 -- | round (China's low, America's high), the share of its home currency a state transfers and a firm pays at each
--- | level, the units of its foreign input a stockpiling firm buys at each level, the share of its savings each
--- | private sector lends its state, and each firm's and private sector's opening money.
+-- | level, the units of its foreign input a stockpiling firm buys at each level, the share of its savings (what it
+-- | does not spend) each private sector lends its state and America's lends its firm, and each firm's and private
+-- | sector's opening money. A private sector's shares of what it holds therefore never sum to more than all of it.
 type PrivateDials =
   { spendShare :: { us :: Q, cn :: Q }
   , release :: Level2
@@ -73,9 +76,10 @@ defaultPrivate =
   , release: { low: q "0.05", high: q "0.15" }
   , pay: { low: q "0.05", high: q "0.15" }
   , stockpile: { low: q 1, high: q 2 }
-  , lend: { us: q "0.1", cn: q "0.4" }
-  -- the share America's households lend their firm each round, on its bond
-  , lendFirm: q "0.1"
+  -- half of what each does not spend: a tenth of what America's households hold, two fifths of what China's do
+  , lend: { us: q "0.5", cn: q "0.5" }
+  -- the share of what they do not spend America's households lend their firm each round, on its bond: the other half
+  , lendFirm: q "0.5"
   , firmMoney: { us: q 15, cn: q 10 }
   , privateMoney: { us: q 10, cn: q 10 }
   }
@@ -204,6 +208,16 @@ lendParam private = idText private <> "-lend-share"
 tariffRate :: String
 tariffRate = "tariff-rate"
 
+-- | The highest price a goods Exchange's curve reaches, where its stock is sold out. An order with no limit escrows
+-- | that price (docs/03 §10.1), and one short Resource scales everything its Actor does (docs/02 §8.2), so a buyer
+-- | orders no more than what it holds pays for at that price: it never claims more than it has.
+ceilingParam :: ExchangeId -> String
+ceilingParam x = idText x <> "-ceiling"
+
+-- | What a unit of capacity held costs a round in upkeep.
+upkeepParam :: String
+upkeepParam = "upkeep-per-unit"
+
 -- | The rest of the world's shares.
 rowParam :: String -> String
 rowParam x = "row-" <> x
@@ -212,9 +226,10 @@ rowParam x = "row-" <> x
 parameters :: PrivateDials -> WorldDials -> { technologyPrice :: Q, industryPrice :: Q, homePremium :: Q, tariff :: Q } -> Object Q
 parameters d w prices = Object.fromFoldable
   ( [ Tuple tariffRate prices.tariff
-    , Tuple (lendParam p.usPrivate) d.lend.us
-    , Tuple (lendParam p.cnPrivate) d.lend.cn
-    , Tuple lendFirmParam d.lendFirm
+    -- a share of its savings is that share of what it holds less what it spends
+    , Tuple (lendParam p.usPrivate) (Q.mul d.lend.us (Q.sub Q.one d.spendShare.us))
+    , Tuple (lendParam p.cnPrivate) (Q.mul d.lend.cn (Q.sub Q.one d.spendShare.cn))
+    , Tuple lendFirmParam (Q.mul d.lendFirm (Q.sub Q.one d.spendShare.us))
     , Tuple (rowParam "buy") w.savings.buy
     , Tuple (rowParam "lend") w.savings.lend
     , Tuple (rowParam "lend-under-fee") w.savings.lendUnderFee
@@ -247,17 +262,18 @@ parameters d w prices = Object.fromFoldable
 
 -- | A private sector's baseline (§6.2): it buys its own good at home with a share of its home currency; turns
 -- | another share into the foreign currency (less under its own country's tariff, which it pays at home); buys the
--- | foreign good abroad with all the foreign currency it holds; and lends a share of what it holds to its state:
+-- | foreign good abroad with the foreign currency it holds; and lends a share of what it holds to its state:
 -- | America's at the US bond's rate, China's at the rate its state signs. What it buys it consumes.
 demandStrategies :: Array (Tuple StrategyId StrategyRules)
 demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c false, convert c true, abroad c ] <> lend c, sign: [] }) countries
   where
-  home c = rule [] [ orderAt (named c.home) (divQ (mulQ (holding c.money) (param (homeShareParam c.private))) (priceAt (named c.home))) Nothing ]
+  -- each buys what its budget pays for at the highest price the Exchange could clear at, which its order escrows
+  home c = rule [] [ orderAt (named c.home) (divQ (mulQ (holding c.money) (param (homeShareParam c.private))) (param (ceilingParam c.home))) Nothing ]
   inForce c = ruleInForce { by: c.state, kinds: [ c.tariff ] }
   convert c tariffed =
     if tariffed then rule [ inForce c ] [ toForeign c (mulQ (holding c.money) (param (tariffedShareParam c.private))) ]
     else rule [ not' (inForce c) ] [ toForeign c (mulQ (holding c.money) (param (abroadShareParam c.private))) ]
-  abroad c = rule [] [ orderAt (named c.world) (divQ (holding c.foreignMoney) (priceAt (named c.world))) Nothing ]
+  abroad c = rule [] [ orderAt (named c.world) (divQ (holding c.foreignMoney) (param (ceilingParam c.world))) Nothing ]
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead
   lend c =

@@ -101,7 +101,8 @@ defaultDials =
   -- one RMB per USD to start; the price moves half a hundredth for each USD of net buying, within 100 USD either way
   , currency: { rate: q 1, slope: q "0.005", depth: q 100, reserves: q 150 }
   , money: { us: q 112, cn: q 88 }
-  -- each opens with two rounds of the other currency its imports need
+  -- China's state and the firms open with two rounds or more of the other currency their imports need; America's
+  -- state with a little over one, so it imports a little under its requirement in round 1
   , foreignMoney: { us: q 12, cn: q 6, usFirm: q 4, cnFirm: q 4 }
   , technologyCapacity: { us: q 2, usFirm: q 8 }
   -- America opens with no industrial capacity of its own

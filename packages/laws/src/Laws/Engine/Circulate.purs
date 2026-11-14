@@ -13,7 +13,8 @@ import Laws.Engine.Compile (WorldLaw, delivery, fractionLaw, runTransaction, tim
 import Laws.Engine.Settle (Settlement, net)
 import Core.Kernel.Law (forHolder)
 import Core.Kernel.Post (Account(..), Ledger)
-import Laws.World (Flow, addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, settledEvent)
+import Core.Kernel.Types (Subject(..), Trigger(..)) as K
+import Laws.World (AuthoredLaw(..), Flow, addEvents, Cause(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), ShortfallEffect(..), WorldState, settledEvent)
 import Core.Map (sumInto)
 import Core.Num (Q)
 import Core.Num as Q
@@ -32,7 +33,21 @@ type Penalised = { st :: Settlement, offsets :: Map ActorId Q }
 
 -- | The recurring cycle, evaluated on the round's batch result.
 circulate :: WorldState -> Settlement -> Settlement
-circulate w st0 = eachHolder w (foldl (step w) { st: st0, offsets: Map.empty } (filter (not <<< isEachHolder) w.recurring)).st
+circulate w st0 = eachHolder w (foldl (step w) { st: standing w st0, offsets: Map.empty } (filter (not <<< isEachHolder) w.recurring)).st
+
+-- | The authored laws charged every round (docs/03 §15.1), such as upkeep on capacity held: each of a law's holders
+-- | pays what it says, on what it holds after settlement so far, capped at what it holds. A holder that owes nothing
+-- | has nothing written for it.
+standing :: WorldState -> Settlement -> Settlement
+standing w st0 = foldl charge st0 (w.laws >>= each)
+  where
+  each (AuthoredLaw law) = case law.trigger, law.subject of
+    K.EachRound, K.OfStock s -> map (Tuple law) (fromMaybe (map _.id (actorsOf w)) s.holders)
+    _, _ -> []
+  charge acc (Tuple law holder) = case runLaw w acc.ledger law holder of
+    posted
+      | any (\f -> f.owed /= Q.zero) posted.flows -> addEvents [ settledEvent w.round posted.flows Nothing law.cause ] acc { ledger = posted.ledger }
+      | otherwise -> acc
 
 isEachHolder :: RecurringFlow -> Boolean
 isEachHolder r = r.source == FromEachHolder

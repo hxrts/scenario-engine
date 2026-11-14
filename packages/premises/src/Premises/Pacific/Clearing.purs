@@ -29,7 +29,7 @@ import Premises.Pacific.Country (countries)
 import Premises.Pacific.Dials (Dials)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Parts (Parts, emptyParts)
-import Premises.Pacific.Private (parameters, tariffRate, worldStrategy)
+import Premises.Pacific.Private (ceilingParam, parameters, tariffRate, upkeepParam, worldStrategy)
 import Premises.Pacific.Strategies (costParam, inputParam, inputShare, outputParam, viabilityParam)
 import Schema.Build.Base (mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
@@ -65,6 +65,12 @@ clearing d = emptyParts
       [ Tuple inputShare d.inputShare
       , Tuple viabilityParam d.cautiousOutput
       , Tuple tariffRate d.tariffRate
+      , Tuple upkeepParam d.upkeep
+      -- where each goods Exchange's curve ends: its opening price and its slope over all its stock
+      , Tuple (ceilingParam p.technologyWorld) (Q.add d.technologyPrice (Q.mul d.stockSlope.technology d.stock.technology))
+      , Tuple (ceilingParam p.industryWorld) (Q.add d.industryPrice (Q.mul d.stockSlope.industry d.stock.industry))
+      , Tuple (ceilingParam p.technologyUs) (Q.add (Q.mul d.homePremium d.technologyPrice) (Q.mul d.homeStockSlope.technology d.homeStock.technology))
+      , Tuple (ceilingParam p.industryCn) (Q.add (Q.mul d.homePremium d.industryPrice) (Q.mul d.homeStockSlope.industry d.homeStock.industry))
       , Tuple (inputParam p.usFirm) d.inputPerUnit.usFirm
       , Tuple (inputParam p.cnFirm) d.inputPerUnit.cnFirm
       , Tuple (outputParam p.usFirm) (perInput d.inputPerUnit.usFirm)
