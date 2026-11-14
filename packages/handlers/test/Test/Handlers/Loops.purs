@@ -204,7 +204,7 @@ spec = describe "Pacific's circuits and loops (docs/05 §5, §9)" do
       source <- pacificParts
       tariffed <- playTariffed source 6
       free <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
-      [ boughtOn tariffed p.usPrivate p.industryWorld, boughtOn free p.usPrivate p.industryWorld ] `shouldEqual` [ q "4.2894", q "5.6237" ]
+      [ boughtOn tariffed p.usPrivate p.industryWorld, boughtOn free p.usPrivate p.industryWorld ] `shouldEqual` [ q "4.1295", q "5.6237" ]
     it "F10 Restriction leverage: under China's export control, a US that kept its industrial competence goes short of far less than one that lost it" do
       skilled <- variant (\d -> d { competence = d.competence { us = d.competence.us { industry = q 3 } } })
       unskilled <- pacificParts

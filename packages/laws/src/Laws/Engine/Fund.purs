@@ -15,16 +15,16 @@ import Prelude
 
 import Core.Kernel.Ration (Claim, ration)
 import Core.Map (entries)
-import Laws.Engine.Screen (Item)
+import Laws.Engine.Screen (Item, leviesOn)
 import Core.Exchange as Exchange
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (transformationPrice, holding, poolCeiling)
 import Core.Kernel.Types (Amount(..), Effect(..), Obligation, Party(..), Subject(..), Trigger(..), Operation(..), Account(..)) as K
 import Laws.Engine.Compile (actionTransactions)
-import Laws.Types (ActorId, Capability, IntentF(..), CandidateTransactionId, ResourceId, Rule, Transformation, executorDraws, idText)
+import Laws.Types (Exchange, ActorId, Capability, IntentF(..), CandidateTransactionId, ResourceId, Rule, Transformation, executorDraws, idText)
 import Laws.World (AuthoredLaw(..), Event, LegQuery, RejectReason(..), WorldState, rejection)
-import Data.Array (concatMap, elem, partition, mapMaybe)
+import Data.Array (concatMap, elem, filter, foldl, nub, partition, mapMaybe)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -79,8 +79,8 @@ claims w item = concatMap claim item.candidateTransaction.intents <> map (\t -> 
             let
               unit = fromMaybe (Exchange.marginal m.cost m.cost.domain.hi) o.limitPrice
             in
-              [ { actor: p.author, resource: m.quote, amount: Q.mul unit o.quantity, producing: false } ]
-        | otherwise -> [ { actor: p.author, resource: m.base, amount: Q.neg o.quantity, producing: false } ]
+              [ { actor: p.author, resource: m.quote, amount: Q.mul unit o.quantity, producing: false } ] <> tradeLevies w m p.author o.quantity
+        | otherwise -> [ { actor: p.author, resource: m.base, amount: Q.neg o.quantity, producing: false } ] <> tradeLevies w m p.author o.quantity
     -- a routed order escrows at its limit (required, checked at screening): limit × quantity on
     -- the pair's quote for a buy, its quantity of the pair's base for a sell (docs/02 §8.2)
     Route r
@@ -99,6 +99,16 @@ claims w item = concatMap claim item.candidateTransaction.intents <> map (\t -> 
           )
     ChangeRule _ -> []
     Enter _ -> []
+
+-- | The most the flows Rules in force could levy an order's author on its quantity, in each Resource: whom it pairs
+-- | with is known only at clearing, so it escrows the largest of what each Actor it could pair with, or the
+-- | Exchange's reserve, would cost it.
+tradeLevies :: WorldState -> Exchange -> ActorId -> Q -> Array Escrow
+tradeLevies w m author quantity = map (\(Tuple resource amount) -> { actor: author, resource, amount, producing: false }) (Map.toUnfoldable (foldl (Map.unionWith max) Map.empty (map owed counterparties)))
+  where
+  counterparties = nub (filter (_ /= author) (m.access <> maybe [] pure m.reserveParty))
+  flow other = if quantity > Q.zero then { from: other, to: author, resource: m.base } else { from: author, to: other, resource: m.base }
+  owed other = Map.fromFoldableWith Q.add (map (\l -> Tuple l.in l.amount) (filter (\l -> l.from == author) (leviesOn w (flow other) (Q.abs quantity))))
 
 -- | What one law's obligation takes from an Actor, when it is a fixed amount from what it holds.
 charge :: ActorId -> K.Obligation Capability Rule LegQuery RejectReason -> Maybe Escrow

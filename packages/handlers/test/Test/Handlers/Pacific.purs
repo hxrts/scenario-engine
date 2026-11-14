@@ -269,7 +269,7 @@ spec = describe "Pacific (docs/05 §9)" do
     it "L Levies: the export tax alone is 2 USD in round 1; with the US tariff on the US's imports, more a round after" do
       parts <- pacificParts
       r <- playTariffed parts 6
-      map taxes r.records `shouldEqual` [ q 2, q "10.0162", q "8.7112", q "8.7732", q "8.8252", q "8.9565" ]
+      map taxes r.records `shouldEqual` [ q 2, q "9.4098", q "9.0769", q "8.8933", q "8.7969", q "8.9443" ]
     it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.72 units over the run against 14.02" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Patron" "Patron" 6
@@ -326,7 +326,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 1029, 1015, 1107, 975 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 1007, 1016, 1064, 975 ]
 
   describe "Sensitivity (docs/05 §9)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do

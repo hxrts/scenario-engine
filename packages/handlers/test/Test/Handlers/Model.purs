@@ -126,19 +126,17 @@ charged x a kinds =
     { owed: Q.sumQ (map _.owed ls), paid: Q.sumQ (map _.amount ls) }
 
 -- | 3. Every seat pays its wages in full, and its upkeep whenever it opened the round holding as much: funding sets
--- | both aside before anything else it orders. A tariff it pays as an importer is not escrowed (docs/03 §5.5), so
--- | its wages may fall short by what that took.
+-- | both aside before anything else it orders.
 wagesPaid :: SimRun -> Array String
 wagesPaid r = concatMap (\(Tuple w x) -> concatMap (check w x) seats) (rounds r)
   where
   check w x a =
     let
       wages = charged x a [ "wage" ]
-      tariffs = (charged x a [ idText (countryOf a).tariff ]).paid
       upkeep = charged x a [ "upkeep" ]
       opened = held w a (countryOf a).money
     in
-      (if Q.add wages.paid tariffs >= wages.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format wages.owed <> " in wages and paid " <> Q.format wages.paid ])
+      (if wages.paid == wages.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format wages.owed <> " in wages and paid " <> Q.format wages.paid ])
         <> (if upkeep.paid == upkeep.owed || opened < upkeep.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format upkeep.owed <> " in upkeep, paid " <> Q.format upkeep.paid <> ", and opened with " <> Q.format opened ])
 
 -- | 8. The wages a seat owes are its dials' wage on every unit it ran, and its upkeep the dials' rate on the capacity
