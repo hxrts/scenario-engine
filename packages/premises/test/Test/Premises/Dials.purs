@@ -14,6 +14,7 @@ import Premises.Pacific (composition, compositionWith, defaultDials, pacific)
 import Schema.Build.Quantity (q)
 import Schema.Premise.Composition (compositionShape)
 import Test.Spec (Spec, describe, it)
+import Premises.Compose (sameJson)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Spec Unit
@@ -29,6 +30,6 @@ spec = describe "Dials and Pacific's Premises" do
     map _.id source.premises `shouldEqual` [ "us-regime", "china-regime", "international-clearing" ]
     case composedOf { id: source.id, version: source.version, premises: source.premises } of
       Left e -> fail e
-      Right c -> (encodeWith Authored compositionShape c == encodeWith Authored compositionShape composition) `shouldEqual` true
+      Right c -> sameJson (encodeWith Authored compositionShape c) (encodeWith Authored compositionShape composition) `shouldEqual` true
   where
   text c = stringify (encodeWith Authored compositionShape c)

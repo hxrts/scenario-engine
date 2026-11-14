@@ -67,6 +67,7 @@ clearing d = emptyParts
       , Tuple tariffRate d.tariffRate
       , Tuple upkeepParam d.upkeep
       -- where each goods Exchange's curve ends: its opening price and its slope over all its stock
+      , Tuple (ceilingParam p.currency) (Q.add d.currency.rate (Q.mul d.currency.slope d.currency.depth))
       , Tuple (ceilingParam p.technologyWorld) (Q.add d.technologyPrice (Q.mul d.stockSlope.technology d.stock.technology))
       , Tuple (ceilingParam p.industryWorld) (Q.add d.industryPrice (Q.mul d.stockSlope.industry d.stock.industry))
       , Tuple (ceilingParam p.technologyUs) (Q.add (Q.mul d.homePremium d.technologyPrice) (Q.mul d.homeStockSlope.technology d.homeStock.technology))

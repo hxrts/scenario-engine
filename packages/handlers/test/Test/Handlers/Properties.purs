@@ -2,7 +2,7 @@
 -- | invariant; each sector's round-end money reconciles with the round's recorded flows and every currency's net
 -- | financial assets sum to what crossed the boundary; and each policy dial moves its outcome in the direction the
 -- | model says. Samples come from a fixed generator, so a failure names a sample that reproduces.
-module Test.Handlers.Properties (spec) where
+module Test.Handlers.Properties (spec, Sample, sampleOf, playSample, describeSample, playUnder, nonDecreasing, nonIncreasing) where
 
 import Prelude
 

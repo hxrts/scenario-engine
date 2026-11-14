@@ -35,6 +35,7 @@ import Test.Handlers.Route as RouteTests
 import Test.Handlers.Simulate as SimulateTests
 import Test.Handlers.Pacific as PacificTests
 import Test.Handlers.Loops as Loops
+import Test.Handlers.Model as Model
 import Test.Handlers.Properties as Properties
 import Test.Handlers.Cast as CastTests
 import Effect.Ref as Ref
@@ -84,6 +85,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
   PacificTests.spec
   Loops.spec
   Properties.spec
+  Model.spec
   Loops.experiments
   Loops.indicatorsSpec
   CastTests.spec

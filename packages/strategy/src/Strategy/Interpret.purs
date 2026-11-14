@@ -17,6 +17,7 @@ import Laws.Authority (validIntent, viewFacts)
 import Core.Draw (Seed, draw)
 import Core.Num (Q)
 import Core.Num as Q
+import Core.Kernel.Types (Account(..), Amount(..), Effect(..), Party(..)) as K
 import Laws.CandidateTransaction (CandidateTransactionBody)
 import Laws.Query (lookupQ, enactedAtBoundary)
 import Laws.Slice (runLegQuery)
@@ -185,6 +186,7 @@ evalAlg env =
   , factor: \d -> Just (fromMaybe (Q.fromInt 1) (Map.lookup d env.view.factors))
   , due: \r -> Just (lookupQ r env.view.due)
   , scheduled: \r -> Just (lookupQ r env.view.incoming)
+  , owing: \r -> Just (Q.sumQ (concatMap (owed r) env.view.pending))
   , planned: \r -> Just (Q.sumQ (mapMaybe (plannedUse r) env.planned))
   , mul: lift2 Q.mul
   , sub: lift2 Q.sub
@@ -194,6 +196,17 @@ evalAlg env =
   }
 
   where
+  -- what one pending transaction due by this round takes of a Resource from the Actor
+  owed r pending = case unwrap pending of
+    x | x.due <= env.view.round -> mapMaybe (takes r) x.transaction.obligations
+    _ -> []
+  takes r o = case o.effect of
+    K.Move { from: K.HeldBy (K.Named e), resource, owed: amount } | e == env.view.self.id && resource == r -> Just (fixed amount)
+    _ -> Nothing
+  fixed = case _ of
+    K.Exactly x -> x
+    K.Times t -> Q.mul t.ratio (fixed t.amount)
+    _ -> Q.zero
   -- what one drafted Intent consumes of a Resource: a Transform's inputs per unit times its quantity
   plannedUse r = case _ of
     -- no more than the Transformation's maximum can settle, so no more than that is held back

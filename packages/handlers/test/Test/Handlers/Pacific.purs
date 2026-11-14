@@ -1,7 +1,7 @@
 -- | The Pacific composition's golden scenarios (docs/05_pacific.md §7): free trade, each ban, each investment,
 -- | a ban met by substitution, no phantom trade, and the kernel invariants across them. Expected values are
 -- | literals from docs/05, never computed.
-module Test.Handlers.Pacific (spec, pacificParts, playAll, playTariffed, playFour, roundOf, holdingAt, traded, shortOf, output, taxes, totalOf, fx, ran, boughtBy, moved) where
+module Test.Handlers.Pacific (spec, blockedKinds, pacificParts, playAll, playTariffed, playFour, roundOf, holdingAt, traded, shortOf, output, taxes, totalOf, fx, ran, boughtBy, moved) where
 
 import Prelude
 
@@ -16,7 +16,7 @@ import Checks.Run (checkRun)
 import Core.Draw (Seed(..))
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Array (drop, filter, foldl, index, length, range, take, zip)
+import Data.Array (drop, filter, foldl, index, length, mapMaybe, range, take, zip)
 import Core.Map (values)
 import Data.Foldable (for_, sum)
 import Data.Traversable (for)
@@ -37,7 +37,7 @@ import Laws.Invariants (orderIndependent)
 import Laws.Query (lookupQ)
 import Laws.Slice (event, exchangeFills, levies, select, shortfalls, transfers, transformationFills)
 import Laws.StrategyRules (StrategyRules)
-import Laws.Types (ActorId, Id(..), IntentF(..), ResourceId, TransformationId)
+import Laws.Types (ActorId, Id(..), IntentF(..), ResourceId, RuleKindId, TransformationId)
 import Laws.World (RejectReason(..), RoundResult)
 import Premises.Load (loadFrom, parts)
 import Premises.Pacific as Pacific
@@ -88,6 +88,14 @@ blocked r = length (filter isBlocked (select (event @"OrderRemoved") r.record.ev
   isBlocked x = case x.reason of
     Blocked _ -> true
     _ -> false
+
+-- | The Rule kinds that blocked an order or a Transfer in a round.
+blockedKinds :: RoundResult -> Array RuleKindId
+blockedKinds r = mapMaybe kind (map _.reason (select (event @"OrderRemoved") r.record.events) <> map _.reason (select (event @"Rejected") r.record.events))
+  where
+  kind = case _ of
+    Blocked k -> Just k
+    _ -> Nothing
 
 -- | What a firm produced in a round: its production's fills.
 output :: RoundResult -> ActorId -> Q
@@ -254,19 +262,19 @@ spec = describe "Pacific (docs/05 §9)" do
       r1 <- roundOf r 1
       r2 <- roundOf r 2
       [ moved r1 p.usFirm p.usPrivate p.usd, moved r1 p.cnFirm p.cnPrivate p.rmb, traded r2 p.usFirm p.technology ] `shouldEqual` [ q "2.25", q "1.5", q "-1.5778" ]
-    it "K Selling only at home: with neither firm on the world Exchange, China's firm earns little from its households and lives on its state's loans; repaying them leaves it without the money for wages in round 5, when its output falls to nothing, and the next loan restarts it" do
+    it "K Selling only at home: with neither firm on the world Exchange, China's firm earns little from its households and lives on its state's loans, and still makes its 2 units every round: it invests only what its wages and upkeep leave" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Builder" "Builder" 6
-      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 2, q 2, q "2.1475", q "0.0021", q "2.2593" ]
+      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 2, q 2, q 2, q 2, q 2 ]
     it "L Levies: the export tax alone is 2 USD in round 1; with the US tariff on the US's imports, more a round after" do
       parts <- pacificParts
       r <- playTariffed parts 6
       map taxes r.records `shouldEqual` [ q 2, q "9.7048", q "8.8314", q "8.7705", q "8.7737", q "8.8797" ]
-    it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.36 units over the run against 14.15" do
+    it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.36 units over the run against 14.58" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Patron" "Patron" 6
       r6 <- roundOf r 6
-      [ holdingAt r6 p.cnPrivate p.rmb, holdingAt r6 p.usPrivate p.usd, Q.sumQ (map (\x -> boughtBy x p.cnPrivate) r.records), Q.sumQ (map (\x -> boughtBy x p.usPrivate) r.records) ] `shouldEqual` [ q "11.0497", q "1.4544", q "2.3607", q "14.1487" ]
+      [ holdingAt r6 p.cnPrivate p.rmb, holdingAt r6 p.usPrivate p.usd, Q.sumQ (map (\x -> boughtBy x p.cnPrivate) r.records), Q.sumQ (map (\x -> boughtBy x p.usPrivate) r.records) ] `shouldEqual` [ q "11.0416", q "2.6512", q "2.3603", q "14.5761" ]
     it "N Who an export control hurts: China's control leaves it with industrial inputs it cannot sell; America's leaves the US firm with technology it cannot sell" do
       parts <- pacificParts
       cn <- playAll parts "FreeTrade" "Restrict" "FreeTrade" "FreeTrade" 6
@@ -278,7 +286,7 @@ spec = describe "Pacific (docs/05 §9)" do
       parts <- pacificParts
       us <- playAll parts "FreeTrade" "Restrict" "Hedger" "Hedger" 6
       cn <- playAll parts "Restrict" "FreeTrade" "Hedger" "Hedger" 6
-      (map (\x -> output x p.usFirm) us.records <> map (\x -> output x p.cnFirm) cn.records) `shouldEqual` [ q "6.956", q 8, q "6.6752", q 4, q 4, q 4, q 2, q 2, q 2, q "1.6666", q 1, q 1 ]
+      (map (\x -> output x p.usFirm) us.records <> map (\x -> output x p.cnFirm) cn.records) `shouldEqual` [ q 8, q 8, q "6.1536", q 4, q 4, q 4, q 2, q 2, q 2, q "1.6666", q 1, q 1 ]
 
   describe "Money between the countries (docs/05 §9)" do
     it "Q The currency: under free trade America's imports sell USD and the dollar falls; with China's reserves it holds up" do
@@ -318,7 +326,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 1042, 1172, 1092, 1263 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 1035, 1246, 1168, 1253 ]
 
   describe "Sensitivity (docs/05 §9)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do

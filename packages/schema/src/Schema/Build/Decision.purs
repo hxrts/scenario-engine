@@ -9,6 +9,7 @@ module Schema.Build.Decision
   , factor
   , due
   , scheduled
+  , owing
   , planned
   , acting
   , mulQ
@@ -115,6 +116,11 @@ due = Due <<< N.named
 -- | What scheduled Flows still pending will deliver of a Resource to the Actor.
 scheduled :: forall a. Named a ResourceTag => a -> Expr
 scheduled = Scheduled <<< N.named
+
+-- | What the transactions pending against the Actor and due this round, such as a bond's repayment, take of a
+-- | Resource from it: they are funded before its orders, so what it can spend is what it holds less this.
+owing :: forall a. Named a ResourceTag => a -> Expr
+owing = Owing <<< N.named
 
 -- | What the Transforms drafted earlier this round consume of a Resource.
 planned :: forall a. Named a ResourceTag => a -> Expr

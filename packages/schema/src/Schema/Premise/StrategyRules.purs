@@ -56,6 +56,7 @@ exprShape = recursive "Expr" \e -> genericPremiseSum "Expr"
   , "Factor": atOneKey "factor" "the stored factor of a behaviour domain" idShape
   , "Due": atOneKey "due" "the fixed amount of a Resource the Actor's recurring flows take from it each round" idShape
   , "Scheduled": atOneKey "scheduled" "what scheduled Flows still pending will deliver of a Resource to the Actor" idShape
+  , "Owing": atOneKey "owing" "what the transactions pending against the Actor and due this round take of a Resource from it" idShape
   , "Planned": atOneKey "planned" "what the Transforms drafted earlier this round consume of a Resource" idShape
   , "Mul": atOneKey "mul" "a product" (pairOf e e)
   , "Sub": atOneKey "sub" "a difference" (pairOf e e)

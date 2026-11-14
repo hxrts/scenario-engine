@@ -20,7 +20,7 @@ import Assembly.Error (AssemblyError(..))
 
 import Assembly.Restrict (everything, restrict)
 import Premises.Load (composedOf, loadFrom, parts)
-import Premises.Compose (ComposeError(..), CompositionSource, Premise, compose, files, renderComposeError)
+import Premises.Compose (ComposeError(..), CompositionSource, Premise, compose, files, renderComposeError, sameJson)
 import Premises.Tree as Tree
 import Core.Draw (Seed(..))
 import Core.Num as Q
@@ -164,7 +164,7 @@ spec = do
         bad = (Pacific.pacific Pacific.defaultDials) { premises = [ corn, corn { id = "corn2", sections = Object.insert "numeraire" (json "\"C\"") corn.sections } ] }
       case run "pacific/v0" of
         Left e -> fail e
-        Right loaded -> (encodeWith Authored compositionShape loaded.composition == encodeWith Authored compositionShape Pacific.composition) `shouldEqual` true
+        Right loaded -> sameJson (encodeWith Authored compositionShape loaded.composition) (encodeWith Authored compositionShape Pacific.composition) `shouldEqual` true
       case unwrap (loadFrom (memoryOps (files bad)) "pacific/v0") of
         Left e -> e `shouldEqual` "composition pacific: Premises corn@v0 and corn2@v0 define the numeraire of the composition differently"
         Right _ -> fail "a conflict must fail the load"

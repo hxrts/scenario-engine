@@ -17,17 +17,20 @@ module Premises.Compose
   , files
   , compositionKeys
   , sharedPremiseConflict
+  , sameJson
   , presetsJson
   ) where
 
 import Prelude
 
 import Core.Shape (Format(..), arrayOf, encodeWith, recordShape, stringShape)
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, toArray, toObject, toString)
+import Data.Array as Array
+import Data.Foldable as Foldable
+import Data.Argonaut.Core (Json, caseJson, fromArray, fromObject, fromString, isNull, toArray, toBoolean, toNumber, toObject, toString)
 import Control.Alt ((<|>))
 import Data.Array (concatMap, elem, find, foldM, foldl, head, snoc)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -183,6 +186,22 @@ arrayOf' who key j = case toArray j of
   Just a -> Right a
   Nothing -> Left (Malformed { premise: who, key, expected: "an array" })
 
+-- | Whether two JSON values are the same, in one pass over them. The library's own comparison visits every key of
+-- | an object twice, so on two equal values it takes time exponential in their depth, and a Strategy's expressions
+-- | nest deeply.
+sameJson :: Json -> Json -> Boolean
+sameJson a b = caseJson
+  (\_ -> isNull b)
+  (\x -> toBoolean b == Just x)
+  (\x -> toNumber b == Just x)
+  (\x -> toString b == Just x)
+  (\xs -> maybe false (\ys -> Array.length xs == Array.length ys && Foldable.and (Array.zipWith sameJson xs ys)) (toArray b))
+  (\o -> maybe false (sameObject o) (toObject b))
+  a
+
+sameObject :: Object Json -> Object Json -> Boolean
+sameObject o o' = Object.size o == Object.size o' && Foldable.all (\k -> maybe false identity (sameJson <$> Object.lookup k o <*> Object.lookup k o')) (Object.keys o)
+
 inSection :: String -> Merged -> Object Json
 inSection key acc = fromMaybe Object.empty (Object.lookup key acc.merged >>= toObject)
 
@@ -191,7 +210,7 @@ owner acc slot = fromMaybe "another Premise" (Object.lookup slot acc.owners)
 
 named :: String -> String -> String -> Merged -> Tuple String Json -> Either ComposeError Merged
 named who key kind acc (Tuple name value) = case Object.lookup name (inSection key acc) of
-  Just existing | existing == value -> Right acc
+  Just existing | sameJson existing value -> Right acc
   Just _ -> Left (Conflict { kind, name, first: owner acc slot, second: who })
   Nothing -> Right acc { merged = Object.insert key (fromObject (Object.insert name value (inSection key acc))) acc.merged, owners = Object.insert slot who acc.owners }
   where
@@ -199,7 +218,7 @@ named who key kind acc (Tuple name value) = case Object.lookup name (inSection k
 
 single :: String -> String -> String -> Merged -> Json -> Either ComposeError Merged
 single who key kind acc value = case Object.lookup key acc.merged of
-  Just existing | existing == value -> Right acc
+  Just existing | sameJson existing value -> Right acc
   Just _ -> Left (Conflict { kind, name: "of the composition", first: owner acc key, second: who })
   Nothing -> Right acc { merged = Object.insert key value acc.merged, owners = Object.insert key who acc.owners }
 
@@ -210,7 +229,7 @@ identified :: String -> String -> String -> Merged -> Json -> Either ComposeErro
 identified who key kind acc value = case nameOf value of
   Nothing -> Left (Malformed { premise: who, key, expected: "a list of objects each with an id, or [name, value] pairs" })
   Just name -> case find (\x -> nameOf x == Just name) (inList key acc) of
-    Just existing | existing == value -> Right acc
+    Just existing | sameJson existing value -> Right acc
     Just _ -> Left (Conflict { kind, name, first: owner acc (key <> "/" <> name), second: who })
     Nothing -> Right acc { merged = Object.insert key (fromArray (snoc (inList key acc) value)) acc.merged, owners = Object.insert (key <> "/" <> name) who acc.owners }
   where
@@ -327,7 +346,7 @@ sharedPremiseConflict cs = find' (concatMap (\c -> map (\p -> Tuple c.id p) c.pr
   find' pairs = foldl
     ( \found (Tuple cid p) -> case found of
         Just e -> Just e
-        Nothing -> case find (\(Tuple _ q) -> refOf q == refOf p && q.sections /= p.sections) pairs of
+        Nothing -> case find (\(Tuple _ q) -> refOf q == refOf p && not (sameObject q.sections p.sections)) pairs of
           Just (Tuple other _) -> Just ("compositions " <> cid <> " and " <> other <> " write the Premise " <> premiseRefText (refOf p) <> " differently")
           Nothing -> Nothing
     )
