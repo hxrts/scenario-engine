@@ -44,6 +44,31 @@ Four seats, a state and a firm in each country, each control a different part of
 
 Each seat holds four tools, each off, low or high every round, so every seat chooses among 3⁴ = 81 settings a round. The countries differ in where they start and in their institutions, not in how many choices their seats have.
 
+```text
+                 UNITED STATES                                         CHINA
+┌────────────────────────────────────┐                 ┌────────────────────────────────────┐
+│ US state                           │    external:    │ China state                        │
+│ purchasing power or renewal        │◀═══════════════▶│ producer support or prosperity     │
+│                                    │ barriers, the   │                                    │
+│ · trade barrier                    │ dollar, lending │ · trade barrier                    │
+│ · industrial policy                │                 │ · industrial policy                │
+│ · transfer to households           │                 │ · financial repression             │
+│ · asset fee on foreign lending     │                 │ · dollar reserves                  │
+└─────────────────┬──────────────────┘                 └─────────────────┬──────────────────┘
+                  ║ internal: renewal                                    ║ internal: industry
+                  ║ against the firm's                                   ║ against households,
+                  ║ imported input                                       ║ credit against debt
+┌─────────────────┴──────────────────┐                 ┌─────────────────┴──────────────────┐
+│ US firm                            │    external:    │ China firm                         │
+│ accumulation or distribution       │◀═══════════════▶│ expansion or profitability         │
+│                                    │ each needs the  │                                    │
+│ · world-market share               │ other's good,   │ · world-market share               │
+│ · input inventory                  │ each sells to   │ · input inventory                  │
+│ · capital investment               │ the other       │ · capital investment               │
+│ · dividends                        │                 │ · dividends                        │
+└────────────────────────────────────┘                 └────────────────────────────────────┘
+```
+
 | Seat | Its dilemma | Tool | Off / low / high |
 |---|---|---|---|
 | US state (`US`) | **Purchasing power or industrial renewal**, and whether to trade financial advantage for competitiveness | Trade barrier | none / import ban on Chinese inputs (demand pressure) / export control on US technology (supply pressure) |
