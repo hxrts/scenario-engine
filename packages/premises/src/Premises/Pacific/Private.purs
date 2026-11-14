@@ -37,7 +37,7 @@ import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -45,7 +45,7 @@ import Laws.StrategyRules (Expr, StrategyRules, Template(..))
 import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, StrategyId, idText)
 import Premises.Pacific.Country (Country, countries, levelName)
 import Premises.Pacific.Names (p)
-import Schema.Build.Decision (divQ, holding, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
+import Schema.Build.Decision (divQ, holding, levyRate, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
 import Schema.Build.Quantity (q)
 
 -- | A tool's two settings above off: low and high.
@@ -168,17 +168,12 @@ lendTo l = CandidateTransactionT
 
 -- Parameters ------------------------------------------------------------------------------------
 
--- | The share of its home currency a private sector spends on its own good at home, and turns into the foreign
--- | currency for the foreign good, without and with its own country's tariff in force; and one over a good's price
--- | on an Exchange, so a holding times it is a quantity.
+-- | The share of its home currency a private sector spends on its own good at home, and on the foreign good abroad.
 homeShareParam :: ActorId -> String
 homeShareParam private = idText private <> "-home-share"
 
 abroadShareParam :: ActorId -> String
 abroadShareParam private = idText private <> "-abroad-share"
-
-tariffedShareParam :: ActorId -> String
-tariffedShareParam private = idText private <> "-abroad-share-tariffed"
 
 releaseParam :: String -> String
 releaseParam l = "release-" <> l
@@ -246,13 +241,10 @@ parameters d w prices = Object.fromFoldable
       <> do
         c <- countries
         let share = if c.state == p.us then d.spendShare.us else d.spendShare.cn
-        -- the share is split evenly between the two goods; under its own tariff, of the half for the foreign good
-        -- it turns into the other currency only what leaves enough for the tariff, at the price
+        -- the share is split evenly between the two goods
         let half = Q.div share (Q.fromInt 2)
-        let price = if c.foreign == p.industry then prices.industryPrice else prices.technologyPrice
         [ Tuple (homeShareParam c.private) half
         , Tuple (abroadShareParam c.private) half
-        , Tuple (tariffedShareParam c.private) (fromMaybe Q.zero (Q.divMaybe (Q.mul half price) (Q.add price prices.tariff)))
         ]
   )
   where
@@ -265,14 +257,15 @@ parameters d w prices = Object.fromFoldable
 -- | foreign good abroad with the foreign currency it holds; and lends a share of what it holds to its state:
 -- | America's at the US bond's rate, China's at the rate its state signs. What it buys it consumes.
 demandStrategies :: Array (Tuple StrategyId StrategyRules)
-demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c false, convert c true, abroad c ] <> lend c, sign: [] }) countries
+demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c, abroad c ] <> lend c, sign: [] }) countries
   where
   -- each buys what its budget pays for at the highest price the Exchange could clear at, which its order escrows
   home c = rule [] [ orderAt (named c.home) (divQ (mulQ (holding c.money) (param (homeShareParam c.private))) (param (ceilingParam c.home))) Nothing ]
-  inForce c = ruleInForce { by: c.state, kinds: [ c.tariff ] }
-  convert c tariffed =
-    if tariffed then rule [ inForce c ] [ toForeign c (mulQ (holding c.money) (param (tariffedShareParam c.private))) ]
-    else rule [ not' (inForce c) ] [ toForeign c (mulQ (holding c.money) (param (abroadShareParam c.private))) ]
+  -- of the share for the foreign good, it turns into the other currency only what leaves the tariff it owes on what
+  -- that buys, at the highest price the foreign good's Exchange could clear at
+  convert c = rule [] [ toForeign c (mulQ (mulQ (holding c.money) (param (abroadShareParam c.private))) (divQ ceiling (addQ ceiling (levyRate { by: c.state, kind: c.tariff })))) ]
+    where
+    ceiling = param (ceilingParam c.world)
   abroad c = rule [] [ orderAt (named c.world) (divQ (holding c.foreignMoney) (param (ceilingParam c.world))) Nothing ]
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead

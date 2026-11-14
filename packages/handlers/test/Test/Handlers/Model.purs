@@ -96,19 +96,23 @@ unscaled r = concatMap perRound r.records
         if done == t.quantity then [] else [ at x <> ": " <> idText t.by <> " ordered " <> Q.format t.quantity <> " of " <> idText t.transformation <> " and ran " <> Q.format done ]
     _ -> []
 
--- | 4. No household or the rest of the world claims more of a currency than it holds: their shares of what they hold
--- | sum to no more than all of it, each unlimited buy at the highest price its Exchange reaches.
+-- | 4. No participant claims more of a currency than it holds: its orders, Transfers and loans, each unlimited buy at
+-- | the highest price its Exchange reaches, with the wages and upkeep funding set aside first, fit what it holds,
+-- | since every participant shares out what it holds in shares that sum to no more than all of it (docs/05 §7).
 claims :: SimRun -> Array String
 claims r = concatMap perRound (rounds r)
   where
-  perRound (Tuple w x) = concatMap (\a -> concatMap (check w x a) [ p.usd, p.rmb ]) [ p.usPrivate, p.cnPrivate, p.row ]
+  perRound (Tuple w x) = concatMap (\a -> concatMap (check w x a) [ p.usd, p.rmb ]) (map _.id (values w.actors))
   check w x a c =
     let
       claimed = Q.sumQ (concatMap (\s -> if signed s then mapMaybe (claim w a c s.candidateTransaction.author) s.candidateTransaction.intents else []) x.record.inputs)
       has = held w a c
+      -- the wages it owed and the upkeep it paid this round in this currency, which funding set aside first from what
+      -- it held: upkeep paid beyond that came from the round's own sales
+      setAside = Q.sumQ (map (\l -> if l.kind == p.wage then l.owed else l.amount) (filter (\l -> l.from == a && (l.kind == p.wage || l.kind == p.upkeep) && elem a seats && (countryOf a).money == c) (select levies x.record.events)))
     in
-      if claimed <= Q.add has (q "0.001") then []
-      else [ at x <> ": " <> idText a <> " claims " <> Q.format claimed <> " " <> idText c <> ", holding " <> Q.format has ]
+      if Q.add claimed (min setAside has) <= Q.add has (q "0.001") then []
+      else [ at x <> ": " <> idText a <> " claims " <> Q.format claimed <> " " <> idText c <> " with " <> Q.format setAside <> " set aside, holding " <> Q.format has ]
   signed s = all (\x -> x == s.candidateTransaction.author || elem x s.signatures) s.candidateTransaction.signers
   claim w a c author = case _ of
     Trade o | author == a -> Map.lookup o.exchange w.exchanges >>= \m ->
@@ -196,7 +200,7 @@ spec :: Spec Unit
 spec = describe "Pacific's model checked against itself (docs/07 §14)" do
   -- every preset and 20 generated runs, played once for the four properties that read them; a failure names its
   -- property and its run
-  it "over every preset and 20 generated runs: nothing is scaled (every Transformation ordered runs in full); every seat pays its wages in full, and its upkeep when it can; households and the rest of the world claim no more than they hold; and wages and upkeep are what the dials say" do
+  it "over every preset and 20 generated runs: nothing is scaled (every Transformation ordered runs in full); every seat pays its wages in full, and its upkeep when it can; no participant claims more than it holds; and wages and upkeep are what the dials say" do
     runs <- everyRun
     for_ runs \x -> Tuple x.name (map ("scaled: " <> _) (unscaled x.run) <> map ("unpaid: " <> _) (wagesPaid x.run) <> map ("over budget: " <> _) (claims x.run) <> map ("dials: " <> _) (namedFlows x.source x.run)) `shouldEqual` Tuple x.name []
   it "every law and Rule kind is charged somewhere: across the presets and each state's tariff, each kind levies or blocks at least once" do

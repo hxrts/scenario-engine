@@ -47,6 +47,7 @@ type Dials =
   , taxRate :: Q
   , cautiousOutput :: Q
   , upkeep :: Q
+  , budget :: { trade :: Q, reserves :: Q }
   , private :: PrivateDials
   , world :: WorldDials
   , objectives :: Objectives
@@ -132,18 +133,21 @@ defaultDials =
   , cautiousOutput: q "0.5"
   -- what each unit of capacity held costs a round in maintenance, idle or not, paid to its country's households
   , upkeep: q "0.05"
+  -- the shares of what a seat holds beyond its wages and upkeep that its trade, its levies among it, and China's
+  -- reserves may take; payouts and China's loan to its firm take their tools' shares, and investment the rest
+  , budget: { trade: q "0.6", reserves: q "0.1" }
   , private: defaultPrivate
   , world: defaultWorld
   -- each bar is set near the 40th percentile of its measure over the balance sample (docs/05 §10.4), so a seat
   -- meets each about three times in five
   , objectives:
-      { security: { us: q "15.53", cn: q "11.6" }
-      , viability: { us: q "1.26", cn: q 8 }
-      , prosperity: { us: q "13.41", cn: q "3.56" }
-      , industry: { us: q "10.08", cn: q 4 }
-      , wealth: { us: q "2.29", cn: q "8.07" }
-      , output: { us: q 9, cn: q 2 }
-      , market: { us: q "13.41", cn: q "3.56" }
+      { security: { us: q "15.52", cn: q "11.56" }
+      , viability: { us: q "2.52", cn: q 8 }
+      , prosperity: { us: q "20.57", cn: q "3.64" }
+      , industry: { us: q "9.87", cn: q "3.79" }
+      , wealth: { us: q "11.61", cn: q "11.56" }
+      , output: { us: q "10.82", cn: q 2 }
+      , market: { us: q "20.57", cn: q "3.64" }
       }
   }
 

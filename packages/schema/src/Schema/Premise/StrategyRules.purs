@@ -61,6 +61,7 @@ exprShape = recursive "Expr" \e -> genericPremiseSum "Expr"
   , "Sub": atOneKey "sub" "a difference" (pairOf e e)
   , "Max": atOneKey "max" "the larger of two" (pairOf e e)
   , "Min": atOneKey "min" "the lesser of two" (pairOf e e)
+  , "LevyRate": atOneKey "levyRate" "the per-unit rate of a levy of the kind the governor has in force, 0 when none is" (recordShape "LevyRate" { governor: idShape, kind: idShape })
   , "Div": atOneKey "div" "a quotient, zero when the divisor is zero" (pairOf e e)
   }
 

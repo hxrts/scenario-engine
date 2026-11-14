@@ -19,8 +19,8 @@ test("the suite's runs are buttons by name, presets apart from agency runs, and 
 test("the runs at a glance: one row per run by name, with its leader, spread, Gini, units short and Rules enacted", async ({ page }) => {
   await page.goto("/admin/#/simulations");
   const glance = section(page, "The runs at a glance");
-  await expect(rowWith(glance, ["FreeTrade", "CN", "119.98", "84.94", "0.26"])).toHaveCount(1);
-  await expect(rowWith(glance, ["Hawk", "US", "122.7", "79.1", "0.23"])).toHaveCount(1);
+  await expect(rowWith(glance, ["FreeTrade", "CN", "120.22", "85.15", "0.26"])).toHaveCount(1);
+  await expect(rowWith(glance, ["Hawk", "US", "116.27", "72.3", "0.22"])).toHaveCount(1);
   await expect(glance.getByRole("row")).toHaveCount(23);
 });
 
@@ -55,10 +55,10 @@ test("the open run shows one section per economic object, the headline at the ro
     await expect(page.getByRole("heading", { name: gone, exact: true })).toHaveCount(0);
   const headline = section(page, "Who is trapped, and how tightly?");
   await expect(headline.getByRole("combobox", { name: "Round" })).toHaveValue("6");
-  await expect(rowWith(headline, ["6", "US", "-22.56"])).toHaveCount(1);
+  await expect(rowWith(headline, ["6", "US", "-22.43"])).toHaveCount(1);
   await headline.getByRole("combobox", { name: "Round" }).selectOption("1");
   await expect(rowWith(headline, ["1", "US"]).first()).toBeVisible();
-  await expect(rowWith(headline, ["6", "US", "-22.56"])).toHaveCount(0);
+  await expect(rowWith(headline, ["6", "US", "-22.43"])).toHaveCount(0);
   // a country with no productive capacity has no regime panels
   for (const panel of ["Capability", "Demand", "Finance"]) await expect(page.getByText(panel + ", ROW", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Capability, US", { exact: true })).toBeVisible();

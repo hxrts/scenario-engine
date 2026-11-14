@@ -151,7 +151,7 @@ spec = describe "Pacific (docs/05 §9)" do
       r <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
       r1 <- roundOf r 1
       [ traded r1 p.usFirm p.technology, traded r1 p.cn p.technology, traded r1 p.cnFirm p.technology, traded r1 p.us p.industry, traded r1 p.cn p.industry, traded r1 p.cnFirm p.industry, taxes r1 ] `shouldEqual` [ q (-8), q 3, q 1, q 5, q (-4), q (-2), q 2 ]
-      (map (\a -> holdingAt r1 a p.usd) [ p.us, p.usFirm ] <> map (\a -> holdingAt r1 a p.rmb) [ p.cn, p.cnFirm ]) `shouldEqual` [ q "110.6", q "17.6", q "92.0048", q "17.8" ]
+      (map (\a -> holdingAt r1 a p.usd) [ p.us, p.usFirm ] <> map (\a -> holdingAt r1 a p.rmb) [ p.cn, p.cnFirm ]) `shouldEqual` [ q "110.6", q "17.06", q "92.1265", q "17.68" ]
       for_ r.records \x -> [ totalOf p.usd x, totalOf p.rmb x ] `shouldEqual` [ q 317, q 334 ]
     it "Upkeep: every round each state and firm pays its households 0.05 a unit of the capacity it holds, 0.1 and 0.4 in each country" do
       parts <- pacificParts
@@ -172,7 +172,7 @@ spec = describe "Pacific (docs/05 §9)" do
     it "C China's export control: the US is short 5 I from round 2; its firm produces 8, 8, then 4 a round, so China goes short of T; China keeps the industrial inputs it cannot sell" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "Restrict" "FreeTrade" "FreeTrade" 6
-      (map (\x -> output x p.usFirm) r.records <> map (\x -> shortOf x p.us p.industry) r.records <> map (\x -> shortOf x p.cn p.technology) r.records) `shouldEqual` [ q 8, q 8, q 4, q 4, q 4, q 4, q 0, q 5, q 5, q 5, q 5, q 5, q 0, q 0, q 0, q "0.5616", q "1.4952", q "1.5531" ]
+      (map (\x -> output x p.usFirm) r.records <> map (\x -> shortOf x p.us p.industry) r.records <> map (\x -> shortOf x p.cn p.technology) r.records) `shouldEqual` [ q 8, q 8, q 4, q 4, q 4, q 4, q 0, q 5, q 5, q 5, q 5, q 5, q 0, q 0, q 0, q "0.5622", q "1.4953", q "1.5533" ]
       r6 <- roundOf r 6
       [ holdingAt r6 p.cn p.industry ] `shouldEqual` [ q 20 ]
     it "S US import ban, demand pressure: China's state sells no industrial inputs abroad from round 2 and its unsold inputs pile up by 4 a round, all it makes beyond its own requirement, while the US, with no industrial capacity of its own, is short 5 a round" do
@@ -187,7 +187,7 @@ spec = describe "Pacific (docs/05 §9)" do
       parts <- pacificParts
       r <- playTariffed parts 6
       r2 <- roundOf r 2
-      [ traded r2 p.cn p.industry, holdingAt r2 p.usFirm p.usd ] `shouldEqual` [ q (-4), q "18.498" ]
+      [ traded r2 p.cn p.industry, holdingAt r2 p.usFirm p.usd ] `shouldEqual` [ q (-4), q "17.9468" ]
     it "F Adaptation: under a barrier against it a state builds its substitute: China's technology capacity under the US control, and the US's industrial capacity under China's" do
       parts <- pacificParts
       forward <- playAll parts "Restrict" "Adaptive" "FreeTrade" "FreeTrade" 6
@@ -247,7 +247,7 @@ spec = describe "Pacific (docs/05 §9)" do
         _, _ -> throwError (error "the China seat is not composed with its routine")
 
   describe "The firms, loans and the households (docs/05 §9)" do
-    it "I Loans: repressing, China lends its firm a fifth of its RMB, free; rebalanced, a twentieth at 5%, repaid the next round" do
+    it "I Loans: repressing, China lends its firm a fifth of what its wages leave of its RMB, free; rebalanced, a twentieth at 5%, repaid the next round" do
       parts <- pacificParts
       high <- playAll parts "FreeTrade" "StatusQuo" "FreeTrade" "Exporter" 3
       off <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "Exporter" 3
@@ -255,26 +255,26 @@ spec = describe "Pacific (docs/05 §9)" do
       o1 <- roundOf off 1
       h2 <- roundOf high 2
       o2 <- roundOf off 2
-      [ moved h1 p.cn p.cnFirm p.rmb, moved o1 p.cn p.cnFirm p.rmb, moved h2 p.cnPrivate p.cn p.rmb, moved o2 p.cnPrivate p.cn p.rmb, holdingAt h2 p.cnFirm p.industryCapacity, holdingAt o2 p.cnFirm p.industryCapacity ] `shouldEqual` [ q "17.6", q "4.4", q "4.4277", q "4.4337", q 3, q 3 ]
-    it "J Wages and dividends: on top of the wage, firms paying a high share put 2.25 USD and 1.5 RMB in their private sectors in round 1, and the US firm sells at home in round 2" do
+      [ moved h1 p.cn p.cnFirm p.rmb, moved o1 p.cn p.cnFirm p.rmb, moved h2 p.cnPrivate p.cn p.rmb, moved o2 p.cnPrivate p.cn p.rmb, holdingAt h2 p.cnFirm p.industryCapacity, holdingAt o2 p.cnFirm p.industryCapacity ] `shouldEqual` [ q "17.12", q "4.28", q "4.3325", q "4.3382", q "2.94", q "2.94" ]
+    it "J Wages and dividends: on top of the wage, firms paying a high share put 1.89 USD and 1.41 RMB in their private sectors in round 1, and the US firm sells at home in round 2" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Patron" "Patron" 6
       r1 <- roundOf r 1
       r2 <- roundOf r 2
-      [ moved r1 p.usFirm p.usPrivate p.usd, moved r1 p.cnFirm p.cnPrivate p.rmb, traded r2 p.usFirm p.technology ] `shouldEqual` [ q "2.25", q "1.5", q "-1.5778" ]
-    it "K Selling only at home: with neither firm on the world Exchange, China's firm earns little from its households and lives on its state's loans, and still makes its 2 units every round, more as its investment arrives: it invests only what its wages, upkeep and imports leave" do
+      [ moved r1 p.usFirm p.usPrivate p.usd, moved r1 p.cnFirm p.cnPrivate p.rmb, traded r2 p.usFirm p.technology ] `shouldEqual` [ q "1.89", q "1.41", q "-1.4818" ]
+    it "K Selling only at home: with neither firm on the world Exchange, China's firm earns little from its households and lives on its state's loans, and still makes about 2 units every round, more as its investment arrives: it invests only what its wages, upkeep and imports leave" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Builder" "Builder" 6
-      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q 2, q 2, q "2.0345", q "2.3585", q "2.3585" ]
+      map (\x -> output x p.cnFirm) r.records `shouldEqual` [ q 2, q "1.97", q "1.9369", q "2.0971", q "2.2281", q "2.2971" ]
     it "L Levies: the export tax alone is 2 USD in round 1; with the US tariff on the US's imports, more a round after" do
       parts <- pacificParts
       r <- playTariffed parts 6
-      map taxes r.records `shouldEqual` [ q 2, q "8.6478", q "8.8516", q "8.8971", q "9.0269", q "9.0955" ]
-    it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.72 units over the run against 14.02" do
+      map taxes r.records `shouldEqual` [ q 2, q "8.6219", q "8.8133", q "8.8583", q "8.9806", q "9.0468" ]
+    it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.69 units over the run against 13.11" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Patron" "Patron" 6
       r6 <- roundOf r 6
-      [ holdingAt r6 p.cnPrivate p.rmb, holdingAt r6 p.usPrivate p.usd, Q.sumQ (map (\x -> boughtBy x p.cnPrivate) r.records), Q.sumQ (map (\x -> boughtBy x p.usPrivate) r.records) ] `shouldEqual` [ q "10.5184", q "2.3026", q "2.7215", q "14.0191" ]
+      [ holdingAt r6 p.cnPrivate p.rmb, holdingAt r6 p.usPrivate p.usd, Q.sumQ (map (\x -> boughtBy x p.cnPrivate) r.records), Q.sumQ (map (\x -> boughtBy x p.usPrivate) r.records) ] `shouldEqual` [ q "10.3763", q "1.7951", q "2.692", q "13.1056" ]
     it "N Who an export control hurts: China's control leaves it with industrial inputs it cannot sell; America's leaves the US firm with technology it cannot sell" do
       parts <- pacificParts
       cn <- playAll parts "FreeTrade" "Restrict" "FreeTrade" "FreeTrade" 6
@@ -293,7 +293,7 @@ spec = describe "Pacific (docs/05 §9)" do
       parts <- pacificParts
       free <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
       dep <- playAll parts "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
-      (map fx free.records <> map fx dep.records) `shouldEqual` [ q "0.992", q "0.9914", q "0.9838", q "0.968", q "0.944", q "0.9131", q "1.022", q "1.0373", q "1.0453", q "1.0453", q "1.0373", q "1.0227" ]
+      (map fx free.records <> map fx dep.records) `shouldEqual` [ q "0.9893", q "0.9916", q "0.9843", q "0.9684", q "0.9441", q "0.913", q "1.0178", q "1.0298", q "1.0323", q "1.0268", q "1.013", q "0.9929" ]
     it "T The exchange rate reaches the buyer: a weaker renminbi lowers what America pays in USD for each unit of China's industrial inputs" do
       parts <- pacificParts
       weak <- playAll parts "StatusQuo" "StatusQuo" "FreeTrade" "FreeTrade" 6
@@ -301,14 +301,14 @@ spec = describe "Pacific (docs/05 §9)" do
       let
         -- the USD America's private sector sold for RMB, per unit of industrial inputs it bought, over rounds 2 to 6
         perUnit r = Q.div (Q.neg (Q.sumQ (map (\x -> traded x p.usPrivate p.usd) (drop 1 r.records)))) (Q.sumQ (map (\x -> traded x p.usPrivate p.industry) (drop 1 r.records)))
-      [ perUnit weak, perUnit strong ] `shouldEqual` [ q "1.7961", q "2.1171" ]
+      [ perUnit weak, perUnit strong ] `shouldEqual` [ q "1.8136", q "2.1182" ]
     it "R The asset fee: foreign savings lend less and sell USD, the dollar falls, and the US state loses its foreign financing" do
       parts <- pacificParts
       fee <- playAll parts "Rebalance" "FreeTrade" "FreeTrade" "FreeTrade" 6
       free <- playAll parts "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
       f2 <- roundOf fee 2
       n2 <- roundOf free 2
-      (map fx fee.records <> [ moved f2 p.row p.us p.usd, moved n2 p.row p.us p.usd ]) `shouldEqual` [ q "0.992", q "0.91", q "0.8239", q "0.7395", q "0.6502", q "0.5534", q "4.4", q 11 ]
+      (map fx fee.records <> [ moved f2 p.row p.us p.usd, moved n2 p.row p.us p.usd ]) `shouldEqual` [ q "0.9893", q "0.91", q "0.8243", q "0.7399", q "0.6504", q "0.5534", q "4.4", q 11 ]
 
   describe "Balance (docs/05 §8.3)" do
 
@@ -326,7 +326,7 @@ spec = describe "Pacific (docs/05 §9)" do
         let os = evaluateObjectives parts.composition r.records
         let met a = sum (map (\o -> length (filter (_ == Met) (map _.outcome o.criteria))) (filter (\o -> o.explicitActor == a) os))
         pure [ met p.us, met p.cn, met p.usFirm, met p.cnFirm ]
-      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 992, 958, 1019, 928 ]
+      map (\i -> sum (map (\x -> fromMaybe 0 (index x i)) rows)) [ 0, 1, 2, 3 ] `shouldEqual` [ 959, 1080, 962, 970 ]
 
   describe "Sensitivity (docs/05 §9)" do
     it "over the spend shares, the capacity split, the tax rate, China's lending and the home premium, each structural difference keeps its effect" do
@@ -348,11 +348,11 @@ spec = describe "Pacific (docs/05 §9)" do
         controlled <- playAll source "FreeTrade" "Restrict" "FreeTrade" "FreeTrade" 4
         c4 <- roundOf controlled 4
         Tuple (Tuple k 1) (holdingAt c4 p.cn p.industry > Q.zero) `shouldEqual` Tuple (Tuple k 1) true
-        -- an input inventory keeps a firm producing longer under a control on its input
+        -- an input inventory keeps a firm's production on that input running longer under a control on it
         hedged <- playAll source "FreeTrade" "Restrict" "Hedger" "FreeTrade" 4
         c3 <- roundOf controlled 3
         h3 <- roundOf hedged 3
-        Tuple (Tuple k 2) (output h3 p.usFirm > output c3 p.usFirm) `shouldEqual` Tuple (Tuple k 2) true
+        Tuple (Tuple k 2) (ran h3 p.usFirmProduction > ran c3 p.usFirmProduction) `shouldEqual` Tuple (Tuple k 2) true
         -- China's households lend their state more of their savings than America's lend theirs
         free <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
         Tuple (Tuple k 3) (Q.sumQ (map (\x -> moved x p.cnPrivate p.cn p.rmb) free.records) > Q.sumQ (map (\x -> moved x p.usPrivate p.us p.usd) free.records)) `shouldEqual` Tuple (Tuple k 3) true

@@ -30,7 +30,7 @@ import Premises.Pacific.Dials (Dials)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Parts (Parts, emptyParts)
 import Premises.Pacific.Private (ceilingParam, parameters, tariffRate, upkeepParam, worldStrategy)
-import Premises.Pacific.Strategies (costParam, inputParam, inputShare, outputParam, viabilityParam)
+import Premises.Pacific.Strategies (costParam, inputParam, inputShare, outputParam, reserveShare, tradeShare, viabilityParam)
 import Schema.Build.Base (mayTrade, mayTransfer, (:=))
 import Schema.Build.Quantity (q)
 import Schema.Build.World (aggregate, noResource)
@@ -66,6 +66,8 @@ clearing d = emptyParts
       , Tuple viabilityParam d.cautiousOutput
       , Tuple tariffRate d.tariffRate
       , Tuple upkeepParam d.upkeep
+      , Tuple tradeShare d.budget.trade
+      , Tuple reserveShare d.budget.reserves
       -- where each goods Exchange's curve ends: its opening price and its slope over all its stock
       , Tuple (ceilingParam p.currency) (Q.add d.currency.rate (Q.mul d.currency.slope d.currency.depth))
       , Tuple (ceilingParam p.technologyWorld) (Q.add d.technologyPrice (Q.mul d.stockSlope.technology d.stock.technology))

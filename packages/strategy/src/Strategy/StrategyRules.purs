@@ -17,7 +17,7 @@ module Strategy.StrategyRules
 
 import Prelude
 
-import Laws.Types (IntentF(..), BehaviorDomain, CollectiveProcedureId, ActorId, Id, CandidateTransactionF, RefKind(..), class RefKindOf, refKindOf, ResourceId, TransformationId, foldIntent, idText, ignorePositions)
+import Laws.Types (IntentF(..), BehaviorDomain, CollectiveProcedureId, ActorId, Id, CandidateTransactionF, RefKind(..), class RefKindOf, refKindOf, ResourceId, RuleKindId, TransformationId, foldIntent, idText, ignorePositions)
 
 import Type.Proxy (Proxy(..))
 
@@ -45,6 +45,7 @@ type ExprAlg a =
   , sub :: a -> a -> a
   , max :: a -> a -> a
   , min :: a -> a -> a
+  , levyRate :: { governor :: ActorId, kind :: RuleKindId } -> a
   , div :: a -> a -> a
   }
 
@@ -99,6 +100,7 @@ monoidExpr =
   , sub: append
   , max: append
   , min: append
+  , levyRate: const mempty
   , div: append
   }
 
@@ -119,6 +121,7 @@ foldExpr alg = go
     Sub a b -> alg.sub (go a) (go b)
     Max a b -> alg.max (go a) (go b)
     Min a b -> alg.min (go a) (go b)
+    LevyRate x -> alg.levyRate x
     Div a b -> alg.div (go a) (go b)
 
 foldCond :: forall a c. ExprAlg a -> CondAlg a c -> Cond -> c
@@ -183,6 +186,7 @@ refsExpr = monoidExpr
   , due = \r -> [ Tuple RefResource (idText r) ]
   , scheduled = \r -> [ Tuple RefResource (idText r) ]
   , planned = \r -> [ Tuple RefResource (idText r) ]
+  , levyRate = \x -> [ Tuple RefActor (idText x.governor), Tuple RefRuleKind (idText x.kind) ]
   }
 
 refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))

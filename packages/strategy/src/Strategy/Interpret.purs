@@ -21,11 +21,11 @@ import Laws.CandidateTransaction (CandidateTransactionBody)
 import Laws.Query (lookupQ, enactedAtBoundary)
 import Laws.Slice (runLegQuery)
 import Laws.StrategyRules (RecordQuery(..), Cond, Expr, IntentTemplate, ExchangeRef(..), SignRule(..), StrategyRules, Template(..), selfName)
-import Laws.Types (governorOf, ruleKind, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransactionF, CandidateTransactionId, ResourceId, Rule, RuleChangeF(..), RuleF(..), foldIntent, ignorePositions, samePositions, traverseIntent, withExchange)
+import Laws.Types (governorOf, ruleKind, ActorId, Id(..), Intent, IntentF(..), ExchangeId, CandidateTransactionF, CandidateTransactionId, FlowEffect(..), LevyBasis(..), ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleKindId, foldIntent, ignorePositions, samePositions, traverseIntent, withExchange)
 import Laws.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
-import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
+import Data.Array (all, any, concat, concatMap, elem, filter, findMap, foldl, index, length, mapMaybe, nub, null)
 import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -169,6 +169,12 @@ refTemplate =
 fires :: Env -> Array Cond -> Boolean
 fires env = all (\c -> holds env c == Just true)
 
+-- | A Rule's per-unit levy, when it is a levy of the kind the governor governs.
+perUnit :: ActorId -> RuleKindId -> Rule -> Maybe Q
+perUnit governor kind = case _ of
+  FlowRule f | f.kind == kind && f.scope.governor == governor, Levy l <- f.effect, PerUnit <- l.basis -> Just l.rate
+  _ -> Nothing
+
 -- | An expression's value, or Nothing when an Exchange it prices does not resolve or a parameter it reads
 -- | is one the premise lacks.
 eval :: Env -> Expr -> Maybe Q
@@ -190,6 +196,8 @@ evalAlg env =
   , sub: lift2 Q.sub
   , max: lift2 max
   , min: lift2 min
+  -- the first levy of the kind its governor has in force, per unit; an ad valorem levy is not a rate per unit
+  , levyRate: \x -> Just (fromMaybe Q.zero (findMap (perUnit (actorRef env x.governor) x.kind) (values env.view.rules)))
   -- rounded down, so a quantity sized from a budget never costs more than the budget
   , div: lift2 (\a b -> fromMaybe Q.zero (Q.divFloor a b))
   }

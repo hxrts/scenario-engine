@@ -45,6 +45,7 @@ module Schema.Build.Decision
   , priceAt
   , max'
   , min'
+  , levyRate
   , divQ
   , not'
   ) where
@@ -133,6 +134,10 @@ max' = Max
 -- | The lesser of two.
 min' :: Expr -> Expr -> Expr
 min' = Min
+
+-- | The per-unit rate of a levy of a kind a governor has in force, 0 when none is.
+levyRate :: forall a b. Named a ActorTag => Named b RuleKindTag => { by :: a, kind :: b } -> Expr
+levyRate r = LevyRate { governor: N.named r.by, kind: N.named r.kind }
 
 -- | A quotient, zero when the divisor is zero.
 divQ :: Expr -> Expr -> Expr
