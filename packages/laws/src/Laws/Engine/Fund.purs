@@ -15,16 +15,16 @@ import Prelude
 
 import Core.Kernel.Ration (Claim, ration)
 import Core.Map (entries)
-import Laws.Engine.Screen (Item, leviesOn)
+import Laws.Engine.Screen (Item)
 import Core.Exchange as Exchange
 import Core.Num (Q)
 import Core.Num as Q
 import Laws.Query (transformationPrice, holding, poolCeiling)
 import Core.Kernel.Types (Amount(..), Effect(..), Obligation, Party(..), Subject(..), Trigger(..), Operation(..), Account(..)) as K
 import Laws.Engine.Compile (actionTransactions)
-import Laws.Types (Exchange, ActorId, Capability, IntentF(..), CandidateTransactionId, ResourceId, Rule, Transformation, executorDraws, idText)
+import Laws.Types (ActorId, Capability, IntentF(..), CandidateTransactionId, ResourceId, Rule, Transformation, executorDraws, idText)
 import Laws.World (AuthoredLaw(..), Event, LegQuery, RejectReason(..), WorldState, rejection)
-import Data.Array (concatMap, elem, filter, foldl, nub, partition, mapMaybe)
+import Data.Array (concatMap, elem, partition, mapMaybe)
 import Data.Either (Either(..), either)
 import Data.Map (Map)
 import Data.Map as Map
@@ -48,14 +48,19 @@ type Escrow = { actor :: ActorId, resource :: ResourceId, amount :: Q, producing
 -- | Reject joint candidate Transactions a party cannot fund: every joint candidate Transaction of a party whose total joint demand exceeds its
 -- | holdings goes, even if one alone could be funded (docs/02 §8.2). Scale other Items pro rata to
 -- | what the Actors they draw on can fund. joint candidate Transactions are never scaled.
-fund :: forall due. Ord due => WorldState -> Array (Claim (Either due CandidateTransactionId)) -> Array Item -> { items :: Array Scaled, events :: Array Event, droppedDue :: Array due, dueScales :: Map (Tuple Int ActorId) Q }
+fund :: forall due. Ord due => WorldState -> Array (Claim (Either due CandidateTransactionId)) -> Array Item -> { items :: Array Scaled, events :: Array Event, droppedDue :: Array due, dueScales :: Map (Tuple Int ActorId) Q, free :: ActorId -> ResourceId -> Q }
 fund w dueClaims items =
   let
     { yes: joints, no: singles } = partition _.joint items
     -- joint candidate Transactions are the first tier and whole; a single order's Transformations and their wages
     -- the next, and its other orders the last, both scaling
     claimsOf item = map (\c -> { key: Right item.candidateTransaction.id, tier: if item.joint then 0 else if c.producing then 1 else 2, whole: item.joint, party: c.actor, resource: c.resource, amount: c.amount }) (claims w item)
-    rationed = ration (\e r -> max Q.zero (Q.sub (holding w e r) (standing w e r))) (dueClaims <> concatMap claimsOf (joints <> singles))
+    available e r = max Q.zero (Q.sub (holding w e r) (standing w e r))
+    allClaims = dueClaims <> concatMap claimsOf (joints <> singles)
+    rationed = ration available allClaims
+    -- what each claim holds back once funded: a whole claim all of it unless dropped, a scaled one its share
+    held c = if c.whole then (if c.key `elem` rationed.dropped then Q.zero else c.amount) else Q.mul (fromMaybe Q.one (Map.lookup (Tuple c.tier c.party) rationed.scales)) c.amount
+    escrowed = Map.fromFoldableWith Q.add (map (\c -> Tuple (Tuple c.party c.resource) (held c)) allClaims)
     scalesAt n = Map.fromFoldable (mapMaybe (\(Tuple (Tuple t e) x) -> if t == n then Just (Tuple e x) else Nothing) (entries rationed.scales))
     { yes: dropped, no: kept } = partition (\j -> Right j.candidateTransaction.id `elem` rationed.dropped) joints
   in
@@ -64,6 +69,8 @@ fund w dueClaims items =
     , events: map (\d -> rejection w.round d.candidateTransaction.id PartyCannotFund) dropped
     , droppedDue: mapMaybe (either Just (const Nothing)) rationed.dropped
     , dueScales: rationed.scales
+    -- what no escrow holds of each holding: a levy charged on a cleared pair is paid from it (docs/03 §5.5)
+    , free: \e r -> max Q.zero (Q.sub (available e r) (fromMaybe Q.zero (Map.lookup (Tuple e r) escrowed)))
     }
 
 -- | What an Item escrows from opening holdings at its full requested size.
@@ -79,8 +86,8 @@ claims w item = concatMap claim item.candidateTransaction.intents <> map (\t -> 
             let
               unit = fromMaybe (Exchange.marginal m.cost m.cost.domain.hi) o.limitPrice
             in
-              [ { actor: p.author, resource: m.quote, amount: Q.mul unit o.quantity, producing: false } ] <> tradeLevies w m p.author o.quantity
-        | otherwise -> [ { actor: p.author, resource: m.base, amount: Q.neg o.quantity, producing: false } ] <> tradeLevies w m p.author o.quantity
+              [ { actor: p.author, resource: m.quote, amount: Q.mul unit o.quantity, producing: false } ]
+        | otherwise -> [ { actor: p.author, resource: m.base, amount: Q.neg o.quantity, producing: false } ]
     -- a routed order escrows at its limit (required, checked at screening): limit × quantity on
     -- the pair's quote for a buy, its quantity of the pair's base for a sell (docs/02 §8.2)
     Route r
@@ -99,16 +106,6 @@ claims w item = concatMap claim item.candidateTransaction.intents <> map (\t -> 
           )
     ChangeRule _ -> []
     Enter _ -> []
-
--- | The most the flows Rules in force could levy an order's author on its quantity, in each Resource: whom it pairs
--- | with is known only at clearing, so it escrows the largest of what each Actor it could pair with, or the
--- | Exchange's reserve, would cost it.
-tradeLevies :: WorldState -> Exchange -> ActorId -> Q -> Array Escrow
-tradeLevies w m author quantity = map (\(Tuple resource amount) -> { actor: author, resource, amount, producing: false }) (Map.toUnfoldable (foldl (Map.unionWith max) Map.empty (map owed counterparties)))
-  where
-  counterparties = nub (filter (_ /= author) (m.access <> maybe [] pure m.reserveParty))
-  flow other = if quantity > Q.zero then { from: other, to: author, resource: m.base } else { from: author, to: other, resource: m.base }
-  owed other = Map.fromFoldableWith Q.add (map (\l -> Tuple l.in l.amount) (filter (\l -> l.from == author) (leviesOn w (flow other) (Q.abs quantity))))
 
 -- | What one law's obligation takes from an Actor, when it is a fixed amount from what it holds.
 charge :: ActorId -> K.Obligation Capability Rule LegQuery RejectReason -> Maybe Escrow

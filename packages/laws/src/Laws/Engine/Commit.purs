@@ -94,7 +94,7 @@ resolvePrepared w inputs0 =
     consumedDue = settleDue w funded.droppedDue funded.dueScales dueNow
     -- estimates read the validated proposed quantities, before funding scales them (§7.4)
     estimates = Represent.estimate w (concatMap (observationsOf w <<< _.candidateTransaction) items)
-    settled = circulate w (settle w { ledger: consumedDue.ledger, events: consumedDue.events, spawned: consumedDue.spawned } funded.items)
+    settled = circulate w (settle w funded.free { ledger: consumedDue.ledger, events: consumedDue.events, spawned: consumedDue.spawned } funded.items)
   in
     if not (null consumedDue.errors) then Left (InvalidSuccessor (show consumedDue.errors))
     else commit (w { pending = filter (not <<< isDue) w.pending }) inputs (screenEvents <> funded.events <> estimates.events) estimates.factors settled

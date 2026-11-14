@@ -46,8 +46,8 @@ type Settlement =
   , events :: Array Event
   }
 
-settle :: WorldState -> { ledger :: Ledger, events :: Array Event, spawned :: Array PendingTransaction } -> Array Scaled -> Settlement
-settle w due scaled0 =
+settle :: WorldState -> (ActorId -> ResourceId -> Q) -> { ledger :: Ledger, events :: Array Event, spawned :: Array PendingTransaction } -> Array Scaled -> Settlement
+settle w free due scaled0 =
   let
     allocation = allocate w scaled0
     afterPools = filter (\s -> s.item.candidateTransaction.id `notElem` allocation.rejected) scaled0
@@ -57,7 +57,7 @@ settle w due scaled0 =
     start = { ledger: due.ledger, positions: Map.empty, spawned: due.spawned, events: due.events <> allocation.events <> shortEvents }
   in
     foldl (\acc f -> f acc) start
-      [ exchanges w scaled
+      [ exchanges w free scaled
       , \acc -> foldl (settleTransformationFills w allocation) acc scaled
       , \acc -> foldl (transfersAndRules w) acc scaled
       ]
@@ -140,8 +140,8 @@ type Allocation =
   , events :: Array Event
   }
 
-exchanges :: WorldState -> Array Scaled -> Settlement -> Settlement
-exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
+exchanges :: WorldState -> (ActorId -> ResourceId -> Q) -> Array Scaled -> Settlement -> Settlement
+exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (entries w.exchanges)).acc
   where
   explicit :: Array (Route.Slice CandidateTransactionId)
   explicit = concatMap
@@ -176,13 +176,13 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
   -- is charged to the seller with it, once (docs/03 §5.5). The reserve answers to Rules as the Exchange's
   -- reserveParty, when it names one; with none, no Rule applies to a pair with the reserve. Trade fills are not capped by `pay`: clearing bounds them by the Exchange's
   -- domain and reserves, and escrow funds them (docs/02 §8.2).
-  clearOne acc (Tuple id m) =
+  clearOne { acc, used } (Tuple id m) =
     let
       os = sortWith (\o -> Tuple o.actor o.pid) (filter (\o -> o.exchange == id) orders)
       -- an order a Rule refuses a pair with the reserve is removed and the batch cleared again, as a violated limit is,
       -- so the reserve moves along its curve only as far as it trades and the price is that move's
-      cleared = reclear [] os
-      reclear dropped xs =
+      cleared = reclear [] os 0
+      reclear dropped xs n =
         let
           res = clearSolvent m xs
           barred = nubEq (concatMap (\x -> if onReserve x.buyer || onReserve x.seller then maybe [] (\k -> map (\o -> Tuple o k) (partyOrders x)) (blockOn x) else []) res.pairs)
@@ -197,8 +197,32 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
             )
             [ x.buyer, x.seller ]
           isBarred o = any (\(Tuple b _) -> key b == key o) barred
+          over = overdrawn res.pairs
+          -- a payer the levies on its pairs would overdraw buys or sells only what its unescrowed money pays them on;
+          -- an order still short after eight passes trades nothing
+          ratioOf o = foldl (\least (Tuple k x) -> if fst k == o.actor then min least (if n >= 8 then Q.zero else x) else least) Q.one over
         in
-          if null barred then { res, dropped } else reclear (dropped <> barred) (filter (not <<< isBarred) xs)
+          if not (null barred) then reclear (dropped <> barred) (filter (not <<< isBarred) xs) n
+          else if null over then { res, dropped }
+          else reclear dropped (map (\o -> o { quantity = Q.mul (ratioOf o) o.quantity }) xs) (n + 1)
+      -- the levies the Rules charge on the pairs that settle, by payer and Resource: a levy the reserve would pay is not
+      -- charged, since the reserve pays out only along its curve
+      pairLevies x = case ruledAs x.seller, ruledAs x.buyer of
+        Just from, Just to | isNothing (blockOn x) -> filter (\l -> l.amount > Q.zero && not (paidByReserve x l)) (leviesOn w { from, to, resource: m.base } x.quantity)
+        _, _ -> []
+      paidByReserve x l = case (if l.from /= l.sender then x.buyer else x.seller) of
+        Reserve -> true
+        Party _ -> false
+      leviedOn ps = Map.fromFoldableWith Q.add (map (\l -> Tuple (Tuple l.from l.in) l.amount) (concatMap pairLevies ps))
+      -- trading must comply with the Rules in force (docs/03 §5.5): a payer pays its levies from what no escrow holds
+      overdrawn ps = mapMaybe
+        ( \(Tuple k@(Tuple e res) need) ->
+            let
+              room = max Q.zero (Q.sub (free e res) (fromMaybe Q.zero (Map.lookup k used)))
+            in
+              if need > room then Just (Tuple k (fromMaybe Q.zero (Q.divFloor room need))) else Nothing
+        )
+        (entries (leviedOn ps))
       r = cleared.res
       actorOf = case _ of
         Party o -> Just o.actor
@@ -233,11 +257,7 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
       settlePair a x = maybe a (\who -> settleWith who a x) (answerers x)
       settleWith { sellerActor, buyerActor } a x =
         let
-          -- a levy the reserve would pay is not charged: the reserve answers to Rules, but pays out only along its curve
-          levies = case ruledAs x.seller, ruledAs x.buyer of
-            Just from, Just to -> filter (\l -> l.amount > Q.zero && not (paidByReserve l)) (leviesOn w { from, to, resource: m.base } x.quantity)
-            _, _ -> []
-          paidByReserve l = if l.from /= l.sender then isReserve x.buyer else isReserve x.seller
+          levies = pairLevies x
           cause = OfMatch { exchange: id, buyer: ref x.buyer, seller: ref x.seller }
           posted = runTransaction w a.ledger (pairTransaction { base: m.base, quote: m.quote, seller: account x.seller, buyer: account x.buyer, sellerActor, buyerActor, quantity: x.quantity, paid: Q.mul r.price x.quantity, levies: map (\l -> { to: l.to, in: l.in, amount: l.amount, byBuyer: l.from /= l.sender }) levies, cause })
           levyEvents = zipWith (\l leg -> settledEvent w.round [ leg ] Nothing (OfRule { kind: l.kind })) levies (drop 2 posted.flows)
@@ -252,14 +272,18 @@ exchanges w scaled acc0 = foldl clearOne acc0 (entries w.exchanges)
       -- what each order settled across its pairs, for the action laws it is charged
       settledBy = foldl (\mp x -> foldl (\m' o -> sumInto (Tuple o.actor (Tuple o.pid o.position)) x.quantity m') mp (ordersOf x)) Map.empty settling
     in
-      if null os then acc
+      if null os then { acc, used }
       else
         let
           paired = foldl settlePair acc settling
           charged = foldl (\a (Tuple (Tuple actor _) q) -> applyActionLaws w actor (idText id) q a) paired (entries settledBy)
         in
-          addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
-            charged { positions = Map.insert id (Q.add m.position (reserveNet settling)) charged.positions }
+          { acc:
+              addEvents (blockedEvents <> map (\o -> orderRemoved w.round o.pid LimitPriceNotMet) r.rejected <> map (\o -> orderRemoved w.round o.pid QuoteReservesShort) r.unpaid)
+                charged { positions = Map.insert id (Q.add m.position (reserveNet settling)) charged.positions }
+          -- what this Exchange's levies took of each payer's unescrowed money, which the next Exchange cannot spend again
+          , used: Map.unionWith Q.add used (leviedOn settling)
+          }
 
 -- | Settle one candidate Transaction's filled Transforms: pay what the Transformation charges, consume inputs, produce
 -- | outputs, and schedule delayed flows.

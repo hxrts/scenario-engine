@@ -254,7 +254,7 @@ Three state presets react: `Adaptive` builds its substitute while the other keep
 
 ### 8.3 Balance
 
-Over 400 settings of every seat's four tools, drawn deterministically from the 81 each has, the seats meet 1,007, 1,016, 1,064 and 975 of their 1,600 criteria (the US, China, the US firm and China's firm): each bar is set near the 40th percentile of its measure over this sample. A change to any dial is checked against it.
+Over 400 settings of every seat's four tools, drawn deterministically from the 81 each has, the seats meet 992, 958, 1,019 and 928 of their 1,600 criteria (the US, China, the US firm and China's firm): each bar is set near the 40th percentile of its measure over this sample. A change to any dial is checked against it.
 
 ## 9. What the simulations show
 
