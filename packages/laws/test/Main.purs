@@ -738,6 +738,29 @@ main = runSpecAndExitProcess [ consoleReporter ] do
         carryBack = Transform { by: Id "B", transformation: Id "ship", quantity: Q.fromInt 5 }
       rejections (resolveRound w [ submit "A" 0 [ send "B" 5, carry 5 ] ]) `shouldEqual` [ "blocked by a Rule of kind exportBan" ]
       rejections (resolveRound w [ submit "B" 0 [ back, carryBack ] ]) `shouldEqual` []
+    it "an order escrows the most it could be levied: paired with an untaxed seller it pays no levy and gets the escrow back, its production runs in full, and only its trade is scaled" do
+      let
+        -- the US levies 1 M a unit on what it imports from the EU, paid by the importer
+        tariff = FlowRule { kind: Id "tariff", scope: { governor: Id "US", counterparty: Id "EU", direction: Inbound, over: [ Id "E" ] }, effect: Levy { rate: Q.one, basis: PerUnit, in: Id "M", to: LevyToGovernor, payer: PaidByReceiver } }
+        make = (transformation "F") { inputs = Map.singleton (Id "M") (Q.fromInt 2) }
+        us = (explicitActor "US" [ MayTrade (Id "EM"), MayTransform (Id "F") ]) { accounts = Map.singleton (Id "M") (Q.fromInt 10) }
+        uk = (explicitActor "UK" [ MayTrade (Id "EM") ]) { accounts = Map.singleton (Id "E") (Q.fromInt 10) }
+        eu = explicitActor "EU" [ MayTrade (Id "EM") ]
+        -- an Exchange with no stock of E, so every unit bought is a unit an order sells
+        em = (exchange [ "US", "UK", "EU" ]) { reserves = Map.singleton (Id "M") (Q.fromInt 50) }
+        w = (baseWorld [ us, uk, eu ]) { exchanges = Map.singleton (Id "EM") em, transformations = Map.singleton (Id "F") make, rules = Map.singleton (Id "r") tariff }
+        -- production takes 2 of the 10 M first; the buy of 6 at 1 escrows 6 and, were it the EU's, 6 of tariff: 12 against
+        -- the 8 left, so it scales by 2/3, rounded down to 0.6666, and buys 3.9996 from the UK, untaxed; the 4.0004 M the
+        -- escrow held back for a tariff never charged stays with the US
+        r = resolved w
+          [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "F", quantity: Q.one } ]
+          , submit "US" 1 [ Trade { exchange: Id "EM", quantity: Q.fromInt 6, limitPrice: Nothing } ]
+          , submit "UK" 0 [ Trade { exchange: Id "EM", quantity: Q.fromInt (-6), limitPrice: Nothing } ]
+          ]
+      check w r `shouldEqual` []
+      concatMap transformedQ r.record.events `shouldEqual` [ Q.one ]
+      filter (matches levies (const true)) r.record.events `shouldEqual` []
+      [ holding r.world (Id "US") (Id "E"), holding r.world (Id "US") (Id "M"), holding r.world (Id "UK") (Id "M") ] `shouldEqual` [ q "3.9996", q "4.0004", q "3.9996" ]
     it "a Rule is checked against who its kind says governs" do
       let
         declared = Map.singleton (Id "exportBan") { form: BlockFlows GovernedBySource, text: "" }
