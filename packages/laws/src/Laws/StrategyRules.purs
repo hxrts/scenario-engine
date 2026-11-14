@@ -72,7 +72,7 @@ data Expr
   | Sub Expr Expr
   | Max Expr Expr
   | Min Expr Expr
-  | LevyRate { governor :: ActorId, kind :: RuleKindId } -- the per-unit rate of a levy of the kind the governor has in force, 0 when none is
+  | LevyRate { governor :: ActorId, kind :: RuleKindId, on :: ResourceId } -- the most a unit of the Resource is levied by the Rules of the kind the governor has in force, 0 when none covers it
   | Div Expr Expr -- a quotient, zero when the divisor is zero
 
 data Cond

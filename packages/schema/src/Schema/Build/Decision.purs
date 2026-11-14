@@ -135,9 +135,10 @@ max' = Max
 min' :: Expr -> Expr -> Expr
 min' = Min
 
--- | The per-unit rate of a levy of a kind a governor has in force, 0 when none is.
-levyRate :: forall a b. Named a ActorTag => Named b RuleKindTag => { by :: a, kind :: b } -> Expr
-levyRate r = LevyRate { governor: N.named r.by, kind: N.named r.kind }
+-- | The most a unit of a Resource is levied by the Rules of a kind a governor has in force, whoever the counterparty:
+-- | a levy on value at the round's price of its Exchange; 0 when none covers the Resource.
+levyRate :: forall a b r. Named a ActorTag => Named b RuleKindTag => Named r ResourceTag => { by :: a, kind :: b, on :: r } -> Expr
+levyRate x = LevyRate { governor: N.named x.by, kind: N.named x.kind, on: N.named x.on }
 
 -- | A quotient, zero when the divisor is zero.
 divQ :: Expr -> Expr -> Expr

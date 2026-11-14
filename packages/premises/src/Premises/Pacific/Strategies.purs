@@ -24,15 +24,15 @@ module Premises.Pacific.Strategies
 
 import Prelude
 
-import Data.Array (concatMap, foldl, index)
+import Data.Array (concatMap, index)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..))
 import Laws.StrategyRules (Clause, Cond, Expr, SignRule(..), StrategyRules, Template)
 import Laws.Types (ActorId, Direction(..), FlowEffect(..), IntentF(..), LevyBasis(..), LevyPayer(..), LevyRecipient(..), ResourceId, RuleF(..), TransformationId, idText)
 import Premises.Pacific.Names (p)
 import Premises.Pacific.Country (Country, countries, countryOf, level)
-import Premises.Pacific.Private (addQ, ceilingParam, upkeepParam, deposit, feeParam, lendTo, loan, loanShareParam, neg, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
-import Schema.Build.Decision (eqQ, roundQ, acting, asTemplate, divQ, due, gt, holding, le, levyRate, lit, max', min', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
+import Premises.Pacific.Private (addQ, afford, exportTax, importTariff, minQ, spend, ceilingParam, upkeepParam, deposit, feeParam, lendTo, loan, loanShareParam, neg, payParam, releaseParam, reserveParam, stockpileParam, tariffRate, usBond)
+import Schema.Build.Decision (eqQ, roundQ, acting, asTemplate, divQ, due, gt, holding, le, lit, max', mulQ, named, not', orderAt, param, planned, priceAt, restrictedLastRound, rule, ruleInForce, scheduled, selfActor, selfEnact, selfTransform, signIf, subQ, transformedLastRound)
 
 -- | A seat's four tools, each at a level: 0 is off, 1 low, 2 high (docs/05 §3). For a state: its trade barrier, its
 -- | industrial policy, and two at home (America's transfer and asset fee, China's financial repression and dollar
@@ -118,22 +118,6 @@ firmFree c = free c c.firmProduction Nothing
 -- | A share of a seat's free money.
 shareOf :: String -> Expr -> Expr
 shareOf name money = mulQ (param name) money
-
--- | Each cost, in order, as far as the budget left after those before it reaches.
-spend :: Expr -> Array Expr -> Array Expr
-spend budget wants = (foldl (\acc want -> let met = minQ want (subQ budget acc.used) in { used: addQ acc.used met, out: acc.out <> [ met ] }) { used: lit 0, out: [] } wants).out
-
--- | What a trader can afford of `want` units owing `rate` a unit when `met` of what they owe is budgeted: all of it
--- | when nothing is owed.
-afford :: Expr -> Expr -> Expr -> Expr
-afford want rate met = max' (lit 0) (subQ want (divQ (subQ (mulQ want rate) met) (max' (lit "0.0001") rate)))
-
--- | The tariff a country's importer owes a unit, and the export tax its exporter owes a unit, under the Rules in force.
-importTariff :: Country -> Expr
-importTariff c = levyRate { by: c.state, kind: c.tariff }
-
-exportTax :: Country -> Expr
-exportTax c = if c.state == p.us then levyRate { by: p.us, kind: p.usExportTax } else lit 0
 
 -- | An amount of the foreign currency in home currency as its order escrows it: America sells that many USD at the
 -- | round's price; China buys them at the highest price the dealer reaches.
@@ -222,10 +206,6 @@ outputParam f = idText f <> "-output-per-input"
 -- | §6.3, F11).
 viabilityParam :: String
 viabilityParam = "cautious-output"
-
--- | The lesser of two quantities, never below zero.
-minQ :: Expr -> Expr -> Expr
-minQ a b = max' (lit 0) (min' a b)
 
 -- | What a producer can run of a capacity: no more than the competence to run it.
 runnable :: ResourceId -> ResourceId -> Expr

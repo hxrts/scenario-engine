@@ -27,17 +27,22 @@ module Premises.Pacific.Private
   , firmBond
   , deposit
   , loan
-  , ofForeign
   , lendTo
   , neg
   , addQ
+  , minQ
+  , spend
+  , afford
+  , importTariff
+  , exportTax
   ) where
 
 import Prelude
 
 import Core.Num (Q)
 import Core.Num as Q
-import Data.Maybe (Maybe(..))
+import Data.Array (foldl, index)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
 import Foreign.Object (Object)
 import Foreign.Object as Object
@@ -45,7 +50,7 @@ import Laws.StrategyRules (Expr, StrategyRules, Template(..))
 import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, StrategyId, idText)
 import Premises.Pacific.Country (Country, countries, levelName)
 import Premises.Pacific.Names (p)
-import Schema.Build.Decision (divQ, holding, levyRate, lit, max', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
+import Schema.Build.Decision (divQ, holding, levyRate, lit, max', min', mulQ, named, not', orderAt, param, priceAt, rule, ruleInForce, subQ)
 import Schema.Build.Quantity (q)
 
 -- | A tool's two settings above off: low and high.
@@ -116,21 +121,41 @@ neg x = subQ (lit 0) x
 addQ :: Expr -> Expr -> Expr
 addQ x y = subQ x (neg y)
 
+-- Budgets ------------------------------------------------------------------------------------
+--
+-- What every participant sizes its orders with (docs/05 §7).
+
+-- | The lesser of two quantities, never below zero.
+minQ :: Expr -> Expr -> Expr
+minQ a b = max' (lit 0) (min' a b)
+
+-- | Each cost, in order, as far as the budget left after those before it reaches.
+spend :: Expr -> Array Expr -> Array Expr
+spend budget wants = (foldl (\acc want -> let met = minQ want (subQ budget acc.used) in { used: addQ acc.used met, out: acc.out <> [ met ] }) { used: lit 0, out: [] } wants).out
+
+-- | What a trader can afford of `want` units owing `rate` a unit when `met` of what they owe is budgeted: all of it
+-- | when nothing is owed.
+afford :: Expr -> Expr -> Expr -> Expr
+afford want rate met = max' (lit 0) (subQ want (divQ (subQ (mulQ want rate) met) (max' (lit "0.0001") rate)))
+
+-- | The tariff a country's importer owes on a unit of the foreign good, and the export tax its exporter owes on a
+-- | unit of its own, under the Rules in force.
+importTariff :: Country -> Expr
+importTariff c = levyRate { by: c.state, kind: c.tariff, on: c.foreign }
+
+exportTax :: Country -> Expr
+exportTax c = if c.state == p.us then levyRate { by: p.us, kind: p.usExportTax, on: c.good } else lit 0
+
 -- Currency -----------------------------------------------------------------------------------
 
 -- | Turn an amount of a country's home currency into the foreign currency on the currency Exchange, whose base is
--- | USD and whose price is RMB per USD: America sells that many USD; China buys as many USD as the RMB buys.
+-- | USD and whose price is RMB per USD: America sells that many USD; China buys the USD that many RMB buy at the
+-- | round's price. Its order escrows the dealer's highest price, more than the amount, which the shares a private
+-- | sector leaves unspent cover; sizing it at that price would cut what it converts by a third.
 toForeign :: Country -> Expr -> Template
 toForeign c amount =
   if c.money == p.usd then orderAt (named p.currency) (neg amount) Nothing
   else orderAt (named p.currency) (divQ amount (priceAt (named p.currency))) Nothing
-
--- | Buy an amount of the foreign currency with home currency: America sells the USD that many RMB cost; China buys
--- | that many USD.
-ofForeign :: Country -> Expr -> Template
-ofForeign c amount =
-  if c.money == p.usd then orderAt (named p.currency) (neg (divQ amount (priceAt (named p.currency)))) Nothing
-  else orderAt (named p.currency) amount Nothing
 
 -- Loans ----------------------------------------------------------------------------------------
 
@@ -252,21 +277,24 @@ parameters d w prices = Object.fromFoldable
 
 -- Strategies --------------------------------------------------------------------------------------
 
--- | A private sector's baseline (§6.2): it buys its own good at home with a share of its home currency; turns
--- | another share into the foreign currency (less under its own country's tariff, which it pays at home); buys the
--- | foreign good abroad with the foreign currency it holds; and lends a share of what it holds to its state:
--- | America's at the US bond's rate, China's at the rate its state signs. What it buys it consumes.
+-- | A private sector's baseline (§6.2): it buys its own good at home with a share of its home currency; buys the
+-- | foreign good abroad with the foreign currency it holds; from another share pays the tariff it owes on that and
+-- | turns the rest into the foreign currency; and lends a share of what it holds to its state: America's at the US
+-- | bond's rate, China's at the rate its state signs. What it buys it consumes.
 demandStrategies :: Array (Tuple StrategyId StrategyRules)
-demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, convert c, abroad c ] <> lend c, sign: [] }) countries
+demandStrategies = map (\c -> Tuple c.demand { rules: [ home c, abroad c ] <> lend c, sign: [] }) countries
   where
   -- each buys what its budget pays for at the highest price the Exchange could clear at, which its order escrows
   home c = rule [] [ orderAt (named c.home) (divQ (mulQ (holding c.money) (param (homeShareParam c.private))) (param (ceilingParam c.home))) Nothing ]
-  -- of the share for the foreign good, it turns into the other currency only what leaves the tariff it owes on what
-  -- that buys, at the highest price the foreign good's Exchange could clear at
-  convert c = rule [] [ toForeign c (mulQ (mulQ (holding c.money) (param (abroadShareParam c.private))) (divQ ceiling (addQ ceiling (levyRate { by: c.state, kind: c.tariff })))) ]
-    where
-    ceiling = param (ceilingParam c.world)
-  abroad c = rule [] [ orderAt (named c.world) (divQ (holding c.foreignMoney) (param (ceilingParam c.world))) Nothing ]
+  -- its share for the foreign good meets, in turn, the tariff on what its foreign currency buys this round and the
+  -- currency for the next: it imports what the tariff it can pay covers, and converts the rest
+  abroad c =
+    let
+      budget = mulQ (holding c.money) (param (abroadShareParam c.private))
+      want = divQ (holding c.foreignMoney) (param (ceilingParam c.world))
+      met i = fromMaybe (lit 0) (index (spend budget [ mulQ want (importTariff c), budget ]) i)
+    in
+      rule [] [ orderAt (named c.world) (afford want (importTariff c) (met 0)) Nothing, toForeign c (met 1) ]
   principal c = mulQ (param (lendParam c.private)) (holding c.money)
   -- China's households offer a deposit at each repression setting; only the one their state signs goes ahead
   lend c =

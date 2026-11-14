@@ -269,7 +269,7 @@ spec = describe "Pacific (docs/05 §9)" do
     it "L Levies: the export tax alone is 2 USD in round 1; with the US tariff on the US's imports, more a round after" do
       parts <- pacificParts
       r <- playTariffed parts 6
-      map taxes r.records `shouldEqual` [ q 2, q "8.6219", q "8.8133", q "8.8583", q "8.9806", q "9.0468" ]
+      map taxes r.records `shouldEqual` [ q 2, q "9.5665", q "8.7132", q "8.9316", q "8.8525", q "9.059" ]
     it "M Asymmetry: with both firms selling at home, China's households end holding more and buy far fewer goods than America's: 2.69 units over the run against 13.11" do
       parts <- pacificParts
       r <- playAll parts "FreeTrade" "FreeTrade" "Patron" "Patron" 6

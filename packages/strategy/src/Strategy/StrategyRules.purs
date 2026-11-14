@@ -45,7 +45,7 @@ type ExprAlg a =
   , sub :: a -> a -> a
   , max :: a -> a -> a
   , min :: a -> a -> a
-  , levyRate :: { governor :: ActorId, kind :: RuleKindId } -> a
+  , levyRate :: { governor :: ActorId, kind :: RuleKindId, on :: ResourceId } -> a
   , div :: a -> a -> a
   }
 
@@ -186,7 +186,7 @@ refsExpr = monoidExpr
   , due = \r -> [ Tuple RefResource (idText r) ]
   , scheduled = \r -> [ Tuple RefResource (idText r) ]
   , planned = \r -> [ Tuple RefResource (idText r) ]
-  , levyRate = \x -> [ Tuple RefActor (idText x.governor), Tuple RefRuleKind (idText x.kind) ]
+  , levyRate = \x -> [ Tuple RefActor (idText x.governor), Tuple RefRuleKind (idText x.kind), Tuple RefResource (idText x.on) ]
   }
 
 refsCond :: CondAlg (Array (Tuple RefKind String)) (Array (Tuple RefKind String))

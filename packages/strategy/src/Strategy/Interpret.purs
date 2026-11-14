@@ -25,7 +25,7 @@ import Laws.Types (governorOf, ruleKind, ActorId, Id(..), Intent, IntentF(..), E
 import Laws.World (View)
 import Data.Const (Const(..))
 import Data.Either (isRight)
-import Data.Array (all, any, concat, concatMap, elem, filter, findMap, foldl, index, length, mapMaybe, nub, null)
+import Data.Array (all, any, concat, concatMap, elem, filter, foldl, index, length, mapMaybe, nub, null)
 import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
@@ -169,10 +169,13 @@ refTemplate =
 fires :: Env -> Array Cond -> Boolean
 fires env = all (\c -> holds env c == Just true)
 
--- | A Rule's per-unit levy, when it is a levy of the kind the governor governs.
-perUnit :: ActorId -> RuleKindId -> Rule -> Maybe Q
-perUnit governor kind = case _ of
-  FlowRule f | f.kind == kind && f.scope.governor == governor, Levy l <- f.effect, PerUnit <- l.basis -> Just l.rate
+-- | What a Rule levies a unit of a Resource, when it is a levy of the kind the governor governs that covers it: its
+-- | rate per unit, or for a levy on value its rate at the round's price of its Exchange.
+perUnit :: View -> ActorId -> RuleKindId -> ResourceId -> Rule -> Maybe Q
+perUnit view governor kind resource = case _ of
+  FlowRule f | f.kind == kind && f.scope.governor == governor && resource `elem` f.scope.over, Levy l <- f.effect -> Just case l.basis of
+    PerUnit -> l.rate
+    AdValorem m -> Q.mul l.rate (lookupQ m view.prices)
   _ -> Nothing
 
 -- | An expression's value, or Nothing when an Exchange it prices does not resolve or a parameter it reads
@@ -196,8 +199,8 @@ evalAlg env =
   , sub: lift2 Q.sub
   , max: lift2 max
   , min: lift2 min
-  -- the first levy of the kind its governor has in force, per unit; an ad valorem levy is not a rate per unit
-  , levyRate: \x -> Just (fromMaybe Q.zero (findMap (perUnit (actorRef env x.governor) x.kind) (values env.view.rules)))
+  -- the largest levy that could apply: whom a trade pairs with is known only at clearing
+  , levyRate: \x -> Just (foldl max Q.zero (mapMaybe (perUnit env.view (actorRef env x.governor) x.kind x.on) (values env.view.rules)))
   -- rounded down, so a quantity sized from a budget never costs more than the budget
   , div: lift2 (\a b -> fromMaybe Q.zero (Q.divFloor a b))
   }

@@ -27,7 +27,7 @@ import Handlers.Simulate (SimRun)
 import Laws.Engine.Prepare (prepareRound)
 import Laws.Query (lookupQ)
 import Laws.Slice (levies, select, transformationFills)
-import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, RuleF(..), idText)
+import Laws.Types (ActorId, ExchangeId, IntentF(..), ResourceId, RuleF(..), RuleKindId, idText)
 import Laws.World (RoundResult, WorldState)
 import Premises.Load (parts)
 import Premises.Pacific as Pacific
@@ -37,7 +37,7 @@ import Premises.Pacific.Strategies (banRule, tariffing, wageParam)
 import Schema.Build.Decision (acting, asTemplate, ge, lit, roundQ, rule, selfEnact)
 import Schema.Build.Quantity (q)
 import Strategy.InWorld (inWorldOf)
-import Test.Handlers.Pacific (blockedKinds, holdingAt, output, playAll, ran, shortOf)
+import Test.Handlers.Pacific (blockedKinds, holdingAt, output, playAll, ran, shortOf, traded)
 import Test.Handlers.Properties (describeSample, nonDecreasing, nonIncreasing, playSample, sampleOf)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -122,10 +122,10 @@ claims r = concatMap perRound (rounds r)
     Transfer t | t.from == a && t.resource == c -> Just t.quantity
     _ -> Nothing
 
-charged :: RoundResult -> ActorId -> Array String -> { owed :: Q, paid :: Q }
+charged :: RoundResult -> ActorId -> Array RuleKindId -> { owed :: Q, paid :: Q }
 charged x a kinds =
   let
-    ls = filter (\l -> l.from == a && elem (idText l.kind) kinds) (select levies x.record.events)
+    ls = filter (\l -> l.from == a && elem l.kind kinds) (select levies x.record.events)
   in
     { owed: Q.sumQ (map _.owed ls), paid: Q.sumQ (map _.amount ls) }
 
@@ -136,8 +136,8 @@ wagesPaid r = concatMap (\(Tuple w x) -> concatMap (check w x) seats) (rounds r)
   where
   check w x a =
     let
-      wages = charged x a [ "wage" ]
-      upkeep = charged x a [ "upkeep" ]
+      wages = charged x a [ p.wage ]
+      upkeep = charged x a [ p.upkeep ]
       opened = held w a (countryOf a).money
     in
       (if wages.paid == wages.owed then [] else [ at x <> ": " <> idText a <> " owed " <> Q.format wages.owed <> " in wages and paid " <> Q.format wages.paid ])
@@ -153,8 +153,8 @@ namedFlows source r = concatMap (\x -> concatMap (check x) seats) r.records
     let
       wages = Q.sumQ (map (\f -> Q.mul (rate (wageParam f.transformation)) f.quantity) (filter (\f -> f.by == a) (select transformationFills x.record.events)))
       upkeep = Q.sumQ (map (\cap -> Q.mul (rate "upkeep-per-unit") (holdingAt x a cap)) [ p.technologyCapacity, p.industryCapacity ])
-      owedWages = (charged x a [ "wage" ]).owed
-      owedUpkeep = (charged x a [ "upkeep" ]).owed
+      owedWages = (charged x a [ p.wage ]).owed
+      owedUpkeep = (charged x a [ p.upkeep ]).owed
     in
       (if owedWages == wages then [] else [ at x <> ": " <> idText a <> " owes " <> Q.format owedWages <> " in wages, against " <> Q.format wages <> " on what it ran" ])
         <> (if owedUpkeep == upkeep then [] else [ at x <> ": " <> idText a <> " owes " <> Q.format owedUpkeep <> " in upkeep, against " <> Q.format upkeep <> " on its capacity" ])
@@ -215,17 +215,39 @@ spec = describe "Pacific's model checked against itself (docs/07 §14)" do
       seen = nub (concatMap (\x -> map _.kind (select levies x.record.events) <> blockedKinds x) records)
       kinds = [ p.wage, p.upkeep, p.usExportControl, p.cnExportControl, p.usImportBan, p.cnImportBan, p.usImportTariff, p.cnImportTariff, p.usExportTax, p.usAssetFee ]
     map idText (filter (\k -> not (elem k seen)) kinds) `shouldEqual` []
-  it "a steady economy repeats: under free trade with ample stock at a flat price, production and competence are the same every round from the second and no requirement goes short" do
-    source <- orThrow (parts (Pacific.pacific (Pacific.defaultDials { stock = { technology: q 1000, industry: q 1000 }, stockSlope = { technology: q 0, industry: q 0 }, homeStock = { technology: q 1000, industry: q 1000 }, homeStockSlope = { technology: q 0, industry: q 0 } })))
+  it "a steady economy repeats: under free trade with ample stock at a flat price and a flat exchange rate, production and competence are the same every round from the second and no requirement goes short" do
+    source <- orThrow (parts (Pacific.pacific (Pacific.defaultDials { stock = { technology: q 1000, industry: q 1000 }, stockSlope = { technology: q 0, industry: q 0 }, homeStock = { technology: q 1000, industry: q 1000 }, homeStockSlope = { technology: q 0, industry: q 0 }, currency = Pacific.defaultDials.currency { slope = q 0 } })))
     r <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 6
     let
       state x =
         [ ran x p.usTechnologyProduction, output x p.usFirm, ran x p.cnIndustryProduction, output x p.cnFirm ]
           <> [ holdingAt x p.us p.technologyCompetence, holdingAt x p.usFirm p.technologyCompetence, holdingAt x p.cn p.industryCompetence, holdingAt x p.cnFirm p.industryCompetence ]
     for_ (drop 1 r.records) \x -> state x `shouldEqual` [ q 2, q 8, q 8, q 2, q "2.7", q "10.8", q "10.8", q "2.7" ]
-    -- what each state goes short of is no more than the exchange rate's move within a round costs it: it buys the
-    -- currency its imports need at the round's opening rate, and with a flat price it holds no margin over it
-    for_ (drop 1 r.records) \x -> let short = [ shortOf x p.us p.technology, shortOf x p.us p.industry, shortOf x p.cn p.technology, shortOf x p.cn p.industry ] in Tuple (map Q.format short) (all (_ <= q "0.05") short) `shouldEqual` Tuple (map Q.format short) true
+    for_ (drop 1 r.records) \x -> [ shortOf x p.us p.technology, shortOf x p.us p.industry, shortOf x p.cn p.technology, shortOf x p.cn p.industry ] `shouldEqual` [ q 0, q 0, q 0, q 0 ]
+  it "households budget their tariff: under the US tariff with ample stock and the dollar moved off par, every order America's households place for industrial inputs fills in full" do
+    source <- orThrow (parts (Pacific.pacific (Pacific.defaultDials { stock = { technology: q 1000, industry: q 1000 }, stockSlope = { technology: q 0, industry: q 0 } })))
+    free <- orThrow (note "no FreeTrade" (Object.lookup "FreeTrade" source.presets))
+    quo <- orThrow (note "no StatusQuo" (Object.lookup "StatusQuo" source.presets))
+    g <- orThrow (assemble (FromComposition source) (strategyRulesBindings [ Tuple p.us (free { rules = free.rules <> (tariffing p.us).rules }), Tuple p.cn quo, Tuple p.usFirm free, Tuple p.cnFirm free ]) [])
+    r <- run (Seed 1) (withRounds (Just 8) g)
+    let
+      ordered x = Q.sumQ
+        ( concatMap
+            ( \s ->
+                if s.candidateTransaction.author /= p.usPrivate then []
+                else mapMaybe
+                  ( \i -> case i of
+                      Trade o | o.exchange == p.industryWorld -> Just o.quantity
+                      _ -> Nothing
+                  )
+                  s.candidateTransaction.intents
+            )
+            x.record.inputs
+        )
+      rows = map (\x -> Tuple (ordered x) (traded x p.usPrivate p.industry)) r.records
+    -- the tariff is in force from round 2 and they hold RMB from round 2, so the orders are not all empty
+    (Q.sumQ (map (\(Tuple o _) -> o) (drop 2 rows)) > Q.one) `shouldEqual` true
+    map (\(Tuple o t) -> Q.format (Q.sub o t)) rows `shouldEqual` map (const "0.0000") rows
   it "prices answer the market: under free trade the industrial inputs' price never falls and ends above where it began, within its curve; once a US import ban removes their buyers it never rises and returns to where it began" do
     source <- reference
     free <- playAll source "FreeTrade" "FreeTrade" "FreeTrade" "FreeTrade" 8

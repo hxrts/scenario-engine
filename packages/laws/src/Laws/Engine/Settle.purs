@@ -15,7 +15,7 @@ import Prelude
 
 import Laws.Engine.Compile (entered, actionTransactions, delivery, jointInputs, named, pairTransaction, payTransaction, ruleChange, runTransaction, transformTransaction)
 
-import Laws.Engine.Fund (Scaled, scaleOf, transformScaleOf)
+import Laws.Engine.Fund (Scaled, charge, scaleOf, transformScaleOf)
 import Core.Map (entries, groupBy, sumInto)
 import Core.Kernel.Resolve (Fate(..))
 import Core.Kernel.Clear (Side(..), clearSolvent)
@@ -213,8 +213,26 @@ exchanges w free scaled acc0 = (foldl clearOne { acc: acc0, used: Map.empty } (e
       paidByReserve x l = case (if l.from /= l.sender then x.buyer else x.seller) of
         Reserve -> true
         Party _ -> false
-      leviedOn ps = Map.fromFoldableWith Q.add (map (\l -> Tuple (Tuple l.from l.in) l.amount) (concatMap pairLevies ps))
-      -- trading must comply with the Rules in force (docs/03 §5.5): a payer pays its levies from what no escrow holds
+      -- what the action laws charge each order's Actor on what it settles on this Exchange
+      actionCharges ps =
+        let
+          settledOf = foldl
+            ( \mp x -> foldl
+                ( \m' side -> case side of
+                    Party o -> sumInto o.actor x.quantity m'
+                    Reserve -> m'
+                )
+                mp
+                [ x.buyer, x.seller ]
+            )
+            Map.empty
+            (filter (isNothing <<< blockOn) ps)
+        in
+          concatMap (\(Tuple actor quantity) -> map (\e -> Tuple (Tuple actor e.resource) e.amount) (concatMap (\c -> mapMaybe (charge actor) c.obligations) (actionTransactions w actor (idText id) quantity))) (entries settledOf)
+      -- everything trading on this Exchange costs each payer beyond the price: the levies on its pairs and what the
+      -- action laws charge on its fills. Clearing does not tell them apart
+      leviedOn ps = Map.fromFoldableWith Q.add (map (\l -> Tuple (Tuple l.from l.in) l.amount) (concatMap pairLevies ps) <> actionCharges ps)
+      -- trading must comply with the Rules and laws in force (docs/03 §5.5): a payer pays them from what no escrow holds
       overdrawn ps = mapMaybe
         ( \(Tuple k@(Tuple e res) need) ->
             let

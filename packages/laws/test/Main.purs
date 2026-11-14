@@ -20,7 +20,9 @@ import Core.Shape as Shape
 import Laws.Query (drawable, holderOf, holding)
 import Laws.Represent as Represent
 import Laws.Slice (runLegQuery, select, transformationFills, count, describeSlice, event, exchangeFills, items, legs, levies, matches, orKind, pickOf, read, runSlice, shortfalls, total, whereEq, whereNamed)
-import Laws.World (PendingTransaction(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, settledEvent, renderReason)
+import Core.Kernel.Law (holderParam, quantityParam)
+import Core.Kernel.Types as KT
+import Laws.World (AuthoredLaw(..), PendingTransaction(..), Cause(..), CausePattern(..), Endpoint(..), Event(..), LegAggregate(..), Mechanism(..), RecurringAmount(..), RecurringDestination(..), RecurringFlow, RecurringSource(..), RejectReason(..), RoundResult, ShortfallEffect(..), Side(..), Window(..), costFunctionShape, settledEvent, renderReason)
 import Laws.Types (LevyPayer(..), Capability(..), Direction(..), ActorId, ActorKind(..), FlowEffect(..), FlowGovernance(..), Id(..), Intent, IntentF(..), LevyBasis(..), LevyRecipient(..), Exchange, ExchangeTag, CandidateTransaction, ResourceId, Rule, RuleChangeF(..), RuleF(..), RuleForm(..), Transferability(..), TransformationId, conforms, idShape, jointIntent, candidateTransactionId, ruleIdOf, submissionIndex)
 import Data.Tuple (Tuple(..), snd)
 import Data.Argonaut.Core (stringify)
@@ -763,6 +765,32 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       [ concatMap transformedQ untaxed.record.events, concatMap transformedQ taxed.record.events ] `shouldEqual` [ [ Q.one ], [ Q.one ] ]
       [ holding untaxed.world (Id "US") (Id "E"), levied untaxed, holding untaxed.world (Id "US") (Id "M") ] `shouldEqual` [ Q.fromInt 6, Q.zero, Q.fromInt 2 ]
       [ holding taxed.world (Id "US") (Id "E"), levied taxed, holding taxed.world (Id "US") (Id "M") ] `shouldEqual` [ q "1.9998", q "1.9998", q "4.0004" ]
+    it "a charge on trading itself is met the same way: an action law that charges a buyer on each unit it buys shrinks its order to what its unescrowed money pays" do
+      let
+        -- the US owes 1 M, out of the economy, on each unit it settles on the Exchange
+        duty = AuthoredLaw
+          { subject: KT.OfStock { holders: Nothing, resource: Id "M" }
+          , trigger: KT.OnAction { obligor: Just (Id "US"), cause: Just "EM" }
+          , operation: KT.Emit { from: KT.HeldBy (KT.Bound holderParam), to: KT.Destroyed, resource: Id "M", owed: KT.Times { ratio: Q.one, amount: KT.Arg quantityParam } }
+          , guard: []
+          , phase: 1
+          , cause: OfRule { kind: Id "duty" }
+          }
+        make = (transformation "F") { inputs = Map.singleton (Id "M") (Q.fromInt 2) }
+        us = (explicitActor "US" [ MayTrade (Id "EM"), MayTransform (Id "F") ]) { accounts = Map.singleton (Id "M") (Q.fromInt 10) }
+        uk = (explicitActor "UK" [ MayTrade (Id "EM") ]) { accounts = Map.singleton (Id "E") (Q.fromInt 10) }
+        em = (exchange [ "US", "UK" ]) { reserves = Map.singleton (Id "M") (Q.fromInt 50) }
+        w = (baseWorld [ us, uk ]) { exchanges = Map.singleton (Id "EM") em, transformations = Map.singleton (Id "F") make, laws = [ duty ], ruleKinds = Map.insert (Id "duty") { form: LevyFlows GovernedBySource, text: "" } (baseWorld []).ruleKinds }
+        -- production escrows 2 M and the buy of 6 at 1 escrows 6, leaving 2 M: 6 units would owe 6, so it buys a third
+        r = resolved w
+          [ submit "US" 0 [ Transform { by: Id "US", transformation: Id "F", quantity: Q.one } ]
+          , submit "US" 1 [ Trade { exchange: Id "EM", quantity: Q.fromInt 6, limitPrice: Nothing } ]
+          , submit "UK" 0 [ Trade { exchange: Id "EM", quantity: Q.fromInt (-6), limitPrice: Nothing } ]
+          ]
+        paid = Q.sumQ (map _.moved (filter (\l -> l.cause == OfRule { kind: Id "duty" }) (select legs r.record.events)))
+      check w r `shouldEqual` []
+      concatMap transformedQ r.record.events `shouldEqual` [ Q.one ]
+      [ holding r.world (Id "US") (Id "E"), paid, holding r.world (Id "US") (Id "M") ] `shouldEqual` [ q "1.9998", q "1.9998", q "4.0004" ]
     it "a Rule is checked against who its kind says governs" do
       let
         declared = Map.singleton (Id "exportBan") { form: BlockFlows GovernedBySource, text: "" }

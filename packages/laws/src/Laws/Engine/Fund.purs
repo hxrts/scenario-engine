@@ -8,6 +8,7 @@ module Laws.Engine.Fund
   ( Scaled
   , scaleOf
   , transformScaleOf
+  , charge
   , fund
   ) where
 
