@@ -4,6 +4,8 @@ module Views.BalanceSheet
   ( BalanceSheet
   , BalanceSheetLink
   , balanceSheetLinks
+  , linksTable
+  , columns
   , linksOf
   , balanceSheetAt
   ) where
@@ -28,7 +30,7 @@ import Laws.Types (ActorId, Actor, ActorKind(..), Capability(..), Intent, Intent
 import Laws.World (WorldState, renderReason)
 import Core.Kernel.Types (Party(..))
 import Views.Actor (actorHistory)
-import Views.Common (Chart, StoredRun, Table, quantity, series, unitOf, worlds)
+import Views.Common (Chart, Column, StoredRun, Table, col, column, names, quantity, series, unitOf, worlds)
 
 type BalanceSheet =
   { actor :: String
@@ -191,3 +193,17 @@ priceChart r a =
   , series: series r \w -> mapMaybe (\m -> if a `elem` m.access then Just (Tuple (idText m.id) (exchangePrice m)) else Nothing) (CoreMap.values w.exchanges)
   }
 
+-- | Each Actor's balance-sheet page as a table: the Actor, its kind, and the page's whole address under `origin`, so it
+-- | can be copied and sent to whoever plays it.
+linksTable :: String -> Array BalanceSheetLink -> Table
+linksTable origin ls = { title: "Balance sheets", columns: names [ col.actor, linkKindColumn, pageColumn ], rows: map (\l -> [ l.actor, l.kind, origin <> l.path ]) ls }
+
+linkKindColumn :: Column
+linkKindColumn = column "Actor kind" "Playable Actor, non-playable Actor or Aggregate."
+
+pageColumn :: Column
+pageColumn = column "Page" "The Actor's own balance sheet page, to hand to whoever plays it: it shows only that Actor's data."
+
+-- | The columns this module defines.
+columns :: Array Column
+columns = [ linkKindColumn, pageColumn ]

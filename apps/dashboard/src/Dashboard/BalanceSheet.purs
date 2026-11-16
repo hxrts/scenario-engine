@@ -8,16 +8,17 @@ import Prelude
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
 import Dashboard.Components (loaded, metricChart, tableOf)
-import Dashboard.DataTable (DataTable)
+import Dashboard.DataTable (DataTable, defaults)
+import Data.Array (index)
+import Data.Maybe (Maybe(..))
 import Dashboard.Layout as Layout
 import Dashboard.Theme (themeToggle)
 
-import Data.Tuple (Tuple(..))
 import React.Basic.DOM as D
 import React.Basic.Hooks (Component, component)
 import React.Basic.Hooks as React
 import Views.Common (Table)
-import Views.BalanceSheet (BalanceSheet)
+import Views.BalanceSheet (BalanceSheet, linksTable)
 import Web.HTML (window)
 import Web.HTML.Location (origin)
 import Web.HTML.Window (location)
@@ -55,24 +56,8 @@ mkBalanceSheet grid = do
   table :: Table -> _
   table = tableOf grid
 
--- | Each Actor's page, shown as its whole address, so it can be copied and sent to the player.
-mkLinks :: Component String
-mkLinks = (origin =<< location =<< window) >>= \here -> component "BalanceSheetLinks" \id -> React.do
+-- | Each Actor's page, shown as its whole address in the shared table, so it can be copied and sent to the player.
+mkLinks :: DataTable -> Component String
+mkLinks grid = (origin =<< location =<< window) >>= \here -> component "BalanceSheetLinks" \id -> React.do
   links <- useLoad id (Client.balanceSheetLinks id)
-  pure $ loaded links.value \ls -> D.div
-    { className: "overflow-x-auto rounded-md border"
-    , children:
-        [ D.table
-            { className: "w-full text-sm"
-            , children:
-                [ D.thead
-                    { className: "border-b bg-muted/50 text-left text-muted-foreground"
-                    , children: [ D.tr_ (map (\(Tuple h def) -> D.th { className: "px-3 py-2 font-medium", title: def, children: [ D.text h ] }) [ Tuple "Actor" "An Actor of the run.", Tuple "Kind" "Playable Actor, non-playable Actor or Aggregate.", Tuple "Page" "The Actor's own balance sheet page, to hand to whoever plays it: it shows only that Actor's data." ]) ]
-                    }
-                , D.tbody_ (map (\x -> D.tr { className: "border-b last:border-0", children: [ cell [ D.text x.actor ], cell [ D.text x.kind ], cell [ D.a { href: here <> x.path, target: "_blank", rel: "noopener noreferrer", className: "break-all font-mono text-xs underline-offset-4 hover:underline", children: [ D.text (here <> x.path) ] } ] ] }) ls)
-                ]
-            }
-        ]
-    }
-  where
-  cell children = D.td { className: "px-3 py-2", children }
+  pure $ loaded links.value \ls -> grid ((defaults (linksTable here ls)) { link = \i row -> if i == 2 then index row 2 else Nothing })

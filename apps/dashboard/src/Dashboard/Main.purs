@@ -62,7 +62,7 @@ shell current themeButton page = D.div
   navLink label r active = D.a
     { href: href r
     , className:
-        if active then "relative text-foreground after:absolute after:-bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground"
+        if active then "relative text-foreground after:absolute after:-bottom-1.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground"
         else "text-muted-foreground hover:text-foreground"
     , children: [ D.text label ]
     }

@@ -38,25 +38,20 @@ runKeyColumn = 0
 -- | A table of runs, keyed by its first column, the run id. A row click selects that run; the selected row is
 -- | highlighted, and `badge` marks a run's second cell, its name.
 runTable :: forall r. DataTable -> { columns :: Array String, rows :: Array (Array String) | r } -> { selected :: String, select :: String -> Effect Unit, badge :: String -> Maybe JSX } -> JSX
-runTable grid t s = D.div
-  { className: "overflow-x-auto"
-  , children:
-      [ grid
-          ( (defaults t)
-              { onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
-              , activeRow = \row -> index row runKeyColumn == Just s.selected
-              , badge = \row i -> if i == 1 then index row runKeyColumn >>= s.badge else Nothing
-              }
-          )
-      ]
-  }
+runTable grid t s = grid
+  ( (defaults t)
+      { onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
+      , activeRow = \row -> index row runKeyColumn == Just s.selected
+      , badge = \row i -> if i == 1 then index row runKeyColumn >>= s.badge else Nothing
+      }
+  )
 
 -- | A run's group: its title and description, each Actor's balance-sheet page, then the run's overview, fetched
 -- | once, and its results.
 mkRunPage :: DataTable -> Component { id :: String, version :: Int, title :: String, purpose :: String }
 mkRunPage grid = do
   results <- mkRunResults grid
-  links <- mkLinks
+  links <- mkLinks grid
   component "RunPage" \p -> React.do
     overview <- useLoad (p.id <> "@" <> show p.version) (Client.overview p.id)
     pure $ Layout.group

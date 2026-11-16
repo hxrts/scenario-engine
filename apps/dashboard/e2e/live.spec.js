@@ -8,7 +8,7 @@ const confirming = (page) => page.on("dialog", (d) => d.accept());
 
 // Fill the start form for a run with no agent: the US human, the rest presets or a non-player.
 async function castWithoutAgents(page) {
-  const start = section(page, "Start a live run");
+  const start = section(page, "The live run");
   await start.getByRole("combobox", { name: "US", exact: true }).selectOption("human");
   await start.getByRole("combobox", { name: "CN", exact: true }).selectOption("preset:FreeTrade");
   await start.getByRole("combobox", { name: "US-firm", exact: true }).selectOption("nonplayer:Builder");
@@ -18,18 +18,18 @@ async function castWithoutAgents(page) {
 }
 
 // The value of one fact of the live run's state, by its exact label.
-const fact = (page, name) => section(page, "State and controls").locator("dt").filter({ hasText: new RegExp("^" + name + "$") }).locator("xpath=following-sibling::dd[1]");
+const fact = (page, name) => section(page, "The live run").locator("dt").filter({ hasText: new RegExp("^" + name + "$") }).locator("xpath=following-sibling::dd[1]");
 
 test("with no live run the page says so, and a production start with blank fields is refused, naming each", async ({ page }) => {
   await page.goto("/admin/#/live");
-  await expect(section(page, "State and controls").getByText("No live run yet. Start one below.")).toBeVisible();
+  await expect(section(page, "The live run").getByText("No live run. Start one below.")).toBeVisible();
   const start = await castWithoutAgents(page);
   await start.getByRole("combobox", { name: "Tag", exact: true }).selectOption("production");
   await expect(start.getByText("Name (required)", { exact: true })).toBeVisible();
   await expect(start.getByText("Player of US (required)", { exact: true })).toBeVisible();
   await start.getByRole("button", { name: "Start", exact: true }).click();
   await expect(start.getByText(/missing: name, facilitator, date, venue, players\.US/)).toBeVisible();
-  await expect(section(page, "State and controls").getByText("No live run yet. Start one below.")).toBeVisible();
+  await expect(section(page, "The live run").getByText("No live run. Start one below.")).toBeVisible();
 });
 
 test("a mock run starts from the form, takes a facilitator's text, advances, pauses and resumes, and ends", async ({ page }) => {
@@ -42,7 +42,7 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await expect(fact(page, "Awaiting")).toHaveText("US");
   const id = (await fact(page, "Run").textContent()).replace(" (mock)", "");
   // the facilitator enters the US's text (here, nothing): the round closes
-  const live = section(page, "State and controls");
+  const live = section(page, "The live run");
   // the live run opens to start, its row in the comparison badged green while it plays
   const badge = rowWith(section(page, "The runs at a glance"), [id]).getByTitle(/^The live run/);
   await expect(badge).toHaveAttribute("title", "The live run, playing now");
@@ -69,21 +69,21 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await expect(row.getByTitle("The live run, not playing now")).toBeVisible();
 });
 
-test("a live run can be cleared, and clear and start replaces it", async ({ page }) => {
+test("while a run is live no other can start; once it is cleared the form returns", async ({ page }) => {
   confirming(page);
   await page.goto("/admin/#/live");
-  let start = await castWithoutAgents(page);
+  const start = await castWithoutAgents(page);
   await start.getByRole("button", { name: "Start", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("running");
   const first = (await fact(page, "Run").textContent()).replace(" (mock)", "");
-  // a run is live: the form says so, and starting replaces it
-  start = section(page, "Start a live run");
-  await expect(start.getByText("Run " + first + " is live. Starting another clears it first.")).toBeVisible();
-  await start.getByRole("button", { name: "Clear and start", exact: true }).click();
-  await expect(fact(page, "Run")).not.toHaveText(first + " (mock)");
-  await expect(rowWith(section(page, "The runs at a glance"), [first])).toHaveCount(1);
-  await section(page, "State and controls").getByRole("button", { name: "Clear", exact: true }).click();
+  // a run is live: the form is gone, so nothing can replace it
+  const lifecycle = section(page, "The live run");
+  await expect(lifecycle.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
+  await lifecycle.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("cleared");
+  await expect(fact(page, "Run")).toHaveText(first + " (mock)");
+  await expect(lifecycle.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(rowWith(section(page, "The runs at a glance"), [first])).toHaveCount(1);
 });
 
 test("a past run opens its results and balance sheets from the list", async ({ page }) => {

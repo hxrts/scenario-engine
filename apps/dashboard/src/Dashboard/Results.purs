@@ -10,7 +10,7 @@ import Dashboard.Api (Loaded)
 import Dashboard.Components (fetched, loaded, metricChart, note, selectInput, stale, tableOf)
 import Dashboard.DataTable (DataTable)
 
-import Dashboard.Glossary (Lookup, emptyValue, glossaryContext)
+import Dashboard.Glossary (Lookup, factList, glossaryContext)
 import Dashboard.Layout as Layout
 import Data.Array (filter, head, index, null, range)
 import Data.Either (Either)
@@ -44,19 +44,9 @@ header glossary id facts = D.div
   { className: "flex min-w-0 flex-col gap-2"
   , children:
       [ D.h3 { className: "text-base font-semibold", children: [ D.text ("Run " <> id) ] }
-      , D.dl
-          { className: "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm"
-          , children: facts >>= \f ->
-              [ D.dt { key: f.label, className: "text-muted-foreground", children: [ D.text f.label ] }
-              , D.dd { key: f.label <> "-value", className: "min-w-0 break-words", children: [ valueOf f ] }
-              ]
-          }
+      , factList glossary facts
       ]
   }
-  where
-  valueOf f
-    | f.value == "" = emptyValue glossary f.label
-    | otherwise = D.text f.value
 
 -- | The results of one run. A run whose overview cannot be read shows its error; the previous run's
 -- | results stay on screen, dimmed, until the selected run's overview arrives.

@@ -1,8 +1,8 @@
 -- | The Live page (docs/07_simulator.md §9.2): the live run and the past interactive runs. The live run's state is read
 -- | every second and a half; its controls (admin) start it with its cast, tag and metadata, take a facilitator's text
--- | for an awaited human seat, and drive its lifecycle: advance, pause and resume, end, and clear, each confirmed. When
--- | a run is live the start form says so and offers to clear it and start. Below: the live run's results so far and its
--- | balance sheets, then the past interactive runs, compared within each tag.
+-- | for an awaited human seat, and drive its lifecycle: advance, pause and resume, end, and clear, each confirmed. One
+-- | component holds the whole lifecycle: the start form shows only while no run is running. Below: the interactive
+-- | runs compared, the live run open to start.
 module Dashboard.Live (mkLive) where
 
 import Prelude
@@ -14,6 +14,7 @@ import Dashboard.Client as Client
 import Dashboard.Comparison (mkRunBrowser)
 import Dashboard.Components (errorBlock, labelled, loaded, note, selectInput, textInput)
 import Dashboard.DataTable (DataTable)
+import Dashboard.Glossary (factList, glossaryContext)
 import Dashboard.Layout as Layout
 import Dashboard.Route (Route(..), navigate)
 
@@ -38,7 +39,7 @@ import Handlers.Api.Contract (SessionState)
 import Laws.Types (Id(..))
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
-import React.Basic.Hooks (Component, JSX, component, element, useEffectOnce, useState, useState', (/\))
+import React.Basic.Hooks (Component, JSX, component, element, useContext, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks as React
 import Schema.Cast (Role(..), roleShape)
 import Schema.Run (RunClass(..), RunStatus(..))
@@ -68,8 +69,7 @@ emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", see
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
   browser <- mkRunBrowser grid
-  start <- mkStart
-  controls <- mkControls
+  lifecycle <- mkLifecycle
   component "Live" \p -> React.do
     -- the live run's state, read again every second and a half, and after each action (`bump`)
     tick /\ setTick <- useState 0
@@ -83,25 +83,13 @@ mkLive grid = do
       current = case state.value of
         Just (Right st) -> Just st
         _ -> Nothing
-      live = maybe false (\st -> st.status == Running) current
       -- the live run is live while it runs and its clock is not paused
       active = maybe false (\st -> st.status == Running && not st.paused) current
     pure $ Layout.body
       ( [ Layout.group
             { title: "The live run"
-            , purpose: "The run being played: its round and status, the human seats it is waiting on, its controls, and its controls."
-            , children:
-                [ Layout.subsection
-                    { title: "State and controls"
-                    , purpose: "Advance the round, pause or resume its clock, end it after this round, or clear it. A facilitator can enter the text of an awaited human seat."
-                    , children: [ maybe (note "No live run yet. Start one below.") (\st -> controls { state: st, bump }) current ]
-                    }
-                ]
-            }
-        , Layout.group
-            { title: "Start a live run"
-            , purpose: "Choose the composition, who plays each seat, the rounds and window, and the run's tag and metadata. A production run needs its name, facilitator, date, venue and a player for each human seat."
-            , children: [ start { live, liveId: maybe "" _.id current, bump } ]
+            , purpose: "The run's lifecycle. With no run live, start one: choose the composition, who plays each seat, the rounds and window, and the tag and metadata (a production run needs its name, facilitator, date, venue and a player for each human seat). While one is live, follow its round and status, enter the text of an awaited human seat, and advance, pause or resume, end or clear it; another can start only once it has finished or been cleared."
+            , children: [ lifecycle { state: current, bump } ]
             }
         , loaded past.value \t -> browser
             { list: t
@@ -116,9 +104,27 @@ mkLive grid = do
         ]
       )
 
+-- | The live run's lifecycle, in one place: the live run's state, with its controls while it runs; and, when no run
+-- | is running, the form that starts one. A run that is running cannot be replaced from here: it is ended or cleared
+-- | first.
+mkLifecycle :: Component { state :: Maybe SessionState, bump :: Effect Unit }
+mkLifecycle = do
+  controls <- mkControls
+  start <- mkStart
+  component "LiveLifecycle" \p -> React.do
+    let running = maybe false (\st -> st.status == Running) p.state
+    pure $ D.div
+      { className: "flex min-w-0 flex-col gap-section"
+      , children:
+          [ maybe (note "No live run. Start one below.") (\st -> controls { state: st, bump: p.bump }) p.state
+          , if running then D.span_ [] else start { bump: p.bump }
+          ]
+      }
+
 -- | The live run's state and its controls. Every control but the text box asks to be confirmed.
 mkControls :: Component { state :: SessionState, bump :: Effect Unit }
 mkControls = component "LiveControls" \p -> React.do
+  glossary <- useContext glossaryContext
   failure /\ setFailure <- useState' (Nothing :: Maybe String)
   texts /\ setTexts <- useState' (Object.empty :: Object.Object String)
   let
@@ -154,10 +160,7 @@ mkControls = component "LiveControls" \p -> React.do
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-stack"
     , children:
-        [ D.dl
-            { className: "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm"
-            , children: facts >>= \(Tuple k v) -> [ D.dt { key: k, className: "text-muted-foreground", children: [ D.text k ] }, D.dd { key: k <> "-v", children: [ D.text v ] } ]
-            }
+        [ factList glossary (map (\(Tuple label value) -> { label, value }) facts)
         , if running then D.div
             { className: "flex flex-wrap gap-2"
             , children:
@@ -187,7 +190,7 @@ mkControls = component "LiveControls" \p -> React.do
   button label onClick = element UI.button { variant: "outline", onClick: handler_ onClick, children: [ D.text label ] }
 
 -- | The start form. It reads the compositions the server offers; a refusal shows the server's message.
-mkStart :: Component { live :: Boolean, liveId :: String, bump :: Effect Unit }
+mkStart :: Component { bump :: Effect Unit }
 mkStart = component "LiveStart" \p -> React.do
   offered <- useLoad unit Client.composition
   form /\ setForm <- useState' emptyForm
@@ -196,12 +199,11 @@ mkStart = component "LiveStart" \p -> React.do
     Nothing -> note "The server offers no composition."
     Just c -> view cs c form setForm failure setFailure p
 
-view :: Array CompositionInfo -> CompositionInfo -> Form -> (Form -> Effect Unit) -> Maybe String -> (Maybe String -> Effect Unit) -> { live :: Boolean, liveId :: String, bump :: Effect Unit } -> JSX
+view :: Array CompositionInfo -> CompositionInfo -> Form -> (Form -> Effect Unit) -> Maybe String -> (Maybe String -> Effect Unit) -> { bump :: Effect Unit } -> JSX
 view cs c form setForm failure setFailure p = D.div
   { className: "flex min-w-0 flex-col gap-stack"
   , children:
-      [ if p.live then note ("Run " <> p.liveId <> " is live. Starting another clears it first.") else D.span_ []
-      , D.div
+      [ D.div
           { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
           , children:
               [ labelled (D.text "Composition") (selectInput { value: c.name, options: map _.name cs, onChange: \v -> setForm form { composition = fromMaybe "" v } })
@@ -213,7 +215,7 @@ view cs c form setForm failure setFailure p = D.div
           }
       , Layout.captioned "Cast" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3", children: c.castable <#> castRow } ]
       , Layout.captioned "Metadata" [ D.div { className: "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3", children: metadataFields <> playerFields } ]
-      , D.div { className: "flex gap-2", children: [ element UI.button { onClick: handler_ (submit p.live), children: [ D.text (if p.live then "Clear and start" else "Start") ] } ] }
+      , D.div { className: "flex gap-2", children: [ element UI.button { onClick: handler_ submit, children: [ D.text "Start" ] } ] }
       , errorBlock failure
       ]
   }
@@ -237,8 +239,8 @@ view cs c form setForm failure setFailure p = D.div
   blankless s = if trim s == "" then Nothing else Just (trim s)
   number s = if trim s == "" then Right Nothing else maybe (Left ("not a whole number: " <> s)) (Right <<< Just) (Int.fromString (trim s))
 
-  request :: Boolean -> Either String StartLive
-  request replace = do
+  request :: Either String StartLive
+  request = do
     rounds <- number form.rounds
     windowSecs <- number form.window
     playerSeed <- number form.seed
@@ -251,12 +253,12 @@ view cs c form setForm failure setFailure p = D.div
       , playerSeed
       , tag: form.tag
       , metadata: { name: blankless form.name, facilitator: blankless form.facilitator, date: blankless form.date, venue: blankless form.venue, players: Object.filter (\v -> trim v /= "") (Object.filterKeys (\k -> k `elem'` humans) form.players), notes: blankless form.notes }
-      , replace: if replace then Just true else Nothing
+      , replace: Nothing
       }
   decodeRole text = case decodeJsonWith Snapshot roleShape (fromString text) of
     Right r -> Right r
     Left _ -> Left ("not a role: " <> text)
-  submit replace = case request replace of
+  submit = case request of
     Left e -> setFailure (Just e)
     Right req -> launchAff_ do
       out <- Client.startLive req

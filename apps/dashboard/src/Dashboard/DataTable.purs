@@ -24,7 +24,8 @@ import Prelude
 import Data.Array (index, mapWithIndex, sortBy)
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Core.Num as Q
-import Dashboard.Glossary (definitionOf, emptyValue, glossaryContext)
+import Dashboard.Glossary (definitionOf, glossaryContext, shownValue)
+import Data.String (Pattern(..), stripPrefix)
 import Effect (Effect)
 import React.Basic.DOM as D
 import React.Basic.Events (handler_)
@@ -107,24 +108,34 @@ mkDataTable = component "DataTable" \p -> React.do
       { key: show i
       , className: "p-2 align-middle" <> (if p.mark row i then " bg-amber-500/20 font-medium" else "")
       , children:
-          [ if value == "" then emptyValue glossary (fromMaybe "" (index p.columns i))
+          [ if placeholderCell value then shownValue glossary (fromMaybe "" (index p.columns i)) value
             else case p.onRow, i == 0 of
               Just select, true -> D.button { className: "underline", onClick: handler_ (select row), children: [ D.text value ] }
               _, _ -> case p.link i row of
+                -- a whole address opens in a new tab, as a page handed to someone else
+                Just href | isJust (stripPrefix (Pattern "http") href) -> D.a { href, target: "_blank", rel: "noopener noreferrer", className: "break-all underline", children: [ D.text value ] }
                 Just href -> D.a { href, className: "underline", children: [ D.text value ] }
                 Nothing -> D.text value
           ] <> maybe [] (\b -> [ b ]) (p.badge row i)
       }
     rowEl ri row = D.tr
       { key: show ri
-      , className: "border-b transition-colors hover:bg-muted/50" <> (if p.activeRow row then " bg-muted" else "") <> (if isJust p.onRow then " cursor-pointer" else "")
+      , className: "border-b transition-colors last:border-0 hover:bg-muted/50" <> (if p.activeRow row then " bg-muted" else "") <> (if isJust p.onRow then " cursor-pointer" else "")
       , onClick: maybe (handler_ (pure unit)) (\select -> handler_ (select row)) p.onRow
       , children: mapWithIndex (cellEl row) row
       }
-  pure $ D.table
-    { className: "w-full caption-bottom text-sm"
+  -- every table has the same frame: it scrolls past a fixed height, and sideways when it is wider than the page
+  pure $ D.div
+    { className: "max-h-[28rem] overflow-auto"
     , children:
-        [ D.thead { children: [ D.tr { className: "border-b", children: mapWithIndex header p.columns } ] }
-        , D.tbody { children: mapWithIndex rowEl (sortRows sort p.rows) }
+        [ D.table
+            { className: "w-full caption-bottom text-sm"
+            , children:
+                [ D.thead { children: [ D.tr { className: "border-b", children: mapWithIndex header p.columns } ] }
+                , D.tbody { children: mapWithIndex rowEl (sortRows sort p.rows) }
+                ]
+            }
         ]
     }
+  where
+  placeholderCell v = v == "" || v == "—" || v == "none" || v == "n/a"

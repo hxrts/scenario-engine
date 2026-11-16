@@ -62,10 +62,7 @@ statistic s = D.div
 
 -- | A view-model Table as a sortable table. Its cells are plain text.
 tableOf :: DataTable -> Table -> JSX
-tableOf grid t = D.div
-  { className: "max-h-[28rem] overflow-auto"
-  , children: [ D.div { className: "overflow-x-auto", children: [ grid (defaults t) ] } ]
-  }
+tableOf grid t = grid (defaults t)
 
 -- | A fetch in progress, or its error.
 -- | A plain line of information.
@@ -112,10 +109,7 @@ selectInput p = D.select
 -- | A Table with the cells the view marked highlighted. A row is found by its cells, so the marks hold
 -- | after the table is sorted.
 diffTable :: DataTable -> Marked -> JSX
-diffTable grid m = D.div
-  { className: "overflow-x-auto"
-  , children: [ grid ((defaults m.table) { mark = mark }) ]
-  }
+diffTable grid m = grid ((defaults m.table) { mark = mark })
   where
   marks = zip m.table.rows m.marked
   mark row i = fromMaybe false (find (\(Tuple r _) -> r == row) marks >>= \(Tuple _ flags) -> index flags i)

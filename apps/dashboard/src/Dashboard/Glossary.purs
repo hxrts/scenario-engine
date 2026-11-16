@@ -2,7 +2,7 @@
 -- | `Views.Glossary`): this module only finds the entry for a name and fills its placeholders.
 -- | The app provides the loaded glossary through `glossaryContext`, and renders nothing until it is loaded,
 -- | so a lookup without one is blank.
-module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyValue) where
+module Dashboard.Glossary (glossaryContext, Lookup, definitionOf, emptyValue, shownValue, factList) where
 
 import Prelude
 
@@ -51,3 +51,27 @@ emptyValue :: Lookup -> String -> JSX
 emptyValue glossary name = D.span { className: "italic text-muted-foreground", title: e.reason, children: [ D.text e.label ] }
   where
   e = emptyCell glossary name
+
+-- | A cell's or a field's value as every table and field list shows it: an empty value says what it means, with the
+-- | reason on hover; a value that stands for nothing ("—" or "none") reads "none", and an undefined one "n/a", set the
+-- | same way, grey and italic; anything else is plain text.
+shownValue :: Lookup -> String -> String -> JSX
+shownValue glossary name value
+  | value == "" = emptyValue glossary name
+  | value == "—" || value == "none" = placeholder "none"
+  | value == "n/a" = placeholder "n/a"
+  | otherwise = D.text value
+
+-- | A placeholder value, grey and italic.
+placeholder :: String -> JSX
+placeholder t = D.span { className: "italic text-muted-foreground", children: [ D.text t ] }
+
+-- | Labelled facts as a two-column list, each value shown as `shownValue` shows it.
+factList :: Lookup -> Array { label :: String, value :: String } -> JSX
+factList glossary facts = D.dl
+  { className: "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm"
+  , children: facts >>= \f ->
+      [ D.dt { key: f.label, className: "text-muted-foreground", children: [ D.text f.label ] }
+      , D.dd { key: f.label <> "-value", className: "min-w-0 break-words", children: [ shownValue glossary f.label f.value ] }
+      ]
+  }

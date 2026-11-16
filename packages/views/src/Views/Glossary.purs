@@ -20,6 +20,7 @@ import Views.Assertions as Assertions
 import Views.Balance as Balance
 import Views.Batch as Batch
 import Views.Balances as Balances
+import Views.BalanceSheet as BalanceSheet
 import Views.Common (Column, Reason, sharedColumns)
 import Views.Compare as Compare
 import Views.Drivers as Drivers
@@ -48,7 +49,7 @@ allColumns :: Array Focus -> Array Column
 allColumns foci = nubBy (compare `on` _.name)
   ( sortBy (compare `on` _.name)
       ( sharedColumns <> concatMap identity
-          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, WholeEconomy.columns, Actions.columns, concatMap Exchanges.columns foci, Compare.columns, Finance.columns, Indicators.columns, Regimes.columns, Clearing.columns ]
+          [ Overview.columns, Balances.columns, Standings.columns, Balance.columns, concatMap Drivers.columns foci, Representation.columns, Representation.procedureColumns, Assertions.columns, Agency.columns, Batch.columns, WholeEconomy.columns, Actions.columns, concatMap Exchanges.columns foci, Compare.columns, Finance.columns, Indicators.columns, Regimes.columns, Clearing.columns, BalanceSheet.columns ]
       )
   )
 
