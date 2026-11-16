@@ -291,13 +291,14 @@ _play :: Proxy "play"
 _play = Proxy
 
 -- | A live session of a run already registered: its game and id, what the seats are briefed with, how
--- | long a propose window lasts in seconds (0 for none), the lines shown after each round, and the Rules a seat can
+-- | long a propose window lasts in seconds (0 for none), whether its rounds close only when the facilitator advances them, the lines shown after each round, and the Rules a seat can
 -- | enact, in their declared forms, which the joint pass copies (`Laws.StrategyRules.enactableRules`).
 type LiveRequest =
   { seed :: Seed
   , game :: PreparedRun
   , id :: String
   , window :: Int
+  , manual :: Boolean
   , briefing :: ActorId -> String
   , report :: RoundResult -> Array String
   , rules :: Array Rule
@@ -310,7 +311,7 @@ data LiveF a = PlayLive LiveRequest (Either String Unit -> a)
 derive instance Functor LiveF
 
 -- | The live run as a client sees it: its id and tag, the round open, whether it is paused or ending after this
--- | round, its window, and which human seats have spoken this round and which are awaited.
+-- | round, its window, whether its rounds are advanced only by hand, the seconds its window has left (none with no window, or no human seat awaited), and which human seats have spoken this round and which are awaited.
 type SessionState =
   { id :: String
   , tag :: String
@@ -319,6 +320,8 @@ type SessionState =
   , paused :: Boolean
   , ending :: Boolean
   , window :: Int
+  , manual :: Boolean
+  , remaining :: Maybe Int
   , submitted :: Array ActorId
   , awaiting :: Array ActorId
   }

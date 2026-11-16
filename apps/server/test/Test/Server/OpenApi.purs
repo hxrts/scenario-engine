@@ -126,11 +126,15 @@ spec = describe "JSON Schema and OpenAPI" do
     map _.operation (filter _.admin published) # sort # shouldEqual [ "AdvanceLive", "ClearLive", "EndLive", "PauseLive", "ResumeLive", "StartLive", "SubmitManual" ]
     contains (Pattern "security") (stringify (document Narrative)) `shouldEqual` false
     (wire (RoundReport { id: "x", round: 2 })).url `shouldEqual` "/api/runs/x/rounds/2/report"
+  it "a path with two methods documents both: starting the live run beside reading it, and the start takes the manual option" do
+    let live = at "paths" (document Transcription) >>= at "/api/live"
+    map (\j -> sort (Object.keys (fromMaybe Object.empty (toObject j)))) live `shouldEqual` Just [ "get", "post" ]
+    map (\j -> contains (Pattern "\"manual\"") (stringify j)) (live >>= at "post") `shouldEqual` Just true
   it "the integration contract's example payloads read through their Shapes" do
     let
       reads :: forall a. Shape a -> String -> Boolean
       reads shape text = isRight (decodeJsonWith Snapshot shape (parsed text))
-    reads (viewShape :: Shape SessionState) "{\"id\":\"run-1\",\"tag\":\"mock\",\"paused\":false,\"ending\":false,\"window\":0,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
+    reads (viewShape :: Shape SessionState) "{\"id\":\"run-1\",\"tag\":\"mock\",\"paused\":false,\"ending\":false,\"window\":0,\"manual\":false,\"submitted\":[],\"status\":\"running\",\"round\":1,\"awaiting\":[\"US\"]}" `shouldEqual` true
     reads (viewShape :: Shape SessionStarted) "{\"id\":\"run-1\",\"balanceSheets\":[{\"actor\":\"US\",\"kind\":\"Playable Actor\",\"path\":\"/balancesheet/run-1/abc123\"}]}" `shouldEqual` true
     isRight (decodeJsonWith Authored submissionShape (parsed "{\"seat\":\"US\",\"round\":1,\"text\":\"We sell ten Energy to Germany.\"}")) `shouldEqual` true
     map _.name (filter (\e -> isOpen e.access && e.name `elem` [ "GetLive", "SubmitTranscript", "RoundReport", "StartLive", "SubmitManual" ]) endpointAccess) # sort # shouldEqual [ "GetLive", "RoundReport", "SubmitTranscript" ]

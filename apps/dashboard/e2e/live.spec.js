@@ -37,6 +37,8 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await page.goto("/admin/#/live");
   const start = await castWithoutAgents(page);
   await start.getByRole("textbox", { name: "Name", exact: true }).fill("rehearsal");
+  // a window long enough never to close in the test, so the clock can be paused
+  await start.getByRole("textbox", { name: /^Window/ }).fill("600");
   await start.getByRole("button", { name: "Start", exact: true }).click();
   await expect(fact(page, "Run")).toHaveText(/\(mock\)$/);
   await expect(fact(page, "Awaiting")).toHaveText("US");
@@ -87,7 +89,7 @@ test("while a run is live no other can start; once it is cleared the form return
   // a run is live: the form is gone, so nothing can replace it
   const lifecycle = section(page, "The live run");
   await expect(lifecycle.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
-  await lifecycle.getByRole("button", { name: "Clear", exact: true }).click();
+  await lifecycle.getByRole("button", { name: "Stop run", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("cleared");
   await expect(fact(page, "Run")).toHaveText(first + " (mock)");
   await expect(lifecycle.getByRole("button", { name: "Start", exact: true })).toBeVisible();
@@ -105,4 +107,41 @@ test("a past run opens its results and balance sheets from the list", async ({ p
   await expect(page).toHaveURL(new RegExp("#/live/" + firstId + "$"));
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + firstId + "/") }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Run " + firstId }).first()).toBeVisible();
+});
+
+test("a run advanced by hand keeps its round open after every seat has spoken, until the facilitator advances it", async ({ page }) => {
+  confirming(page);
+  await page.goto("/admin/#/live");
+  const start = await castWithoutAgents(page);
+  await start.getByRole("combobox", { name: "Advance rounds", exact: true }).selectOption("by hand");
+  // by hand there is no window to set
+  await expect(start.getByRole("textbox", { name: /^Window/ })).toHaveCount(0);
+  await start.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(fact(page, "Rounds")).toHaveText("advanced by hand");
+  const live = section(page, "The live run");
+  // no clock, so nothing to pause
+  await expect(live.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await live.getByRole("textbox", { name: /^Text for US/ }).fill("");
+  await live.getByRole("button", { name: "Submit", exact: true }).click();
+  await expect(fact(page, "Awaiting")).toHaveText("none");
+  await page.waitForTimeout(2000);
+  await expect(fact(page, "Round")).toHaveText("1");
+  await live.getByRole("button", { name: "Advance the round", exact: true }).click();
+  await expect(fact(page, "Round")).toHaveText("2");
+  await live.getByRole("button", { name: "Stop run", exact: true }).click();
+  await expect(fact(page, "Status")).toHaveText("cleared");
+});
+
+test("a round with a window counts down while a human seat is awaited", async ({ page }) => {
+  confirming(page);
+  await page.goto("/admin/#/live");
+  const start = await castWithoutAgents(page);
+  await start.getByRole("textbox", { name: /^Window/ }).fill("90");
+  await start.getByRole("button", { name: "Start", exact: true }).click();
+  const clock = section(page, "The live run").getByTitle("Time left");
+  await expect(clock).toHaveText(/^1:[23]\d$/);
+  const first = await clock.textContent();
+  await expect(clock).not.toHaveText(first);
+  await section(page, "The live run").getByRole("button", { name: "Stop run", exact: true }).click();
+  await expect(fact(page, "Status")).toHaveText("cleared");
 });

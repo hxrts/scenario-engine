@@ -1,5 +1,5 @@
 -- | The Live page (docs/07_simulator.md §9.2): the live run and the past interactive runs. The live run's state is read
--- | every second and a half; its controls (admin) start it with its cast, tag and metadata, take a facilitator's text
+-- | every second; its controls (admin) start it with its cast, tag and metadata, take a facilitator's text
 -- | for an awaited human seat, and drive its lifecycle: advance, pause and resume, end, and clear, each confirmed. One
 -- | component holds the whole lifecycle: the start form shows only while no run is running. Below: the interactive
 -- | runs compared, the live run open to start.
@@ -54,6 +54,7 @@ type Form =
   , roles :: Object.Object String -- each castable Actor's role, as its text
   , rounds :: String
   , window :: String
+  , advance :: String -- "automatically", or "by hand": a round closes only when the facilitator advances it
   , seed :: String
   , tag :: String
   , name :: String
@@ -65,17 +66,17 @@ type Form =
   }
 
 emptyForm :: Form
-emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", seed: "", tag: "mock", name: "", facilitator: "", date: "", venue: "", notes: "", players: Object.empty }
+emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", advance: automatically, seed: "", tag: "mock", name: "", facilitator: "", date: "", venue: "", notes: "", players: Object.empty }
 
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
   browser <- mkRunBrowser grid
   lifecycle <- mkLifecycle
   component "Live" \p -> React.do
-    -- the live run's state, read again every second and a half, and after each action (`bump`)
+    -- the live run's state, read again every second, so the round's clock counts down, and after each action (`bump`)
     tick /\ setTick <- useState 0
     useEffectOnce do
-      fiber <- launchAff (forever (delay (Milliseconds 1500.0) *> liftEffect (setTick (_ + 1))))
+      fiber <- launchAff (forever (delay (Milliseconds 1000.0) *> liftEffect (setTick (_ + 1))))
       pure (launchAff_ (killFiber (error "left the page") fiber))
     state <- useLoad tick Client.live
     past <- useLoad tick (Client.runsOf Interactive)
@@ -155,24 +156,37 @@ mkControls = component "LiveControls" \p -> React.do
         p.bump
     -- what a seat's box holds: what the facilitator typed, or a turn any seat can play
     textOf seat = fromMaybe defaultText (Object.lookup seat texts)
+    -- the open round's window, counting down to when a human seat that has not spoken says nothing
+    countdown s = D.div
+      { className: "flex items-baseline gap-3"
+      , children:
+          [ D.span { className: "text-4xl font-semibold tabular-nums" <> (if s <= 10 then " text-red-600 dark:text-red-400" else ""), title: "Time left", children: [ D.text (clock s) ] }
+          , D.span { className: "text-sm text-muted-foreground", children: [ D.text (if st.paused then "paused" else "left this round") ] }
+          ]
+      }
     -- the run, its round and status (paused or ending after this round said with it), and who is awaited
     facts =
       [ Tuple "Run" (st.id <> " (" <> st.tag <> ")")
       , Tuple "Round" (show st.round)
       , Tuple "Status" (show st.status <> (if running && st.paused then ", paused" else "") <> (if running && st.ending then ", ending after this round" else ""))
       , Tuple "Awaiting" (if null st.awaiting then "none" else joinWith ", " st.awaiting)
+      , Tuple "Rounds" (if st.manual then "advanced by hand" else if st.window == 0 then "close when every human seat has spoken" else "close after " <> show st.window <> " seconds")
       ]
   pure $ D.div
     { className: "flex min-w-0 flex-col gap-stack"
     , children:
-        [ factList glossary (map (\(Tuple label value) -> { label, value }) facts)
+        [ maybe (D.span_ []) countdown st.remaining
+        , factList glossary (map (\(Tuple label value) -> { label, value }) facts)
         , if running then D.div
             { className: "flex flex-wrap gap-2"
             , children:
                 [ button "Advance the round" (act "Close the open round now? Seats that have not spoken say nothing." Client.advanceLive)
-                , if st.paused then button "Resume" (act "Restart the window's clock?" Client.resumeLive) else button "Pause" (act "Stop the window's clock?" Client.pauseLive)
+                -- a clock to stop only when the round has a window
+                , if st.window == 0 then D.span_ []
+                  else if st.paused then button "Resume" (act "Restart the window's clock?" Client.resumeLive)
+                  else button "Pause" (act "Stop the window's clock?" Client.pauseLive)
                 , button "End after this round" (act "Complete the run after the round open?" Client.endLive)
-                , button "Clear" (act "Stop the live run now? It is recorded as cleared, with the rounds it played." Client.clearLive)
+                , button "Stop run" (act "Stop the live run now? It is recorded as cleared, with the rounds it played." Client.clearLive)
                 ]
             }
           else D.span_ []
@@ -225,7 +239,9 @@ view cs c form setForm failure setFailure p = D.div
               [ labelled (D.text "Composition") (selectInput { value: c.name, options: map _.name cs, onChange: \v -> setForm form { composition = fromMaybe "" v } })
               , labelled (D.text "Tag") (selectInput { value: form.tag, options: [ "mock", "production" ], onChange: \v -> setForm form { tag = fromMaybe "mock" v } })
               , labelled (D.text ("Rounds (" <> show c.rounds.min <> " to " <> show c.rounds.max <> "; default " <> show c.rounds.default <> ")")) (textInput { value: form.rounds, required: false, onChange: \v -> setForm form { rounds = v } })
-              , labelled (D.text "Window, seconds (0 waits for every seat)") (textInput { value: form.window, required: false, onChange: \v -> setForm form { window = v } })
+              , labelled (D.text "Advance rounds") (selectInput { value: form.advance, options: [ automatically, byHand ], onChange: \v -> setForm form { advance = fromMaybe automatically v } })
+              , if form.advance == byHand then D.span_ []
+                else labelled (D.text "Window, seconds (0 waits for every seat)") (textInput { value: form.window, required: false, onChange: \v -> setForm form { window = v } })
               , labelled (D.text "Player seed (blank draws one)") (textInput { value: form.seed, required: false, onChange: \v -> setForm form { seed = v } })
               ]
           }
@@ -265,7 +281,8 @@ view cs c form setForm failure setFailure p = D.div
       { composition: Just c.name
       , cast: Just (Map.fromFoldable roles)
       , rounds
-      , window: windowSecs
+      , window: if form.advance == byHand then Nothing else windowSecs
+      , manual: if form.advance == byHand then Just true else Nothing
       , playerSeed
       , tag: form.tag
       , metadata: { name: blankless form.name, facilitator: blankless form.facilitator, date: blankless form.date, venue: blankless form.venue, players: Object.filter (\v -> trim v /= "") (Object.filterKeys (\k -> k `elem'` humans) form.players), notes: blankless form.notes }
@@ -298,3 +315,14 @@ liveBadge on = D.span
 -- | it as it stands.
 defaultText :: String
 defaultText = "Keep our current policies and trade as we did last round."
+
+-- | Seconds as a clock: minutes and seconds, "1:05".
+clock :: Int -> String
+clock s = show (s / 60) <> ":" <> (if s `mod` 60 < 10 then "0" else "") <> show (s `mod` 60)
+
+-- | How rounds advance: on their own (when every human seat has spoken, or the window closes), or by hand.
+automatically :: String
+automatically = "automatically"
+
+byHand :: String
+byHand = "by hand"

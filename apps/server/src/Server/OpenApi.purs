@@ -22,7 +22,7 @@ import Server.Compositions (Compositions)
 import Core.Shape (Desc, allValues, lowerName, jsonSchemaIn, schemaComponentsIn)
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromObject, fromString)
 import Data.String (Pattern(..), joinWith, stripPrefix, toLower)
-import Data.Tuple (Tuple(..), fst)
+import Data.Tuple (Tuple(..), fst, snd)
 import Foreign.Object as Object
 import Handlers.Api.Contract (operations)
 import Handlers.Api.Route (Service, Doc, endpointAccess, errorShape, isOpen)
@@ -71,7 +71,7 @@ documentIn at service = obj
   [ Tuple "openapi" (fromString "3.1.0")
   , Tuple "info" (obj [ Tuple "title" (fromString ("Scenario Engine " <> lowerName service <> " API")), Tuple "version" (fromString "1") ])
   , Tuple "servers" (fromArray [ obj [ Tuple "url" (fromString at.server) ] ])
-  , Tuple "paths" (obj (mapMaybe (pathOf at) ops))
+  , Tuple "paths" (paths (mapMaybe (pathOf at) ops))
   , Tuple "components" (obj ([ Tuple "schemas" (obj components) ] <> security))
   ]
   where
@@ -83,14 +83,19 @@ documentIn at service = obj
 obj :: Array (Tuple String Json) -> Json
 obj = fromObject <<< Object.fromFoldable
 
+-- | The paths object: each path once, with every method routed on it. Keyed by path alone, a second method on a path
+-- | (`GET` and `POST /api/live`) would replace the first.
+paths :: Array (Tuple String (Tuple String Json)) -> Json
+paths entries = obj (map (\p -> Tuple p (obj (map snd (filter (\e -> fst e == p) entries)))) (nub (map fst entries)))
+
 requestOf :: Published -> Maybe Desc
 requestOf p = find (\e -> e.name == p.operation) endpointAccess >>= _.doc.body
 
-pathOf :: Where -> Published -> Maybe (Tuple String Json)
+pathOf :: Where -> Published -> Maybe (Tuple String (Tuple String Json))
 pathOf at p = find (\e -> e.name == p.operation) endpointAccess <#> pathFrom at p
 
-pathFrom :: forall r. Where -> Published -> { method :: String, pattern :: Array String, doc :: Doc | r } -> Tuple String Json
-pathFrom at p { method, pattern, doc } = Tuple path (obj [ Tuple (toLower method) operation ])
+pathFrom :: forall r. Where -> Published -> { method :: String, pattern :: Array String, doc :: Doc | r } -> Tuple String (Tuple String Json)
+pathFrom at p { method, pattern, doc } = Tuple path (Tuple (toLower method) operation)
   where
   path = "/" <> joinWith "/" (map brace pattern)
   brace s = maybe s (\n -> "{" <> n <> "}") (stripPrefix (Pattern ":") s)

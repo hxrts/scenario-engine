@@ -89,6 +89,7 @@ startLive compositions s = case chosen compositions s.composition of
         let
           game = withRounds s.rounds assembled
           humans = Array.fromFoldable (Map.keys (Map.filter (_ == CastHuman) cast))
+          manual = fromMaybe false s.manual
         seed <- resolveSeed (Seed <$> s.playerSeed)
         created <- now
         owner <- ownerOf serverRole
@@ -99,7 +100,7 @@ startLive compositions s = case chosen compositions s.composition of
         startRun { id, name: fromMaybe "live run" s.metadata.name, created, spec, manifest: game.manifest, owner } >>= case _ of
           Left why -> badRequest why
           Right _ -> do
-            lift _sessions (Host { request: { seed, game, id, window: fromMaybe 0 s.window, briefing, report: const [], rules: enactable parts game.inWorld }, humans, tag: s.tag } unit)
+            lift _sessions (Host { request: { seed, game, id, window: if manual then 0 else fromMaybe 0 s.window, manual, briefing, report: const [], rules: enactable parts game.inWorld }, humans, tag: s.tag } unit)
             ok { id, balanceSheets: linksOf id (unwrap seed) game.manifest.initial.actors }
 
 -- | `GET /api/live`: the live run's state, or the last run's when none is live.

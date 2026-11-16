@@ -56,6 +56,7 @@ type StartLive =
   , cast :: Maybe Cast
   , rounds :: Maybe Int
   , window :: Maybe Int
+  , manual :: Maybe Boolean
   , playerSeed :: Maybe Int
   , tag :: String
   , metadata :: Metadata

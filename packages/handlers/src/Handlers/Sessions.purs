@@ -19,12 +19,12 @@ module Handlers.Sessions
 
 import Prelude
 
-import Data.Array (filter)
+import Data.Array (filter, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set as Set
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -49,6 +49,8 @@ type Hosted =
   , tag :: String
   , humans :: Array ActorId
   , window :: Int
+  , manual :: Boolean -- a round closes only when advanced: a seat's text waits in `held` until then
+  , held :: Ref (Map (Tuple ActorId RoundIndex) String)
   , current :: Ref RoundIndex
   , mail :: Ref (Map (Tuple ActorId RoundIndex) Slot)
   , submitted :: Ref (Set.Set (Tuple ActorId RoundIndex))
@@ -56,6 +58,7 @@ type Hosted =
   , closed :: Ref (Set.Set RoundIndex) -- rounds advanced: every seat not yet heard says nothing
   , status :: Ref RunStatus
   , paused :: Ref Boolean
+  , remaining :: Ref Int -- the milliseconds the open round's window has left
   , ending :: Ref Boolean
   , fiber :: Ref (Maybe (Fiber Unit))
   }
@@ -87,9 +90,11 @@ interpretSessions host = case _ of
     closed <- Ref.new Set.empty
     status <- Ref.new Running
     paused <- Ref.new false
+    remaining <- Ref.new (request.window * 1000)
     ending <- Ref.new false
     fiber <- Ref.new Nothing
-    let hosted = { id: request.id, tag, humans, window: request.window, current, mail, submitted, entered, closed, status, paused, ending, fiber }
+    held <- Ref.new Map.empty
+    let hosted = { id: request.id, tag, humans, window: request.window, manual: request.manual, held, current, mail, submitted, entered, closed, status, paused, remaining, ending, fiber }
     Ref.write (Just hosted) host.live
     f <- launchAff (play host hosted request)
     Ref.write (Just f) fiber
@@ -135,6 +140,7 @@ play host hosted request = do
     , say: host.say
     , llm: host.llm
     , paused: Ref.read hosted.paused
+    , countdown: \ms -> Ref.write ms hosted.remaining
     , ending: Ref.read hosted.ending
     , enteredBy: \seat round -> Map.lookup (Tuple seat round) <$> Ref.read hosted.entered
     }
@@ -157,20 +163,24 @@ reader hosted seat round _ = do
     let key = Tuple seat round
     advanced <- Set.member round <$> Ref.read hosted.closed
     if advanced then done (Right "")
+    -- by hand, a seat's reader waits for the round to be advanced, whatever has been said
+    else if hosted.manual then Ref.modify_ (Map.insert key (Right (done <<< Right))) hosted.mail
     else Map.lookup key <$> Ref.read hosted.mail >>= case _ of
       Just (Left text) -> done (Right text)
       _ -> Ref.modify_ (Map.insert key (Right (done <<< Right))) hosted.mail
     pure (nonCanceler :: Canceler)
 
--- | Close the open round: every human seat not yet heard says nothing, whether its reader is waiting or not.
+-- | Close the open round: every human seat not yet heard says nothing, whether its reader is waiting or not. In a run
+-- | advanced by hand, a seat that has spoken says what it held.
 advance :: Hosted -> Effect Unit
 advance hosted = do
   round <- Ref.read hosted.current
   Ref.modify_ (Set.insert round) hosted.closed
   for_ hosted.humans \seat -> do
     let key = Tuple seat round
+    said <- fromMaybe "" <<< Map.lookup key <$> Ref.read hosted.held
     Map.lookup key <$> Ref.read hosted.mail >>= case _ of
-      Just (Right wake) -> Ref.modify_ (Map.insert key (Left "")) hosted.mail *> wake ""
+      Just (Right wake) -> Ref.modify_ (Map.insert key (Left said)) hosted.mail *> wake said
       Just (Left _) -> pure unit
       Nothing -> Ref.modify_ (Map.insert key (Left "")) hosted.mail
 
@@ -187,7 +197,8 @@ submit hosted s = do
   else do
     Ref.modify_ (Set.insert key) hosted.submitted
     for_ s.enteredBy \by -> Ref.modify_ (Map.insert key by) hosted.entered
-    Map.lookup key <$> Ref.read hosted.mail >>= case _ of
+    if hosted.manual then Ref.modify_ (Map.insert key s.text) hosted.held
+    else Map.lookup key <$> Ref.read hosted.mail >>= case _ of
       Just (Right wake) -> wake s.text
       _ -> Ref.modify_ (Map.insert key (Left s.text)) hosted.mail
     pure Accepted
@@ -202,5 +213,10 @@ stateOf hosted = do
   paused <- Ref.read hosted.paused
   ending <- Ref.read hosted.ending
   taken <- Ref.read hosted.submitted
-  let done e = Set.member (Tuple e round) taken
-  pure { id: hosted.id, tag: hosted.tag, round, status, paused, ending, window: hosted.window, submitted: filter done hosted.humans, awaiting: filter (not <<< done) hosted.humans }
+  left <- Ref.read hosted.remaining
+  let
+    done e = Set.member (Tuple e round) taken
+    awaiting = filter (not <<< done) hosted.humans
+    -- whole seconds, rounded up, so the clock reads 0 only when the window has closed
+    remaining = if hosted.window > 0 && status == Running && not (null awaiting) then Just ((left + 999) / 1000) else Nothing
+  pure { id: hosted.id, tag: hosted.tag, round, status, paused, ending, window: hosted.window, manual: hosted.manual, remaining, submitted: filter done hosted.humans, awaiting }

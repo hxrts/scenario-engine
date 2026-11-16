@@ -38,6 +38,7 @@ type SessionDevices =
   , say :: String -> Effect Unit
   , llm :: Maybe String -> Backend -- the model backend: a seat's own model, or the run's default (Nothing)
   , paused :: Effect Boolean
+  , countdown :: Int -> Effect Unit -- told the milliseconds the open round's window has left, as its clock runs
   , ending :: Effect Boolean
   , enteredBy :: ActorId -> RoundIndex -> Effect (Maybe String)
   }
@@ -52,7 +53,7 @@ interpretLive d (PlayLive r k) = do
   out <- attempt $ runLive
     { seed: r.seed
     , input: d.input
-    , window: if r.window > 0 then Just (pausableDelay d.paused (r.window * 1000)) else Nothing
+    , window: if r.window > 0 then Just (pausableDelay d.paused d.countdown (r.window * 1000)) else Nothing
     , say: d.say
     , notify: \_ text -> liftEffect (d.say ("  " <> text))
     , interpret: interpreter (d.llm Nothing) r.rules r.game.world
@@ -74,14 +75,16 @@ interpretLive d (PlayLive r k) = do
     Right (Left e) -> Left (show e)
     Right (Right _) -> Right unit
 
--- | A delay of the milliseconds given whose clock stands still while `paused` answers true.
-pausableDelay :: Effect Boolean -> Int -> Aff Unit
-pausableDelay paused = go
+-- | A delay of the milliseconds given whose clock stands still while `paused` answers true, telling `countdown` what is
+-- | left at every step, 0 when it is over.
+pausableDelay :: Effect Boolean -> (Int -> Effect Unit) -> Int -> Aff Unit
+pausableDelay paused countdown = go
   where
   step = 100
   go remaining
-    | remaining <= 0 = pure unit
+    | remaining <= 0 = liftEffect (countdown 0)
     | otherwise = do
+        liftEffect (countdown remaining)
         delay (Milliseconds (toNumber step))
         p <- liftEffect paused
         go (if p then remaining else remaining - step)

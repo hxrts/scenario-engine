@@ -30,6 +30,7 @@ module Handlers.Api.Contract
   ) where
 
 import Prelude
+import Data.Maybe (Maybe)
 
 import Core.Shape (class Exhausts, class Inject, Desc, Format(..), class Payload, Shape, inject, toPayload)
 import Data.Argonaut.Core (Json)
@@ -81,7 +82,7 @@ instance ViewShape a => EntryOf (Created a e) a e where
 -- | The refusals of an operation nobody outside this repository depends on.
 type AnyRefusal = (badRequest :: String, notFound :: String, conflict :: String, internal :: String)
 
-type SessionState = { id :: String, tag :: String, round :: Int, status :: RunStatus, paused :: Boolean, ending :: Boolean, window :: Int, submitted :: Array String, awaiting :: Array String }
+type SessionState = { id :: String, tag :: String, round :: Int, status :: RunStatus, paused :: Boolean, ending :: Boolean, window :: Int, manual :: Boolean, remaining :: Maybe Int, submitted :: Array String, awaiting :: Array String }
 
 type SessionStarted = { id :: String, balanceSheets :: Array BalanceSheetLink }
 

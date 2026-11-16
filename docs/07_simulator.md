@@ -247,7 +247,7 @@ Their contract is two OpenAPI 3.1 documents, the source of truth for those route
 
 | State or step | Meaning |
 |---|---|
-| `running` | Rounds are played; each round closes when every human seat has spoken, its window passes, or it is advanced. |
+| `running` | Rounds are played; each round closes when every human seat has spoken, its window passes, or it is advanced. A run started `manual` has no window, and its rounds close only when advanced: a seat's text is held until then. The state gives the seconds its window has left (`remaining`), while a human seat is awaited. |
 | paused | Still `running`, with the window's clock stopped; submissions are taken. |
 | ending | Still `running`; the run completes after the round open. |
 | `completed` | Played to its rounds, or ended. |
@@ -284,7 +284,7 @@ for the body:
 The live run's state, which is also the reply to an accepted submission and to a control:
 
 ```json
-{"id":"run-23","tag":"mock","round":1,"status":"running","paused":false,"ending":false,"window":0,"submitted":[],"awaiting":["US"]}
+{"id":"run-23","tag":"mock","round":1,"status":"running","paused":false,"ending":false,"window":0,"manual":false,"submitted":[],"awaiting":["US"]}
 ```
 
 A submission's body:
@@ -343,7 +343,7 @@ Simulations browses the static suite (§3), its default preset's run the baselin
 
 Live adds the one live run (§8.2) above its run browser, in groups, in order, each with a one-line description. The live run's state is read every second and a half:
 
-- **The live run.** One component holds the run's lifecycle. Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it; it starts with a turn any seat can play, keeping its policies and trade as they were. The start form shows only while no run is running, so a live run is never replaced from the page: it finishes, or is ended or cleared, first. The form: the composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field.
+- **The live run.** One component holds the run's lifecycle. Its id and tag, round, status (with whether it is paused or ending after this round), the human seats awaited, and how its rounds close; the seconds the open round's window has left count down while a human seat is awaited. While it runs, the admin controls drive it: advance the round, pause or resume (when it has a window), end after this round, and stop the run (clear), each confirmed. A text box for each awaited human seat submits a facilitator's text for it; it starts with a turn any seat can play, keeping its policies and trade as they were. The start form shows only while no run is running, so a live run is never replaced from the page: it finishes, or is ended or cleared, first. The form: the composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, whether rounds advance automatically (after an optional window) or only by hand, the window, and the player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field.
 - **The run browser** over every interactive run, live or past. The live run's row carries a badge, green while it plays (running, its clock not paused) and grey otherwise, and the comparison and the open run are fetched again each round.
 
 ### 9.3 Run Details
