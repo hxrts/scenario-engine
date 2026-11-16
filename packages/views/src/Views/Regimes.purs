@@ -28,10 +28,11 @@ import Laws.Slice (exchangeFills, legs, select, transformationFills)
 import Laws.Types (ActorId, ActorKind(..), DrawSource(..), ResourceId)
 import Laws.World (Cause(..), Mechanism(..), WorldState)
 import Schema.Composition (capacityCategory, competenceCategory)
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, worlds)
+import Views.Common (Chart, Column, StoredRun, Table, col, column, measuredChart, measuredRows, names, unitOf, worlds, displayName)
 import Views.Standings (valueIn)
 
-type Regime = { country :: String, capability :: Table, demand :: Table, finance :: Table }
+-- | A country's regime: each dimension as its table and as the chart of the same measures.
+type Regime = { country :: String, capability :: Table, demand :: Table, finance :: Table, capabilityChart :: Chart, demandChart :: Chart, financeChart :: Chart }
 
 -- | Every country with households, each its regime's three tables.
 regimes :: StoredRun -> Array Regime
@@ -40,12 +41,21 @@ regimes r = map regimeOf countries
   steps = zip (worlds r) r.rounds
   final = maybe r.manifest.initial _.world (last r.rounds)
   countries = sort (nub (map (groupOf final) (filter (isAggregate final) (fromFoldable (Map.keys final.actors)))))
+  money = unitOf r final.numeraire
   regimeOf c =
-    { country: show c
-    , capability: { title: "Productive capability, " <> show c, columns: names ([ col.round ] <> capabilityColumns), rows: concatMap (capabilityRows c) steps }
-    , demand: { title: "Effective demand, " <> show c, columns: names ([ col.round ] <> demandColumns), rows: map (demandRow c) steps }
-    , finance: { title: "Financial capacity, " <> show c, columns: names ([ col.round ] <> financeColumns), rows: map (financeRow c) steps }
-    }
+    let
+      capability = concatMap (capabilityRows c) steps
+      demand = map (demandRow c) steps
+      finance = map (financeRow c) steps
+    in
+      { country: show c
+      , capability: { title: "Productive capability, " <> show c, columns: names ([ col.round ] <> capabilityColumns), rows: measuredRows capability }
+      , demand: { title: "Effective demand, " <> show c, columns: names ([ col.round ] <> demandColumns), rows: measuredRows demand }
+      , finance: { title: "Financial capacity, " <> show c, columns: names ([ col.round ] <> financeColumns), rows: measuredRows finance }
+      , capabilityChart: measuredChart ("Productive capability, " <> show c) "units" (names measures.capability) capability
+      , demandChart: measuredChart ("Effective demand, " <> show c) money (names demandColumns) demand
+      , financeChart: measuredChart ("Financial capacity, " <> show c) money (names financeColumns) finance
+      }
   inside w c a = groupOf w a == c
   members w c = filter (inside w c) (fromFoldable (Map.keys w.actors))
   -- per capacity Resource the country holds: the competence its Transformations draw beside it, and the units run
@@ -60,13 +70,7 @@ regimes r = map regimeOf countries
     in
       map
         ( \res ->
-            [ show x.record.round
-            , show res
-            , quantity (held res)
-            , quantity (Q.sumQ (map held (skillOf res)))
-            , quantity (run res)
-            , quantity (max Q.zero (Q.sub (held res) (run res)))
-            ]
+            { round: x.record.round, label: displayName w res, values: [ held res, Q.sumQ (map held (skillOf res)), run res, max Q.zero (Q.sub (held res) (run res)) ] }
         )
         (filter (\res -> held res > Q.zero) (ofCategory capacityCategory))
   demandRow c (Tuple before x) =
@@ -86,7 +90,7 @@ regimes r = map regimeOf countries
       homeOnly m = not (null m.access) && all (inside w c) m.access
       sales p = Q.sumQ (map worth (filter (\f -> inside w c f.actor && f.quantity < Q.zero && maybe false p (Map.lookup f.exchange before.exchanges)) goodsFills))
     in
-      [ show x.record.round, quantity income, quantity spent, quantity (Q.sub income spent), quantity (sales homeOnly), quantity (sales (not <<< homeOnly)) ]
+      { round: x.record.round, label: "", values: [ income, spent, Q.sub income spent, sales homeOnly, sales (not <<< homeOnly) ] }
   financeRow c (Tuple before x) =
     let
       w = x.world
@@ -96,7 +100,7 @@ regimes r = map regimeOf countries
       owes = Q.sumQ (map worth (filter (\b -> inside w c b.borrower) bonds))
       paid = Q.sumQ (map (\l -> Q.mul l.moved (valueIn before l.resource)) (filter (\l -> isAgreement l.cause && fromInside w c l.from) (select legs x.record.events)))
     in
-      [ show x.record.round, quantity owedTo, quantity owes, quantity paid ]
+      { round: x.record.round, label: "", values: [ owedTo, owes, paid ] }
   fromInside w c = case _ of
     Held a -> inside w c a
     _ -> false
@@ -124,13 +128,18 @@ isGood :: WorldState -> ResourceId -> Boolean
 isGood w res = res /= w.numeraire && not (any (\m -> m.quote == res) (values w.exchanges))
 
 capabilityColumns :: Array Column
-capabilityColumns =
-  [ column "Capacity resource" "A Resource in the capacity category the country's Actors hold."
-  , column "Held" "Units of the capacity the country holds after the round."
-  , column "Competence" "Units of the competence the Transformations drawing on this capacity draw beside it: capacity runs only as far as competence."
-  , column "Run" "Units of the Transformations drawing on this capacity the country ran in the round."
-  , column "Idle" "Capacity held less units run: what stood idle, still costing its upkeep."
-  ]
+capabilityColumns = [ column "Capacity resource" "A Resource in the capacity category the country's Actors hold." ] <> measures.capability
+
+-- | The measured columns of the capability table, which its chart draws.
+measures :: { capability :: Array Column }
+measures =
+  { capability:
+      [ column "Held" "Units of the capacity the country holds after the round."
+      , column "Competence" "Units of the competence the Transformations drawing on this capacity draw beside it: capacity runs only as far as competence."
+      , column "Run" "Units of the Transformations drawing on this capacity the country ran in the round."
+      , column "Idle" "Capacity held less units run: what stood idle, still costing its upkeep."
+      ]
+  }
 
 demandColumns :: Array Column
 demandColumns =

@@ -7,8 +7,6 @@ export const section = (scope, title) => sectionHas(scope, scope.getByRole("head
 // The section holding `has`, a locator (for a panel with no heading to name it by).
 export const sectionHas = (scope, has) => scope.locator("section").filter({ has });
 
-// The choice list's checkbox for one run: the label whose run-id text is exactly that id.
-export const choice = (page, id) => page.locator("label").filter({ has: page.getByText(id, { exact: true }) }).getByRole("checkbox");
 
 // The row of the visible table whose cells include every given text exactly, within `scope` (the page, or a locator
 // of it). Each cell is matched relative to its row, so the scope is not searched for again inside the row.

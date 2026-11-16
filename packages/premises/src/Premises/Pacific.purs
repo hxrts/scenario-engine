@@ -66,6 +66,7 @@ worldFrom parts =
       , ruleKinds = keyed parts.ruleKinds
       , rules = Map.fromFoldable (map (\(Tuple k r) -> Tuple (Id k) r) parts.rules)
       , groups = keyed parts.groups
+      , names = Map.fromFoldable parts.names
       , actors = actorsOf (map (\(Tuple k s) -> Tuple k s.actor) parts.seats <> parts.aggregates)
       , recurring = compileIn p.usd circulation parts.decays
       , laws = parts.laws

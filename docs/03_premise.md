@@ -28,7 +28,7 @@ A Premise's sections are the keys of the document:
 |---|---|---|
 | `numeraire`, `focus`, `horizon`, `roundRange`, `label`, `round` | The header ([§3](#3-premise)). | One value. Two Premises giving different values fail. |
 | `resources`, `exchanges`, `transformations`, `actors`, `strategies`, `ruleKinds`, `parameters`, `groups` | Named things ([§5](#5-economic-structure), [§6](#6-actor-catalog), [§8](#8-strategy-catalog)). | By name. A name defined differently by two Premises fails, naming both; defined identically it is one definition. |
-| `schemes`, `representations`, `templates` | Named things in a list ([§9](#9-representation-schemes), [§15](#15-authoring-laws-and-agreements)). | As named things. |
+| `schemes`, `representations`, `templates`, `names` | Named things in a list ([§9](#9-representation-schemes), [§15](#15-authoring-laws-and-agreements)); `names` is what a page calls a thing named by id (a Resource, an Exchange, a Rule kind), read only by the views, which show the id where none is given. | As named things. |
 | `flowGates`, `rules`, `laws`, `circulation`'s lists | Things with no name ([§5.4](#54-recurring-cycle), [§5.5](#55-geography-access-and-rules), [§15](#15-authoring-laws-and-agreements)). | In order: a later Premise's items follow the earlier ones. An item an earlier Premise already wrote is that one item, not a second. |
 | `extends` | What a Premise adds to something another defines, by name. | `actors.<name>.accounts` (new holdings; a holding given differently fails, naming both), `actors.<name>.capabilities`, `actors.<name>.criteria` (criteria added to the Actor's objective), `exchanges.<name>.access`. A name no Premise in the composition defines fails. |
 
@@ -253,7 +253,7 @@ A Rule is either a flows Rule (its effect is a Levy or a Block, over a scope of 
 
 ### 10.5 Evaluation
 
-Each explicit Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
+Each explicit Actor's objective is data, evaluated from the recorded Run. It never affects the economy. An objective is a description with criteria. A criterion may carry a name, which its scorecard shows. Each criterion compares a measure, summed over listed Actors, with a threshold. The threshold is a number or another measure. The criterion is evaluated on the final round by default, on every round, or cumulatively. It can be negated to express "at most".
 
 The measures are a holding of a Resource, a shortfall in a Resource, the rounds with a shortfall, payee receipts, the volume of a Transformation, the units of named Resources an Actor bought on the Exchanges (`bought`, a quantity of goods and so the same whatever currency paid for them), the units of a Resource its Transformations delivered (`produced`), and what it owes past due on its agreements (`arrears`). A criterion may carry further conditions (`also`), each a comparison of the same form, which must all hold in the same round for the criterion to be met in it. Each is a measure of named Actors; the economy as a whole is read through the whole-economy views ([07 §11](07_simulator.md#11-experiments)).
 

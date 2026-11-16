@@ -15,7 +15,7 @@ import Core.Kernel.Types (Law, Endpoint(..), Flow, KernelShapes, Pending, dynami
 import Core.Num (Q, qShape)
 import Record as Record
 import Type.Proxy (Proxy(..))
-import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
+import Core.Shape (Format(..), Shape, arrayOf, atTagged, boolShape, decodeJsonWith, emptyByDefault, encodeWith, field, genericEnum, genericSum, intShape, iso, mapOf, optionalOf, pairOf, recordOf, recordShape, stringShape, unitShape, (&.))
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Data.Generic.Rep (class Generic)
@@ -93,6 +93,7 @@ type WorldFields r =
   , representations :: Array Representation
   , numeraire :: ResourceId -- the premise's unit of account; only the views read it
   , focus :: Maybe Focus -- the Resource the premise's exchange views centre on; only the views read it
+  , names :: Map String String -- what a premise calls a thing it names by id (a Resource, an Exchange, a Rule kind), for display; only the views read it
   , flowGates :: Array FlowGate -- the conditions on Transfers, per Resource
   , groups :: Map ActorId ActorId -- the group an Actor counts as, when not itself
   , ruleKinds :: Map RuleKindId RuleKindDecl -- the kinds of Rule the premise declares
@@ -711,7 +712,7 @@ flowGateShape :: Shape FlowGate
 flowGateShape = recordShape "FlowGate" { resource: idShape, exemptSharedExchange: boolShape, bundled: optionalOf idShape }
 
 worldStateShape :: Shape WorldState
-worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), actors: (mapOf idShape actorShape), resources: (mapOf idShape resourceDefinitionShape), exchanges: (mapOf idShape exchangeShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingTransactionShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
+worldStateShape = recordShape "WorldState" { round: intShape, seed: (iso Seed unwrap intShape), actors: (mapOf idShape actorShape), resources: (mapOf idShape resourceDefinitionShape), exchanges: (mapOf idShape exchangeShape), transformations: (mapOf idShape transformationShape), representations: (arrayOf representationShape), numeraire: idShape, focus: optionalOf focusShape, names: emptyByDefault (mapOf stringShape stringShape), flowGates: (arrayOf flowGateShape), groups: (mapOf idShape idShape), ruleKinds: (mapOf idShape ruleKindDeclShape), rules: (mapOf idShape ruleShape), pending: (arrayOf pendingTransactionShape), laws: (arrayOf authoredLawShape), templates: (mapOf stringShape worldTemplateShape), factors: (mapOf idShape holdingsShape), recurring: (arrayOf recurringFlowShape), events: (arrayOf eventShape) }
 
 manifestShape :: Shape Manifest
 manifestShape = recordShape "Manifest" { composition: stringShape, premises: arrayOf stringShape, engine: stringShape, draw: stringShape, initial: worldStateShape }

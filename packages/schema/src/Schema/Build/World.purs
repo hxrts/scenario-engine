@@ -23,6 +23,7 @@ module Schema.Build.World
   , totalAtLeast
   , objective
   , criterion
+  , called
   , allOf
   , metric
   , definition
@@ -112,6 +113,7 @@ emptyWorld =
   , representations: []
   , numeraire: Id ""
   , focus: Nothing
+  , names: Map.empty
   , flowGates: []
   , groups: Map.empty
   , ruleKinds: Map.empty
@@ -166,11 +168,15 @@ objective o = o
 
 -- | A criterion.
 criterion :: { metric :: MetricRef, over :: Span, atLeast :: Bound } -> Criterion
-criterion c = { metric: c.metric, over: c.over, atLeast: c.atLeast, also: [] }
+criterion c = { name: "", metric: c.metric, over: c.over, atLeast: c.atLeast, also: [] }
+
+-- | A criterion under the name its scorecard shows.
+called :: String -> Criterion -> Criterion
+called name c = c { name = name }
 
 -- | A criterion that holds only while each further condition holds too, over the same span.
 allOf :: { metric :: MetricRef, over :: Span, atLeast :: Bound } -> Array { metric :: MetricRef, atLeast :: Bound } -> Criterion
-allOf c also = { metric: c.metric, over: c.over, atLeast: c.atLeast, also }
+allOf c also = { name: "", metric: c.metric, over: c.over, atLeast: c.atLeast, also }
 
 -- | A metric.
 metric :: forall a. Named a ActorTag => { actors :: Array a, measure :: Measure, negated :: Boolean } -> MetricRef

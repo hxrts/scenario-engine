@@ -117,7 +117,7 @@ namedSections =
 
 -- | A section naming things in a list: by the key `id`, or as a `[name, value]` pair.
 identifiedLists :: Array (Tuple String String)
-identifiedLists = [ Tuple "schemes" "Representation scheme", Tuple "representations" "Representation", Tuple "templates" "agreement template" ]
+identifiedLists = [ Tuple "schemes" "Representation scheme", Tuple "representations" "Representation", Tuple "templates" "agreement template", Tuple "names" "display name" ]
 
 -- | A section one value of which a composition has.
 singleSections :: Array (Tuple String String)

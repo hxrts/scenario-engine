@@ -13,6 +13,8 @@ module Dashboard.Layout
   , grid
   , panel
   , tabbed
+  , columns
+  , tiles
   , caption
   , captioned
   , purpose
@@ -24,8 +26,8 @@ import Prelude
 
 import Dashboard.UI as UI
 import React.Basic.DOM as D
-import Data.Array (index)
-import Data.Maybe (maybe)
+import Effect (Effect)
+import Effect.Uncurried (mkEffectFn1)
 import Foreign.Object as Object
 import React.Basic.Hooks (JSX, element)
 
@@ -63,10 +65,10 @@ body children = D.div
   { className: "mx-auto flex w-full max-w-page min-w-0 flex-col gap-section px-gutter py-section", children }
 
 -- | A group: one of a page's top-level blocks, in the order the page reads. A rule above it sets it apart from the one
--- | before; its heading and a one-line description say what is in it; its subsections follow at one spacing.
+-- | before (the first has none); its heading and a one-line description say what is in it; its subsections follow at one spacing.
 group :: { title :: String, purpose :: String, children :: Array JSX } -> JSX
 group g = D.section
-  { className: "flex min-w-0 flex-col gap-section border-t border-border pt-section"
+  { className: "flex min-w-0 flex-col gap-section border-t border-border pt-section first:border-t-0 first:pt-0"
   , children:
       [ D.div
           { className: "flex flex-col gap-1"
@@ -110,17 +112,27 @@ section s = D.section
       ]
   }
 
--- | A tab: its key, its label, its purpose line, and its content.
-type Tab = { key :: String, label :: String, purpose :: String, content :: JSX }
+-- | A tab: its key, its label, and its content.
+type Tab = { key :: String, label :: String, content :: JSX }
 
--- | Tabs, the first open: each shows its purpose line, then its content.
-tabbed :: Array Tab -> JSX
-tabbed ts = element UI.tabs
-  { defaultValue: maybe "" _.key (index ts 0)
+-- | Tabs, the one named open: only the open tab's content is on the page.
+tabbed :: { value :: String, onChange :: String -> Effect Unit, tabs :: Array Tab } -> JSX
+tabbed t = element UI.tabs
+  { value: t.value
+  , onValueChange: mkEffectFn1 t.onChange
+  , className: "flex min-w-0 flex-col gap-section"
   , children:
-      [ element UI.tabsList { children: ts <#> \t -> element UI.tabsTrigger { key: t.key, value: t.key, children: [ D.text t.label ] } } ]
-        <> (ts <#> \t -> element UI.tabsContent { key: t.key, value: t.key, children: [ D.div { className: "mb-3", children: [ purpose t.purpose ] }, t.content ] })
+      [ element UI.tabsList { className: "self-start", children: t.tabs <#> \x -> element UI.tabsTrigger { key: x.key, value: x.key, children: [ D.text x.label ] } } ]
+        <> (t.tabs <#> \x -> element UI.tabsContent { key: x.key, value: x.key, className: "flex min-w-0 flex-col gap-section", children: [ x.content ] })
   }
+
+-- | Columns side by side, as many as given on a wide page and one below it: for things read against each other.
+columns :: Array JSX -> JSX
+columns children = D.div { className: "grid min-w-0 grid-cols-1 gap-gutter lg:grid-cols-2", children: map (\c -> D.div { className: "flex min-w-0 flex-col gap-stack", children: [ c ] }) children }
+
+-- | Small plots or blocks in a row: three across on a wide page, two on a narrower one, one on a phone.
+tiles :: Array JSX -> JSX
+tiles children = D.div { className: "grid min-w-0 grid-cols-1 gap-gutter md:grid-cols-2 xl:grid-cols-3", children: map (\c -> D.div { className: "min-w-0", children: [ c ] }) children }
 
 -- | The 12-column grid. Panels place themselves with `panel`.
 grid :: Array JSX -> JSX

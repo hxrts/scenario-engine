@@ -17,13 +17,13 @@ import Prelude
 import Schema.Composition (PremiseComposition)
 
 import Data.String (joinWith)
-import Data.Array (concatMap, mapWithIndex)
-import Data.Either (Either(..), either)
+import Data.Array (concatMap, mapWithIndex, nub)
+import Core.Num as Q
 import Record as Record
-import Data.Maybe (Maybe(..), fromMaybe)
-import Schema.Run (RunClass(..))
+import Data.Maybe (Maybe, fromMaybe)
+import Schema.Run (RunClass)
 import Checks.Objectives (CriterionResult, ObjectiveResult, evaluateObjectives)
-import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
+import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target, criterionLabel)
 
 -- | A run as the list shows it: its summary, read from the decoded run, with its class (simulated or
 -- | interactive) and, for an interactive run, its tag.
@@ -93,13 +93,13 @@ gameIdColumn :: Column
 gameIdColumn = column "Game ID" "The composition's game identifier, recorded at launch." # emptied { label: "not recorded", reason: "Runs made before the game ID was recorded have none." }
 
 criterionColumn :: Column
-criterionColumn = column "Criterion" "The number of the criterion within its objective."
+criterionColumn = column "Criterion" "The criterion's name, or its place within its objective when it has none."
 
 valuesColumn :: Column
-valuesColumn = column "Values" "The measured values for the criterion, in their own units."
+valuesColumn = column "Values" "The measured values for the criterion, in their own units, one per round for a criterion every round must meet."
 
 boundColumn :: Column
-boundColumn = column "Bound" "The threshold the measured values are compared with."
+boundColumn = column "Bound" "What the measured values are compared with: at least it, or at most it."
 
 -- | The columns this module defines.
 columns :: Array Column
@@ -148,8 +148,11 @@ objectiveFields :: Array (Field CriterionRow)
 objectiveFields =
   [ cellOf col.explicitActor (show <<< _.o.explicitActor)
   , cellOf col.objective _.o.description
-  , cellOf criterionColumn (\x -> show (x.i + 1))
+  , cellOf criterionColumn (\x -> criterionLabel x.i x.c.name)
   , cellOf col.outcome (show <<< _.c.outcome)
-  , cellOf valuesColumn (\x -> joinWith ", " (map quantity x.c.values))
-  , cellOf boundColumn (\x -> joinWith ", " (map quantity x.c.bound))
+  , cellOf valuesColumn (\x -> joinWith ", " (map (quantity <<< signed x.c) x.c.values))
+  , cellOf boundColumn (\x -> (if x.c.atMost then "at most " else "at least ") <> joinWith ", " (map (quantity <<< signed x.c) (nub x.c.bound)))
   ]
+  where
+  -- an "at most" criterion is scored on its negated metric: it is shown as measured
+  signed c v = if c.atMost then Q.neg v else v

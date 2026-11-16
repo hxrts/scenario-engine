@@ -24,7 +24,9 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 
-type CriterionResult = { outcome :: Outcome, values :: Array Q, bound :: Array Q }
+-- | A criterion scored: its name ("" when unnamed), whether its metric is negated (so it reads "at most"), its outcome,
+-- | and the measured values against their bounds, as the engine compares them.
+type CriterionResult = { name :: String, atMost :: Boolean, outcome :: Outcome, values :: Array Q, bound :: Array Q }
 
 type ObjectiveResult = { explicitActor :: ActorId, description :: String, criteria :: Array CriterionResult, outcome :: Outcome }
 
@@ -58,7 +60,7 @@ evaluateObjectives gb records = concatMap one (entries gb.explicitActors)
         | all identity (zipWith (>=) values bound) && all holds c.also = Met
         | otherwise = NotMet
     in
-      { outcome, values, bound }
+      { name: c.name, atMost: c.metric.negated, outcome, values, bound }
   -- the metric's value per round, or one aggregate value
   series span m =
     let

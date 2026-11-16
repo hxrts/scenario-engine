@@ -327,16 +327,15 @@ Everything that shows more than one Actor's data sits behind a password.
 
 ## 9. Pages
 
-The Dashboard is served at `/admin`, behind the password (§8.3). It has two pages, each with its own hash route and a top bar that links to them from every page: Simulations (`#/simulations`, the home page, and `#/simulations/:id` with that run selected) and Live (`#/live`, and `#/live/:id` with a past run selected). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1). Every table is drawn by one component: one frame, no rule under its last row, and a value that stands for nothing (empty, `—` or `none`, or `n/a`) set grey and italic, an empty one saying what it means.
+The Dashboard is served at `/admin`, behind the password (§8.3). It has two pages, each with its own hash route and a top bar that links to them from every page: Simulations (`#/simulations`, the home page, and `#/simulations/:id` with that run selected) and Live (`#/live`, and `#/live/:id` with a past run selected). It renders from persisted data and does not run the engine. Every number shows its display kind (quantity, price, or ratio) as [02 §9.1](02_kernel.md#91-numerics-and-randomness) defines it. Every visible column and field has a plain-language definition on hover, from the glossary (§8.1). Every table is drawn by one component: one frame, no rule under its last row, numbers right-aligned to their column's decimals, a criterion's outcome marked in its colour, and a value that stands for nothing (empty, `—` or `none`, or `n/a`) set grey and italic, an empty one saying what it means.
 
 ### 9.1 Simulations
 
-Both pages show their runs through one run browser, in three groups, in order, each with a one-line description:
+Both pages show their runs through one run browser, as three tabs, each with a one-line description:
 
-- **Compare the runs.** First the runs at a glance: one row per run, by id and name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`). Selecting a row, or opening its route, opens that run in the last group.
-Then the runs to plot: any number of runs ticked, the default preset's run first and the baseline, each in its own colour. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
-- **Agency.** Each agency run against the preset run it deviates from, and its seat's criteria under each (§10.3).
-- **The selected run.** Its balance sheets (§9.4), then its results (§9.3).
+- **Compare.** The runs at a glance: one row per run, by id and name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`). A row's tick draws that run in the plots beneath, in its own colour, the first ticked the baseline; a click on a row, or opening its route, opens that run in the Run tab. The plots: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn) and each player's net worth over time, as small plots read together, then the final standings (§10).
+- **Agency**, when agency runs are among the runs. Each agency run against the preset run it deviates from, and each seat's criteria under each, one block per seat (§10.3).
+- **Run**, once a run is open. Its results (§9.3) and, on Live, its balance sheets (§9.4).
 
 Simulations browses the static suite (§3), its default preset's run the baseline and open to start; runs are made only by the suite. Live browses the interactive runs and opens the live run to start, if there is one, or none.
 
@@ -349,12 +348,12 @@ Live adds the one live run (§8.2) above its run browser, in groups, in order, e
 
 ### 9.3 Run Details
 
-The page opens with a header of the run's facts, then four sections by economic object, each a generic view over any composition:
+The page opens with a header of the facts that tell one run from another, then the scorecards and three sections by economic object, each a generic view over any composition. A series over the rounds is a chart, with the table of the same numbers behind a switch; countries are set side by side.
 
+- **The seat scorecards** (objectives): one block per seat, its objective said once, then each criterion by name with its outcome, the values measured, and its bound, read "at least" or "at most".
 - **The headline** (`Indicators`) at the round chosen, the last to start: for each country its substitute gap, net external position and domestic absorption, and for each seat its debt service and viability margins ([05 §6](05_pacific.md#6-objectives-and-indicators)).
-- **The national regimes** (`Regimes`): for each country that holds productive capacity, three full-width panels: its productive capability (capacity, competence, units run and idle), its effective demand (household income, spending and saving, sales at home and abroad) and its financial capacity (owed to it, what it owes, debt service paid).
-- **International clearing** (`Clearing`): goods and capital across each border and the Rules at the borders, beside the Exchanges' prices and each country's current account ([05 §4.6](05_pacific.md#46-accounting)).
-- **The seat scorecards** (objectives).
+- **The national regimes** (`Regimes`): for each country that holds productive capacity, its productive capability (capacity, competence, units run and idle), its effective demand (household income, spending and saving, sales at home and abroad) and its financial capacity (owed to it, what it owes, debt service paid).
+- **International clearing** (`Clearing`): the Exchanges' prices and each country's current account, goods and capital across each border, and each Rule at the borders with the rounds it stood ([05 §4.6](05_pacific.md#46-accounting)).
 
 Net worth is the numeraire plus each other Resource valued in it: a Resource an Exchange quotes in the numeraire at its marginal price; a second currency, in which an Exchange quotes the numeraire, at one over that price; and a Resource quoted only in such a currency at its price there times the currency's value. Where several Exchanges trade one Resource, its price is their mean, so a holding counts once, and a Resource with none of these is not counted. Spread is the highest minus the lowest final net worth of the players. The Gini coefficient of final net worths is 0 when every player holds the same and 1 − 1/n when one holds everything, and it is n/a when the total is zero or a value is negative.
 
@@ -396,7 +395,7 @@ The Dashboard names each difference between runs that are not directly comparabl
 
 Agency is read from the suite's agency runs (§3): each seat alone cast to its alternative preset, with its routine kept, against the default preset's run, everything else and both seeds fixed. A comparison finds them among the runs it compares: a run whose cast differs from a preset run's in exactly one seat, cast to another preset, is that seat's agency run against that preset run (`Views.Agency`). It measures the change in prices, in other Actors' holdings, in Aggregate behaviour, in institutional decisions, and in the Actor's own objective criteria. An unknown alternative preset fails the composition's checks.
 
-The Simulations page's Agency group (§9.1) shows one row per agency run. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each seat's objective criteria are shown under the baseline and the alternative.
+The Agency tab (§9.1) shows one row per agency run. A row whose alternative makes negligible difference on every measure is marked `no: balancing finding`. Under it, each seat's objective criteria are shown under the baseline and the alternative.
 
 ---
 

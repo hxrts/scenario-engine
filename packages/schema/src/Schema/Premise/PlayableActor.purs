@@ -81,7 +81,8 @@ objectiveShape = recordOf "Objective"
 
 criterionShape :: Shape Criterion
 criterionShape = recordOf "Criterion"
-  ( field @"metric" "the measured quantity" metricShape
+  ( field @"name" "what the criterion is called on a scorecard (default none)" (defaultsTo "" stringShape)
+      &. field @"metric" "the measured quantity" metricShape
       &. field @"over" "the span of rounds (default final)" (defaultsTo Final spanShape)
       &. field @"atLeast" "the bound" boundShape
       &. field @"also" "further conditions, each a metric and a bound over the same span, all of which must hold (default none)" (defaultsTo [] (listOf conditionShape))

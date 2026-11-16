@@ -35,7 +35,7 @@ import Premises.Pacific.Strategies (commerce, supply, tariffing)
 import Schema.Build.Agreement (agreement, clause, guard, onAction, perHeld, spawn, step)
 import Schema.Build.Base (arrears, bought, cumulative, everyRound, holdingOf, keyed, mayEnact, mayTrade, mayTransfer, mayTransform, producedOf, shortfallOf, volumeOf, (:=))
 import Schema.Build.Quantity (q)
-import Schema.Build.World (aggregate, allOf, atLeast, criterion, finishes, metric, noTransformation)
+import Schema.Build.World (aggregate, allOf, atLeast, called, criterion, finishes, metric, noTransformation)
 import Schema.Composition (Bound, Criterion, Measure, MetricRef)
 
 -- | What one country's regime is made of that the other's is not: its names, its opening holdings, its requirements,
@@ -136,19 +136,19 @@ regime d cfg = emptyParts
 
   stateCriteria :: Array Criterion
   stateCriteria =
-    [ criterion { metric: metric { actors: [ c.state ], measure: shortfallOf c.foreign, negated: true }, over: cumulative, atLeast: atLeast (Q.neg cfg.bars.security) }
-    , finishes c.firm (holdingOf c.capacity) (atLeast cfg.bars.industry)
+    [ called "Security" (criterion { metric: metric { actors: [ c.state ], measure: shortfallOf c.foreign, negated: true }, over: cumulative, atLeast: atLeast (Q.neg cfg.bars.security) })
+    , called "Industry" (finishes c.firm (holdingOf c.capacity) (atLeast cfg.bars.industry))
     -- its political viability every round, and its households' purchases over the run
-    , allOf { metric: metric { actors: cfg.viability.actors, measure: cfg.viability.measure, negated: false }, over: everyRound, atLeast: atLeast cfg.bars.viability } cfg.viability.also
-    , purchases cfg.bars.prosperity
+    , called "Viability" (allOf { metric: metric { actors: cfg.viability.actors, measure: cfg.viability.measure, negated: false }, over: everyRound, atLeast: atLeast cfg.bars.viability } cfg.viability.also)
+    , called "Prosperity" (purchases cfg.bars.prosperity)
     ]
 
   firmCriteria :: Array Criterion
   firmCriteria =
-    [ finishes c.firm (holdingOf c.money) (atLeast cfg.bars.wealth)
-    , finishes c.firm (holdingOf c.capacity) (atLeast cfg.bars.industry)
-    , criterion { metric: metric { actors: [ c.firm ], measure: volumeOf c.firmProduction, negated: false }, over: cumulative, atLeast: atLeast cfg.bars.output }
-    , purchases cfg.bars.market
+    [ called "Wealth" (finishes c.firm (holdingOf c.money) (atLeast cfg.bars.wealth))
+    , called "Industry" (finishes c.firm (holdingOf c.capacity) (atLeast cfg.bars.industry))
+    , called "Output" (criterion { metric: metric { actors: [ c.firm ], measure: volumeOf c.firmProduction, negated: false }, over: cumulative, atLeast: atLeast cfg.bars.output })
+    , called "Market" (purchases cfg.bars.market)
     ]
 
 -- | A bond (§5.4), in two steps: the lender has Transferred the principal, which the borrower holds for a round (the

@@ -25,7 +25,7 @@ import Laws.Slice (exchangeFills, legs, select)
 import Laws.Types (ActorId)
 import Laws.External (ExternalLine, bondsOf, currenciesOf, externalLines)
 import Laws.World (Cause(..))
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio, worlds)
+import Views.Common (Chart, Column, StoredRun, Table, col, column, measuredChart, measuredRows, names, quantity, ratio, unitOf, worlds)
 import Views.Standings (valueIn)
 
 -- | Every country's external accounts, by round and currency.
@@ -125,7 +125,7 @@ currentColumns =
   ]
 
 -- | The view: the bonds open after each round, and the external accounts, with the current account in the numeraire.
-finance :: StoredRun -> { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
+finance :: StoredRun -> { bonds :: Table, external :: Table, current :: Table, currentChart :: Chart, earnings :: Table }
 finance r =
   { bonds:
       { title: "Open bonds"
@@ -145,10 +145,13 @@ finance r =
   , current:
       { title: "Current account"
       , columns: names ([ col.round, countryColumn ] <> currentColumns)
-      , rows: concatMap currentRows (zip (worlds r) r.rounds)
+      , rows: measuredRows current
       }
+  -- each country's current account, round by round
+  , currentChart: measuredChart "Current account" (unitOf r r.manifest.initial.numeraire) [ "Current account" ] current
   }
   where
+  current = concatMap currentRows (zip (worlds r) r.rounds)
   lines = externalAccounts r
   currentRows (Tuple before x) =
     let
@@ -167,6 +170,6 @@ finance r =
               valuation = Q.sumQ (map (\l -> Q.mul l.opening (Q.sub (value l.currency) (start l.currency))) ls)
               change = Q.sub (Q.sumQ (map (\l -> Q.mul (value l.currency) l.closing) ls)) (Q.sumQ (map (\l -> Q.mul (start l.currency) l.opening) ls))
             in
-              [ show x.record.round, show c, quantity ca, quantity fa, quantity valuation, quantity change ]
+              { round: x.record.round, label: show c, values: [ ca, fa, valuation, change ] }
         )
         countries

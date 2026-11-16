@@ -50,6 +50,7 @@ baseWorld es =
   , representations: []
   , numeraire: Id "M"
   , focus: Nothing
+  , names: Map.empty
   , flowGates: []
   , groups: Map.empty
   , ruleKinds: testKinds

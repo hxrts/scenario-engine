@@ -299,6 +299,7 @@ worldFields = mk
   <$> fieldOf "round" "the starting round (default 1)" (defaultsTo 1 intShape) _.world.round
   <*> fieldOf "numeraire" "the unit of account, which the views use for net worth" idShape _.world.numeraire
   <*> fieldOf "focus" "the Resource the exchange views centre on" (optionalOf focusShape) _.world.focus
+  <*> fieldOf "names" "what each thing named by id is called on a page, by its id (default: its id)" (emptyByDefault (Shape.mapOf stringShape stringShape)) _.world.names
   <*> fieldOf "resources" "the Resources" (idMap resourceEntry) entriesOf
   <*> fieldOf "exchanges" "the Exchanges" (idMapWith exchangeShape) _.world.exchanges
   <*> fieldOf "transformations" "the transformations" (idMapWith transformationShape) _.world.transformations
@@ -312,14 +313,14 @@ worldFields = mk
   <*> fieldOf "laws" "laws written directly, run when their action settles" (Shape.defaulted [] Array.null (arrayOf authoredLawShape)) _.world.laws
   where
   gateShape = recordShape "FlowGate" { resource: idShape, exemptSharedExchange: boolShape, bundled: optionalOf idShape } :: Shape FlowGate
-  mk round numeraire focus entries exchanges transformations flowGates groups ruleKinds rules representations circulation templates laws actors =
+  mk round numeraire focus names entries exchanges transformations flowGates groups ruleKinds rules representations circulation templates laws actors =
     let
       decays = mapMaybe (\(Tuple k e) -> (\rate -> { resource: k, rate }) <$> e.decay) (Map.toUnfoldable entries)
       reservable = map (\(Tuple k _) -> k) (filter (\(Tuple _ e) -> e.reservable) (Map.toUnfoldable entries))
       resources = Map.mapMaybeWithKey (\k e -> Just ({ id: k, unit: idText k, transferability: e.transferability, category: e.category } :: ResourceDefinition)) entries
     in
       { authored: { circulation, reservable, decays }
-      , world: { round, numeraire, focus, resources, exchanges, transformations, flowGates, groups, ruleKinds, rules, representations, actors, pending: [], laws, templates, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
+      , world: { round, numeraire, focus, names, resources, exchanges, transformations, flowGates, groups, ruleKinds, rules, representations, actors, pending: [], laws, templates, factors: Map.empty, recurring: compileIn numeraire circulation decays, events: [] }
       }
 
 -- | The whole World, with its Actors by key: a fixture's.

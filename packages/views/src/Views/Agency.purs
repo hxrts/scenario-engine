@@ -16,7 +16,7 @@ import Data.Tuple (Tuple(..))
 import Laws.Slice (event, read, select)
 import Schema.Cast (Role(..), castShape)
 import Schema.Composition (Outcome(..), PremiseComposition)
-import Views.Common (Column, StoredRun, Table, col, column, names, players, price, quantity)
+import Views.Common (Column, StoredRun, Table, col, column, criterionLabel, names, players, price, quantity)
 import Views.Difference (differenceOfWorlds)
 import Laws.World (RoundResult)
 import Core.Num as Q
@@ -73,11 +73,11 @@ agencyProfile composition explicitActor alternative baseRun variantRun =
   ownObjectives rs = filter (\o -> o.explicitActor == explicitActor) (evaluateObjectives composition rs)
   own r = map _.outcome (concatMap _.criteria (ownObjectives r))
   objectives = length (filter identity (zipWith (/=) (own base) (own variant)))
-  described r = concatMap (\o -> map (\c -> { description: o.description, outcome: c.outcome }) o.criteria) (ownObjectives r)
-  criteria = zipWith (\b a -> { description: b.description, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
+  described r = concatMap (\o -> map (\c -> { description: o.description, name: c.name, outcome: c.outcome }) o.criteria) (ownObjectives r)
+  criteria = zipWith (\b a -> { description: b.description, name: b.name, baseline: b.outcome, alternative: a.outcome }) (described base) (described variant)
 
 -- | One objective criterion's result in the baseline and under the alternative.
-type CriterionChange = { description :: String, baseline :: Outcome, alternative :: Outcome }
+type CriterionChange = { description :: String, name :: String, baseline :: Outcome, alternative :: Outcome }
 
 type AgencyProfile =
   { explicitActor :: ActorId
@@ -95,7 +95,7 @@ objective :: Column
 objective = column "Objective" "The Actor's objective the criterion belongs to."
 
 criterion :: Column
-criterion = column "Criterion" "The criterion's place within its objective."
+criterion = column "Criterion" "The criterion's name, or its place within its objective when it has none."
 
 baselineResult :: Column
 baselineResult = column "Under the baseline" "The criterion's result in the baseline run: met, not met or not evaluated."
@@ -111,7 +111,7 @@ agencyCriteria :: Array AgencyProfile -> Table
 agencyCriteria ps =
   { title: "Criteria under each alternative"
   , columns: names [ col.explicitActor, objective, criterion, baselineResult, alternativeResult ]
-  , rows: concatMap (\p -> mapWithIndex (\i c -> [ show p.explicitActor, c.description, show (i + 1), show c.baseline, show c.alternative ]) p.criteria) ps
+  , rows: concatMap (\p -> mapWithIndex (\i c -> [ show p.explicitActor, c.description, criterionLabel i c.name, show c.baseline, show c.alternative ]) p.criteria) ps
   }
 
 agencyColumns :: Array Column

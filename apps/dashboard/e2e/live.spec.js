@@ -43,10 +43,12 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   const id = (await fact(page, "Run").textContent()).replace(" (mock)", "");
   // the facilitator enters the US's text (here, nothing): the round closes
   const live = section(page, "The live run");
-  // the live run opens to start, its row in the comparison badged green while it plays
+  // the live run opens to start, in the Run tab; its row in the comparison is badged green while it plays
+  const compare = page.getByRole("tab", { name: "Compare", exact: true });
+  await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
+  await compare.click();
   const badge = rowWith(section(page, "The runs at a glance"), [id]).getByTitle(/^The live run/);
   await expect(badge).toHaveAttribute("title", "The live run, playing now");
-  await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
   await live.getByRole("button", { name: "Submit for US", exact: true }).click();
   await expect(fact(page, "Round")).toHaveText("2");
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
@@ -60,10 +62,12 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await expect(fact(page, "Status")).toHaveText("running, ending after this round");
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("completed");
-  // the run's results and balance sheets show beneath, and its row stays badged, grey now it has ended
+  // the run's results and balance sheets are in the Run tab, and its row stays badged, grey now it has ended
+  await page.getByRole("tab", { name: "Run", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + id + "/") }).first()).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link").first()).toHaveAttribute("target", "_blank");
+  await compare.click();
   const row = rowWith(section(page, "The runs at a glance"), [id]);
   await expect(row).toContainText("rehearsal");
   await expect(row.getByTitle("The live run, not playing now")).toBeVisible();
@@ -83,14 +87,16 @@ test("while a run is live no other can start; once it is cleared the form return
   await expect(fact(page, "Status")).toHaveText("cleared");
   await expect(fact(page, "Run")).toHaveText(first + " (mock)");
   await expect(lifecycle.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Compare", exact: true }).click();
   await expect(rowWith(section(page, "The runs at a glance"), [first])).toHaveCount(1);
 });
 
 test("a past run opens its results and balance sheets from the list", async ({ page }) => {
   await page.goto("/admin/#/live");
+  await page.getByRole("tab", { name: "Compare", exact: true }).click();
   const past = section(page, "The runs at a glance");
   // a run that is not the live run, which opens to start
-  const firstId = await past.getByRole("row").filter({ has: page.getByRole("cell") }).filter({ hasNot: page.getByTitle(/^The live run/) }).first().getByRole("cell").first().textContent();
+  const firstId = await past.getByRole("row").filter({ has: page.getByRole("cell") }).filter({ hasNot: page.getByTitle(/^The live run/) }).first().getByRole("button").first().textContent();
   await past.getByRole("button", { name: firstId, exact: true }).first().click();
   await expect(page).toHaveURL(new RegExp("#/live/" + firstId + "$"));
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + firstId + "/") }).first()).toBeVisible();

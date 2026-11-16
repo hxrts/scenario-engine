@@ -42,5 +42,7 @@ mkSimulations grid = do
             , empty: "No simulated run yet: play the suite with `just suite`."
             , badge: const Nothing
             , version: 0
+            , links: false
+            , openRun: false
             }
       ]

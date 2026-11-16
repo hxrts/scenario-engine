@@ -132,7 +132,7 @@ type ViewReplies =
   , "Regimes" :: Array Regime
   , "Clearing" :: { goods :: Table, capital :: Table, rules :: Table }
   , "Indicators" :: { countries :: Table, seats :: Table }
-  , "Finance" :: { bonds :: Table, external :: Table, current :: Table, earnings :: Table }
+  , "Finance" :: { bonds :: Table, external :: Table, current :: Table, currentChart :: Chart, earnings :: Table }
   )
 
 -- | The `View` of a label, with the Shape its reply has.

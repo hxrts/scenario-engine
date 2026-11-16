@@ -1,5 +1,10 @@
 export PATH := justfile_directory() + "/node_modules/.bin:" + env_var('PATH')
 
+# `nix develop` points TMPDIR at a directory it deletes when its shell exits, and direnv keeps the stale path: recipes
+# and the scripts just writes for them use a directory that is always there
+set tempdir := "/tmp"
+export TMPDIR := "/tmp"
+
 packages := "core laws schema checks world strategy assembly premises effects handlers adapters views experiments testkit flags cli server dashboard"
 
 _default:

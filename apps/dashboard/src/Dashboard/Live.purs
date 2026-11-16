@@ -24,7 +24,7 @@ import Data.Array (filter, find, null)
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.String (joinWith, trim)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -88,7 +88,7 @@ mkLive grid = do
     pure $ Layout.body
       ( [ Layout.group
             { title: "The live run"
-            , purpose: "The run's lifecycle. With no run live, start one: choose the composition, who plays each seat, the rounds and window, and the tag and metadata (a production run needs its name, facilitator, date, venue and a player for each human seat). While one is live, follow its round and status, enter the text of an awaited human seat, and advance, pause or resume, end or clear it; another can start only once it has finished or been cleared."
+            , purpose: "Start a run, then follow and drive it. A new run can start once the live one has finished or been cleared."
             , children: [ lifecycle { state: current, bump } ]
             }
         , loaded past.value \t -> browser
@@ -100,6 +100,8 @@ mkLive grid = do
             , empty: "No interactive run yet."
             , badge: \id -> if Just id == map _.id current then Just (liveBadge active) else Nothing
             , version: maybe 0 _.round current
+            , links: true
+            , openRun: isJust current
             }
         ]
       )

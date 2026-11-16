@@ -8,6 +8,11 @@ module Dashboard.Components
   , tableOf
   , diffTable
   , metricChart
+  , metricChartAt
+  , Size(..)
+  , withoutColumns
+  , blocksOf
+  , mkFigure
   , stackedBars
   , overlayChart
   , groupedBars
@@ -31,11 +36,11 @@ import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runColour, seriesColour)
 import Dashboard.UI as UI
-import Data.Array (cons, find, index, mapWithIndex, zip)
+import Data.Array (cons, elem, filter, find, index, mapMaybe, mapWithIndex, nub, zip)
 import Data.Either (Either(..))
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), snd)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Foreign.Object as Object
@@ -45,8 +50,8 @@ import Views.Compare (Marked)
 import Views.Common (Bars, Chart, Statistic, Table)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
-import React.Basic.Events (handler)
-import React.Basic.Hooks (Component, JSX, component, element)
+import React.Basic.Events (handler, handler_)
+import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
 import React.Basic.Hooks as React
 
 -- | A key figure: its name, the question it answers, its definition and its formula.
@@ -123,6 +128,7 @@ type ChartParts =
   , yAxis :: JSX
   , tooltip :: JSX
   , marks :: Array JSX
+  , legend :: Boolean -- left out where the page already names each line, as the ticked rows of a table do
   }
 
 -- | A chart of one Recharts kind from its pieces: the frame every chart shares.
@@ -138,8 +144,7 @@ chartOf kind p = element UI.chartContainer
               , p.xAxis
               , p.yAxis
               , p.tooltip
-              , element UI.chartLegend { content: element UI.chartLegendContent {} }
-              ] <> p.marks
+              ] <> (if p.legend then [ element UI.chartLegend { content: element UI.chartLegendContent {} } ] else []) <> p.marks
           }
       ]
   }
@@ -163,18 +168,33 @@ axisOf kind = case _ of
   Just u -> element UI.yAxis { domain: [ "auto", "auto" ], tickFormatter: unsafeCoerce (displayTick kind), label: { value: u, angle: -90, position: "insideLeft" } }
 
 -- | A Chart as a line per series, by round. Values that do not parse are not plotted (a gap).
+-- | A plot's size: a full-width plot, or a small one among several read together.
+data Size = Full | Small
+
+heightOf :: Size -> String
+heightOf = case _ of
+  Full -> "h-[360px]"
+  Small -> "h-[240px]"
+
 metricChart :: Chart -> JSX
-metricChart c = Layout.captioned (c.title <> " (" <> c.unit <> ")")
-  [ lineChartOf
-      { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
-      , className: "h-96 w-full"
-      , rows: chartRows c.kind c.series
-      , xAxis: element UI.xAxis { dataKey: "round" }
-      , yAxis: axisOf c.kind Nothing
-      , tooltip: valueTooltip
-      , marks: mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
-      }
-  ]
+metricChart = metricChartAt Full
+
+metricChartAt :: Size -> Chart -> JSX
+metricChartAt size c = Layout.captioned (c.title <> " (" <> c.unit <> ")") [ linesOf size c ]
+
+-- | The lines of a Chart alone, with no caption.
+linesOf :: Size -> Chart -> JSX
+linesOf size c =
+  lineChartOf
+    { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
+    , className: heightOf size <> " w-full"
+    , rows: chartRows c.kind c.series
+    , xAxis: element UI.xAxis { dataKey: "round" }
+    , yAxis: axisOf c.kind Nothing
+    , tooltip: valueTooltip
+    , marks: mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
+    , legend: true
+    }
 
 -- | A stacked bar chart: one bar per player, stacked by kind, with a legend of the kinds' labels. The
 -- | chart's purpose line is shown above it; the counts are the view model's, mapped onto the bars here.
@@ -189,6 +209,7 @@ stackedBars c = Layout.captioned c.title
       , yAxis: element UI.yAxis { allowDecimals: false }
       , tooltip: element UI.chartTooltip { content: element UI.chartTooltipContent {} }
       , marks: mapWithIndex (\i k -> element UI.bar { key: k.key, dataKey: k.key, stackId: "stacked", fill: seriesColour i, isAnimationActive: false }) c.kinds
+      , legend: true
       }
   ]
   where
@@ -196,11 +217,11 @@ stackedBars c = Layout.captioned c.title
 
 -- | A plot's frame: a labelled figure of a fixed height, so the plot takes the same room whether or
 -- | not its data has arrived, and the page does not move when it does.
-plotFrame :: String -> JSX -> JSX
-plotFrame title child = element UI.region
+plotFrame :: Size -> String -> JSX -> JSX
+plotFrame size title child = element UI.region
   { role: "figure"
   , "aria-label": title
-  , className: "block h-[360px] w-full min-w-0"
+  , className: "block " <> heightOf size <> " w-full min-w-0"
   , children: [ child ]
   }
 
@@ -215,21 +236,26 @@ placeholderFrame message = element UI.region
 
 -- | Runs on the same axes: one line per run, each in its run's colour and named in the legend by `label`. The
 -- | baseline (`CompareView.baseline`) is drawn thicker. The axes name the round and the unit.
-overlayChart :: Array String -> (String -> String) -> String -> Chart -> JSX
-overlayChart ids label baseline c = plotFrame c.title $ lineChartOf
+overlayChart :: Size -> Array String -> (String -> String) -> String -> Chart -> JSX
+overlayChart size ids label baseline c = plotFrame size c.title $ lineChartOf
   { config: Object.fromFoldable (map (\s -> Tuple s.name { label: label s.name, color: runColour ids s.name }) c.series)
   , className: "h-full w-full"
   , rows: chartRows c.kind c.series
-  , xAxis: element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } }
-  , yAxis: axisOf c.kind (Just c.unit)
+  , xAxis: if full then element UI.xAxis { dataKey: "round", label: { value: "Round", position: "insideBottom", offset: -4 } } else element UI.xAxis { dataKey: "round" }
+  , yAxis: axisOf c.kind (if full then Just c.unit else Nothing)
   , tooltip: valueTooltip
   , marks: map (\s -> element UI.line { key: s.name, dataKey: s.name, stroke: runColour ids s.name, strokeWidth: if s.name == baseline then 3 else 2, dot: false, isAnimationActive: false }) c.series
+  , legend: full
   }
+  where
+  full = case size of
+    Full -> true
+    Small -> false
 
 -- | Grouped bars: one group per category, one bar per run in the run's colour, named in the legend.
 -- | `xLabel` names the categories (a player, or a measure) on the horizontal axis.
 groupedBars :: Array String -> (String -> String) -> String -> Bars -> JSX
-groupedBars ids label xLabel b = plotFrame b.title $ barChartOf
+groupedBars ids label xLabel b = plotFrame Full b.title $ barChartOf
   { config: Object.fromFoldable (map (\s -> Tuple s.name { label: label s.name, color: runColour ids s.name }) b.series)
   , className: "h-full w-full"
   , rows: barRows b
@@ -237,6 +263,7 @@ groupedBars ids label xLabel b = plotFrame b.title $ barChartOf
   , yAxis: element UI.yAxis { tickFormatter: unsafeCoerce (displayTick b.kind), label: { value: b.unit, angle: -90, position: "insideLeft" } }
   , tooltip: valueTooltip
   , marks: map (\s -> element UI.bar { key: s.name, dataKey: s.name, fill: runColour ids s.name, isAnimationActive: false }) b.series
+  , legend: true
   }
 
 -- | Fetch a view (`load`, keyed by `key`) and render it. The last loaded view stays on screen, dimmed,
@@ -250,3 +277,51 @@ fetched = component "Fetched" \p -> React.do
 -- | present, so toggling it never remounts the content (a remount would detach it for a frame).
 stale :: Boolean -> JSX -> JSX
 stale busy child = D.div { className: if busy then "opacity-60 transition-opacity" else "transition-opacity", children: [ child ] }
+
+-- | A table without the columns at the given positions: a column the page already states (the round chosen, the seat a
+-- | block is headed by) is not repeated in every row.
+withoutColumns :: Array Int -> Table -> Table
+withoutColumns drop t = t { columns = keep t.columns, rows = map keep t.rows }
+  where
+  keep :: forall a. Array a -> Array a
+  keep xs = map snd (filter (\(Tuple i _) -> not (elem i drop)) (mapWithIndex Tuple xs))
+
+-- | A table read in blocks: its rows grouped by their first column, each block headed by that value and, beneath it,
+-- | by its second (said once, not on every row), over a table of the columns left. Blocks sit side by side.
+blocksOf :: DataTable -> Table -> JSX
+blocksOf grid t = Layout.columns (map block (nub (mapMaybe (\r -> index r 0) t.rows)))
+  where
+  block key =
+    let
+      rows = filter (\r -> index r 0 == Just key) t.rows
+    in
+      D.div
+        { className: "flex min-w-0 flex-col gap-2"
+        , children:
+            [ D.div { className: "flex flex-col gap-0.5", children: [ Layout.caption key, Layout.purpose (fromMaybe "" (index rows 0 >>= \r -> index r 1)) ] }
+            , tableOf grid (withoutColumns [ 0, 1 ] (t { rows = rows }))
+            ]
+        }
+
+-- | A per-round series as a figure: its chart, with the table of the same numbers behind a switch. The chart shows the
+-- | shape; the table is there for the exact values.
+mkFigure :: DataTable -> Component { chart :: Chart, table :: Table }
+mkFigure grid = component "Figure" \p -> React.do
+  asTable /\ setAsTable <- useState' false
+  pure $ D.div
+    { className: "flex min-w-0 flex-col gap-2"
+    , children:
+        [ D.div
+            { className: "flex items-baseline justify-between gap-2"
+            , children:
+                [ Layout.caption (p.chart.title <> (if p.chart.unit == "" then "" else " (" <> p.chart.unit <> ")"))
+                , D.button
+                    { className: "shrink-0 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                    , onClick: handler_ (setAsTable (not asTable))
+                    , children: [ D.text (if asTable then "Show chart" else "Show table") ]
+                    }
+                ]
+            }
+        , if asTable then tableOf grid p.table else linesOf Small p.chart
+        ]
+    }

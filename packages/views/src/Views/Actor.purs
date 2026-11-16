@@ -26,7 +26,7 @@ import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Views.Common (Chart, StoredRun, Table, col, completed, listedHolding, names, quantity, series, unitOf, worlds)
+import Views.Common (Chart, StoredRun, Table, col, completed, displayName, listedHolding, names, quantity, series, unitOf, worlds)
 import Views.Standings (netWorth)
 
 -- | One Actor's history (`GET /api/runs/:id/Actor/:Actor`): its balance sheet table, and its holdings
@@ -71,7 +71,7 @@ actorHistory r e
             { title: "Holdings of " <> show e
             , unit: "each Resource in its own unit"
             , kind: Quantity
-            , series: series r (\w -> map (\res -> Tuple (show res) (holding w e res)) held)
+            , series: series r (\w -> map (\res -> Tuple (displayName w res) (holding w e res)) held)
             }
         , netWorth:
             { title: "Net worth of " <> show e
@@ -94,4 +94,4 @@ actorHistory r e
       resources :: Array ResourceId
       resources = sort (nub (held <> concatMap (\w -> concatMap (\m -> [ m.base, m.quote ]) (CoreMap.values w.exchanges)) states))
 
-      resourceRow res = cons (show res) (map (\w -> quantity (holding w e res)) states)
+      resourceRow res = cons (displayName r.manifest.initial res) (map (\w -> quantity (holding w e res)) states)

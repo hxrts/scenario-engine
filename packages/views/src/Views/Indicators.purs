@@ -39,7 +39,7 @@ import Core.Exchange (exchangePrice)
 import Laws.Types (ActorId, ActorKind(..), Capability(..), ResourceId, TransformationId, idText)
 import Laws.World (AuthoredLaw(..), Cause(..), RoundResult, WorldState)
 import Schema.Composition (PremiseComposition, Span(..))
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, ratio, worlds)
+import Views.Common (Column, StoredRun, Table, col, column, displayName, names, quantity, ratio, worlds)
 import Views.Finance (earningsOf)
 import Views.Standings (valueIn)
 
@@ -196,7 +196,7 @@ indicators gb r =
   }
   where
   countryColumn = column "Country" "A group of Actors: an Actor and those that count as it for Rules. Everything outside it, the Exchanges' reserves included, is abroad."
-  absorptionCell xs = listed (map (\a -> show a.good <> " " <> maybe "n/a" ratio a.share) xs)
+  absorptionCell xs = listed (map (\a -> displayName r.manifest.initial a.good <> ": " <> maybe "n/a" ratio a.share) xs)
   marginsCell xs = listed (map quantity xs)
-  gapsCell xs = listed (map (\g -> show g.good <> " " <> quantity g.gap) xs)
+  gapsCell xs = listed (map (\g -> displayName r.manifest.initial g.good <> ": " <> quantity g.gap) xs)
   listed xs = if null xs then "none" else joinWith ", " xs

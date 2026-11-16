@@ -31,6 +31,7 @@ type Parts =
   , ruleKinds :: Array (Tuple RuleKindId RuleKindDecl)
   , rules :: Array (Tuple String Rule)
   , groups :: Array (Tuple ActorId ActorId)
+  , names :: Array (Tuple String String)
   , laws :: Array AuthoredLaw
   , templates :: Array (Tuple String WorldTemplate)
   , strategies :: Array (Tuple StrategyId StrategyRules)
@@ -50,6 +51,7 @@ emptyParts =
   , ruleKinds: []
   , rules: []
   , groups: []
+  , names: []
   , laws: []
   , templates: []
   , strategies: []
@@ -70,6 +72,7 @@ joinParts a b =
   , ruleKinds: a.ruleKinds <> b.ruleKinds
   , rules: a.rules <> b.rules
   , groups: a.groups <> b.groups
+  , names: a.names <> b.names
   , laws: a.laws <> b.laws
   , templates: a.templates <> b.templates
   , strategies: a.strategies <> b.strategies

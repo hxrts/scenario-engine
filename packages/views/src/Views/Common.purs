@@ -13,6 +13,11 @@ module Views.Common
   , column
   , emptied
   , names
+  , criterionLabel
+  , displayName
+  , Measured
+  , measuredRows
+  , measuredChart
   , Field
   , cellOf
   , tableOf
@@ -58,11 +63,11 @@ import Core.Map (entries)
 
 import Record as Record
 import Laws.World (Focus, Manifest, RoundRecord, RoundResult, WorldState)
-import Laws.Types (idText, ActorId, CandidateTransactionId, ResourceDefinition, ResourceId)
+import Laws.Types (Id, idText, ActorId, CandidateTransactionId, ResourceDefinition, ResourceId)
 import Schema.Composition (capacityCategory)
 
 import Laws.Invariants (Failure)
-import Core.Num (Kind, Q)
+import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Laws.Query (isAggregate)
 import Laws.Slice (event, select)
@@ -314,3 +319,34 @@ asProcedure rec o =
 -- | Every procedure outcome in the run, in round order.
 proceduresOf :: StoredRun -> Array Procedure
 proceduresOf r = concatMap (\rec -> map (asProcedure rec) (select (event @"ProcedureOutcome") rec.events)) (records r)
+
+-- | What a criterion is displayName in a table: its name, or its place within its objective when it has none.
+criterionLabel :: Int -> String -> String
+criterionLabel i name = if name == "" then show (i + 1) else name
+
+-- | One row of a per-round table as it was measured: its round, the label that sets it apart within its round ("" when
+-- | the round has one row), and its values. A table and its chart are both read from these, so they cannot disagree.
+type Measured = { round :: Int, label :: String, values :: Array Q }
+
+-- | The rows of a per-round table: the round, the label when there is one, and each value as a quantity.
+measuredRows :: Array Measured -> Array (Array String)
+measuredRows = map \m -> [ show m.round ] <> (if m.label == "" then [] else [ m.label ]) <> map quantity m.values
+
+-- | The chart of a per-round table: one line per named value, and per label when rows carry one. Values past the
+-- | names given are left out.
+measuredChart :: String -> String -> Array String -> Array Measured -> Chart
+measuredChart title unit valueNames rows =
+  { title
+  , unit
+  , kind: Quantity
+  , series: concatMap (\label -> mapWithIndex (\j n -> { name: seriesName label n, points: mapMaybe (\m -> if m.label == label then { round: m.round, value: _ } <<< exact <$> index m.values j else Nothing) rows }) valueNames) (nub (map _.label rows))
+  }
+  where
+  seriesName label n
+    | label == "" = n
+    | length valueNames == 1 = label
+    | otherwise = label <> ", " <> n
+
+-- | What a thing named by id is displayName on a page: the premise's name for it (`names`), or its id when it gives none.
+displayName :: forall r t. { names :: Map.Map String String | r } -> Id t -> String
+displayName w id = fromMaybe (idText id) (Map.lookup (idText id) w.names)

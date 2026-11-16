@@ -19,28 +19,31 @@ import Prelude
 import Core.Kernel.Types (Endpoint(..))
 import Core.Map (values)
 import Core.Num as Q
-import Data.Array (any, concatMap, filter, fromFoldable, nub, sort, zip)
+import Data.Array (any, concatMap, filter, foldl, fromFoldable, nub, snoc, sort, unsnoc, zip)
+import Data.String (joinWith)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Laws.External (groupOf)
 import Laws.Slice (legs, select)
-import Laws.Types (ResourceId, RuleF(..), idText)
+import Laws.Types (ResourceId, RuleF(..))
 import Laws.World (Cause(..), Mechanism(..), WorldState)
-import Views.Common (Column, StoredRun, Table, col, column, names, quantity, worlds)
+import Views.Common (Column, StoredRun, Table, col, column, displayName, names, quantity, worlds)
 import Views.Standings (valueIn)
 
 clearing :: StoredRun -> { goods :: Table, capital :: Table, rules :: Table }
 clearing r =
   { goods: { title: "Trade between countries", columns: names ([ col.round ] <> goodsColumns), rows: concatMap goodsRows steps }
   , capital: { title: "Capital between countries", columns: names ([ col.round ] <> capitalColumns), rows: concatMap capitalRows steps }
-  , rules: { title: "Rules at the borders", columns: names ([ col.round ] <> rulesColumns), rows: concatMap rulesRows r.rounds }
+  -- one row per Rule, with the rounds it stood after
+  , rules: { title: "Rules at the borders", columns: names ([ roundsColumn ] <> rulesColumns), rows: map (\k -> [ spans (map fst (filter (\(Tuple _ x) -> x == k) inForce)) ] <> k) (nub (map snd inForce)) }
   }
   where
   steps = zip (worlds r) r.rounds
+  inForce = concatMap (\x -> map (Tuple x.record.round) (rulesRows x)) r.rounds
   countryAt w = case _ of
     Held a -> Just (show (groupOf w a))
-    InExchange x -> Just ("the " <> idText x <> " reserve")
+    InExchange x -> Just (displayName w x <> ", reserve")
     _ -> Nothing
   crossing w l = case countryAt w l.from, countryAt w l.to of
     Just a, Just b | a /= b -> Just (Tuple a b)
@@ -55,12 +58,12 @@ clearing r =
             _, _ -> []
         )
         (select legs x.record.events)
-      keys = sort (nub (map (\m -> Tuple (show m.good) (Tuple m.from m.to)) moves))
+      keys = sort (nub (map (\m -> Tuple (displayName w m.good) (Tuple m.from m.to)) moves))
     in
       map
         ( \(Tuple g (Tuple a b)) ->
             let
-              these = filter (\m -> show m.good == g && m.from == a && m.to == b) moves
+              these = filter (\m -> displayName w m.good == g && m.from == a && m.to == b) moves
             in
               [ show x.record.round, g, a, b, quantity (Q.sumQ (map _.quantity these)), quantity (Q.sumQ (map _.worth these)) ]
         )
@@ -72,7 +75,7 @@ clearing r =
       w = x.world
       moves = concatMap
         ( \l -> case lendingCause l.cause, crossing w l of
-            Just kind, Just (Tuple a b) -> [ { kind, currency: show l.resource, from: a, to: b, worth: Q.mul l.moved (valueIn before l.resource), amount: l.moved } ]
+            Just kind, Just (Tuple a b) -> [ { kind, currency: displayName w l.resource, from: a, to: b, worth: Q.mul l.moved (valueIn before l.resource), amount: l.moved } ]
             _, _ -> []
         )
         (select legs x.record.events)
@@ -93,8 +96,8 @@ clearing r =
   rulesRows x =
     map
       ( \rl -> case rl of
-          FlowRule f -> [ show x.record.round, show f.kind, show (groupOf x.world f.scope.governor), show (groupOf x.world f.scope.counterparty) ]
-          HoldingRule h -> [ show x.record.round, show h.kind, "", "" ]
+          FlowRule f -> [ displayName x.world f.kind, show (groupOf x.world f.scope.governor), show (groupOf x.world f.scope.counterparty) ]
+          HoldingRule h -> [ displayName x.world h.kind, "", "" ]
       )
       (fromFoldable (values x.world.rules))
 
@@ -121,12 +124,23 @@ capitalColumns =
   , column "Worth" "Its worth in the numeraire at the round's opening prices."
   ]
 
+-- | Rounds as the spans they make up: 1, 2, 3 and 5 read "1–3, 5".
+spans :: Array Int -> String
+spans rounds = joinWith ", " (map (\s -> if s.from == s.to then show s.from else show s.from <> "–" <> show s.to) (foldl step [] (sort (nub rounds))))
+  where
+  step acc n = case unsnoc acc of
+    Just { init, last } | last.to + 1 == n -> snoc init last { to = n }
+    _ -> snoc acc { from: n, to: n }
+
+roundsColumn :: Column
+roundsColumn = column "Rounds in force" "The rounds the Rule stood after, as spans."
+
 rulesColumns :: Array Column
 rulesColumns =
-  [ column "Rule kind" "The kind of a Rule in force after the round."
+  [ column "Rule kind" "The kind of a Rule in force."
   , column "Governor" "The country that governs the Rule."
   , column "Counterparty" "The country the Rule binds."
   ]
 
 columns :: Array Column
-columns = goodsColumns <> capitalColumns <> rulesColumns
+columns = goodsColumns <> capitalColumns <> [ roundsColumn ] <> rulesColumns

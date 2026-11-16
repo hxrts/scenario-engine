@@ -27,7 +27,7 @@ import Premises.Kit.Resources (capacity, competence)
 import Premises.Kit.Seats (aggregateActor)
 import Premises.Pacific.Country (countries)
 import Premises.Pacific.Dials (Dials)
-import Premises.Pacific.Names (p)
+import Premises.Pacific.Names (displayNames, p)
 import Premises.Pacific.Parts (Parts, emptyParts)
 import Premises.Pacific.Private (ceilingParam, parameters, tariffRate, upkeepParam, worldStrategy)
 import Premises.Pacific.Strategies (barrierPasses, costParam, inputParam, inputShare, outputParam, reserveShare, tradeShare, viabilityParam)
@@ -59,6 +59,8 @@ clearing d = emptyParts
   , rules = [ Tuple "us-export-tax" (exportTax d) ]
   -- each firm and each private sector counts as its country for Rules, so controls and levies bind them
   , groups = concatMap (\c -> [ Tuple c.firm c.state, Tuple c.private c.state ]) countries
+  -- what a page calls each Resource, Exchange and Rule kind
+  , names = displayNames
   , aggregates = [ Tuple p.row (aggregateActor [ Tuple p.row [ p.usd := d.world.savings.usd, p.rmb := d.world.savings.rmb ] ] p.row { capabilities: [ mayTrade p.currency, mayTransfer p.usd, mayTransfer p.rmb ], kind: Aggregate (aggregate { strategy: p.rowSavings, members: [] }) }) ]
   , strategies = [ Tuple p.rowSavings worldStrategy ]
   , parameters =

@@ -16,7 +16,7 @@ module Views.Exchanges
 import Prelude
 import Laws.World (Focus, RoundRecord, WorldState)
 import Laws.Types (ActorId, TransformationId, idText, Exchange, ExchangeId, ResourceId)
-import Views.Common (listedHolding, Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
+import Views.Common (listedHolding, Chart, Column, Field, StoredRun, Table, cellOf, col, column, columnsOf, displayName, exact, focusOf, kindOf, pointsOf, quantity, recordPoints, records, series, tableOf, unitOf)
 
 import Core.Map (entries, sumInto)
 
@@ -44,7 +44,7 @@ exchangePrices w = map (\(Tuple id m) -> { exchange: id, price: exchangePrice m 
 
 exchanges :: StoredRun -> Array Chart
 exchanges r =
-  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r focus.resource, kind: Price, series: series r (\w -> map (\p -> Tuple (show p.exchange) p.price) (exchangePrices w)) }
+  [ { title: "Marginal price", unit: unitOf r r.manifest.initial.numeraire <> "/" <> unitOf r focus.resource, kind: Price, series: series r (\w -> map (\p -> Tuple (displayName w p.exchange) p.price) (exchangePrices w)) }
   , { title: focus.label <> " reserves", unit: unitOf r focus.resource, kind: Quantity, series: series r (\w -> map (\(Tuple id m) -> Tuple (show id) (lookupQ m.base m.reserves)) (Map.toUnfoldable w.exchanges)) }
   , { title: "Traded volume", unit: unitOf r focus.resource, kind: Quantity, series: volume }
   ]
@@ -201,7 +201,7 @@ trajectory :: Array StoredRun -> ExchangeId -> Either String Chart
 trajectory runs m = do
   unit <- maybe (Right "") (exchangeUnit m) (index runs 0)
   pure
-    { title: "Price, " <> show m
+    { title: "Price, " <> maybe (show m) (\r -> displayName r.manifest.initial m) (index runs 0)
     , unit
     , kind: Price
     , series: map (\r -> { name: r.id, points: pointsOf r (Just <<< exact <<< priceAt) }) runs

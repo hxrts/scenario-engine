@@ -2,7 +2,8 @@
 -- | a name through this record, so a name is spelled once (`p.us`, `p.technologyWorld`).
 module Premises.Pacific.Names where
 
-import Laws.Types (ActorId, ExchangeId, Id(..), ResourceId, RuleKindId, StrategyId, TransformationId)
+import Data.Tuple (Tuple(..))
+import Laws.Types (ActorId, ExchangeId, Id(..), ResourceId, RuleKindId, StrategyId, TransformationId, idText)
 
 pacificId :: String
 pacificId = "pacific"
@@ -129,3 +130,33 @@ p =
   , cnPrivateDemand: Id "cn-private-demand-v0"
   , rowSavings: Id "row-savings-v0"
   }
+
+-- | What a page calls each Resource, Exchange and Rule kind (the world's `names`): the ids stay what the Rules and
+-- | Strategies refer to. The currencies and the Actors read as their ids.
+displayNames :: Array (Tuple String String)
+displayNames =
+  [ named p.technology "Technology"
+  , named p.industry "Industrial inputs"
+  , named p.technologyCapacity "Technology capacity"
+  , named p.industryCapacity "Industrial capacity"
+  , named p.technologyCompetence "Technology competence"
+  , named p.industryCompetence "Industrial competence"
+  , named p.technologyWorld "Technology, world market"
+  , named p.industryWorld "Industrial inputs, world market"
+  , named p.technologyUs "Technology, US market"
+  , named p.industryCn "Industrial inputs, China market"
+  , named p.currency "Dollar in renminbi"
+  , named p.usExportTax "US export tax"
+  , named p.usImportTariff "US import tariff"
+  , named p.cnImportTariff "China import tariff"
+  , named p.usImportBan "US import barrier"
+  , named p.cnImportBan "China import barrier"
+  , named p.usExportControl "US export control"
+  , named p.cnExportControl "China export control"
+  , named p.usPolicyRate "US policy rate"
+  , named p.wage "Wages"
+  , named p.upkeep "Upkeep"
+  ]
+  where
+  named :: forall t. Id t -> String -> Tuple String String
+  named id name = Tuple (idText id) name

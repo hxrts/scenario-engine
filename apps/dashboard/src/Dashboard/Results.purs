@@ -7,12 +7,12 @@ import Prelude
 
 import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
-import Dashboard.Components (fetched, loaded, metricChart, note, selectInput, stale, tableOf)
+import Dashboard.Components (Size(..), blocksOf, fetched, loaded, metricChartAt, mkFigure, note, selectInput, stale, tableOf, withoutColumns)
 import Dashboard.DataTable (DataTable)
 
 import Dashboard.Glossary (Lookup, factList, glossaryContext)
 import Dashboard.Layout as Layout
-import Data.Array (filter, head, index, null, range)
+import Data.Array (elem, filter, find, head, index, null, range)
 import Data.Either (Either)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Schema.View (viewName)
@@ -36,17 +36,20 @@ type Props = { id :: String, version :: Int, overview :: Loaded (Either String R
 titled :: DataTable -> Table -> JSX
 titled grid t = Layout.captioned t.title [ tableOf grid t ]
 
--- | The compact header: the run's id, then its facts (name, composition, status, rounds completed out of
--- | its target, game id), both from the same overview, so a run switch never shows a new name over the
--- | old facts. An empty fact says what it means, with the reason on hover.
+-- | The compact header: the run's id, then the facts that tell one run from another (its name, its preset when that
+-- | is not its name, its composition, status, and rounds completed out of its target), from the same overview, so a
+-- | run switch never shows a new name over the old facts. An empty fact says what it means, with the reason on hover.
 header :: Lookup -> String -> Array Fact -> JSX
 header glossary id facts = D.div
   { className: "flex min-w-0 flex-col gap-2"
   , children:
       [ D.h3 { className: "text-base font-semibold", children: [ D.text ("Run " <> id) ] }
-      , factList glossary facts
+      , factList glossary (filter shown facts)
       ]
   }
+  where
+  name = maybe "" _.value (find (\f -> f.label == "Name") facts)
+  shown f = elem f.label [ "Name", "Composition", "Status", "Rounds completed" ] || (f.label == "Preset" && f.value /= name && f.value /= "")
 
 -- | The results of one run. A run whose overview cannot be read shows its error; the previous run's
 -- | results stay on screen, dimmed, until the selected run's overview arrives.
@@ -62,62 +65,80 @@ mkRunResults grid = do
 
 type BodyProps = { id :: String, version :: Int, rounds :: Int }
 
--- | The sections, one per economic object: the headline at the round chosen (the last, to start), each country's
--- | regime, the clearing between them, and the seats' scorecards.
+-- | The sections: the seats' scorecards, then one per economic object: the headline at the round chosen (the last, to
+-- | start), each country's regime, the countries side by side, and the clearing between them. A per-round series is a
+-- | chart, with its table behind a switch.
 mkBody :: DataTable -> Component BodyProps
-mkBody grid = fetched >>= \fetch -> component "RunResultsBody" \b -> React.do
-  round /\ setRound <- useState' (Nothing :: Maybe String)
-  let
-    keyed path = b.id <> "/" <> path <> "@" <> show b.version
+mkBody grid = do
+  fetch <- fetched
+  figure <- mkFigure grid
+  component "RunResultsBody" \b -> React.do
+    round /\ setRound <- useState' (Nothing :: Maybe String)
+    let
+      keyed path = b.id <> "/" <> path <> "@" <> show b.version
 
-    view :: forall a. ViewKey a -> (a -> JSX) -> JSX
-    view key render = fetch { key: keyed (viewName key.view), load: map render <$> runView key b.id Nothing }
+      view :: forall a. ViewKey a -> (a -> JSX) -> JSX
+      view key render = fetch { key: keyed (viewName key.view), load: map render <$> runView key b.id Nothing }
 
-    -- a view shown at the chosen round: its key names the round, so choosing another renders it again
-    viewAt :: forall a. ViewKey a -> (a -> JSX) -> JSX
-    viewAt key render = fetch { key: keyed (viewName key.view) <> "/round-" <> shown, load: map render <$> runView key b.id Nothing }
+      -- a view shown at the chosen round: its key names the round, so choosing another renders it again
+      viewAt :: forall a. ViewKey a -> (a -> JSX) -> JSX
+      viewAt key render = fetch { key: keyed (viewName key.view) <> "/round-" <> shown, load: map render <$> runView key b.id Nothing }
 
-    rounds = map show (range 1 b.rounds)
-    shown = fromMaybe (show b.rounds) round
-    atRound t = t { rows = filter (\r -> index r 0 == Just shown) t.rows }
-  pure $ D.div
-    { className: "flex min-w-0 flex-col gap-section"
-    , children:
-        [ Layout.subsection
-            { title: "Who is trapped, and how tightly?"
-            , purpose: "The run's headline at the round chosen. For each country: its substitute gap (what making a good it imports costs in wages, less what importing it costs: above 0, its own industry stands idle), its net external position, and how much of its own output its households absorb. For each seat: what it owes over what it sells, and how far its every-round criteria cleared their bounds in the worst round so far."
-            , children:
-                [ D.label { className: "flex w-48 items-center gap-2 text-sm", children: [ D.text "Round", selectInput { value: shown, options: rounds, onChange: \v -> setRound v } ] }
-                , viewAt (Keys.viewKey @"Indicators") (titled grid <<< atRound <<< _.countries)
-                , viewAt (Keys.viewKey @"Indicators") (titled grid <<< atRound <<< _.seats)
-                ]
-            }
-        , Layout.subsection
-            { title: "National regimes"
-            , purpose: "How each country reproduces itself, the same three panels for each: its productive capability (capacity, the competence to run it, what ran and what stood idle), its effective demand (what its households earned, spent and saved, and what it sold at home and abroad), and its financial capacity (what it is owed, what it owes, and what it paid on its debts). A country with no productive capacity is left out."
-            , children: [ view (Keys.viewKey @"Regimes") \rs -> let held = filter (\r -> not (null r.capability.rows)) rs in if null held then note "No country in this run holds productive capacity." else D.div { className: "flex min-w-0 flex-col gap-section", children: map regimePanels held } ]
-            }
-        , Layout.subsection
-            { title: "International clearing"
-            , purpose: "What moves between the countries: the goods traded across each border, the exchange rate and every Exchange's price, the capital lent and repaid across borders, each country's current account, and the Rules that stand at the borders."
-            , children:
-                [ view (Keys.viewKey @"Clearing") (titled grid <<< _.goods)
-                , view (Keys.viewKey @"Exchanges") (\cs -> maybe (D.span_ []) metricChart (head cs))
-                , view (Keys.viewKey @"Clearing") (titled grid <<< _.capital)
-                , view (Keys.viewKey @"Finance") (titled grid <<< _.current)
-                , view (Keys.viewKey @"Clearing") (\c -> if null c.rules.rows then note "No Rule stands at a border in this run." else titled grid c.rules)
-                ]
-            }
-        , Layout.subsection
-            { title: "Seat scorecards"
-            , purpose: "Each seat's criteria, met, not met or not evaluated, with the measured values. A state's security and industry read its regime's capability panel; its viability and prosperity, its demand panel; a firm's wealth and output, its finance and capability panels."
-            , children: [ view (Keys.viewKey @"Objectives") (titled grid) ]
-            }
-        ]
-    }
-  where
-  regimePanels r = Layout.grid
-    [ Layout.panel { span: 12, title: "Capability, " <> r.country, purpose: "Capacity, the competence to run it, units run and units idle.", children: [ tableOf grid r.capability ] }
-    , Layout.panel { span: 12, title: "Demand, " <> r.country, purpose: "Household income, spending and saving; sales at home and abroad.", children: [ tableOf grid r.demand ] }
-    , Layout.panel { span: 12, title: "Finance, " <> r.country, purpose: "Owed to it, what it owes, and its debt service.", children: [ tableOf grid r.finance ] }
-    ]
+      rounds = map show (range 1 b.rounds)
+      shown = fromMaybe (show b.rounds) round
+      -- the rows of the round chosen, without the round's column: the page states it once, above
+      atRound t = withoutColumns [ 0 ] (t { rows = filter (\r -> index r 0 == Just shown) t.rows })
+      -- one dimension of every country's regime, the countries side by side
+      across rs chart table = Layout.columns (map (\r -> figure { chart: chart r, table: table r }) rs)
+    pure $ D.div
+      { className: "flex min-w-0 flex-col gap-section"
+      , children:
+          [ Layout.subsection
+              { title: "Seat scorecards"
+              , purpose: "Each seat's criteria: what was measured, against its bound."
+              , children: [ view (Keys.viewKey @"Objectives") (blocksOf grid) ]
+              }
+          , Layout.subsection
+              { title: "Who is trapped, and how tightly?"
+              , purpose: "The headline at the round chosen. A substitute gap above 0 leaves a country's own industry idle; a debt service above 1 cannot be paid from sales; a viability margin below 0 has failed."
+              , children:
+                  [ D.label { className: "flex w-48 items-center gap-2 text-sm", children: [ D.text "Round", selectInput { value: shown, options: rounds, onChange: \v -> setRound v } ] }
+                  , viewAt (Keys.viewKey @"Indicators") \i -> Layout.columns [ titled grid (atRound i.countries), titled grid (atRound i.seats) ]
+                  ]
+              }
+          , Layout.subsection
+              { title: "National regimes"
+              , purpose: "How each country reproduces itself, side by side: what it can produce, who buys it, and what it owes."
+              , children:
+                  [ view (Keys.viewKey @"Regimes") \rs ->
+                      let
+                        held = filter (\r -> not (null r.capability.rows)) rs
+                      in
+                        if null held then note "No country in this run holds productive capacity."
+                        else D.div
+                          { className: "flex min-w-0 flex-col gap-stack"
+                          , children:
+                              [ across held _.capabilityChart _.capability
+                              , across held _.demandChart _.demand
+                              , across held _.financeChart _.finance
+                              ]
+                          }
+                  ]
+              }
+          , Layout.subsection
+              { title: "International clearing"
+              , purpose: "What moves between the countries: prices, the current account, goods, capital, and the Rules at the borders."
+              , children:
+                  [ Layout.columns
+                      [ view (Keys.viewKey @"Exchanges") (\cs -> maybe (D.span_ []) (metricChartAt Small) (head cs))
+                      , view (Keys.viewKey @"Finance") (\f -> figure { chart: f.currentChart, table: f.current })
+                      ]
+                  , Layout.columns
+                      [ view (Keys.viewKey @"Clearing") (titled grid <<< _.goods)
+                      , view (Keys.viewKey @"Clearing") (titled grid <<< _.capital)
+                      ]
+                  , view (Keys.viewKey @"Clearing") (\c -> if null c.rules.rows then note "No Rule stands at a border in this run." else titled grid c.rules)
+                  ]
+              }
+          ]
+      }
