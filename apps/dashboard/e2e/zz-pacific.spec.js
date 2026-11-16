@@ -10,21 +10,20 @@ test("the suite's Pacific Restrict run shows the three economic objects", async 
   const list = await (await request.get("/api/runs?class=simulated")).json();
   const id = list.rows.find((r) => r[1] === "Restrict")[0];
   await page.goto(`/admin/#/simulations/${id}`);
-  // the run page is built around the three objects: the headline, each country's regime side by side, clearing,
-  // and the scorecards
-  for (const title of ["Who is trapped, and how tightly?", "National regimes", "International clearing", "Seat scorecards"])
+  // the run page is built around the scorecards and the objects: each country's regime side by side, and clearing
+  for (const title of ["Seat scorecards", "National regimes", "International clearing"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   const box = async (name) => await page.getByText(name, { exact: false }).first().boundingBox();
   for (const country of ["US", "CN"])
-    for (const panel of ["Productive capability", "Effective demand", "Financial capacity"])
+    for (const panel of ["Productive capability", "Substitute gap", "Domestic absorption", "Debt service"])
       await expect(page.getByText(`${panel}, ${country}`, { exact: false }).first()).toBeVisible();
-  // the countries sit side by side, each dimension on one row, in the same order: capability, demand, finance
-  for (const panel of ["Productive capability", "Effective demand", "Financial capacity"])
+  // the countries sit side by side, each dimension on one row, in the same order: capability, substitution, demand, finance
+  for (const panel of ["Productive capability", "Substitute gap", "Domestic absorption", "Debt service"])
     expect((await box(panel + ", CN")).y).toBeCloseTo((await box(panel + ", US")).y, 0);
   for (const country of ["US", "CN"]) {
-    expect((await box("Productive capability, " + country)).y).toBeLessThan((await box("Effective demand, " + country)).y);
-    expect((await box("Effective demand, " + country)).y).toBeLessThan((await box("Financial capacity, " + country)).y);
+    expect((await box("Productive capability, " + country)).y).toBeLessThan((await box("Domestic absorption, " + country)).y);
+    expect((await box("Domestic absorption, " + country)).y).toBeLessThan((await box("Debt service, " + country)).y);
   }
   expect((await box("Productive capability, CN")).x).toBeLessThan((await box("Productive capability, US")).x);
-  await expect(page.getByRole("columnheader", { name: "Substitute gap", exact: true })).toBeVisible();
+  await expect(page.getByText("Trade balance (USD)", { exact: true })).toBeVisible();
 });

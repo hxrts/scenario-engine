@@ -48,7 +48,10 @@ import Data.Either (note)
 import Data.Foldable (sum)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Number (round)
-import Data.String (Pattern(..), drop, indexOf, length, take) as S
+import Data.String (Pattern(..)) as S
+-- every string these read or write is ASCII digits, a sign and a point: code units count them, without the code-point
+-- conversion that made each length a walk of the string
+import Data.String.CodeUnits (drop, indexOf, length, take) as S
 import Data.String.CodeUnits (toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
 import JS.BigInt (BigInt)

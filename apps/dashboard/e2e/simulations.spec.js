@@ -55,28 +55,22 @@ test("the Agency section reads the suite's agency runs: each seat on its alterna
   await expect(agency.getByRole("columnheader", { name: "Under the baseline", exact: true })).toHaveCount(4);
 });
 
-test("the open run shows one section per economic object, the headline at the round chosen, and no engine detail", async ({ page }) => {
+test("the open run shows the scorecards and one section per economic object, and no engine detail", async ({ page }) => {
   await page.goto("/admin/#/simulations/run-6");
-  for (const title of ["Who is trapped, and how tightly?", "National regimes", "International clearing", "Seat scorecards"])
+  for (const title of ["Seat scorecards", "National regimes", "International clearing"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-  for (const gone of ["Key figures", "Actions", "Drivers", "Final balance sheet", "Event inspector"])
+  for (const gone of ["Key figures", "Actions", "Drivers", "Final balance sheet", "Event inspector", "Who is trapped, and how tightly?"])
     await expect(page.getByRole("heading", { name: gone, exact: true })).toHaveCount(0);
-  const headline = section(page, "Who is trapped, and how tightly?");
-  await expect(headline.getByRole("combobox", { name: "Round" })).toHaveValue("6");
-  await expect(rowWith(headline, ["US", "-22.80"])).toHaveCount(1);
-  await headline.getByRole("combobox", { name: "Round" }).selectOption("1");
-  await expect(rowWith(headline, ["US"]).first()).toBeVisible();
-  await expect(rowWith(headline, ["US", "-22.80"])).toHaveCount(0);
   // a country with no productive capacity has no regime panels
-  for (const panel of ["Productive capability", "Effective demand", "Financial capacity"]) await expect(page.getByText(panel + ", ROW", { exact: false })).toHaveCount(0);
+  for (const panel of ["Productive capability", "Substitute gap", "Domestic absorption", "Debt service"]) await expect(page.getByText(panel + ", ROW", { exact: false })).toHaveCount(0);
   // the countries side by side, each dimension a chart with its table behind a switch
-  const regimes = section(page, "National regimes").last();
-  for (const country of ["CN", "US"]) await expect(regimes.getByText("Productive capability, " + country + " (units)", { exact: true })).toBeVisible();
+  const regimes = section(page, "National regimes");
+  for (const country of ["CN", "US"]) await expect(regimes.getByText("Productive capability, " + country + " (share of capacity)", { exact: true })).toBeVisible();
   await expect(regimes.getByRole("table")).toHaveCount(0);
   await regimes.getByRole("button", { name: "Show table", exact: true }).first().click();
   await expect(regimes.getByRole("table")).toHaveCount(1);
   // the scorecards name each criterion, one block per seat
-  const cards = section(page, "Seat scorecards").last();
+  const cards = section(page, "Seat scorecards");
   await expect(cards.getByRole("table")).toHaveCount(4);
   await expect(rowWith(cards, ["Security", "met", "at most 10.32"])).toHaveCount(1);
 });
@@ -124,4 +118,29 @@ test("sorting by a column does not move the header: its width is the same before
   await header.getByRole("button").click();
   await expect(header.getByRole("button")).toContainText("↑");
   expect((await header.boundingBox()).width).toBeCloseTo(before.width, 0);
+});
+
+test("the Run tab chooses its run from a dropdown of every run", async ({ page }) => {
+  await page.goto("/admin/#/simulations/run-7");
+  await expect(page.getByRole("heading", { name: "Run run-7" })).toBeVisible();
+  const chooser = page.getByRole("tabpanel").getByRole("combobox").first();
+  await expect(chooser).toHaveValue("run-7");
+  await chooser.selectOption("run-2");
+  await expect(page).toHaveURL(/#\/simulations\/run-2$/);
+  await expect(page.getByRole("heading", { name: "Run run-2" })).toBeVisible();
+});
+
+test("the comparison says where each run leaves each country, and a run's regimes are read against their thresholds", async ({ page }) => {
+  await page.goto("/admin/#/simulations");
+  const traps = section(page, "Where each run leaves each country");
+  for (const c of ["CN", "US"]) for (const m of ["Substitute gap", "Domestic absorption", "Debt service"])
+    await expect(traps.getByRole("columnheader", { name: `${m}, ${c}`, exact: true })).toBeVisible();
+  await expect(rowWith(traps, ["Hawk", "11.89"])).toHaveCount(1);
+  await page.goto("/admin/#/simulations/run-7");
+  const regimes = section(page, "National regimes");
+  for (const t of ["Productive capability", "Substitute gap", "Domestic absorption", "Debt service"])
+    for (const c of ["CN", "US"]) await expect(regimes.getByText(`${t}, ${c}`, { exact: false }).first()).toBeVisible();
+  const clearing = section(page, "International clearing");
+  for (const t of ["Trade balance", "Net lending received", "Net external position", "Exchange rate"])
+    await expect(clearing.getByText(t, { exact: false }).first()).toBeVisible();
 });

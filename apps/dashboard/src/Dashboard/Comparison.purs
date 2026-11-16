@@ -25,6 +25,8 @@ import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.String as String
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import React.Basic.DOM.Events (targetValue)
+import React.Basic.Events (handler)
 import React.Basic.Hooks (Component, JSX, component, element, useState', (/\))
 import React.Basic.Hooks as React
 import Schema.Run (RunStatus(..))
@@ -51,7 +53,7 @@ mkRunPage grid = do
     overview <- useLoad (p.id <> "@" <> show p.version) (Client.overview p.id)
     pure $ Layout.group
       { title: p.title
-      , purpose: "The seats' scorecards, the headline at a chosen round, each country's regime, and the clearing between them."
+      , purpose: "The seats' scorecards, whether each country reproduces itself, and the circuit between them."
       , children:
           [ results { id: p.id, version: p.version, overview } ]
             <> (if p.links then [ Layout.subsection { title: "Balance sheets", purpose: "Each Actor's own page, to hand to whoever plays it.", children: [ links p.id ] } ] else [])
@@ -132,6 +134,11 @@ mkRunBrowser grid = do
                 , purpose: "After the final round: who leads and with what, how even net worth is, what went short, and the Rules enacted. The first run ticked is the baseline."
                 , children: [ loaded everyRun.value glance ]
                 }
+            , Layout.subsection
+                { title: "Where each run leaves each country"
+                , purpose: "After the final round: its widest substitute gap (above 0, an industry of its own stands idle), the least of its output its households absorb, and the most one of its sellers owes over what it sells."
+                , children: [ loaded everyRun.value \c -> tableOf grid c.traps ]
+                }
             , if null plotted then note "Tick a run above to plot it." else plotSections plotted nameOf plots.value
             ]
         }
@@ -143,7 +150,20 @@ mkRunBrowser grid = do
             , Layout.subsection { title: "Each seat's criteria", purpose: "Each criterion under the baseline and under the alternative.", children: [ blocksOf grid c.agencyCriteria ] }
             ]
         }
-      run id = runPage { id, version: p.version, title: "Run: " <> nameOf id, links: p.links }
+      -- the run open, chosen from every run listed
+      chooser id = D.label
+        { className: "flex w-full max-w-md items-center gap-2 text-sm"
+        , children:
+            [ D.text "Run"
+            , D.select
+                { value: id
+                , className: "app-select h-9 w-full rounded-md border border-input bg-transparent pl-3 pr-9 text-sm"
+                , onChange: handler targetValue (maybe (pure unit) p.select)
+                , children: ordered <#> \r -> D.option { key: r, value: r, children: [ D.text (nameOf r <> " (" <> r <> ")") ] }
+                }
+            ]
+        }
+      run id = React.fragment [ chooser id, runPage { id, version: p.version, title: "Run: " <> nameOf id, links: p.links } ]
     pure $
       if null ordered then note p.empty
       else Layout.tabbed

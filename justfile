@@ -16,9 +16,7 @@ build:
 
 # Run every package's test suite
 test: _premises
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for p in {{packages}}; do spago test -p sp-$p; done
+    node scripts/test.js {{packages}}
 
 # Test one package
 [no-exit-message]

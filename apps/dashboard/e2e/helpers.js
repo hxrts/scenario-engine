@@ -1,8 +1,8 @@
 // Selectors shared by the dashboard tests. Each names a region or a row by what the user sees, so a test
 // reads the page the way a person does.
 
-// The section headed `title`, within `scope` (the page, or a locator of the page).
-export const section = (scope, title) => sectionHas(scope, scope.getByRole("heading", { name: title, exact: true }));
+// The innermost section headed `title`, within `scope` (the page, or a locator of the page).
+export const section = (scope, title) => sectionHas(scope, scope.getByRole("heading", { name: title, exact: true })).last();
 
 // The section holding `has`, a locator (for a panel with no heading to name it by).
 export const sectionHas = (scope, has) => scope.locator("section").filter({ has });

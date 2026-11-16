@@ -97,7 +97,8 @@ if (process.argv.includes("--compile")) {
   const { spawnSync } = require("child_process");
   const os = require("os");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "impurity-"));
-  fs.cpSync(path.join(root, "output"), tmp, { recursive: true });
+  // the copy keeps its timestamps: without them purs takes the whole output for stale and compiles it again
+  fs.cpSync(path.join(root, "output"), tmp, { recursive: true, preserveTimestamps: true });
   const dir = "scripts/check/samples/impurity/compile";
   const compile = (sample) => spawnSync("purs", ["compile", "--output", tmp, "packages/*/src/**/*.purs", "apps/*/src/**/*.purs", ".spago/p/*/src/**/*.purs", `${dir}/${sample}`], { cwd: root, encoding: "utf8" });
   const reads = compile("reads.purs");

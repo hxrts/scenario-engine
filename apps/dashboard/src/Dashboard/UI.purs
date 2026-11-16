@@ -29,5 +29,6 @@ foreign import bar :: C
 foreign import xAxis :: C
 foreign import yAxis :: C
 foreign import cartesianGrid :: C
+foreign import referenceLine :: C
 -- | A labelled region (a `section` element), for panels a screen reader can name.
 foreign import region :: C

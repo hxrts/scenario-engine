@@ -14,7 +14,7 @@ import Prelude
 
 import Core.Kernel.Types (Endpoint(..))
 
-import Core.Num (Q)
+import Core.Num (Kind(..), Q)
 import Core.Num as Q
 import Data.Array (concatMap, elem, filter, mapMaybe, nub, sort, zip)
 import Data.Map as Map
@@ -148,7 +148,7 @@ finance r =
       , rows: measuredRows current
       }
   -- each country's current account, round by round
-  , currentChart: measuredChart "Current account" (unitOf r r.manifest.initial.numeraire) [ "Current account" ] current
+  , currentChart: measuredChart "Current account" (unitOf r r.manifest.initial.numeraire) Quantity [ "Current account" ] current
   }
   where
   current = concatMap currentRows (zip (worlds r) r.rounds)

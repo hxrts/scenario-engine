@@ -35,6 +35,7 @@ import Type.Proxy (Proxy(..))
 import Schema.View (View)
 import Views.Actions (ActionsView)
 import Views.Regimes (Regime)
+import Views.Clearing (Step)
 import Views.Balance (BalanceView)
 import Views.Common (Chart, StoredRun, Table)
 import Laws.World (Event, eventShape)
@@ -130,7 +131,7 @@ type ViewReplies =
   , "Events" :: Table
   , "Dependence" :: Table
   , "Regimes" :: Array Regime
-  , "Clearing" :: { goods :: Table, capital :: Table, rules :: Table }
+  , "Clearing" :: { trade :: Step, lending :: Step, position :: Step, rate :: Step, rules :: Table }
   , "Indicators" :: { countries :: Table, seats :: Table }
   , "Finance" :: { bonds :: Table, external :: Table, current :: Table, currentChart :: Chart, earnings :: Table }
   )

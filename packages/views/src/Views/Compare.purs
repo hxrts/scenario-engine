@@ -16,6 +16,7 @@ module Views.Compare
   , standingsBars
   , balanceBars
   , summary
+  , traps
   , moving
   , columns
   ) where
@@ -27,10 +28,10 @@ import Core.Num (Kind(..))
 import Laws.Query (accountsOf, holding)
 import Laws.Types (ActorId)
 import Data.String (joinWith)
-import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, length, mapMaybe, nub, null, sortWith, uncons)
+import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, last, length, mapMaybe, nub, null, sortWith, uncons)
 import Data.Either (hush)
 import Schema.Run (Spec, specKey, specPairs)
-import Data.Foldable (any, lookup, sum)
+import Data.Foldable (any, lookup, maximum, minimum, sum)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple(..), fst)
@@ -45,6 +46,7 @@ import Views.Exchanges (exchangePrices, exchangeUnit)
 import Views.Standings (netWorths, standingsOf)
 import Views.Dependence (blockedOrders, salesSplit, cumulativePurchases, cumulativeReceipts, cumulativeShortfall, demandsOf, finalCoverage, requirementsOf)
 import Views.Indicators (countryIndicators, seatIndicators)
+import Views.Regimes (Gauge, regimes)
 
 -- | A table with a flag per cell (`marked`, parallel to `rows`): the cells to highlight because they
 -- | differ from the baseline run. The view decides what differs; the dashboard only shades.
@@ -67,6 +69,7 @@ type CompareView =
   , seeds :: Table
   , runs :: Array { id :: String, name :: String } -- the runs compared, in order, each with its name for the legends
   , summary :: Table -- one row per run: who leads, how even it ends, what went short and which Rules were enacted
+  , traps :: Table -- one row per run: where it leaves each country's regime after the final round
   , agency :: Table -- each agency run against the preset run it deviates from (docs/07 §10.3)
   , agencyCriteria :: Table
   , skipped :: Array String
@@ -398,3 +401,25 @@ balanceBars runs =
   }
   where
   barsOf m = { title: m.label, unit: m.unit (numeraireUnit runs), kind: m.kind, categories: [ m.short ], series: map (\r -> { name: r.id, values: [ maybe "n/a" exact (m.read (measuresOf r)) ] }) runs }
+
+-- | One row per run: where it leaves each country's regime after the final round (docs/05 §4). For each country that
+-- | holds productive capacity in the first run: its widest substitute gap (above 0, an industry of its own stands
+-- | idle), the least of its output its households absorb, and the most a seller of its owes over what it sells. Each
+-- | column is named by its measure and its country, and takes the measure's definition.
+traps :: Array StoredRun -> Table
+traps runs = { title: "Where each run leaves each country", columns: names [ col.run, col.name ] <> concatMap (\c -> map (\m -> m.name <> ", " <> c) measures) countries, rows: map row runs }
+  where
+  held r = filter (\x -> not (null x.capability.table.rows)) (regimes r)
+  countries = maybe [] (map _.country <<< held) (head runs)
+  measures =
+    [ { name: "Substitute gap", gauge: _.substitution, pick: maximum, shown: quantity }
+    , { name: "Domestic absorption", gauge: _.demand, pick: minimum, shown: ratio }
+    , { name: "Debt service", gauge: _.finance, pick: maximum, shown: ratio }
+    ]
+
+  -- each line's value after the final round it has one for
+  finals :: Gauge -> Array Q.Q
+  finals g = mapMaybe (\s -> last s.points >>= \p -> Q.parse p.value) g.chart.series
+  row r =
+    [ r.id, if r.name == "" then r.id else r.name ]
+      <> concatMap (\c -> map (\m -> maybe "none" (\x -> maybe "none" m.shown (m.pick (finals (m.gauge x)))) (find (\x -> x.country == c) (regimes r))) measures) countries

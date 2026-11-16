@@ -103,6 +103,7 @@ module Core.Shape
 
 import Prelude
 
+import Data.Lazy (Lazy, defer, force)
 import Data.Argonaut.Core (Json, fromArray, fromBoolean, fromNumber, fromObject, fromString, isNull, jsonNull, stringify, stringifyWithIndent, toArray, toBoolean, toNumber, toObject, toString)
 import Data.Argonaut.Decode.Error as J
 import Data.Argonaut.Decode.Parser (parseJson)
@@ -114,7 +115,7 @@ import Data.Array (concatMap, sortBy)
 import Data.Tuple (Tuple(..), fst)
 import Data.Either (Either(..), either, note)
 import Data.Maybe (Maybe(..), fromMaybe, isNothing, maybe)
-import Data.String (joinWith, toLower)
+import Data.String (Pattern(..), joinWith, toLower)
 import Data.String.CodeUnits (drop, take)
 import Data.String.CodeUnits as SCU
 import Data.Map (Map)
@@ -285,7 +286,7 @@ kindArg t s proj inj =
   }
   where
   prefix = t.tag <> ":"
-  stripPrefix str = if take (SCU.length prefix) str == prefix then Just (drop (SCU.length prefix) str) else Nothing
+  stripPrefix = SCU.stripPrefix (Pattern prefix)
 
 -- | A bare string that names one value, such as `"Free"`.
 bare :: forall a. Eq a => { tag :: String, desc :: String } -> a -> PCtor a
@@ -567,7 +568,11 @@ genericPremiseSum name r =
   { desc: descOf name Mixed cs
   , codec: \fmt ->
       { enc: sumWrite r fmt <<< from
-      , dec: \j -> fromMaybe (Left ("no " <> name <> " form for " <> stringify j)) (Array.findMap (\c -> c.inject fmt j) cs)
+      -- the message is written only when no form reads the value: writing it for every value read stringified each
+      -- subtree once per level above it
+      , dec: \j -> case Array.findMap (\c -> c.inject fmt j) cs of
+          Just read -> read
+          Nothing -> Left ("no " <> name <> " form for " <> stringify j)
       }
   , absent: const false
   , missing: Nothing
@@ -876,13 +881,18 @@ listOf s = (arrayOf s) { absent = const false, missing = Nothing }
 -- | A recursive description. `f` receives the description it defines; its codec reaches back into
 -- | it only when a value is read or written, so a recursive form is finite.
 recursive :: forall a. String -> (Shape a -> Shape a) -> Shape a
-recursive name f = (mk unit) { desc = (f (mk unit)).desc }
+recursive name f = (mk unit) { desc = (force inner).desc }
   where
+  -- the shape a reference stands for, built once: building it again at every node of a deep value made decoding
+  -- quadratic in its depth
+  inner :: Lazy (Shape a)
+  inner = defer \_ -> f (mk unit)
+
   mk :: Unit -> Shape a
   mk _ =
     { desc: DRef name
-    , codec: \fmt -> (f (mk unit)).codec fmt
-    , absent: \x -> (f (mk unit)).absent x
+    , codec: \fmt -> (force inner).codec fmt
+    , absent: \x -> (force inner).absent x
     , missing: Nothing
     }
 

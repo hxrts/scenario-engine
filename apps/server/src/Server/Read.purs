@@ -237,6 +237,7 @@ compareView compositions { runs: asked, exchange } = do
               , seeds: Balance.seedVariation (Compare.sameSpecification good)
               , runs: map (\r -> { id: r.id, name: r.name }) good
               , summary: Compare.summary good
+              , traps: Compare.traps good
               , agency: agencyTable profiles
               , agencyCriteria: agencyCriteria profiles
               , skipped

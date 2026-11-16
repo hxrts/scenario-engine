@@ -12,6 +12,7 @@ module Views.Indicators
   , countryIndicators
   , SeatIndicators
   , seatIndicators
+  , debtService
   , indicators
   , countryColumns
   , seatColumns
@@ -40,7 +41,7 @@ import Laws.Types (ActorId, ActorKind(..), Capability(..), ResourceId, Transform
 import Laws.World (AuthoredLaw(..), Cause(..), RoundResult, WorldState)
 import Schema.Composition (PremiseComposition, Span(..))
 import Views.Common (Column, StoredRun, Table, col, column, displayName, names, quantity, ratio, worlds)
-import Views.Finance (earningsOf)
+import Views.Finance (Earnings, earningsOf)
 import Views.Standings (valueIn)
 
 -- | A country's indicators for a round: its net external position, and the share of its output of each good its own
@@ -137,14 +138,16 @@ seatIndicators gb r = concatMap round r.rounds
     _ -> []
   round x =
     map
-      ( \actor ->
-          let
-            owed = Q.sumQ (map _.owed (filter (\l -> l.from == Held actor && isAgreement l.cause) (select legs x.record.events)))
-            revenue = Q.sumQ (map _.revenue (filter (\e -> e.round == x.record.round && e.actor == actor) earnings))
-          in
-            { round: x.record.round, actor, debtService: if owed == Q.zero then Just Q.zero else Q.divMaybe owed revenue, margins: margins actor x.record.round }
-      )
+      (\actor -> { round: x.record.round, actor, debtService: debtService earnings x actor, margins: margins actor x.record.round })
       (sort (fromFoldable (Map.keys gb.explicitActors)))
+
+-- | What an Actor owed on its agreements in a round over its revenue from goods (`Views.Finance.earningsOf`): 0 when it
+-- | owed nothing, and no ratio when it owed with no revenue.
+debtService :: Array Earnings -> RoundResult -> ActorId -> Maybe Q
+debtService earnings x actor = if owed == Q.zero then Just Q.zero else Q.divMaybe owed revenue
+  where
+  owed = Q.sumQ (map _.owed (filter (\l -> l.from == Held actor && isAgreement l.cause) (select legs x.record.events)))
+  revenue = Q.sumQ (map _.revenue (filter (\e -> e.round == x.record.round && e.actor == actor) earnings))
   isAgreement = case _ of
     OfAgreement _ -> true
     _ -> false

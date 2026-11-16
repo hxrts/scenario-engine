@@ -8,7 +8,7 @@ import Prelude
 
 import Views.Glossary (Glossary)
 import Data.Maybe (Maybe(..))
-import Data.String (Pattern(..), Replacement(..), replaceAll, stripPrefix)
+import Data.String (Pattern(..), Replacement(..), lastIndexOf, replaceAll, stripPrefix, take)
 import Foreign.Object as Object
 import React.Basic (ReactContext, createContext)
 import Effect.Unsafe (unsafePerformEffect)
@@ -26,8 +26,9 @@ type Lookup = Maybe Glossary
 fill :: String -> String -> String -> String
 fill key value = replaceAll (Pattern ("{" <> key <> "}")) (Replacement value)
 
--- | The definition of a column or field. A per-round column is named by the glossary's round prefix, and
--- | a compared run's column is named by its id; a name with no entry gets the unnamed definition.
+-- | The definition of a column or field. A per-round column is named by the glossary's round prefix; a column of a
+-- | measure for one country is named `Measure, Country` and takes the measure's definition; a compared run's
+-- | column is named by its id; a name with no entry gets the unnamed definition.
 definitionOf :: Lookup -> String -> String
 definitionOf = case _ of
   Nothing -> const ""
@@ -35,7 +36,9 @@ definitionOf = case _ of
     Just d -> d
     Nothing -> case stripPrefix (Pattern g.round.prefix) name of
       Just round -> fill "round" round g.round.definition
-      Nothing -> fill "name" name g.unnamed.definition
+      Nothing -> case lastIndexOf (Pattern ", ") name >>= \i -> Object.lookup (take i name) g.definitions of
+        Just d -> d
+        Nothing -> fill "name" name g.unnamed.definition
 
 -- | What an empty value means for a column or field. The reason is shown on hover, so no empty
 -- | cell is blank without an explanation.

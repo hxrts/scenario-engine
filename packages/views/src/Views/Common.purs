@@ -18,6 +18,7 @@ module Views.Common
   , Measured
   , measuredRows
   , measuredChart
+  , pointSeries
   , Field
   , cellOf
   , tableOf
@@ -67,7 +68,7 @@ import Laws.Types (Id, idText, ActorId, CandidateTransactionId, ResourceDefiniti
 import Schema.Composition (capacityCategory)
 
 import Laws.Invariants (Failure)
-import Core.Num (Kind(..), Q)
+import Core.Num (Kind, Q)
 import Core.Num as Q
 import Laws.Query (isAggregate)
 import Laws.Slice (event, select)
@@ -333,12 +334,12 @@ measuredRows :: Array Measured -> Array (Array String)
 measuredRows = map \m -> [ show m.round ] <> (if m.label == "" then [] else [ m.label ]) <> map quantity m.values
 
 -- | The chart of a per-round table: one line per named value, and per label when rows carry one. Values past the
--- | names given are left out.
-measuredChart :: String -> String -> Array String -> Array Measured -> Chart
-measuredChart title unit valueNames rows =
+-- | names given are left out. A value that is not there (`Nothing`) leaves a gap.
+measuredChart :: String -> String -> Kind -> Array String -> Array Measured -> Chart
+measuredChart title unit kind valueNames rows =
   { title
   , unit
-  , kind: Quantity
+  , kind
   , series: concatMap (\label -> mapWithIndex (\j n -> { name: seriesName label n, points: mapMaybe (\m -> if m.label == label then { round: m.round, value: _ } <<< exact <$> index m.values j else Nothing) rows }) valueNames) (nub (map _.label rows))
   }
   where
@@ -350,3 +351,8 @@ measuredChart title unit valueNames rows =
 -- | What a thing named by id is displayName on a page: the premise's name for it (`names`), or its id when it gives none.
 displayName :: forall r t. { names :: Map.Map String String | r } -> Id t -> String
 displayName w id = fromMaybe (idText id) (Map.lookup (idText id) w.names)
+
+-- | Chart series from points named by their series: one line per name, in the order the names first appear, with a
+-- | gap where a value is not there.
+pointSeries :: Array { round :: Int, name :: String, value :: Maybe Q } -> Array { name :: String, points :: Array Point }
+pointSeries ps = map (\name -> { name, points: mapMaybe (\x -> if x.name == name then { round: x.round, value: _ } <<< exact <$> x.value else Nothing) ps }) (nub (map _.name ps))

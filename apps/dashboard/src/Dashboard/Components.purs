@@ -30,13 +30,14 @@ import Data.Argonaut.Core (Json, fromNumber, fromString)
 import Prelude
 
 import Core.Num (Kind, displayTick)
+import Core.Num as Q
 import Dashboard.Api (useLoad)
 import Dashboard.Chart (barRows, chartRows, tooltipFormatter)
 import Dashboard.DataTable (DataTable, defaults)
 import Dashboard.Layout as Layout
 import Dashboard.Palette (runColour, seriesColour)
 import Dashboard.UI as UI
-import Data.Array (cons, elem, filter, find, index, mapMaybe, mapWithIndex, nub, zip)
+import Data.Array (cons, elem, filter, find, index, mapMaybe, mapWithIndex, nub, null, zip)
 import Data.Either (Either(..))
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
@@ -184,7 +185,11 @@ metricChartAt size c = Layout.captioned (c.title <> " (" <> c.unit <> ")") [ lin
 
 -- | The lines of a Chart alone, with no caption.
 linesOf :: Size -> Chart -> JSX
-linesOf size c =
+linesOf size = linesAgainst size Nothing
+
+-- | The lines of a Chart against the level they are read against, drawn as a dashed line that the axis always reaches.
+linesAgainst :: Size -> Maybe String -> Chart -> JSX
+linesAgainst size threshold c =
   lineChartOf
     { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
     , className: heightOf size <> " w-full"
@@ -192,7 +197,9 @@ linesOf size c =
     , xAxis: element UI.xAxis { dataKey: "round" }
     , yAxis: axisOf c.kind Nothing
     , tooltip: valueTooltip
-    , marks: mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
+    , marks:
+        maybe [] (\y -> [ element UI.referenceLine { key: "threshold", y: Q.toDisplayNumber y, stroke: "var(--muted-foreground)", strokeDasharray: "4 4", ifOverflow: "extendDomain" } ]) (threshold >>= Q.parse)
+          <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
     , legend: true
     }
 
@@ -303,9 +310,9 @@ blocksOf grid t = Layout.columns (map block (nub (mapMaybe (\r -> index r 0) t.r
             ]
         }
 
--- | A per-round series as a figure: its chart, with the table of the same numbers behind a switch. The chart shows the
--- | shape; the table is there for the exact values.
-mkFigure :: DataTable -> Component { chart :: Chart, table :: Table }
+-- | A per-round series as a figure: its chart, against the level it is read against when it has one, with the table
+-- | of the numbers behind it behind a switch. The chart shows the shape; the table is there for the exact values.
+mkFigure :: DataTable -> Component { chart :: Chart, table :: Table, threshold :: Maybe String }
 mkFigure grid = component "Figure" \p -> React.do
   asTable /\ setAsTable <- useState' false
   pure $ D.div
@@ -322,6 +329,8 @@ mkFigure grid = component "Figure" \p -> React.do
                     }
                 ]
             }
-        , if asTable then tableOf grid p.table else linesOf Small p.chart
+        , if asTable then tableOf grid p.table
+          else if null p.chart.series then D.div { className: heightOf Small <> " flex items-center justify-center text-sm italic text-muted-foreground", children: [ D.text "none in this run" ] }
+          else linesAgainst Small p.threshold p.chart
         ]
     }

@@ -7,14 +7,14 @@ import Prelude
 
 import Dashboard.Client (runView)
 import Dashboard.Api (Loaded)
-import Dashboard.Components (Size(..), blocksOf, fetched, loaded, metricChartAt, mkFigure, note, selectInput, stale, tableOf, withoutColumns)
+import Dashboard.Components (blocksOf, fetched, loaded, mkFigure, note, stale, tableOf)
 import Dashboard.DataTable (DataTable)
 
 import Dashboard.Glossary (Lookup, factList, glossaryContext)
 import Dashboard.Layout as Layout
-import Data.Array (elem, filter, find, head, index, null, range)
+import Data.Array (elem, filter, find, null)
 import Data.Either (Either)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Schema.View (viewName)
 
 import Views.Common (Table)
@@ -24,7 +24,7 @@ import Views.Keys as Keys
 import Views.Overview (Fact, RunOverview)
 
 import React.Basic.DOM as D
-import React.Basic.Hooks (Component, JSX, component, useContext, useState', (/\))
+import React.Basic.Hooks (Component, JSX, component, useContext)
 import React.Basic.Hooks as React
 
 -- | The run whose results are shown, its version (bumped by an action on it, so every section refetches),
@@ -65,31 +65,24 @@ mkRunResults grid = do
 
 type BodyProps = { id :: String, version :: Int, rounds :: Int }
 
--- | The sections: the seats' scorecards, then one per economic object: the headline at the round chosen (the last, to
--- | start), each country's regime, the countries side by side, and the clearing between them. A per-round series is a
--- | chart, with its table behind a switch.
+-- | The sections: the seats' scorecards, then the two economic objects. Each country's regime is read as whether it
+-- | reproduces itself, the countries side by side: one chart per dimension of the ratio that decides it, against the
+-- | level it is read against. The clearing between them is the circuit, a step at a time. Every chart has the table of
+-- | the numbers behind it behind a switch.
 mkBody :: DataTable -> Component BodyProps
 mkBody grid = do
   fetch <- fetched
   figure <- mkFigure grid
   component "RunResultsBody" \b -> React.do
-    round /\ setRound <- useState' (Nothing :: Maybe String)
     let
       keyed path = b.id <> "/" <> path <> "@" <> show b.version
 
       view :: forall a. ViewKey a -> (a -> JSX) -> JSX
       view key render = fetch { key: keyed (viewName key.view), load: map render <$> runView key b.id Nothing }
 
-      -- a view shown at the chosen round: its key names the round, so choosing another renders it again
-      viewAt :: forall a. ViewKey a -> (a -> JSX) -> JSX
-      viewAt key render = fetch { key: keyed (viewName key.view) <> "/round-" <> shown, load: map render <$> runView key b.id Nothing }
-
-      rounds = map show (range 1 b.rounds)
-      shown = fromMaybe (show b.rounds) round
-      -- the rows of the round chosen, without the round's column: the page states it once, above
-      atRound t = withoutColumns [ 0 ] (t { rows = filter (\r -> index r 0 == Just shown) t.rows })
       -- one dimension of every country's regime, the countries side by side
-      across rs chart table = Layout.columns (map (\r -> figure { chart: chart r, table: table r }) rs)
+      across rs gauge = Layout.columns (map (\r -> figure (gauge r)) rs)
+      step s = figure { chart: s.chart, table: s.table, threshold: Nothing }
     pure $ D.div
       { className: "flex min-w-0 flex-col gap-section"
       , children:
@@ -99,43 +92,28 @@ mkBody grid = do
               , children: [ view (Keys.viewKey @"Objectives") (blocksOf grid) ]
               }
           , Layout.subsection
-              { title: "Who is trapped, and how tightly?"
-              , purpose: "The headline at the round chosen. A substitute gap above 0 leaves a country's own industry idle; a debt service above 1 cannot be paid from sales; a viability margin below 0 has failed."
-              , children:
-                  [ D.label { className: "flex w-48 items-center gap-2 text-sm", children: [ D.text "Round", selectInput { value: shown, options: rounds, onChange: \v -> setRound v } ] }
-                  , viewAt (Keys.viewKey @"Indicators") \i -> Layout.columns [ titled grid (atRound i.countries), titled grid (atRound i.seats) ]
-                  ]
-              }
-          , Layout.subsection
               { title: "National regimes"
-              , purpose: "How each country reproduces itself, side by side: what it can produce, who buys it, and what it owes."
+              , purpose: "Is each country reproducing itself? Capacity runs only as far as competence (below the line, it is short of one); a substitute gap above the line leaves its own industry idle; absorption is the share of its output its households buy; debt service above the line cannot be paid from sales."
               , children:
                   [ view (Keys.viewKey @"Regimes") \rs ->
                       let
-                        held = filter (\r -> not (null r.capability.rows)) rs
+                        held = filter (\r -> not (null r.capability.table.rows)) rs
                       in
                         if null held then note "No country in this run holds productive capacity."
                         else D.div
                           { className: "flex min-w-0 flex-col gap-stack"
-                          , children:
-                              [ across held _.capabilityChart _.capability
-                              , across held _.demandChart _.demand
-                              , across held _.financeChart _.finance
-                              ]
+                          , children: [ across held _.capability, across held _.substitution, across held _.demand, across held _.finance ]
                           }
                   ]
               }
           , Layout.subsection
               { title: "International clearing"
-              , purpose: "What moves between the countries: prices, the current account, goods, capital, and the Rules at the borders."
+              , purpose: "The circuit between the countries: what each sells abroad less what it buys, what it is lent, the position that leaves it with, and the exchange rate; then the Rules at the borders."
               , children:
-                  [ Layout.columns
-                      [ view (Keys.viewKey @"Exchanges") (\cs -> maybe (D.span_ []) (metricChartAt Small) (head cs))
-                      , view (Keys.viewKey @"Finance") (\f -> figure { chart: f.currentChart, table: f.current })
-                      ]
-                  , Layout.columns
-                      [ view (Keys.viewKey @"Clearing") (titled grid <<< _.goods)
-                      , view (Keys.viewKey @"Clearing") (titled grid <<< _.capital)
+                  [ view (Keys.viewKey @"Clearing") \c -> Layout.tiles [ step c.trade, step c.lending, step c.position ]
+                  , Layout.tiles
+                      [ view (Keys.viewKey @"Finance") (\f -> figure { chart: f.currentChart, table: f.current, threshold: Nothing })
+                      , view (Keys.viewKey @"Clearing") (\c -> step c.rate)
                       ]
                   , view (Keys.viewKey @"Clearing") (\c -> if null c.rules.rows then note "No Rule stands at a border in this run." else titled grid c.rules)
                   ]

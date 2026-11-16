@@ -5,6 +5,7 @@
 -- | valued in the numeraire.
 module Views.Regimes
   ( Regime
+  , Gauge
   , regimes
   , capabilityColumns
   , demandColumns
@@ -28,11 +29,21 @@ import Laws.Slice (exchangeFills, legs, select, transformationFills)
 import Laws.Types (ActorId, ActorKind(..), DrawSource(..), ResourceId)
 import Laws.World (Cause(..), Mechanism(..), WorldState)
 import Schema.Composition (capacityCategory, competenceCategory)
-import Views.Common (Chart, Column, StoredRun, Table, col, column, measuredChart, measuredRows, names, unitOf, worlds, displayName)
+import Views.Common (Chart, Column, StoredRun, Table, col, column, displayName, measuredRows, names, pointSeries, quantity, unitOf, worlds)
+import Views.Finance (earningsOf)
+import Views.Indicators (countryIndicators, debtService)
+import Core.Num (Kind(..))
 import Views.Standings (valueIn)
 
--- | A country's regime: each dimension as its table and as the chart of the same measures.
-type Regime = { country :: String, capability :: Table, demand :: Table, finance :: Table, capabilityChart :: Chart, demandChart :: Chart, financeChart :: Chart }
+-- | One reading of a regime: the chart of the ratio that decides it, the level that ratio is read against (none when
+-- | it has no fixed level), and the table of the measures behind it.
+type Gauge = { chart :: Chart, threshold :: Maybe String, table :: Table }
+
+-- | A country's regime, as whether it reproduces itself (docs/05 §4): its productive capability (how much of its
+-- | capacity ran, and how much its competence could run), its import substitution (whether making what it imports
+-- | pays), its effective demand (how much of its own output its households absorb) and its financial capacity
+-- | (what its sellers owe over what they sell).
+type Regime = { country :: String, capability :: Gauge, substitution :: Gauge, demand :: Gauge, finance :: Gauge }
 
 -- | Every country with households, each its regime's three tables.
 regimes :: StoredRun -> Array Regime
@@ -42,19 +53,48 @@ regimes r = map regimeOf countries
   final = maybe r.manifest.initial _.world (last r.rounds)
   countries = sort (nub (map (groupOf final) (filter (isAggregate final) (fromFoldable (Map.keys final.actors)))))
   money = unitOf r final.numeraire
+  indicators = countryIndicators r
+  earnings = earningsOf r
   regimeOf c =
     let
       capability = concatMap (capabilityRows c) steps
       demand = map (demandRow c) steps
       finance = map (financeRow c) steps
+      mine = filter (\i -> i.country == c) indicators
+      gaps = concatMap (\i -> map (\g -> { round: i.round, name: displayName final g.good, value: Just g.gap }) i.gaps) mine
+      absorbed = concatMap (\i -> map (\a -> { round: i.round, name: displayName final a.good, value: a.share }) i.absorption) mine
+      -- the Actors of the country that sell: not its households
+      sellers = filter (not <<< isAggregate final) (members final c)
+      service = concatMap (\x -> map (\a -> { round: x.record.round, name: show a, value: debtService earnings x a }) sellers) r.rounds
+      -- of a capacity: the share of it that ran, and the share its competence could run
+      shares = concatMap
+        ( \m -> case m.values of
+            [ held, competence, ran, _ ] -> [ { round: m.round, name: m.label <> ", run", value: Q.divMaybe ran held }, { round: m.round, name: m.label <> ", competence", value: Q.divMaybe competence held } ]
+            _ -> []
+        )
+        capability
     in
       { country: show c
-      , capability: { title: "Productive capability, " <> show c, columns: names ([ col.round ] <> capabilityColumns), rows: measuredRows capability }
-      , demand: { title: "Effective demand, " <> show c, columns: names ([ col.round ] <> demandColumns), rows: measuredRows demand }
-      , finance: { title: "Financial capacity, " <> show c, columns: names ([ col.round ] <> financeColumns), rows: measuredRows finance }
-      , capabilityChart: measuredChart ("Productive capability, " <> show c) "units" (names measures.capability) capability
-      , demandChart: measuredChart ("Effective demand, " <> show c) money (names demandColumns) demand
-      , financeChart: measuredChart ("Financial capacity, " <> show c) money (names financeColumns) finance
+      , capability:
+          { chart: { title: "Productive capability, " <> show c, unit: "share of capacity", kind: Ratio, series: pointSeries shares }
+          , threshold: Just "1"
+          , table: { title: "Productive capability, " <> show c, columns: names ([ col.round ] <> capabilityColumns), rows: measuredRows capability }
+          }
+      , substitution:
+          { chart: { title: "Substitute gap, " <> show c, unit: money, kind: Quantity, series: pointSeries gaps }
+          , threshold: Just "0"
+          , table: { title: "Substitute gap, " <> show c, columns: names [ col.round, goodColumn, gapColumn ], rows: map (\g -> [ show g.round, g.name, maybe "n/a" quantity g.value ]) gaps }
+          }
+      , demand:
+          { chart: { title: "Domestic absorption, " <> show c, unit: "share of output", kind: Ratio, series: pointSeries absorbed }
+          , threshold: Nothing
+          , table: { title: "Effective demand, " <> show c, columns: names ([ col.round ] <> demandColumns), rows: measuredRows demand }
+          }
+      , finance:
+          { chart: { title: "Debt service, " <> show c, unit: "owed over revenue", kind: Ratio, series: pointSeries service }
+          , threshold: Just "1"
+          , table: { title: "Financial capacity, " <> show c, columns: names ([ col.round ] <> financeColumns), rows: measuredRows finance }
+          }
       }
   inside w c a = groupOf w a == c
   members w c = filter (inside w c) (fromFoldable (Map.keys w.actors))
@@ -156,6 +196,12 @@ financeColumns =
   , column "It owes" "The principal of open agreements whose borrower is in the country, valued alike."
   , column "Debt service paid" "What the country's Actors paid on their agreements in the round, valued alike."
   ]
+
+goodColumn :: Column
+goodColumn = column "Good" "A good: a Resource an Exchange trades that is not a currency."
+
+gapColumn :: Column
+gapColumn = column "Substitute gap" "For each good the country imported and can make itself, what a unit of making it pays in wages less what a unit cost to import, valued in the numeraire: above 0, its own industry is dearer and stands idle."
 
 columns :: Array Column
 columns = capabilityColumns <> demandColumns <> financeColumns

@@ -8,6 +8,7 @@
 -- | - **Rules**: the flows Rules in force after each round, with the country that governs each and the one it binds.
 module Views.Clearing
   ( clearing
+  , Step
   , goodsColumns
   , capitalColumns
   , rulesColumns
@@ -28,18 +29,72 @@ import Laws.External (groupOf)
 import Laws.Slice (legs, select)
 import Laws.Types (ResourceId, RuleF(..))
 import Laws.World (Cause(..), Mechanism(..), WorldState)
-import Views.Common (Column, StoredRun, Table, col, column, displayName, names, quantity, worlds)
+import Core.Exchange (exchangePrice)
+import Core.Num (Kind(..))
+import Views.Common (Chart, Column, StoredRun, Table, col, column, displayName, names, pointSeries, quantity, unitOf, worlds)
+import Views.Finance (externalAccounts)
+import Views.Indicators (countryIndicators)
 import Views.Standings (valueIn)
 
-clearing :: StoredRun -> { goods :: Table, capital :: Table, rules :: Table }
+-- | One step of the circuit between the countries: its chart, and the table of what moved behind it.
+type Step = { chart :: Chart, table :: Table }
+
+-- | The circuit between the countries (docs/05 §4.4), a step at a time: the goods each sold abroad less what it
+-- | bought, what it was lent from abroad less what it repaid, the position abroad that leaves it with, and the
+-- | exchange rate between their currencies; then the Rules at the borders.
+clearing :: StoredRun -> { trade :: Step, lending :: Step, position :: Step, rate :: Step, rules :: Table }
 clearing r =
-  { goods: { title: "Trade between countries", columns: names ([ col.round ] <> goodsColumns), rows: concatMap goodsRows steps }
-  , capital: { title: "Capital between countries", columns: names ([ col.round ] <> capitalColumns), rows: concatMap capitalRows steps }
+  { trade:
+      { chart: { title: "Trade balance", unit: money, kind: Quantity, series: pointSeries balances }
+      , table: { title: "Trade between countries", columns: names ([ col.round ] <> goodsColumns), rows: concatMap goodsRows steps }
+      }
+  , lending:
+      { chart: { title: "Net lending received", unit: money, kind: Quantity, series: pointSeries lending }
+      , table: { title: "Capital between countries", columns: names ([ col.round ] <> capitalColumns), rows: concatMap capitalRows steps }
+      }
+  , position:
+      { chart: { title: "Net external position", unit: money, kind: Quantity, series: pointSeries positions }
+      , table: { title: "Net external position", columns: names [ col.round, countryColumn, positionColumn ], rows: map (\x -> [ show x.round, x.name, maybe "n/a" quantity x.value ]) positions }
+      }
+  , rate:
+      { chart: { title: "Exchange rate", unit: "", kind: Price, series: pointSeries rates }
+      , table: { title: "Exchange rate", columns: names [ col.round, exchangeColumn, rateColumn ], rows: map (\x -> [ show x.round, x.name, maybe "n/a" quantity x.value ]) rates }
+      }
   -- one row per Rule, with the rounds it stood after
   , rules: { title: "Rules at the borders", columns: names ([ roundsColumn ] <> rulesColumns), rows: map (\k -> [ spans (map fst (filter (\(Tuple _ x) -> x == k) inForce)) ] <> k) (nub (map snd inForce)) }
   }
   where
   steps = zip (worlds r) r.rounds
+  money = unitOf r r.manifest.initial.numeraire
+  indicators = countryIndicators r
+  positions = map (\i -> { round: i.round, name: show i.country, value: Just i.netExternal }) indicators
+  -- goods across the border, each currency's valued in the numeraire at the round's closing prices
+  accounts = externalAccounts r
+  balances = concatMap
+    ( \x ->
+        let
+          lines = filter (\l -> l.round == x.record.round) accounts
+        in
+          map (\c -> { round: x.record.round, name: show c, value: Just (Q.sumQ (map (\l -> Q.mul (valueIn x.world l.currency) l.goods) (filter (\l -> l.country == c) lines))) }) (nub (map _.country lines))
+    )
+    r.rounds
+  -- what each country was lent from abroad in the round, less what it repaid abroad
+  lending = concatMap
+    ( \(Tuple before x) ->
+        let
+          moves = concatMap
+            ( \l -> case lendingCause l.cause, crossing x.world l of
+                Just kind, Just (Tuple a b) -> [ { kind, from: a, to: b, worth: Q.mul l.moved (valueIn before l.resource) } ]
+                _, _ -> []
+            )
+            (select legs x.record.events)
+          net c = Q.sub (Q.sumQ (map _.worth (filter (\m -> m.kind == "lent" && m.to == c) moves))) (Q.sumQ (map _.worth (filter (\m -> m.kind == "repaid" && m.from == c) moves)))
+        in
+          map (\c -> { round: x.record.round, name: c, value: Just (net c) }) (nub (map (show <<< _.country) (filter (\i -> i.round == x.record.round) indicators)))
+    )
+    steps
+  -- the price on each Exchange that trades one currency for another
+  rates = concatMap (\x -> map (\m -> { round: x.record.round, name: displayName x.world m.id, value: Just (exchangePrice m) }) (filter (\m -> not (isGood x.world m.base) && m.base /= x.world.numeraire || any (\o -> o.quote == m.base) (values x.world.exchanges)) (fromFoldable (values x.world.exchanges)))) r.rounds
   inForce = concatMap (\x -> map (Tuple x.record.round) (rulesRows x)) r.rounds
   countryAt w = case _ of
     Held a -> Just (show (groupOf w a))
@@ -142,5 +197,17 @@ rulesColumns =
   , column "Counterparty" "The country the Rule binds."
   ]
 
+countryColumn :: Column
+countryColumn = column "Country" "A group of Actors: an Actor and those that count as it for Rules. Everything outside it, the Exchanges' reserves included, is abroad."
+
+positionColumn :: Column
+positionColumn = column "Net external position" "The currencies the country holds other than its own, and what the rest of the world owes it less what it owes the rest of the world on open agreements, valued in the numeraire after the round. Its own currency is what its home Exchanges quote."
+
+exchangeColumn :: Column
+exchangeColumn = column "Currency exchange" "An Exchange that trades one currency for another."
+
+rateColumn :: Column
+rateColumn = column "Exchange rate" "The Exchange's price after the round: units of its quote currency for one of its base."
+
 columns :: Array Column
-columns = goodsColumns <> capitalColumns <> [ roundsColumn ] <> rulesColumns
+columns = goodsColumns <> capitalColumns <> [ roundsColumn, exchangeColumn, rateColumn ] <> rulesColumns
