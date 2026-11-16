@@ -160,11 +160,11 @@ enactedColumn = column "Rules enacted" "How many Rules the players enacted over 
 summaryColumns :: Array Column
 summaryColumns = [ leaderColumn, leadColumn, spreadColumn, giniColumn, shortColumn, enactedColumn ]
 
--- | One row per run, the run named: who leads after the final round and with what, how even final net worth is (its
+-- | One row per run, by id and name: who leads after the final round and with what, how even final net worth is (its
 -- | spread and Gini), how many units of fixed requirements went short, and how many Rules were enacted. The compact
 -- | reading of a comparison of many runs.
 summary :: Array StoredRun -> Table
-summary runs = { title: "The runs at a glance", columns: names ([ col.name ] <> summaryColumns), rows: map row runs }
+summary runs = { title: "The runs at a glance", columns: names ([ col.run, col.name ] <> summaryColumns), rows: map row runs }
   where
   row r =
     let
@@ -173,7 +173,7 @@ summary runs = { title: "The runs at a glance", columns: names ([ col.name ] <> 
       short = Q.sumQ (concatMap (\x -> map _.quantity (shortfallsOf x.record)) r.rounds)
       enacted = length (concatMap (\x -> select (event @"Enacted") x.record.events) r.rounds)
     in
-      [ if r.name == "" then r.id else r.name, maybe "" (show <<< _.player) leader, maybe "" (quantity <<< _.netWorth) leader, spreadCell m.spread, giniCell m.gini, quantity short, show enacted ]
+      [ r.id, if r.name == "" then r.id else r.name, maybe "" (show <<< _.player) leader, maybe "" (quantity <<< _.netWorth) leader, spreadCell m.spread, giniCell m.gini, quantity short, show enacted ]
 
 -- | Whether a chart's lines move: a chart whose every line is flat says nothing a comparison needs.
 moving :: Chart -> Boolean

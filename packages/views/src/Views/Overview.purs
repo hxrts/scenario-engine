@@ -2,7 +2,6 @@
 -- | summary metrics, and the Objectives table (docs/07_simulator.md §9.1, §9.2). Pure.
 module Views.Overview
   ( ListedRun
-  , Unreadable
   , RunFlags
   , RunList
   , runList
@@ -26,7 +25,7 @@ import Schema.Run (RunClass(..))
 import Checks.Objectives (CriterionResult, ObjectiveResult, evaluateObjectives)
 import Views.Common (RunCore, Field, cellOf, columnsOf, tableOf, Column, StoredRun, Table, TableRow, col, column, completed, emptied, ofCount, quantity, target)
 
--- | A run as the list shows it: its summary, read without its records or snapshots, with its class (simulated or
+-- | A run as the list shows it: its summary, read from the decoded run, with its class (simulated or
 -- | interactive) and, for an interactive run, its tag.
 type ListedRun = Record
   ( RunCore
@@ -41,44 +40,36 @@ type ListedRun = Record
       )
   )
 
--- | A stored run that cannot be read: the list shows it with the reason, and keeps the others.
-type Unreadable = { id :: String, name :: String, reason :: String }
-
--- | The typed flags of one listed run: its class, whether the server can read it, and an interactive run's tag. A run
--- | that cannot be read is listed as simulated and not readable.
-type RunFlags = { id :: String, runClass :: RunClass, readable :: Boolean, tag :: Maybe String }
+-- | The typed flags of one listed run: its class and an interactive run's tag.
+type RunFlags = { id :: String, runClass :: RunClass, tag :: Maybe String }
 
 -- | The run list (`GET /api/runs`): the table the list shows, and the flags of each run in the same order.
 type RunList = Record (TableRow (runs :: Array RunFlags))
 
-runList :: Array (Either Unreadable ListedRun) -> RunList
-runList rows = Record.merge (tableOf "Simulation runs" runFields rows) { runs: map flags rows }
-  where
-  flags = case _ of
-    Left u -> { id: u.id, runClass: Simulated, readable: false, tag: Nothing }
-    Right s -> { id: s.id, runClass: s.runClass, readable: true, tag: s.tag }
+runList :: Array ListedRun -> RunList
+runList rows = Record.merge (tableOf "Simulation runs" runFields rows) { runs: map (\s -> { id: s.id, runClass: s.runClass, tag: s.tag }) rows }
 
--- | The run list's columns and cells. An unreadable run's class and tag are not decoded, so they show as unknown.
-runFields :: Array (Field (Either Unreadable ListedRun))
+-- | The run list's columns and cells.
+runFields :: Array (Field ListedRun)
 runFields =
-  [ cellOf col.run (either _.id _.id)
-  , cellOf col.name (either _.name _.name)
-  , cellOf col.composition (either (const "—") _.composition)
-  , cellOf col.gameSeed (either (const "—") _.gameSeed)
-  , cellOf col.playerSeed (either (const "—") _.playerSeed)
-  , cellOf col.rounds (either (const "—") (show <<< _.rounds))
-  , cellOf col.status (either (const "unreadable") (show <<< _.status))
-  , cellOf assertionsFailing (either (const "—") (show <<< _.assertionsFailing))
-  , cellOf reasonColumn (either _.reason (fromMaybe "" <<< _.reason))
-  , cellOf classColumn (either (const "—") (show <<< _.runClass))
-  , cellOf tagColumn (either (const "—") (fromMaybe "" <<< _.tag))
+  [ cellOf col.run _.id
+  , cellOf col.name _.name
+  , cellOf col.composition _.composition
+  , cellOf col.gameSeed _.gameSeed
+  , cellOf col.playerSeed _.playerSeed
+  , cellOf col.rounds (show <<< _.rounds)
+  , cellOf col.status (show <<< _.status)
+  , cellOf assertionsFailing (show <<< _.assertionsFailing)
+  , cellOf reasonColumn (fromMaybe "" <<< _.reason)
+  , cellOf classColumn (show <<< _.runClass)
+  , cellOf tagColumn (fromMaybe "" <<< _.tag)
   ]
 
 assertionsFailing :: Column
 assertionsFailing = column "Assertions failing" "Assertion failures across all rounds. An assertion checks an economic invariant (INV-xx), so 0 means none failed."
 
 reasonColumn :: Column
-reasonColumn = column "Reason" "Why the run failed or cannot be read. Empty for a run that did not fail." # emptied { label: "none", reason: "The run did not fail, so it has no failure reason." }
+reasonColumn = column "Reason" "Why the run failed. Empty for a run that did not fail." # emptied { label: "none", reason: "The run did not fail, so it has no failure reason." }
 
 classColumn :: Column
 classColumn = column "Class" "simulated: a run of the static suite, played at build time and cached. interactive: a live run, mock or production."

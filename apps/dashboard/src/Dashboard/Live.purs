@@ -11,7 +11,7 @@ import Control.Alt ((<|>))
 import Core.Shape (Format(..), decodeJsonWith, encodeWith)
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
-import Dashboard.Comparison (mkRunBrowser, mkRunPage)
+import Dashboard.Comparison (mkRunBrowser)
 import Dashboard.Components (errorBlock, labelled, loaded, note, selectInput, textInput)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
@@ -43,7 +43,6 @@ import React.Basic.Hooks as React
 import Schema.Cast (Role(..), roleShape)
 import Schema.Run (RunClass(..), RunStatus(..))
 import Views.Composition (CompositionInfo)
-import Views.Overview (RunList)
 import Web.HTML (window)
 import Web.HTML.Window (confirm)
 
@@ -68,7 +67,6 @@ emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", see
 
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
-  runPage <- mkRunPage grid
   browser <- mkRunBrowser grid
   start <- mkStart
   controls <- mkControls
@@ -86,6 +84,8 @@ mkLive grid = do
         Just (Right st) -> Just st
         _ -> Nothing
       live = maybe false (\st -> st.status == Running) current
+      -- the live run is live while it runs and its clock is not paused
+      active = maybe false (\st -> st.status == Running && not st.paused) current
     pure $ Layout.body
       ( [ Layout.group
             { title: "The live run"
@@ -103,15 +103,15 @@ mkLive grid = do
             , purpose: "Choose the composition, who plays each seat, the rounds and window, and the run's tag and metadata. A production run needs its name, facilitator, date, venue and a player for each human seat."
             , children: [ start { live, liveId: maybe "" _.id current, bump } ]
             }
-        , maybe (D.span_ []) (\st -> runPage { id: st.id, title: "The live run's results", purpose: "The live run so far: each Actor's balance sheet to hand to whoever plays it, its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
         , loaded past.value \t -> browser
             { list: t
-            -- the live run's results are already shown above
-            , selected: p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id
+            , selected: p.selected
             , select: navigate <<< LiveRun
-            , baseline: Nothing
+            -- the live run opens to start, its results refetched each round
+            , baseline: map _.id current
             , empty: "No interactive run yet."
-            , choose: "Every interactive run, live or past, with its tag. Click one to open it at the foot of the page."
+            , badge: \id -> if Just id == map _.id current then Just (liveBadge active) else Nothing
+            , version: maybe 0 _.round current
             }
         ]
       )
@@ -267,3 +267,11 @@ view cs c form setForm failure setFailure p = D.div
           p.bump
           navigate Live
   elem' x xs = not (null (filter (_ == x) xs))
+
+-- | The live run's badge beside its name: green while it is live, grey otherwise.
+liveBadge :: Boolean -> JSX
+liveBadge on = D.span
+  { className: "ml-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium " <> (if on then "border-green-600/40 bg-green-500/15 text-green-700 dark:text-green-400" else "border-border bg-muted text-muted-foreground")
+  , title: if on then "The live run, playing now" else "The live run, not playing now"
+  , children: [ D.span { className: "size-1.5 rounded-full " <> (if on then "bg-green-500" else "bg-muted-foreground") }, D.text "live" ]
+  }

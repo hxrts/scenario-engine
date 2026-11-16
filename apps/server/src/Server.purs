@@ -7,7 +7,7 @@ import Prelude
 
 import Adapters.Exit (fail, usageError)
 import Adapters.Filesystem (fileDevice)
-import Data.Array (drop)
+import Data.Array (drop, length, null)
 import Data.Either (Either(..), either)
 import Data.Foldable (for_)
 import Effect (Effect)
@@ -20,7 +20,9 @@ import Gate (gated, parseEnv, secretsFrom)
 import Adapters.Digest (sha256)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Foreign.Object as Object
-import Handlers.Store (runStore)
+import Handlers.Store (runObserve, runStore)
+import Server.Read (unreadableRuns)
+import Data.String (joinWith)
 import Handlers.System (interpretFiles)
 import Http (serve)
 import Effects.Api (ApiRequest(..))
@@ -41,6 +43,8 @@ main = do
         let secrets = secretsFrom sha256 env
         store <- localStore <$> openDatabase flags.db
         runStore store startup >>= flip for_ log
+        -- a run the store holds but cannot decode is shown nowhere, so it is reported here
+        runObserve store unreadableRuns >>= \bad -> unless (null bad) (log ("the store holds " <> show (length bad) <> " run(s) that cannot be decoded and are not shown: " <> joinWith "; " bad))
         cache <- newServerCache
         host <- newHost store
         let implementation = implement compositions store cache host

@@ -98,7 +98,7 @@ Fixing one stream and varying the other isolates its effect: varying the player 
 
 ## 6. Lifecycle and Execution
 
-A run's status is `running`, `completed`, or `failed`. A run is `running` from its creation until it finishes, and its final status is written when it finishes. A failed run keeps its last valid state and diagnostics. The Dashboard's run list adds `unreadable` for a run it cannot decode.
+A run's status is `running`, `completed`, or `failed`. A run is `running` from its creation until it finishes, and its final status is written when it finishes. A failed run keeps its last valid state and diagnostics. A stored run that cannot be decoded (one written under an older shape of its data) is shown nowhere: the run list reads every run through the same decode as every view, so a run is listed exactly when it can be shown, and the server names each undecodable run at startup.
 
 Each round follows the canonical sequence ([02 §8.1](02_kernel.md#81-canonical-resolution-sequence)). The simulator drives the same round runner and engine as live play, with seat Strategies bound. Its own work is supplying the seat inputs and saving each round's record, round-end World, assertion results, and metrics once the round is complete. It does not evaluate non-playable Actor or Aggregate Strategies, compute Representation estimates or procedure support, or repeat Aggregate actions.
 
@@ -331,15 +331,14 @@ The Dashboard is served at `/admin`, behind the password (§8.3). It has two pag
 
 ### 9.1 Simulations
 
-Both pages show their runs through one run browser, in four groups, in order, each with a one-line description:
+Both pages show their runs through one run browser, in three groups, in order, each with a one-line description:
 
-- **Choose a run.** A table of the runs, one row each. Selecting one, or opening its route, opens it in the last group.
-- **Compare the runs.** First the runs at a glance: one row per run, by name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`).
+- **Compare the runs.** First the runs at a glance: one row per run, by id and name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`). Selecting a row, or opening its route, opens that run in the last group.
 Then the runs to plot: any number of runs ticked, the default preset's run first and the baseline, each in its own colour. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
 - **Agency.** Each agency run against the preset run it deviates from, and its seat's criteria under each (§10.3).
 - **The selected run.** Its balance sheets (§9.4), then its results (§9.3).
 
-Simulations browses the static suite (§3), its default preset's run the baseline and open to start; runs are made only by the suite. Live browses the interactive runs and opens none to start.
+Simulations browses the static suite (§3), its default preset's run the baseline and open to start; runs are made only by the suite. Live browses the interactive runs and opens the live run to start, if there is one, or none.
 
 ### 9.2 Live
 
@@ -347,8 +346,7 @@ Live adds the one live run (§8.2) above its run browser, in groups, in order, e
 
 - **The live run.** Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
 - **Start a live run.** The composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field. When a run is live the form says so and starts with "Clear and start", which clears it first.
-- **The live run's results** so far: its balance sheets (§9.4) and results (§9.3).
-- **The run browser** over every interactive run, live or past, with its tag. The live run, once chosen, is not shown again below.
+- **The run browser** over every interactive run, live or past. The live run's row carries a badge, green while it plays (running, its clock not paused) and grey otherwise, and the comparison and the open run are fetched again each round.
 
 ### 9.3 Run Details
 

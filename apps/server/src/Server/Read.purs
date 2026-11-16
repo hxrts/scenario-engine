@@ -3,6 +3,7 @@
 -- | `Views`; this module decodes the stored text, picks the view, and replies.
 module Server.Read
   ( runSummaries
+  , unreadableRuns
   , loadRun
   , runInfo
   , getView
@@ -16,10 +17,11 @@ module Server.Read
 
 import Prelude
 
-import Effects.Observe (listRuns, listSummaries, readManifest, readRounds)
+import Effects.Observe (listRuns, readManifest, readRounds)
+import Type.Row (type (+))
 import Schema.View (View)
 import Schema.Run (RunClass(..), RunStatus(..))
-import Effects.Signatures (RunError(..), RunInfo, RunSummary, StoredManifest, StoredRound)
+import Effects.Signatures (OBSERVE, RunError(..), RunInfo, StoredManifest, StoredRound)
 import Server.Cache (cached, cachedCompare)
 
 import Laws.Types (Id(..))
@@ -29,7 +31,7 @@ import Data.Either (Either(..), either, hush)
 
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.String (joinWith)
-import Data.Traversable (sequence, traverse)
+import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Run (Run)
 import Server.Rows (READS)
@@ -64,49 +66,54 @@ import Handlers.Api.Contract (AnyRefusal)
 import Views.Actor (ActorList, History)
 import Views.Compare (CompareView)
 
--- | The run list: one summary per stored run, read without records or snapshots, of the class asked for (every
--- | run when Nothing). A run that cannot be decoded is listed as unreadable, with the reason; the others stay
--- | visible, and an unreadable run is listed whatever class is asked for.
-runSummaries :: forall r. Maybe RunClass -> Run (READS r) (Array (Either Overview.Unreadable Overview.ListedRun))
+-- | The run list: one row per stored run of the class asked for (every run when Nothing), read from the same decoded
+-- | run every other view reads (`loadRun`), so a run is listed exactly when it can be shown. A run that cannot be
+-- | decoded is left out: the server reports it at startup (`unreadableRuns`).
+runSummaries :: forall r. Maybe RunClass -> Run (READS r) (Array Overview.ListedRun)
 runSummaries wanted = do
-  rows <- listSummaries
-  pure (filter (either (const true) (\s -> maybe true (_ == s.runClass) wanted)) (map summarize rows))
+  runs <- listRuns
+  loaded <- traverse (\i -> map (listed i) <<< hush <$> loadWith i) runs
+  pure (filter (\s -> maybe true (_ == s.runClass) wanted) (catMaybes loaded))
   where
-  summarize row = case decodeSummary row of
-    Left why -> Left { id: row.id, name: row.name, reason: why }
-    Right s -> Right s
-
-decodeSummary :: RunSummary -> Either String Overview.ListedRun
-decodeSummary row = do
-  man <- row.manifest
-  s <- row.spec
-  assertions <- sequence row.assertions
-  pure
-    { id: row.id
-    , name: row.name
-    , status: row.status
-    , reason: row.reason
-    , composition: man.composition
-    , gameSeed: show man.initial.seed
-    , playerSeed: maybe "" show s.playerSeed
-    , rounds: length row.assertions
-    , assertionsFailing: length (concat assertions)
-    , runClass: fromMaybe Simulated s.runClass
-    , tag: s.tag
+  listed i r =
+    { id: r.id
+    , name: r.name
+    , status: r.status
+    , reason: i.reason
+    , composition: r.manifest.composition
+    , gameSeed: show r.manifest.initial.seed
+    , playerSeed: r.playerSeed
+    , rounds: length r.rounds
+    , assertionsFailing: length (concat r.assertions)
+    , runClass: fromMaybe Simulated r.spec.runClass
+    , tag: r.spec.tag
     }
 
--- | Decode one stored run for a single-run view or a comparison: every record, snapshot, and
--- | assertion set. Any stored text that fails to decode makes the whole run unreadable. A finished
--- | run is decoded once and then served from the cache (`Server.Cache`).
-loadRun :: forall r. String -> Run (READS r) (Either RunError StoredRun)
-loadRun id = cached id do
+-- | Every stored run that cannot be decoded, each with why: the server reports them at startup, since such a run is
+-- | a store written under an older shape of its data, and is shown nowhere.
+unreadableRuns :: forall r. Run (OBSERVE + r) (Array String)
+unreadableRuns = do
   runs <- listRuns
-  m <- (readManifest id)
-  rows <- (readRounds id)
-  pure case find (\r -> r.id == id) runs, m of
-    Nothing, _ -> Left Missing
-    Just _, Nothing -> Left (Unreadable "the run has no manifest")
-    Just i, Just stored -> either (Left <<< Unreadable) Right (decodeRun i stored rows)
+  catMaybes <$> traverse (\i -> either (\e -> Just (i.id <> ": " <> describe e)) (const Nothing) <$> decodeStored i) runs
+
+-- | One stored run decoded for every view: every record, snapshot, and assertion set. Any stored text that fails to
+-- | decode makes the whole run unreadable. A finished run is decoded once and then served from the cache
+-- | (`Server.Cache`).
+loadRun :: forall r. String -> Run (READS r) (Either RunError StoredRun)
+loadRun id = listRuns >>= \runs -> maybe (pure (Left Missing)) loadWith (find (\r -> r.id == id) runs)
+
+-- | A listed run decoded, through the cache.
+loadWith :: forall r. RunInfo -> Run (READS r) (Either RunError StoredRun)
+loadWith i = cached i.id (decodeStored i)
+
+-- | A listed run decoded from the store.
+decodeStored :: forall r. RunInfo -> Run (OBSERVE + r) (Either RunError StoredRun)
+decodeStored info = do
+  m <- readManifest info.id
+  rows <- readRounds info.id
+  pure case m of
+    Nothing -> Left (Unreadable "the run has no manifest")
+    Just stored -> either (Left <<< Unreadable) Right (decodeRun info stored rows)
   where
   decodeRun :: RunInfo -> StoredManifest -> Array StoredRound -> Either String StoredRun
   decodeRun i stored rows = do
@@ -197,7 +204,7 @@ actorView id actor = withRun id (\r -> viewOr (Actor.actorHistory r (Id actor)))
 compareView :: forall r. Compositions -> { runs :: Array String, exchange :: Maybe String } -> Run (READS r) (Answer AnyRefusal CompareView)
 compareView compositions { runs: asked, exchange } = do
   -- no run named compares every simulated run, in list order
-  ids <- if null asked then map _.id <<< filter (\s -> s.runClass == Simulated) <<< catMaybes <<< map hush <$> runSummaries (Just Simulated) else pure asked
+  ids <- if null asked then map _.id <$> runSummaries (Just Simulated) else pure asked
   cachedCompare (joinWith "," ids <> "|" <> fromMaybe "" exchange) (compared ids)
   where
   compared ids = do

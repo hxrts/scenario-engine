@@ -5,9 +5,9 @@
 import { test, expect } from "@playwright/test";
 import { rowWith, section } from "./helpers.js";
 
-test("the suite's runs are a table by name, and FreeTrade opens first", async ({ page }) => {
+test("the runs at a glance choose the run to open, and FreeTrade opens first", async ({ page }) => {
   await page.goto("/admin/#/simulations");
-  const runs = section(page, "Choose a run");
+  const runs = section(page, "The runs at a glance");
   for (const name of ["Adaptive", "FreeTrade", "Substitute", "FreeTrade with CN on Hawk", "FreeTrade with US-firm on Builder"])
     await expect(rowWith(runs, [name])).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Run run-6" })).toBeVisible();

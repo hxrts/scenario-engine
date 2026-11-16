@@ -40,11 +40,13 @@ type Props =
   , onRow :: Maybe (Array String -> Effect Unit)
   -- | A row that is the current selection is highlighted.
   , activeRow :: Array String -> Boolean
+  -- | A mark drawn after a cell's value, such as a status badge: given the row's values and the column index.
+  , badge :: Array String -> Int -> Maybe JSX
   }
 
 -- | The props of a static table: no links, no marks, no selection.
 defaults :: forall r. { columns :: Array String, rows :: Array (Array String) | r } -> Props
-defaults t = { columns: t.columns, rows: t.rows, link: \_ _ -> Nothing, mark: \_ _ -> false, onRow: Nothing, activeRow: \_ -> false }
+defaults t = { columns: t.columns, rows: t.rows, link: \_ _ -> Nothing, mark: \_ _ -> false, onRow: Nothing, activeRow: \_ -> false, badge: \_ _ -> Nothing }
 
 -- | A rendered table: a function from props to JSX, created once and passed down.
 type DataTable = Props -> JSX
@@ -111,7 +113,7 @@ mkDataTable = component "DataTable" \p -> React.do
               _, _ -> case p.link i row of
                 Just href -> D.a { href, className: "underline", children: [ D.text value ] }
                 Nothing -> D.text value
-          ]
+          ] <> maybe [] (\b -> [ b ]) (p.badge row i)
       }
     rowEl ri row = D.tr
       { key: show ri

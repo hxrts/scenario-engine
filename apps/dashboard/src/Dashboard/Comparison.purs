@@ -35,8 +35,9 @@ import Views.Overview (RunList)
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | The run list as a table. A row click selects that run; the selected row is highlighted.
-runTable :: DataTable -> RunList -> { selected :: String, select :: String -> Effect Unit } -> JSX
+-- | A table of runs, keyed by its first column, the run id. A row click selects that run; the selected row is
+-- | highlighted, and `badge` marks a run's second cell, its name.
+runTable :: forall r. DataTable -> { columns :: Array String, rows :: Array (Array String) | r } -> { selected :: String, select :: String -> Effect Unit, badge :: String -> Maybe JSX } -> JSX
 runTable grid t s = D.div
   { className: "overflow-x-auto"
   , children:
@@ -44,6 +45,7 @@ runTable grid t s = D.div
           ( (defaults t)
               { onRow = Just \row -> s.select (fromMaybe "" (index row runKeyColumn))
               , activeRow = \row -> index row runKeyColumn == Just s.selected
+              , badge = \row i -> if i == 1 then index row runKeyColumn >>= s.badge else Nothing
               }
           )
       ]
@@ -51,33 +53,44 @@ runTable grid t s = D.div
 
 -- | A run's group: its title and description, each Actor's balance-sheet page, then the run's overview, fetched
 -- | once, and its results.
-mkRunPage :: DataTable -> Component { id :: String, title :: String, purpose :: String }
+mkRunPage :: DataTable -> Component { id :: String, version :: Int, title :: String, purpose :: String }
 mkRunPage grid = do
   results <- mkRunResults grid
   links <- mkLinks
   component "RunPage" \p -> React.do
-    overview <- useLoad p.id (Client.overview p.id)
+    overview <- useLoad (p.id <> "@" <> show p.version) (Client.overview p.id)
     pure $ Layout.group
       { title: p.title
       , purpose: p.purpose
       , children:
           [ Layout.subsection { title: "Balance sheets", purpose: "Each Actor's own page for this run. A page shows only that Actor's data.", children: [ links p.id ] }
-          , results { id: p.id, version: 0, overview }
+          , results { id: p.id, version: p.version, overview }
           ]
       }
 
 -- | A comparison of the runs given (in order, the first the baseline), as two groups: comparing the runs (every run at a
 -- | glance, the runs to plot, and their plots), and the agency of each seat when agency runs are among them.
--- | `initial` names the runs ticked to start with.
-mkComparison :: DataTable -> Component { ids :: Array String, names :: String -> String, initial :: Array String }
+-- | `initial` names the runs ticked to start with. A row of the runs at a glance opens its run (`select`), the open one
+-- | highlighted; `badge` marks a run's name, and `version` refetches every view when bumped.
+mkComparison
+  :: DataTable
+  -> Component
+       { ids :: Array String
+       , names :: String -> String
+       , initial :: Array String
+       , selected :: String
+       , select :: String -> Effect Unit
+       , badge :: String -> Maybe JSX
+       , version :: Int
+       }
 mkComparison grid = component "Comparison" \p -> React.do
-  everyRun <- useLoad (String.joinWith "," p.ids) (Client.compare p.ids)
+  everyRun <- useLoad (String.joinWith "," p.ids <> "@" <> show p.version) (Client.compare p.ids)
   ticked /\ setTicked <- useState' (Nothing :: Maybe (Array String))
   picked /\ setPicked <- useState' (Nothing :: Maybe String)
   let
     plotted = fromMaybe p.initial ticked
     toggle id on = setTicked (Just (if on then (if elem id plotted then plotted else plotted <> [ id ]) else filter (_ /= id) plotted))
-  plots <- useLoad (String.joinWith "," plotted) (if null plotted then pure (Left "") else Client.compare plotted)
+  plots <- useLoad (String.joinWith "," plotted <> "@" <> show p.version) (if null plotted then pure (Left "") else Client.compare plotted)
   pure $ React.fragment
     [ Layout.group
         { title: "Compare the runs"
@@ -85,8 +98,8 @@ mkComparison grid = component "Comparison" \p -> React.do
         , children:
             [ Layout.subsection
                 { title: "The runs at a glance"
-                , purpose: "One row per run: who leads after the final round and with what, how even final net worth is, how many units of fixed requirements went short, and how many Rules were enacted."
-                , children: [ loaded everyRun.value \c -> tableOf grid c.summary ]
+                , purpose: "One row per run: click one to open it at the foot of the page. Who leads after the final round and with what, how even final net worth is, how many units of fixed requirements went short, and how many Rules were enacted."
+                , children: [ loaded everyRun.value \c -> runTable grid c.summary { selected: p.selected, select: p.select, badge: p.badge } ]
                 }
             , Layout.subsection
                 { title: "Runs to plot"
@@ -159,13 +172,14 @@ mkComparison grid = component "Comparison" \p -> React.do
 -- | A listed run: its id, its name, and whether it completed.
 type Listed = { id :: String, name :: String, ok :: Boolean }
 
--- | The readable runs of a list, each with its name and whether it completed (the list's Name and Status cells).
+-- | The runs of a list, each with its name and whether it completed (the list's Name and Status cells).
 listed :: RunList -> Array Listed
-listed t = map (\(Tuple f row) -> { id: f.id, name: fromMaybe f.id (index row 1), ok: index row 6 == Just (show Completed) }) (filter (\(Tuple f _) -> f.readable) (zip t.runs t.rows))
+listed t = map (\(Tuple f row) -> { id: f.id, name: fromMaybe f.id (index row 1), ok: index row 6 == Just (show Completed) }) (zip t.runs t.rows)
 
--- | What both pages show of a list of runs, in order: the runs as a table to choose from, their comparison, and the
--- | chosen run in full. `baseline` names the run that heads the comparison and opens when none is chosen; with none,
--- | nothing opens until a run is chosen.
+-- | What both pages show of a list of runs, in order: their comparison, whose runs at a glance choose the run to open,
+-- | and the chosen run in full. `baseline` names the run that heads the comparison and opens when none is chosen;
+-- | with none, nothing opens until a run is chosen. `badge` marks a run's name, and `version`, bumped, refetches the
+-- | comparison and the open run.
 mkRunBrowser
   :: DataTable
   -> Component
@@ -174,7 +188,8 @@ mkRunBrowser
        , select :: String -> Effect Unit
        , baseline :: Maybe String
        , empty :: String
-       , choose :: String
+       , badge :: String -> Maybe JSX
+       , version :: Int
        }
 mkRunBrowser grid = do
   comparison <- mkComparison grid
@@ -182,18 +197,13 @@ mkRunBrowser grid = do
   component "RunBrowser" \p -> React.do
     let
       runs = listed p.list
-      baseline = maybe "" _.id ((p.baseline >>= \b -> find (\r -> r.id == b) runs) <|> (if p.baseline == Nothing then Nothing else find (const true) runs))
+      baseline = maybe "" _.id (p.baseline >>= \b -> find (\r -> r.id == b) runs)
       current = p.selected <|> (if baseline == "" then Nothing else Just baseline)
       ordered = map _.id (filter (\r -> r.id == baseline) runs <> filter (\r -> r.id /= baseline) runs)
       nameOf id = maybe id (\r -> r.name <> (if r.ok then "" else " (failed)")) (find (\r -> r.id == id) runs)
     pure $
-      if null p.list.runs then note p.empty
+      if null ordered then note p.empty
       else React.fragment
-        [ Layout.group
-            { title: "Choose a run"
-            , purpose: p.choose
-            , children: [ runTable grid p.list { selected: fromMaybe "" current, select: p.select } ]
-            }
-        , if null ordered then D.span_ [] else comparison { ids: ordered, names: nameOf, initial: if baseline == "" then [] else [ baseline ] }
-        , maybe (D.span_ []) (\id -> runPage { id, title: "The selected run: " <> nameOf id, purpose: "One run in full: each Actor's balance sheet, its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
+        [ comparison { ids: ordered, names: nameOf, initial: if baseline == "" then [] else [ baseline ], selected: fromMaybe "" current, select: p.select, badge: p.badge, version: p.version }
+        , maybe (D.span_ []) (\id -> runPage { id, version: p.version, title: "The selected run: " <> nameOf id, purpose: "One run in full: each Actor's balance sheet, its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
         ]

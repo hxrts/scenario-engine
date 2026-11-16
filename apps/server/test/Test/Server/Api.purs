@@ -30,6 +30,7 @@ import Data.Array (length)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), contains)
+import Data.String.CodePoints (codePointFromChar, takeWhile)
 
 import Effect.Aff (Aff)
 import Effect (Effect)
@@ -46,10 +47,10 @@ import Effects.Api (Reply)
 import Server.Cache (cached)
 import Server.Stack (ServerCache, newServerCache, runServer, systemDevices)
 import Server.Launch (startup)
-import Server.Read (loadRun)
+import Server.Read (loadRun, unreadableRuns)
 import Test.Server.Http (rawExec)
 import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (fail, shouldEqual, shouldSatisfy)
+import Test.Spec.Assertions (fail, shouldEqual, shouldNotSatisfy, shouldSatisfy)
 import Testkit.Run (anyRounds, pacificParts)
 
 inCache :: ServerCache -> Run (CACHE StoredRun CompareView + EFFECT + ()) ~> Effect
@@ -145,7 +146,7 @@ spec = describe "API status rules, startup and cache" do
     spaced.status `shouldEqual` 404
     spaced.body `shouldSatisfy` contains (Pattern "no run a b")
 
-  it "the run list marks an unreadable run and keeps the others" do
+  it "the run list leaves out a run that cannot be decoded, keeps the others, and the startup check names it" do
     env <- setup
     launch env 2
     launch env 2
@@ -153,8 +154,9 @@ spec = describe "API status rules, startup and cache" do
     list <- env.api "GET" "/api/runs" ""
     list.status `shouldEqual` 200
     list.body `shouldSatisfy` contains (Pattern "\"id\":\"run-1\"")
-    list.body `shouldSatisfy` contains (Pattern "\"readable\":false")
-    list.body `shouldSatisfy` contains (Pattern "unreadable")
+    list.body `shouldNotSatisfy` contains (Pattern "\"id\":\"run-2\"")
+    bad <- liftEffect (runObserve env.store unreadableRuns)
+    map (takeWhile (_ /= codePointFromChar ':')) bad `shouldEqual` [ "run-2" ]
   it "a default-rounds run stores the resolved round count, and its overview shows it as the target" do
     env <- setup
     _ <- env.api "POST" "/api/runs" "{\"name\":\"d\",\"preset\":\"FreeTrade\",\"playerSeed\":1,\"rounds\":null}"

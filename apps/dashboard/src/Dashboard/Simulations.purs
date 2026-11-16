@@ -4,6 +4,7 @@ module Dashboard.Simulations (mkSimulations) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Dashboard.Api (useLoad)
 import Dashboard.Client as Client
 import Dashboard.Comparison (mkRunBrowser)
@@ -37,8 +38,9 @@ mkSimulations grid = do
             { list: t
             , selected: p.selected
             , select: navigate <<< Simulation
-            , baseline: Just (maybe "" (\(Tuple f _) -> f.id) (find (\(Tuple _ row) -> index row 1 == Just defaultPreset) (zip t.runs t.rows)))
+            , baseline: map (\(Tuple f _) -> f.id) (find (\(Tuple _ row) -> index row 1 == Just defaultPreset) (zip t.runs t.rows)) <|> map _.id (head t.runs)
             , empty: "No simulated run yet: play the suite with `just suite`."
-            , choose: "Every run of the suite: one per preset, then one per seat playing its alternative. Click one to open it at the foot of the page."
+            , badge: const Nothing
+            , version: 0
             }
       ]

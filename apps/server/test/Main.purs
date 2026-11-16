@@ -231,7 +231,6 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           overview.body `shouldSatisfy` contains (Pattern "\"value\":\"2 of 2\"")
           list <- api "GET" "/api/runs" [] ""
           list.body `shouldSatisfy` contains (Pattern "\"runs\":[{")
-          list.body `shouldSatisfy` contains (Pattern "\"readable\":true")
           actors <- api "GET" "/api/runs/run-1/actors" [] ""
           actors.status `shouldEqual` 200
           actors.body `shouldSatisfy` contains (Pattern "\"seat\":true")

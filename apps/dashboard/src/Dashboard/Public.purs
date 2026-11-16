@@ -17,7 +17,7 @@ publicShell :: JSX -> JSX -> JSX
 publicShell toggle page = D.div
   { className: "min-h-screen"
   , children:
-      [ Layout.topBar { brand: "Scenario Engine", home: "/", nav: [ navLink "/admin/" "Admin" ], themeButton: toggle }
+      [ Layout.topBar { brand: "⋲", home: "/", nav: [ navLink "/admin/" "Admin" ], themeButton: toggle }
       , D.main { className: "min-w-0", children: [ page ] }
       ]
   }

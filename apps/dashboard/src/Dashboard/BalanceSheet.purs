@@ -30,7 +30,7 @@ mkBalanceSheet grid = do
     value <- useLoad p (Client.balanceSheet p.run p.token)
     -- the bar links only back to this page, which links nowhere else
     pure $ D.div_
-      [ Layout.topBar { brand: "Scenario Engine", home: "/balancesheet/" <> p.run <> "/" <> p.token, nav: [], themeButton: toggle unit }
+      [ Layout.topBar { brand: "⋲", home: "/balancesheet/" <> p.run <> "/" <> p.token, nav: [], themeButton: toggle unit }
       , D.main_ [ loaded value.value page ]
       ]
   where
