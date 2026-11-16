@@ -6,6 +6,7 @@
 module Views.Regimes
   ( Regime
   , Gauge
+  , Threshold
   , regimes
   , capabilityColumns
   , demandColumns
@@ -37,7 +38,10 @@ import Views.Standings (valueIn)
 
 -- | One reading of a regime: the chart of the ratio that decides it, the level that ratio is read against (none when
 -- | it has no fixed level), and the table of the measures behind it.
-type Gauge = { chart :: Chart, threshold :: Maybe String, table :: Table }
+type Gauge = { chart :: Chart, threshold :: Maybe Threshold, table :: Table }
+
+-- | A level a ratio is read against, and what crossing it means: drawn as a dashed line, and named in the legend.
+type Threshold = { value :: String, label :: String }
 
 -- | A country's regime, as whether it reproduces itself (docs/05 §4): its productive capability (how much of its
 -- | capacity ran, and how much its competence could run), its import substitution (whether making what it imports
@@ -77,12 +81,12 @@ regimes r = map regimeOf countries
       { country: show c
       , capability:
           { chart: { title: "Productive capability, " <> show c, unit: "share of capacity", kind: Ratio, series: pointSeries shares }
-          , threshold: Just "1"
+          , threshold: Just { value: "1", label: "full capacity" }
           , table: { title: "Productive capability, " <> show c, columns: names ([ col.round ] <> capabilityColumns), rows: measuredRows capability }
           }
       , substitution:
           { chart: { title: "Substitute gap, " <> show c, unit: money, kind: Quantity, series: pointSeries gaps }
-          , threshold: Just "0"
+          , threshold: Just { value: "0", label: "import cost" }
           , table: { title: "Substitute gap, " <> show c, columns: names [ col.round, goodColumn, gapColumn ], rows: map (\g -> [ show g.round, g.name, maybe "n/a" quantity g.value ]) gaps }
           }
       , demand:
@@ -92,7 +96,7 @@ regimes r = map regimeOf countries
           }
       , finance:
           { chart: { title: "Debt service, " <> show c, unit: "owed over revenue", kind: Ratio, series: pointSeries service }
-          , threshold: Just "1"
+          , threshold: Just { value: "1", label: "sales cover debt" }
           , table: { title: "Financial capacity, " <> show c, columns: names ([ col.round ] <> financeColumns), rows: measuredRows finance }
           }
       }

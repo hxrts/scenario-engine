@@ -49,6 +49,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Views.Actions (ActionsChart)
 import Views.Compare (Marked)
 import Views.Common (Bars, Chart, Statistic, Table)
+import React.Basic.DOM (css)
 import React.Basic.DOM as D
 import React.Basic.DOM.Events (targetValue)
 import React.Basic.Events (handler, handler_)
@@ -187,10 +188,25 @@ metricChartAt size c = Layout.captioned (c.title <> " (" <> c.unit <> ")") [ lin
 linesOf :: Size -> Chart -> JSX
 linesOf size = linesAgainst size Nothing
 
--- | The lines of a Chart against the level they are read against, drawn as a dashed line that the axis always reaches.
-linesAgainst :: Size -> Maybe String -> Chart -> JSX
-linesAgainst size threshold c =
-  lineChartOf
+-- | The lines of a Chart against the level they are read against, drawn as a dashed line that the axis always reaches
+-- | and named in the legend beside the lines.
+linesAgainst :: Size -> Maybe { value :: String, label :: String } -> Chart -> JSX
+linesAgainst size threshold c = case threshold of
+  Nothing -> plot
+  Just t -> D.div
+    { className: "flex min-w-0 flex-col gap-1"
+    , children:
+        [ plot
+        , D.div
+            { className: "flex flex-wrap items-center justify-center gap-4 text-xs"
+            , children:
+                mapWithIndex (\i s -> D.div { key: s.name, className: "flex items-center gap-1.5", children: [ D.span { className: "size-2 shrink-0 rounded-[2px]", style: css { backgroundColor: seriesColour i } }, D.text s.name ] }) c.series
+                  <> [ D.div { key: "threshold", className: "flex items-center gap-1.5 text-muted-foreground", children: [ D.span { className: "w-4 shrink-0 border-t-2 border-dashed border-muted-foreground" }, D.text (t.label <> " (" <> t.value <> ")") ] } ]
+            }
+        ]
+    }
+  where
+  plot = lineChartOf
     { config: Object.fromFoldable (mapWithIndex (\i s -> Tuple s.name { label: s.name, color: seriesColour i }) c.series)
     , className: heightOf size <> " w-full"
     , rows: chartRows c.kind c.series
@@ -198,9 +214,10 @@ linesAgainst size threshold c =
     , yAxis: axisOf c.kind Nothing
     , tooltip: valueTooltip
     , marks:
-        maybe [] (\y -> [ element UI.referenceLine { key: "threshold", y: Q.toDisplayNumber y, stroke: "var(--muted-foreground)", strokeDasharray: "4 4", ifOverflow: "extendDomain" } ]) (threshold >>= Q.parse)
+        maybe [] (\y -> [ element UI.referenceLine { key: "threshold", y: Q.toDisplayNumber y, stroke: "var(--muted-foreground)", strokeDasharray: "4 4", ifOverflow: "extendDomain" } ]) (threshold >>= \t -> Q.parse t.value)
           <> mapWithIndex (\i s -> element UI.line { key: s.name, dataKey: s.name, stroke: seriesColour i, strokeWidth: 2, dot: false, isAnimationActive: false }) c.series
-    , legend: true
+    -- with a level drawn, the legend beneath names it beside the lines
+    , legend: threshold == Nothing
     }
 
 -- | A stacked bar chart: one bar per player, stacked by kind, with a legend of the kinds' labels. The
@@ -312,7 +329,7 @@ blocksOf grid t = Layout.columns (map block (nub (mapMaybe (\r -> index r 0) t.r
 
 -- | A per-round series as a figure: its chart, against the level it is read against when it has one, with the table
 -- | of the numbers behind it behind a switch. The chart shows the shape; the table is there for the exact values.
-mkFigure :: DataTable -> Component { chart :: Chart, table :: Table, threshold :: Maybe String }
+mkFigure :: DataTable -> Component { chart :: Chart, table :: Table, threshold :: Maybe { value :: String, label :: String } }
 mkFigure grid = component "Figure" \p -> React.do
   asTable /\ setAsTable <- useState' false
   pure $ D.div
