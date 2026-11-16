@@ -85,12 +85,15 @@ mkRunBrowser grid = do
       runs = listed p.list
       baseline = maybe "" _.id (p.baseline >>= \b -> find (\r -> r.id == b) runs)
       current = p.selected <|> (if baseline == "" then Nothing else Just baseline)
+      listOrder = map _.id runs
       ordered = map _.id (filter (\r -> r.id == baseline) runs <> filter (\r -> r.id /= baseline) runs)
       nameOf id = maybe id (\r -> r.name <> (if r.ok then "" else " (failed)")) (find (\r -> r.id == id) runs)
       plotted = fromMaybe (if baseline == "" then [] else [ baseline ]) ticked
       toggle id on = setTicked (Just (if on then (if elem id plotted then plotted else plotted <> [ id ]) else filter (_ /= id) plotted))
       compared ids = if null ids then pure (Left "") else Client.compare ids
-    everyRun <- useLoad (String.joinWith "," ordered <> "@" <> show p.version) (compared ordered)
+    -- every run, asked for in the list's own order: the order the server compares them in when it starts, so the first
+    -- visit finds the comparison ready; the baseline's row is put first here
+    everyRun <- useLoad (String.joinWith "," listOrder <> "@" <> show p.version) (compared listOrder)
     plots <- useLoad (String.joinWith "," plotted <> "@" <> show p.version) (compared plotted)
     let
       hasAgency = case everyRun.value of
@@ -103,8 +106,11 @@ mkRunBrowser grid = do
         | wanted == "agency" && hasAgency = "agency"
         | otherwise = "compare"
       open id = p.select id *> setTab (Just "run")
+
+      baselineFirst :: forall r. { rows :: Array (Array String) | r } -> { rows :: Array (Array String) | r }
+      baselineFirst t = t { rows = filter (\row -> index row 0 == Just baseline) t.rows <> filter (\row -> index row 0 /= Just baseline) t.rows }
       glance c = grid
-        ( (defaults c.summary)
+        ( (defaults (baselineFirst c.summary))
             { onRow = Just \row -> open (fromMaybe "" (index row runKeyColumn))
             , activeRow = \row -> index row runKeyColumn == current
             , badge = \row i -> if i == 1 then index row runKeyColumn >>= p.badge else Nothing
@@ -137,7 +143,7 @@ mkRunBrowser grid = do
             , Layout.subsection
                 { title: "Where each run leaves each country"
                 , purpose: "After the final round: its widest substitute gap (above 0, an industry of its own stands idle), the least of its output its households absorb, and the most one of its sellers owes over what it sells."
-                , children: [ loaded everyRun.value \c -> tableOf grid c.traps ]
+                , children: [ loaded everyRun.value \c -> tableOf grid (baselineFirst c.traps) ]
                 }
             , if null plotted then note "Tick a run above to plot it." else plotSections plotted nameOf plots.value
             ]

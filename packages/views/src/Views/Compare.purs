@@ -28,7 +28,7 @@ import Core.Num (Kind(..))
 import Laws.Query (accountsOf, holding)
 import Laws.Types (ActorId)
 import Data.String (joinWith)
-import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, last, length, mapMaybe, nub, null, sortWith, uncons)
+import Data.Array (concat, concatMap, filter, find, fromFoldable, head, index, last, length, mapMaybe, nub, null, sortWith, uncons, zip)
 import Data.Either (hush)
 import Schema.Run (Spec, specKey, specPairs)
 import Data.Foldable (any, lookup, maximum, minimum, sum)
@@ -407,10 +407,11 @@ balanceBars runs =
 -- | idle), the least of its output its households absorb, and the most a seller of its owes over what it sells. Each
 -- | column is named by its measure and its country, and takes the measure's definition.
 traps :: Array StoredRun -> Table
-traps runs = { title: "Where each run leaves each country", columns: names [ col.run, col.name ] <> concatMap (\c -> map (\m -> m.name <> ", " <> c) measures) countries, rows: map row runs }
+traps runs = { title: "Where each run leaves each country", columns: names [ col.run, col.name ] <> concatMap (\c -> map (\m -> m.name <> ", " <> c) measures) countries, rows: map row (zip runs read) }
   where
-  held r = filter (\x -> not (null x.capability.table.rows)) (regimes r)
-  countries = maybe [] (map _.country <<< held) (head runs)
+  -- each run's regimes, read once
+  read = map regimes runs
+  countries = maybe [] (map _.country <<< filter (\x -> not (null x.capability.table.rows))) (head read)
   measures =
     [ { name: "Substitute gap", gauge: _.substitution, pick: maximum, shown: quantity }
     , { name: "Domestic absorption", gauge: _.demand, pick: minimum, shown: ratio }
@@ -420,6 +421,6 @@ traps runs = { title: "Where each run leaves each country", columns: names [ col
   -- each line's value after the final round it has one for
   finals :: Gauge -> Array Q.Q
   finals g = mapMaybe (\s -> last s.points >>= \p -> Q.parse p.value) g.chart.series
-  row r =
+  row (Tuple r rs) =
     [ r.id, if r.name == "" then r.id else r.name ]
-      <> concatMap (\c -> map (\m -> maybe "none" (\x -> maybe "none" m.shown (m.pick (finals (m.gauge x)))) (find (\x -> x.country == c) (regimes r))) measures) countries
+      <> concatMap (\c -> map (\m -> maybe "none" (\x -> maybe "none" m.shown (m.pick (finals (m.gauge x)))) (find (\x -> x.country == c) rs)) measures) countries
