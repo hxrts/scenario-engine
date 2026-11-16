@@ -37,12 +37,12 @@ import Views.Overview (RunList)
 runKeyColumn :: Int
 runKeyColumn = 0
 
--- | A listed run: its id, its name, and whether it completed.
+-- | A listed run: its id, its name, and whether it did not fail (a run still running, or cleared, has not failed).
 type Listed = { id :: String, name :: String, ok :: Boolean }
 
--- | The runs of a list, each with its name and whether it completed (the list's Name and Status cells).
+-- | The runs of a list, each with its name and whether it failed (the list's Name and Status cells).
 listed :: RunList -> Array Listed
-listed t = map (\(Tuple f row) -> { id: f.id, name: fromMaybe f.id (index row 1), ok: index row 6 == Just (show Completed) }) (zip t.runs t.rows)
+listed t = map (\(Tuple f row) -> { id: f.id, name: fromMaybe f.id (index row 1), ok: index row 6 /= Just (show Failed) }) (zip t.runs t.rows)
 
 -- | One run in full: its results and, where the page hands them out, each Actor's balance-sheet page.
 mkRunPage :: DataTable -> Component { id :: String, version :: Int, title :: String, links :: Boolean }
