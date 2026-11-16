@@ -59,7 +59,7 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await expect(page.getByRole("heading", { name: "Run " + id })).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + id + "/") }).first()).toBeVisible();
   await expect(section(page, "Balance sheets").getByRole("link").first()).toHaveAttribute("target", "_blank");
-  await expect(rowWith(section(page, "Past runs"), [id, "rehearsal", "completed", "interactive", "mock"])).toHaveCount(1);
+  await expect(rowWith(section(page, "Choose a run"), [id, "rehearsal", "completed", "interactive", "mock"])).toHaveCount(1);
 });
 
 test("a live run can be cleared, and clear and start replaces it", async ({ page }) => {
@@ -74,18 +74,18 @@ test("a live run can be cleared, and clear and start replaces it", async ({ page
   await expect(start.getByText("Run " + first + " is live. Starting another clears it first.")).toBeVisible();
   await start.getByRole("button", { name: "Clear and start", exact: true }).click();
   await expect(fact(page, "Run")).not.toHaveText(first + " (mock)");
-  await expect(rowWith(section(page, "Past runs"), [first, "cleared"])).toHaveCount(1);
+  await expect(rowWith(section(page, "Choose a run"), [first, "cleared"])).toHaveCount(1);
   await section(page, "State and controls").getByRole("button", { name: "Clear", exact: true }).click();
   await expect(fact(page, "Status")).toHaveText("cleared");
 });
 
 test("a past run opens its results and balance sheets from the list", async ({ page }) => {
   await page.goto("/admin/#/live");
-  const past = section(page, "Past runs");
+  const past = section(page, "Choose a run");
   // a run that is no longer live: its results are not already shown as the live run's
   const firstId = await rowWith(past, ["completed"]).first().getByRole("cell").first().textContent();
   await past.getByRole("button", { name: firstId, exact: true }).first().click();
   await expect(page).toHaveURL(new RegExp("#/live/" + firstId + "$"));
-  await expect(page.getByRole("heading", { name: "Balance sheets of " + firstId, exact: true })).toBeVisible();
+  await expect(section(page, "Balance sheets").getByRole("link", { name: new RegExp("/balancesheet/" + firstId + "/") }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Run " + firstId }).first()).toBeVisible();
 });

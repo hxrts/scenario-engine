@@ -10,9 +10,8 @@ import Prelude
 import Control.Alt ((<|>))
 import Core.Shape (Format(..), decodeJsonWith, encodeWith)
 import Dashboard.Api (useLoad)
-import Dashboard.BalanceSheet (mkLinks)
 import Dashboard.Client as Client
-import Dashboard.Comparison (mkRunPage, runTable)
+import Dashboard.Comparison (mkRunBrowser, mkRunPage)
 import Dashboard.Components (errorBlock, labelled, loaded, note, selectInput, textInput)
 import Dashboard.DataTable (DataTable)
 import Dashboard.Layout as Layout
@@ -70,7 +69,7 @@ emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", see
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
   runPage <- mkRunPage grid
-  links <- mkLinks
+  browser <- mkRunBrowser grid
   start <- mkStart
   controls <- mkControls
   component "Live" \p -> React.do
@@ -87,46 +86,35 @@ mkLive grid = do
         Just (Right st) -> Just st
         _ -> Nothing
       live = maybe false (\st -> st.status == Running) current
-      pastSelected = p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id
-
-      pastRuns :: RunList -> JSX
-      pastRuns t =
-        if null t.runs then note "No interactive run yet."
-        else D.div
-          { className: "flex min-w-0 flex-col gap-section"
-          , children:
-              [ runTable grid t { selected: fromMaybe "" p.selected, select: \id -> navigate (LiveRun id) } ]
-          }
-    pure $ Layout.page
-      { title: "Live"
-      , purpose: "The one live run, followed round by round and driven from here, then every past interactive run."
-      , children:
-          [ Layout.group
-              { title: "The live run"
-              , purpose: "The run being played: its round and status, the human seats it is waiting on, its controls, and each Actor's balance sheet to hand to whoever plays it."
-              , children:
-                  [ Layout.subsection
-                      { title: "State and controls"
-                      , purpose: "Advance the round, pause or resume its clock, end it after this round, or clear it. A facilitator can enter the text of an awaited human seat."
-                      , children: [ maybe (note "No live run yet. Start one below.") (\st -> controls { state: st, bump }) current ]
-                      }
-                  , maybe (D.span_ []) (\st -> Layout.subsection { title: "Balance sheets", purpose: "Each Actor's own page for the live run. A page shows only that Actor's data.", children: [ links st.id ] }) current
-                  ]
-              }
-          , Layout.group
-              { title: "Start a live run"
-              , purpose: "Choose the composition, who plays each seat, the rounds and window, and the run's tag and metadata. A production run needs its name, facilitator, date, venue and a player for each human seat."
-              , children: [ start { live, liveId: maybe "" _.id current, bump } ]
-              }
-          , maybe (D.span_ []) (\st -> runPage { id: st.id, title: "The live run's results", purpose: "The live run so far: its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
-          , Layout.group
-              { title: "Past runs"
-              , purpose: "Every interactive run, live or past, with its tag. Click one to open it below."
-              , children: [ loaded past.value \t -> pastRuns t ] <> maybe [] (\id -> [ Layout.subsection { title: "Balance sheets of " <> id, purpose: "Each Actor's own page for the selected past run.", children: [ links id ] } ]) pastSelected
-              }
-          , maybe (D.span_ []) (\id -> runPage { id, title: "The selected past run: " <> id, purpose: "One past run in full: its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) pastSelected
-          ]
-      }
+    pure $ Layout.body
+      ( [ Layout.group
+            { title: "The live run"
+            , purpose: "The run being played: its round and status, the human seats it is waiting on, its controls, and its controls."
+            , children:
+                [ Layout.subsection
+                    { title: "State and controls"
+                    , purpose: "Advance the round, pause or resume its clock, end it after this round, or clear it. A facilitator can enter the text of an awaited human seat."
+                    , children: [ maybe (note "No live run yet. Start one below.") (\st -> controls { state: st, bump }) current ]
+                    }
+                ]
+            }
+        , Layout.group
+            { title: "Start a live run"
+            , purpose: "Choose the composition, who plays each seat, the rounds and window, and the run's tag and metadata. A production run needs its name, facilitator, date, venue and a player for each human seat."
+            , children: [ start { live, liveId: maybe "" _.id current, bump } ]
+            }
+        , maybe (D.span_ []) (\st -> runPage { id: st.id, title: "The live run's results", purpose: "The live run so far: each Actor's balance sheet to hand to whoever plays it, its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
+        , loaded past.value \t -> browser
+            { list: t
+            -- the live run's results are already shown above
+            , selected: p.selected >>= \id -> if Just id == map _.id current then Nothing else Just id
+            , select: navigate <<< LiveRun
+            , baseline: Nothing
+            , empty: "No interactive run yet."
+            , choose: "Every interactive run, live or past, with its tag. Click one to open it at the foot of the page."
+            }
+        ]
+      )
 
 -- | The live run's state and its controls. Every control but the text box asks to be confirmed.
 mkControls :: Component { state :: SessionState, bump :: Effect Unit }

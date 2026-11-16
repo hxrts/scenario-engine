@@ -331,23 +331,24 @@ The Dashboard is served at `/admin`, behind the password (§8.3). It has two pag
 
 ### 9.1 Simulations
 
-Simulations shows the static suite (§3) in four groups, in order, each with a one-line description, its default preset's run open to start:
+Both pages show their runs through one run browser, in four groups, in order, each with a one-line description:
 
-- **Choose a run.** One button per simulated run, by name: the presets' runs, then the agency runs. A run that did not complete says so. Selecting one, or opening `#/simulations/:id`, opens it in the last group.
+- **Choose a run.** A table of the runs, one row each. Selecting one, or opening its route, opens it in the last group.
 - **Compare the runs.** First the runs at a glance: one row per run, by name: the leader after the final round and its net worth, the spread and Gini of final net worth, the units of fixed requirements that went short, and the Rules enacted (`CompareView.summary`).
 Then the runs to plot: any number of runs ticked, the default preset's run first and the baseline, each in its own colour. The plots name each run in their legends: the Exchange prices that move in any plotted run (a price every plotted run leaves flat is not drawn), one player's net worth over time, and the final standings (§10).
 - **Agency.** Each agency run against the preset run it deviates from, and its seat's criteria under each (§10.3).
-- **The selected run.** Its results (§9.3).
+- **The selected run.** Its balance sheets (§9.4), then its results (§9.3).
+
+Simulations browses the static suite (§3), its default preset's run the baseline and open to start; runs are made only by the suite. Live browses the interactive runs and opens none to start.
 
 ### 9.2 Live
 
-Live shows the one live run (§8.2) and the past interactive runs in groups, in order, each with a one-line description. The live run's state is read every second and a half:
+Live adds the one live run (§8.2) above its run browser, in groups, in order, each with a one-line description. The live run's state is read every second and a half:
 
 - **The live run.** Its id and tag, round, status (with whether it is paused or ending after this round), and the human seats awaited. While it runs, the admin controls drive it: advance the round, pause or resume, end after this round, and clear, each confirmed. A text box for each awaited human seat submits a facilitator's text for it.
 - **Start a live run.** The composition; the cast, one choice per castable Actor of human, agent, a preset, or a non-player on a preset ([04 §2](04_run.md#2-instantiation-configuration)); the rounds, window and player seed; the tag; and the metadata (name, facilitator, date, venue, a player for each human seat, notes), the fields a production run needs marked required. The server's refusal is shown beside the form, naming each missing field. When a run is live the form says so and starts with "Clear and start", which clears it first.
-Its balance sheets (§9.4) are beside its controls.
-- **The live run's results** so far (§9.3).
-- **Past runs.** A table of every interactive run with its tag; selecting one shows its balance sheets, and its results follow in **The selected past run**.
+- **The live run's results** so far: its balance sheets (§9.4) and results (§9.3).
+- **The run browser** over every interactive run, live or past, with its tag. The live run, once chosen, is not shown again below.
 
 ### 9.3 Run Details
 
@@ -366,7 +367,7 @@ The representation and procedure records, the round-by-round action counts, the 
 
 ### 9.4 BalanceSheet pages
 
-At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/live` and the CLI's `session` command report each Actor's path at the start, and the Live page lists every path for the live run and for the selected past run, each as its whole address opening in a new tab, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
+At the start of a game each Actor, Playable, non-playable or Aggregate, gets a URL showing its own balance sheet: `/balancesheet/:run/:token`, read through `GET /api/runs/:id/balancesheet/:token`. `POST /api/live` and the CLI's `session` command report each Actor's path at the start, and both pages list every path for the selected run (and Live for the live run), each as its whole address opening in a new tab, through the admin-only `GET /api/runs/:id/balancesheets`. An unknown token is a 404. The Run id is in the path because a player seed can repeat across Runs.
 
 The page has three parts, each from `Views.BalanceSheet`:
 

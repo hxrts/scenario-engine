@@ -5,13 +5,13 @@
 import { test, expect } from "@playwright/test";
 import { rowWith, section } from "./helpers.js";
 
-test("the suite's runs are buttons by name, presets apart from agency runs, and FreeTrade opens first", async ({ page }) => {
+test("the suite's runs are a table by name, and FreeTrade opens first", async ({ page }) => {
   await page.goto("/admin/#/simulations");
   const runs = section(page, "Choose a run");
   for (const name of ["Adaptive", "FreeTrade", "Substitute", "FreeTrade with CN on Hawk", "FreeTrade with US-firm on Builder"])
-    await expect(runs.getByRole("button", { name, exact: true })).toBeVisible();
+    await expect(rowWith(runs, [name])).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Run run-6" })).toBeVisible();
-  await runs.getByRole("button", { name: "Hawk", exact: true }).click();
+  await rowWith(runs, ["Hawk"]).click();
   await expect(page).toHaveURL(/#\/simulations\/run-7$/);
   await expect(page.getByRole("heading", { name: "Run run-7" })).toBeVisible();
 });
@@ -51,7 +51,7 @@ test("the open run shows one section per economic object, the headline at the ro
   await page.goto("/admin/#/simulations/run-6");
   for (const title of ["Who is trapped, and how tightly?", "National regimes", "International clearing", "Seat scorecards"])
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-  for (const gone of ["Key figures", "Actions", "Drivers", "Final balance sheet", "Event inspector", "Balance sheets"])
+  for (const gone of ["Key figures", "Actions", "Drivers", "Final balance sheet", "Event inspector"])
     await expect(page.getByRole("heading", { name: gone, exact: true })).toHaveCount(0);
   const headline = section(page, "Who is trapped, and how tightly?");
   await expect(headline.getByRole("combobox", { name: "Round" })).toHaveValue("6");
@@ -85,7 +85,7 @@ test("the top bar has Simulations and Live; every link navigates from every page
   for (const old of ["#/runs", "#/compare/run-1", "#/prepare", "#/balancesheets"]) {
     await page.goto("/admin/#/simulations");
     await page.goto(`/admin/${old}`);
-    await expect(page.getByRole("heading", { name: "Simulations", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Compare the runs", exact: true })).toBeVisible();
   }
 });
 

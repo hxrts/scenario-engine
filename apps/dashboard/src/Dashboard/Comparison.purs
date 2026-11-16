@@ -1,12 +1,14 @@
--- | What the Simulations and Live pages share (docs/07_simulator.md §9): a run list as a table, one run's results, and
--- | a comparison of many runs. The comparison reads in two parts: every run at a glance, one row each, and the plots
--- | of the few runs ticked, named in their legends. Every view model comes from the read API, through
--- | `Dashboard.Client`.
-module Dashboard.Comparison (runTable, mkRunPage, mkComparison) where
+-- | What the Simulations and Live pages share (docs/07_simulator.md §9): the run browser (a run list as a table, a
+-- | comparison of the runs, and the chosen run in full), and one run's balance sheets and results. The
+-- | comparison reads in two parts: every run at a glance, one row each, and the plots of the few runs ticked, named
+-- | in their legends. Every view model comes from the read API, through `Dashboard.Client`.
+module Dashboard.Comparison (runTable, mkRunPage, mkComparison, mkRunBrowser) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Dashboard.Api (useLoad)
+import Dashboard.BalanceSheet (mkLinks)
 import Dashboard.Client as Client
 import Dashboard.Components (groupedBars, loaded, note, overlayChart, placeholderFrame, selectInput, tableOf)
 import Dashboard.DataTable (DataTable, defaults)
@@ -15,9 +17,11 @@ import Dashboard.Palette (runColour)
 import React.Basic.DOM (css)
 import Dashboard.Results (mkRunResults)
 import Dashboard.UI as UI
-import Data.Array (elem, filter, find, index, null)
+import Data.Array (elem, filter, find, index, null, zip)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Tuple (Tuple(..))
+import Schema.Run (RunStatus(..))
 import Data.String as String
 import Effect (Effect)
 import Effect.Uncurried (mkEffectFn1)
@@ -45,13 +49,22 @@ runTable grid t s = D.div
       ]
   }
 
--- | A run's group: its title and description, then the run's overview, fetched once, and its results.
+-- | A run's group: its title and description, each Actor's balance-sheet page, then the run's overview, fetched
+-- | once, and its results.
 mkRunPage :: DataTable -> Component { id :: String, title :: String, purpose :: String }
 mkRunPage grid = do
   results <- mkRunResults grid
+  links <- mkLinks
   component "RunPage" \p -> React.do
     overview <- useLoad p.id (Client.overview p.id)
-    pure $ Layout.group { title: p.title, purpose: p.purpose, children: [ results { id: p.id, version: 0, overview } ] }
+    pure $ Layout.group
+      { title: p.title
+      , purpose: p.purpose
+      , children:
+          [ Layout.subsection { title: "Balance sheets", purpose: "Each Actor's own page for this run. A page shows only that Actor's data.", children: [ links p.id ] }
+          , results { id: p.id, version: 0, overview }
+          ]
+      }
 
 -- | A comparison of the runs given (in order, the first the baseline), as two groups: comparing the runs (every run at a
 -- | glance, the runs to plot, and their plots), and the agency of each seat when agency runs are among them.
@@ -141,4 +154,46 @@ mkComparison grid = component "Comparison" \p -> React.do
             , purpose: "Each player's net worth after the final round: one group per player, with one bar per plotted run."
             , children: withPlots \c -> [ groupedBars plotted (label c) "Player" c.standings ]
             }
+        ]
+
+-- | A listed run: its id, its name, and whether it completed.
+type Listed = { id :: String, name :: String, ok :: Boolean }
+
+-- | The readable runs of a list, each with its name and whether it completed (the list's Name and Status cells).
+listed :: RunList -> Array Listed
+listed t = map (\(Tuple f row) -> { id: f.id, name: fromMaybe f.id (index row 1), ok: index row 6 == Just (show Completed) }) (filter (\(Tuple f _) -> f.readable) (zip t.runs t.rows))
+
+-- | What both pages show of a list of runs, in order: the runs as a table to choose from, their comparison, and the
+-- | chosen run in full. `baseline` names the run that heads the comparison and opens when none is chosen; with none,
+-- | nothing opens until a run is chosen.
+mkRunBrowser
+  :: DataTable
+  -> Component
+       { list :: RunList
+       , selected :: Maybe String
+       , select :: String -> Effect Unit
+       , baseline :: Maybe String
+       , empty :: String
+       , choose :: String
+       }
+mkRunBrowser grid = do
+  comparison <- mkComparison grid
+  runPage <- mkRunPage grid
+  component "RunBrowser" \p -> React.do
+    let
+      runs = listed p.list
+      baseline = maybe "" _.id ((p.baseline >>= \b -> find (\r -> r.id == b) runs) <|> (if p.baseline == Nothing then Nothing else find (const true) runs))
+      current = p.selected <|> (if baseline == "" then Nothing else Just baseline)
+      ordered = map _.id (filter (\r -> r.id == baseline) runs <> filter (\r -> r.id /= baseline) runs)
+      nameOf id = maybe id (\r -> r.name <> (if r.ok then "" else " (failed)")) (find (\r -> r.id == id) runs)
+    pure $
+      if null p.list.runs then note p.empty
+      else React.fragment
+        [ Layout.group
+            { title: "Choose a run"
+            , purpose: p.choose
+            , children: [ runTable grid p.list { selected: fromMaybe "" current, select: p.select } ]
+            }
+        , if null ordered then D.span_ [] else comparison { ids: ordered, names: nameOf, initial: if baseline == "" then [] else [ baseline ] }
+        , maybe (D.span_ []) (\id -> runPage { id, title: "The selected run: " <> nameOf id, purpose: "One run in full: each Actor's balance sheet, its facts, the headline at a chosen round, each country's regime, the clearing between them, and the seats' scorecards." }) current
         ]

@@ -8,6 +8,7 @@ module Dashboard.Layout
   ( Tab
   , topBar
   , page
+  , body
   , section
   , grid
   , panel
@@ -45,18 +46,20 @@ topBar b = D.header
 
 -- | A page: its title, a one-sentence purpose, and its sections.
 page :: { title :: String, purpose :: String, children :: Array JSX } -> JSX
-page p = D.div
-  { className: "mx-auto flex w-full max-w-page min-w-0 flex-col gap-section px-gutter py-section"
-  , children:
-      [ D.header
-          { className: "flex flex-col gap-1"
-          , children:
-              [ D.h1 { className: "text-2xl font-semibold tracking-tight", children: [ D.text p.title ] }
-              , purpose p.purpose
-              ]
-          }
-      ] <> p.children
-  }
+page p = body $
+  [ D.header
+      { className: "flex flex-col gap-1"
+      , children:
+          [ D.h1 { className: "text-2xl font-semibold tracking-tight", children: [ D.text p.title ] }
+          , purpose p.purpose
+          ]
+      }
+  ] <> p.children
+
+-- | A page with no header: its sections alone.
+body :: Array JSX -> JSX
+body children = D.div
+  { className: "mx-auto flex w-full max-w-page min-w-0 flex-col gap-section px-gutter py-section", children }
 
 -- | A group: one of a page's top-level blocks, in the order the page reads. A rule above it sets it apart from the one
 -- | before; its heading and a one-line description say what is in it; its subsections follow at one spacing.
