@@ -38,7 +38,8 @@ import Foreign.Object as Object
 import Handlers.Api.Contract (SessionState)
 import Laws.Types (Id(..))
 import React.Basic.DOM as D
-import React.Basic.Events (handler_)
+import React.Basic.DOM.Events (targetValue)
+import React.Basic.Events (handler, handler_)
 import React.Basic.Hooks (Component, JSX, component, element, useContext, useEffectOnce, useState, useState', (/\))
 import React.Basic.Hooks as React
 import Schema.Cast (Role(..), roleShape)
@@ -147,11 +148,13 @@ mkControls = component "LiveControls" \p -> React.do
       Left e -> Just e
       Right _ -> Nothing
     submit seat = launchAff_ do
-      out <- Client.submitManual { seat, round: st.round, text: fromMaybe "" (Object.lookup seat texts) }
+      out <- Client.submitManual { seat, round: st.round, text: textOf seat }
       liftEffect do
         setFailure (either' out)
         setTexts (Object.delete seat texts)
         p.bump
+    -- what a seat's box holds: what the facilitator typed, or a turn any seat can play
+    textOf seat = fromMaybe defaultText (Object.lookup seat texts)
     -- the run, its round and status (paused or ending after this round said with it), and who is awaited
     facts =
       [ Tuple "Run" (st.id <> " (" <> st.tag <> ")")
@@ -177,10 +180,21 @@ mkControls = component "LiveControls" \p -> React.do
             { className: "flex min-w-0 flex-col gap-2"
             , children: st.awaiting <#> \seat -> D.div
                 { key: seat
-                , className: "flex flex-wrap items-end gap-2"
+                , className: "flex min-w-0 max-w-3xl flex-col gap-2"
                 , children:
-                    [ labelled (D.text ("Text for " <> seat <> ", round " <> show st.round)) (textInput { value: fromMaybe "" (Object.lookup seat texts), required: false, onChange: \v -> setTexts (Object.insert seat v texts) })
-                    , button ("Submit for " <> seat) (submit seat)
+                    [ D.label
+                        { className: "flex flex-col gap-1 text-sm"
+                        , children:
+                            [ D.text ("Text for " <> seat <> ", round " <> show st.round)
+                            , D.textarea
+                                { value: textOf seat
+                                , rows: 3
+                                , className: "min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                , onChange: handler targetValue (\v -> setTexts (Object.insert seat (fromMaybe "" v) texts))
+                                }
+                            ]
+                        }
+                    , D.div { className: "flex", children: [ button "Submit" (submit seat) ] }
                     ]
                 }
             }
@@ -279,3 +293,8 @@ liveBadge on = D.span
   , title: if on then "The live run, playing now" else "The live run, not playing now"
   , children: [ D.span { className: "size-1.5 rounded-full " <> (if on then "bg-green-500" else "bg-muted-foreground") }, D.text "live" ]
   }
+
+-- | The text a human seat's box starts with: a turn any seat can play in any composition, so a facilitator can submit
+-- | it as it stands.
+defaultText :: String
+defaultText = "Keep our current policies and trade as we did last round."

@@ -49,7 +49,11 @@ test("a mock run starts from the form, takes a facilitator's text, advances, pau
   await compare.click();
   const badge = rowWith(section(page, "The runs at a glance"), [id]).getByTitle(/^The live run/);
   await expect(badge).toHaveAttribute("title", "The live run, playing now");
-  await live.getByRole("button", { name: "Submit for US", exact: true }).click();
+  // the box starts with a turn any seat can play; emptied, the seat says nothing and no model is called
+  const box = live.getByRole("textbox", { name: /^Text for US/ });
+  await expect(box).toHaveValue("Keep our current policies and trade as we did last round.");
+  await box.fill("");
+  await live.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(fact(page, "Round")).toHaveText("2");
   await live.getByRole("button", { name: "Advance the round", exact: true }).click();
   await expect(fact(page, "Round")).toHaveText("3");
