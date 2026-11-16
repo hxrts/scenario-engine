@@ -1,6 +1,6 @@
 # Scenario Planning Game Engine
 
-A multiplayer strategy game in which actors play out a global political economy scenario. Each player has a distinct set of tools they use to advance their own agenda. A pure, deterministic engine settles double-entry books each round. The reference scenario, *Pacific*, models the US and China as two complementary national regimes. Players occupy seats as either US or Chinese heads of state, or business leaders of a major firm. America exports technology and China industrial inputs, and each needs the other's to keep producing.
+A multiplayer strategy game in which actors play out a global political economy scenario. Each player has a distinct set of tools they use to advance their own agenda. A pure, deterministic engine settles double-entry books each round. The reference scenario, *Pacific*, models the US and China as two complementary national regimes. Players occupy seats as either US or Chinese heads of state, or business leaders of a major firm.
 
 The game is written in PureScript. It has a CLI, a JSON API server, and a dashboard for comparing simulated runs and facilitating live sessions.
 
