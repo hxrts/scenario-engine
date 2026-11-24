@@ -43,7 +43,7 @@ import Laws.Types (Id(..), idText)
 import Run (Run, lift)
 import Schema.Cast (Cast, Role(..))
 import Schema.Composition (compositionRef, gameIdOf, premisesText)
-import Schema.Run (RunClass(..), RunStatus(..))
+import Schema.Run (RunClass(..), RunStatus(..), defaultRoundMonths)
 import Server.Compositions (Compositions, chosen)
 import Server.Errors (Answer, badRequest, conflict, notFound, ok)
 import Server.Launch (serverRole)
@@ -83,6 +83,7 @@ startLive compositions s = case chosen compositions s.composition of
     let cast = fromMaybe (Map.fromFoldable (map (\e -> Tuple e CastAgent) (configuredSeats parts.config))) s.cast
     if s.tag /= mockTag && s.tag /= productionTag then badRequest ("tag must be mock or production, got " <> s.tag)
     else if s.tag == productionTag && not (null (missingMetadata cast s.metadata)) then badRequest ("a production run needs its metadata complete; missing: " <> joinWith ", " (missingMetadata cast s.metadata))
+    else if maybe false (\m -> m < 1 || m > 1200) s.roundMonths then badRequest "roundMonths must be between 1 and 1200"
     else case traverse_ (checkRounds parts.composition) s.rounds *> assembleCast parts cast [] Nothing of
       Left e -> badRequest (show e)
       Right assembled -> do
@@ -90,17 +91,18 @@ startLive compositions s = case chosen compositions s.composition of
           game = withRounds s.rounds assembled
           humans = Array.fromFoldable (Map.keys (Map.filter (_ == CastHuman) cast))
           manual = fromMaybe false s.manual
+          roundMonths = fromMaybe defaultRoundMonths s.roundMonths
         seed <- resolveSeed (Seed <$> s.playerSeed)
         created <- now
         owner <- ownerOf serverRole
         id <- nextRunId
         let
-          spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just defaultModel, humans: Just (joinWith "," (map idText humans)), cast, runClass: Interactive, cacheKey: Nothing, tag: Just s.tag, metadata: Just (stringify (encodeWith Snapshot metadataShape s.metadata)) }
+          spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, roundMonths: Just roundMonths, overrides: [], model: Just defaultModel, humans: Just (joinWith "," (map idText humans)), cast, runClass: Interactive, cacheKey: Nothing, tag: Just s.tag, metadata: Just (stringify (encodeWith Snapshot metadataShape s.metadata)) }
           briefing e = maybe "" (\a -> a.description <> maybe "" (\ob -> ". Objective: " <> ob.description) a.objective) (Map.lookup e parts.composition.explicitActors)
         startRun { id, name: fromMaybe "live run" s.metadata.name, created, spec, manifest: game.manifest, owner } >>= case _ of
           Left why -> badRequest why
           Right _ -> do
-            lift _sessions (Host { request: { seed, game, id, window: if manual then 0 else fromMaybe 0 s.window, manual, briefing, report: const [], rules: enactable parts game.inWorld }, humans, tag: s.tag } unit)
+            lift _sessions (Host { request: { seed, game, id, roundMonths, window: if manual then 0 else fromMaybe 0 s.window, manual, briefing, report: const [], rules: enactable parts game.inWorld }, humans, tag: s.tag } unit)
             ok { id, balanceSheets: linksOf id (unwrap seed) game.manifest.initial.actors }
 
 -- | `GET /api/live`: the live run's state, or the last run's when none is live.

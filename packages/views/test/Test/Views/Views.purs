@@ -76,7 +76,7 @@ play ctx s = do
 spec :: Aff CompositionParts -> Spec Unit
 spec context = describe "Views and error paths" do
   it "the stored specification is typed: what Assembly.Recipe writes is what the views read" do
-    let written = encodeSpec { gameId: "g", composition: "c@v1", premises: "p@v1,q@v2", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, overrides: [], cast: Map.empty, model: Nothing, humans: Nothing, runClass: Simulated, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
+    let written = encodeSpec { gameId: "g", composition: "c@v1", premises: "p@v1,q@v2", playerSeed: Seed 7, preset: Just "P", rounds: Just 3, roundMonths: Nothing, overrides: [], cast: Map.empty, model: Nothing, humans: Nothing, runClass: Simulated, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
     written.gameId `shouldEqual` Just "g"
     written.preset `shouldEqual` Just "P"
     written.playerSeed `shouldEqual` Just 7

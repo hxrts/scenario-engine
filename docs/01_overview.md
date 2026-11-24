@@ -63,8 +63,8 @@ This section gives the shape of a typical session.
 |---|---|
 | Players | 10–20 |
 | Session length | About 6 hours, including meals |
-| Rounds | 4–8 |
-| Simulated period | 5 years in the reference PremiseComposition |
+| Rounds | 5 by default (4–8 in a session) |
+| Simulated period | Each round stands for 2 years by default, set per run; 10 years in the reference PremiseComposition |
 | World | One shared timeline |
 | Player roles | Countries, institutions, corporations, and smaller economic participants |
 | Input | Out-of-band negotiation, oral announcements transcribed by a separate component, and AI-interpreted actions |

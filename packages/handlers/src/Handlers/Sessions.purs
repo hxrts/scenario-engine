@@ -48,6 +48,8 @@ type Hosted =
   { id :: String
   , tag :: String
   , humans :: Array ActorId
+  , rounds :: Int
+  , roundMonths :: Int
   , window :: Int
   , manual :: Boolean -- a round closes only when advanced: a seat's text waits in `held` until then
   , held :: Ref (Map (Tuple ActorId RoundIndex) String)
@@ -94,7 +96,7 @@ interpretSessions host = case _ of
     ending <- Ref.new false
     fiber <- Ref.new Nothing
     held <- Ref.new Map.empty
-    let hosted = { id: request.id, tag, humans, window: request.window, manual: request.manual, held, current, mail, submitted, entered, closed, status, paused, remaining, ending, fiber }
+    let hosted = { id: request.id, tag, humans, rounds: request.game.rounds, roundMonths: request.roundMonths, window: request.window, manual: request.manual, held, current, mail, submitted, entered, closed, status, paused, remaining, ending, fiber }
     Ref.write (Just hosted) host.live
     f <- launchAff (play host hosted request)
     Ref.write (Just f) fiber
@@ -223,4 +225,4 @@ stateOf hosted = do
     awaiting = filter (not <<< done) hosted.humans
     -- whole seconds, rounded up, so the clock reads 0 only when the window has closed
     remaining = if hosted.window > 0 && status == Running && not (null awaiting) then Just ((left + 999) / 1000) else Nothing
-  pure { id: hosted.id, tag: hosted.tag, round, status, paused, ending, window: hosted.window, manual: hosted.manual, remaining, submitted: filter done hosted.humans, awaiting }
+  pure { id: hosted.id, tag: hosted.tag, round, rounds: hosted.rounds, roundMonths: hosted.roundMonths, status, paused, ending, window: hosted.window, manual: hosted.manual, remaining, submitted: filter done hosted.humans, awaiting }

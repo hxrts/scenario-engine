@@ -205,7 +205,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
           let api method path query body = liftEffect (serve [ ctx ] (storeOver db) cache (testHost (storeOver db)) { method, path, query: Object.fromFoldable (map (\x -> Data.Tuple.Tuple x.k x.v) query), body })
           scen <- api "GET" "/api/premise" [] ""
           scen.status `shouldEqual` 200
-          scen.body `shouldSatisfy` contains (Pattern "\"default\":6")
+          scen.body `shouldSatisfy` contains (Pattern "\"default\":5")
           scen.body `shouldSatisfy` contains (Pattern "\"min\":1")
           scen.body `shouldSatisfy` contains (Pattern "\"max\":12")
           scen.body `shouldSatisfy` contains (Pattern "\"gameSeed\":1949")

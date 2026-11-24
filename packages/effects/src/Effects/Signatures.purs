@@ -297,6 +297,7 @@ type LiveRequest =
   { seed :: Seed
   , game :: PreparedRun
   , id :: String
+  , roundMonths :: Int -- the in-game time one round stands for
   , window :: Int
   , manual :: Boolean
   , briefing :: ActorId -> String
@@ -316,6 +317,8 @@ type SessionState =
   { id :: String
   , tag :: String
   , round :: RoundIndex
+  , rounds :: Int -- the run's round count
+  , roundMonths :: Int -- the in-game months one round stands for
   , status :: RunStatus
   , paused :: Boolean
   , ending :: Boolean

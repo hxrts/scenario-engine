@@ -1,6 +1,7 @@
--- | What one round produced, for a component that reports on it (docs/07_simulator.md §8): the round's
--- | events, each Exchange's price and its movement, each Actor's holdings and their change, the
--- | shortfalls, the Rules that took effect, and what was turned down. Pure.
+-- | What one round produced, for a component that reports on it (docs/07_simulator.md §8): the round, the run's round
+-- | count and the in-game months a round stands for (so a reader can date the round), the round's events, each
+-- | Exchange's price and its movement, each Actor's holdings and their change, the shortfalls, the Rules that took
+-- | effect, and what was turned down. Pure.
 module Views.Report
   ( RoundReport
   , roundReport
@@ -15,7 +16,8 @@ import Laws.Slice (event, select, shortfalls)
 import Laws.Types (idText)
 import Laws.World (Event, RoundResult, WorldState, renderReason)
 import Core.Exchange (exchangePrice)
-import Data.Array (concatMap, filter, findIndex, index)
+import Data.Array (concatMap, filter, findIndex, index, length)
+import Schema.Run (defaultRoundMonths)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Set as Set
@@ -24,6 +26,8 @@ import Views.Common (StoredRun, quantity, worlds)
 
 type RoundReport =
   { round :: Int
+  , rounds :: Int
+  , roundMonths :: Int
   , events :: Array Event
   , prices :: Array { exchange :: String, price :: String, change :: String }
   , balances :: Array { actor :: String, resource :: String, holding :: String, change :: String }
@@ -40,11 +44,13 @@ roundReport r round = do
   position <- findIndex (\x -> x.record.round == round) r.rounds
   result <- index r.rounds position
   before <- index (worlds r) position
-  pure (report round result before)
+  pure (report { round, rounds: fromMaybe (length r.rounds) r.spec.rounds, roundMonths: fromMaybe defaultRoundMonths r.spec.roundMonths } result before)
 
-report :: Int -> RoundResult -> WorldState -> RoundReport
-report round result before =
-  { round
+report :: { round :: Int, rounds :: Int, roundMonths :: Int } -> RoundResult -> WorldState -> RoundReport
+report at result before =
+  { round: at.round
+  , rounds: at.rounds
+  , roundMonths: at.roundMonths
   , events
   , prices: map price (entries after.exchanges)
   , balances: concatMap balance (Map.toUnfoldable after.actors)

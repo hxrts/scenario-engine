@@ -82,6 +82,23 @@ spec = describe "The live run over the API" do
     done.body `shouldSatisfy` contains (Pattern "\"status\":\"completed\"")
     done.body `shouldSatisfy` contains (Pattern "\"round\":3")
 
+  it "a round stands for two years by default, or the months the start names; the state and each round's report carry it and the round count" do
+    { api } <- setup
+    _ <- api "POST" "/api/live" (startBody { window: 0, rounds: 2, extra: "" })
+    byDefault <- api "GET" "/api/live" ""
+    byDefault.body `shouldSatisfy` contains (Pattern "\"roundMonths\":24")
+    byDefault.body `shouldSatisfy` contains (Pattern "\"rounds\":2")
+    (_.status <$> api "POST" "/api/live" (startBody { window: 0, rounds: 2, extra: ",\"roundMonths\":0,\"replace\":true" })) >>= (_ `shouldEqual` 400)
+    started <- api "POST" "/api/live" "{\"cast\":{\"US\":\"agent\",\"CN\":\"agent\",\"US-firm\":\"agent\",\"CN-firm\":\"agent\"},\"rounds\":2,\"roundMonths\":6,\"window\":0,\"playerSeed\":1,\"tag\":\"mock\",\"metadata\":{},\"replace\":true}"
+    started.status `shouldEqual` 200
+    waitFor api "\"status\":\"completed\""
+    state <- api "GET" "/api/live" ""
+    state.body `shouldSatisfy` contains (Pattern "\"roundMonths\":6")
+    report <- api "GET" "/api/runs/run-2/rounds/1/report" ""
+    report.status `shouldEqual` 200
+    report.body `shouldSatisfy` contains (Pattern "\"roundMonths\":6")
+    report.body `shouldSatisfy` contains (Pattern "\"rounds\":2")
+
   it "one run at a time: a second start is refused while one is live, and replace clears it and starts the new one" do
     { api } <- setup
     _ <- api "POST" "/api/live" (startBody { window: 0, rounds: 4, extra: "" })

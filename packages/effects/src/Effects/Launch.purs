@@ -72,7 +72,7 @@ startAs role id p l = do
     Left e -> pure (Left (show e))
     Right game -> do
       let
-        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: l.preset, cast: l.cast, rounds: Just game.rounds, overrides: l.overrides, model: Nothing, humans: Nothing, runClass: RunClass.Simulated, cacheKey: l.cacheKey, tag: Nothing, metadata: Nothing }
+        spec = encodeSpec { gameId: fromMaybe "" (gameIdOf p.composition), composition: compositionRef p.composition, premises: premisesText p.composition, playerSeed: seed, preset: l.preset, cast: l.cast, rounds: Just game.rounds, roundMonths: Nothing, overrides: l.overrides, model: Nothing, humans: Nothing, runClass: RunClass.Simulated, cacheKey: l.cacheKey, tag: Nothing, metadata: Nothing }
       created <- now
       owner <- ownerOf role
       attempt <- playRun (Simulated { seed, game, run: { id, name: l.name, created, spec, manifest: game.manifest, owner } })

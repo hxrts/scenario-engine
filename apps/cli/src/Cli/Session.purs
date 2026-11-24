@@ -8,7 +8,7 @@ module Cli.Session (Options, Prepared, prepare, session, evidenceDir, SESSION) w
 
 import Prelude
 
-import Schema.Run (RunClass(..), RunStatus(..))
+import Schema.Run (RunClass(..), RunStatus(..), defaultRoundMonths)
 
 import Core.Map as CoreMap
 import Core.Draw (Seed)
@@ -67,14 +67,14 @@ session o { parts, game } = do
   created <- now
   owner <- ownerOf "session"
   let
-    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, overrides: [], model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts, runClass: Interactive, cacheKey: Nothing, tag: Just "mock", metadata: Nothing }
+    spec = encodeSpec { gameId: fromMaybe "" (gameIdOf parts.composition), composition: compositionRef parts.composition, premises: premisesText parts.composition, playerSeed: seed, preset: Nothing, rounds: Just game.rounds, roundMonths: Nothing, overrides: [], model: Just o.model, humans: Just o.humans, cast: liveCast (humansOf o) parts, runClass: Interactive, cacheKey: Nothing, tag: Just "mock", metadata: Nothing }
   startRun { id: o.id, name: "live session", created, spec, manifest: game.manifest, owner } >>= case _ of
     Left why -> pure (Left ("error: " <> why))
     Right _ -> do
       writeLine (compositionRef parts.composition <> ", model " <> o.model <> ", humans: " <> o.humans <> ", player seed " <> show (unwrap seed))
       for_ (linksOf o.id (unwrap seed) game.manifest.initial.actors) \l -> writeLine ("Balance sheet of " <> l.actor <> ": " <> l.path)
       for_ humans \h -> writeLine ("Briefing " <> show h <> ": " <> briefing h)
-      lift _sessions (Host { request: { seed, game, id: o.id, window: o.window, manual: false, briefing, report: report humans, rules: enactable parts game.inWorld }, humans, tag: "mock" } unit)
+      lift _sessions (Host { request: { seed, game, id: o.id, roundMonths: defaultRoundMonths, window: o.window, manual: false, briefing, report: report humans, rules: enactable parts game.inWorld }, humans, tag: "mock" } unit)
       writeLine "Type SEAT: text for a human seat, or /advance, /pause, /resume, /end, /clear."
       final <- console
       closeInput

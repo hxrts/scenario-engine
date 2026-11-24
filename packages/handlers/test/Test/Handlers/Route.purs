@@ -74,7 +74,7 @@ examples =
   , Tuple GetLive (g "/api/live")
   , Tuple (BalanceSheetLinks "run-1") (g "/api/runs/run-1/balancesheets")
   , Tuple (BalanceSheet { id: "run-1", token: "abc" }) (g "/api/runs/run-1/balancesheet/abc")
-  , Tuple (StartLive { composition: Nothing, cast: Nothing, rounds: Nothing, window: Nothing, manual: Nothing, playerSeed: Nothing, tag: "mock", metadata: { name: Nothing, facilitator: Nothing, date: Nothing, venue: Nothing, players: Object.empty, notes: Nothing }, replace: Nothing }) (p "/api/live" "{\"metadata\":{},\"tag\":\"mock\"}")
+  , Tuple (StartLive { composition: Nothing, cast: Nothing, rounds: Nothing, roundMonths: Nothing, window: Nothing, manual: Nothing, playerSeed: Nothing, tag: "mock", metadata: { name: Nothing, facilitator: Nothing, date: Nothing, venue: Nothing, players: Object.empty, notes: Nothing }, replace: Nothing }) (p "/api/live" "{\"metadata\":{},\"tag\":\"mock\"}")
   , Tuple (SubmitTranscript { seat: "US", round: 1, text: "hi" }) (p "/api/live/transcripts" "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}")
   , Tuple (SubmitManual { seat: "US", round: 1, text: "hi" }) (p "/api/live/submissions" "{\"round\":1,\"seat\":\"US\",\"text\":\"hi\"}")
   , Tuple AdvanceLive (p "/api/live/advance" "{}")

@@ -85,7 +85,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       runs <- liftEffect (runObserve port listRuns)
       map _.status runs `shouldEqual` [ Completed ]
       rows <- liftEffect (runObserve port (readRounds "run-1"))
-      length rows `shouldEqual` 6
+      length rows `shouldEqual` 5
       -- the stored records and snapshots read back typed, as the run wrote them
       records <- orThrow (traverse _.record rows)
       snapshots <- orThrow (traverse _.snapshot rows)
@@ -93,7 +93,7 @@ main = runSpecAndExitProcess [ consoleReporter ] do
       pure' <- orThrow (simulate seed g)
       snapshots `shouldEqual` map _.world pure'.records
       map (stringify <<< encodeJson) records `shouldEqual` map (stringify <<< encodeJson <<< _.record) pure'.records
-      case runReplay (seatEnv seed g) 6 records g of
+      case runReplay (seatEnv seed g) g.rounds records g of
         Left e -> fail e
         Right out -> map _.world out.records `shouldEqual` snapshots
       manifest <- liftEffect (runObserve port (readManifest "run-1"))

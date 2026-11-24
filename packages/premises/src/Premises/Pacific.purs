@@ -101,7 +101,7 @@ pacific d =
 instantiation :: InstantiationConfig
 instantiation =
   { seed: Seed gameSeed
-  , rounds: 6
+  , rounds: 5
   , seats: keyed [ Tuple p.us "seat-1", Tuple p.cn "seat-2", Tuple p.usFirm "seat-3", Tuple p.cnFirm "seat-4" ]
   , nonPlayableActors: Map.empty
   , fallbacks: Map.empty

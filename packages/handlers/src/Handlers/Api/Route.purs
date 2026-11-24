@@ -399,13 +399,14 @@ startLiveShape = object "StartLive" ado
   composition <- fieldOf "composition" "which composition to play; absent is the first" (optionalOf stringShape) _.composition
   cast <- fieldOf "cast" "each castable Actor's role: human, agent, agent:<model>, preset:<name> or nonplayer:<name>; absent casts every seat as an agent" (optionalOf castShape) _.cast
   rounds <- fieldOf "rounds" "the round count; absent keeps the composition's" (optionalOf intShape) _.rounds
+  roundMonths <- fieldOf "roundMonths" "the in-game time one round stands for, in months; absent is 24 (two years)" (optionalOf intShape) _.roundMonths
   window <- fieldOf "window" "seconds a round stays open; absent waits for every seat" (optionalOf intShape) _.window
   manual <- fieldOf "manual" "a round closes only when the facilitator advances it, with no window; absent closes it when every seat has spoken" (optionalOf boolShape) _.manual
   playerSeed <- fieldOf "playerSeed" "the player seed; absent draws one" (optionalOf intShape) _.playerSeed
   tag <- fieldOf "tag" "mock, or production, which needs its metadata complete" stringShape _.tag
   metadata <- fieldOf "metadata" "the run's name, facilitator, date, venue, players and notes" metadataShape _.metadata
   replace <- fieldOf "replace" "clear a run that is live first" (optionalOf boolShape) _.replace
-  in { composition, cast, rounds, window, manual, playerSeed, tag, metadata, replace }
+  in { composition, cast, rounds, roundMonths, window, manual, playerSeed, tag, metadata, replace }
 
 -- | The body of `POST /api/live/transcripts` and `POST /api/live/submissions`.
 submissionShape :: Shape Submission

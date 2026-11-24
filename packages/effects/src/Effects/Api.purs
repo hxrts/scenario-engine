@@ -49,12 +49,13 @@ type Metadata =
   }
 
 -- | The body of `POST /api/live`: the composition (absent is the first), the cast (absent casts every configured
--- | seat as an agent), the rounds, the window in seconds (absent waits for every seat), the player seed (absent draws
+-- | seat as an agent), the rounds and the in-game months each stands for, the window in seconds (absent waits for every seat), the player seed (absent draws
 -- | one), the tag (`mock` or `production`), the metadata, and whether to clear a run that is live first.
 type StartLive =
   { composition :: Maybe String
   , cast :: Maybe Cast
   , rounds :: Maybe Int
+  , roundMonths :: Maybe Int
   , window :: Maybe Int
   , manual :: Maybe Boolean
   , playerSeed :: Maybe Int

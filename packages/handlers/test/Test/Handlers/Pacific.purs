@@ -199,7 +199,7 @@ spec = describe "Pacific (docs/05 §9)" do
       g <- orThrow (assemble (FromComposition parts) b [])
       a <- run (Seed 1) g
       checkRun a.manifest.initial a.records `shouldEqual` []
-      out <- orThrow (runReplay (seatEnv (Seed 1) g) 6 (map _.record a.records) g)
+      out <- orThrow (runReplay (seatEnv (Seed 1) g) g.rounds (map _.record a.records) g)
       map _.world out.records `shouldEqual` map _.world a.records
       let befores = [ a.manifest.initial ] <> map _.world a.records
       for_ (zip befores a.records) \(Tuple before x) -> orderIndependent before x `shouldEqual` []

@@ -27,7 +27,8 @@ import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import Data.String (joinWith, trim)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst)
+import Data.Foldable (lookup)
 import Effect (Effect)
 import Effect.Aff (Aff, delay, error, killFiber, launchAff, launchAff_)
 import Control.Monad.Rec.Class (forever)
@@ -53,6 +54,7 @@ type Form =
   { composition :: String
   , roles :: Object.Object String -- each castable Actor's role, as its text
   , rounds :: String
+  , roundLength :: String -- one of `roundLengths`: the in-game time a round stands for
   , window :: String
   , advance :: String -- "automatically", or "by hand": a round closes only when the facilitator advances it
   , seed :: String
@@ -66,7 +68,7 @@ type Form =
   }
 
 emptyForm :: Form
-emptyForm = { composition: "", roles: Object.empty, rounds: "", window: "0", advance: automatically, seed: "", tag: "mock", name: "", facilitator: "", date: "", venue: "", notes: "", players: Object.empty }
+emptyForm = { composition: "", roles: Object.empty, rounds: "", roundLength: "2 years", window: "0", advance: automatically, seed: "", tag: "mock", name: "", facilitator: "", date: "", venue: "", notes: "", players: Object.empty }
 
 mkLive :: DataTable -> Component { selected :: Maybe String }
 mkLive grid = do
@@ -170,6 +172,7 @@ mkControls = component "LiveControls" \p -> React.do
       , Tuple "Round" (show st.round)
       , Tuple "Status" (show st.status <> (if running && st.paused then ", paused" else "") <> (if running && st.ending then ", ending after this round" else ""))
       , Tuple "Awaiting" (if null st.awaiting then "none" else joinWith ", " st.awaiting)
+      , Tuple "Round" (show st.round <> " of " <> show st.rounds <> ", each " <> monthsText st.roundMonths <> " of in-game time")
       , Tuple "Rounds" (if st.manual then "advanced by hand" else if st.window == 0 then "close when every human seat has spoken" else "close after " <> show st.window <> " seconds")
       ]
   pure $ D.div
@@ -239,6 +242,7 @@ view cs c form setForm failure setFailure p = D.div
               [ labelled (D.text "Composition") (selectInput { value: c.name, options: map _.name cs, onChange: \v -> setForm form { composition = fromMaybe "" v } })
               , labelled (D.text "Tag") (selectInput { value: form.tag, options: [ "mock", "production" ], onChange: \v -> setForm form { tag = fromMaybe "mock" v } })
               , labelled (D.text ("Rounds (" <> show c.rounds.min <> " to " <> show c.rounds.max <> "; default " <> show c.rounds.default <> ")")) (textInput { value: form.rounds, required: false, onChange: \v -> setForm form { rounds = v } })
+              , labelled (D.text "Each round stands for") (selectInput { value: form.roundLength, options: map fst roundLengths, onChange: \v -> setForm form { roundLength = fromMaybe "2 years" v } })
               , labelled (D.text "Advance rounds") (selectInput { value: form.advance, options: [ automatically, byHand ], onChange: \v -> setForm form { advance = fromMaybe automatically v } })
               , if form.advance == byHand then D.span_ []
                 else labelled (D.text "Window, seconds (0 waits for every seat)") (textInput { value: form.window, required: false, onChange: \v -> setForm form { window = v } })
@@ -281,6 +285,7 @@ view cs c form setForm failure setFailure p = D.div
       { composition: Just c.name
       , cast: Just (Map.fromFoldable roles)
       , rounds
+      , roundMonths: lookup form.roundLength roundLengths
       , window: if form.advance == byHand then Nothing else windowSecs
       , manual: if form.advance == byHand then Just true else Nothing
       , playerSeed
@@ -319,6 +324,14 @@ defaultText = "Keep our current policies and trade as we did last round."
 -- | Seconds as a clock: minutes and seconds, "1:05".
 clock :: Int -> String
 clock s = show (s / 60) <> ":" <> (if s `mod` 60 < 10 then "0" else "") <> show (s `mod` 60)
+
+-- | The in-game time a round can stand for, by its label in the start form, in months.
+roundLengths :: Array (Tuple String Int)
+roundLengths = [ Tuple "3 months" 3, Tuple "6 months" 6, Tuple "1 year" 12, Tuple "2 years" 24, Tuple "5 years" 60 ]
+
+-- | A number of months as the form names it, or in months when it names no such length.
+monthsText :: Int -> String
+monthsText m = maybe (show m <> " months") fst (find (\(Tuple _ n) -> n == m) roundLengths)
 
 -- | How rounds advance: on their own (when every human seat has spoken, or the window closes), or by hand.
 automatically :: String

@@ -5,7 +5,7 @@ module Test.Views.Dependence (spec) where
 import Prelude
 
 import Adapters.Filesystem (fileOps)
-import Assembly.Assemble (assemble, presetBindings)
+import Assembly.Assemble (assemble, presetBindings, withRounds)
 import Assembly.Composition (Origin(..))
 import Core.Draw (Seed(..))
 import Data.Array (drop, filter, index)
@@ -28,7 +28,8 @@ playing us cn = do
   parts <- orThrow loaded
   bindings <- orThrow (presetBindings parts.presets (\a -> if a == Id "US" then us else if a == Id "CN" then cn else "FreeTrade") [ Id "US", Id "CN", Id "US-firm", Id "CN-firm" ])
   g <- orThrow (assemble (FromComposition parts) bindings [])
-  r <- run (Seed 1) g
+  -- six rounds, the horizon these figures are stated over (docs/05 §9), whatever the composition's default
+  r <- run (Seed 1) (withRounds (Just 6) g)
   pure (toStored (us <> "-" <> cn) r)
 
 spec :: Spec Unit

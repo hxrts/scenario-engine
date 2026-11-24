@@ -43,7 +43,7 @@ spec = describe "Mandatory tests (docs/07_simulator.md §14)" do
       g <- everySeat p preset
       a <- run (Seed 1) g
       a' <- run (Seed 1) g
-      length a.records `shouldEqual` 6
+      length a.records `shouldEqual` 5
       valid (initialOf a) a
       map _.world a.records `shouldEqual` map _.world a'.records
 
@@ -59,7 +59,7 @@ spec = describe "Mandatory tests (docs/07_simulator.md §14)" do
     p <- pacificParts
     g <- everySeat p "Hawk"
     a <- run (Seed 1) g
-    out <- orThrow (runReplay (seatEnv (Seed 1) g) 6 (map _.record a.records) g)
+    out <- orThrow (runReplay (seatEnv (Seed 1) g) g.rounds (map _.record a.records) g)
     map _.world out.records `shouldEqual` map _.world a.records
     map _.record out.records `shouldEqual` map _.record a.records
 

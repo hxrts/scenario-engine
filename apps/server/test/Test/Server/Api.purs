@@ -163,11 +163,11 @@ spec = describe "API status rules, startup and cache" do
     stored <- liftEffect (runObserve env.store (readManifest "run-1"))
     case stored of
       Just m -> case m.spec of
-        Right s -> s.rounds `shouldEqual` Just 6
+        Right s -> s.rounds `shouldEqual` Just 5
         Left why -> fail why
       Nothing -> fail "no stored spec"
     overview <- env.api "GET" "/api/runs/run-1/overview" ""
-    overview.body `shouldSatisfy` contains (Pattern "\"target\":6")
+    overview.body `shouldSatisfy` contains (Pattern "\"target\":5")
   it "startup clears the server's leftover live runs, clears a run whose process has gone, and leaves a live process's run running" do
     env <- setup
     launch env 2

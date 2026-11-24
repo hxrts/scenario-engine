@@ -28,7 +28,7 @@ type Recipe = { preset :: String, playerSeed :: Maybe Int, rounds :: Maybe Int, 
 
 -- | The stored specification of a run: its composition, the player seed it was resolved to, its recipe,
 -- | the run it was derived from, if any, and, for a live session, its model and human seats.
-encodeSpec :: { gameId :: String, composition :: String, premises :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, overrides :: Array Override, model :: Maybe String, humans :: Maybe String, cast :: Cast, runClass :: RunClass, cacheKey :: Maybe String, tag :: Maybe String, metadata :: Maybe String } -> Spec
+encodeSpec :: { gameId :: String, composition :: String, premises :: String, playerSeed :: Seed, preset :: Maybe String, rounds :: Maybe Int, roundMonths :: Maybe Int, overrides :: Array Override, model :: Maybe String, humans :: Maybe String, cast :: Cast, runClass :: RunClass, cacheKey :: Maybe String, tag :: Maybe String, metadata :: Maybe String } -> Spec
 encodeSpec r =
   { gameId: Just r.gameId
   , composition: Just r.composition
@@ -37,6 +37,7 @@ encodeSpec r =
   , playerSeed: Just (unwrap r.playerSeed)
   , overrides: Just (stringify (encodeOverrides r.overrides))
   , rounds: r.rounds
+  , roundMonths: r.roundMonths
   , model: r.model
   , humans: r.humans
   , cast: Just (stringify (encodeWith Snapshot castShape r.cast))

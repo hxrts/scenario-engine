@@ -304,6 +304,8 @@ A submission's body:
 
 The live run is held in the server's memory. After a restart `GET /api/live` replies 404 and the Run is marked cleared ([§6.1](#61-invalid-actions-and-failures)), while its saved rounds remain.
 
+**In-game time.** A live run's start may name the in-game time one round stands for, `roundMonths` (1 to 1200; absent is 24, two years). The run's stored spec keeps it beside its round count, and both the live state and every round's report carry `rounds` and `roundMonths`, so a reader such as the newspaper can date a round without knowing the composition. A run stored without it reads as the default.
+
 **What is stable.** The routes, their methods, the field names of their requests and replies, and the status codes above are the contract. In a report, `prices`, `balances`, `shortfalls`, `enacted`, `repealed`, `rejected` and `lapsed` are summaries meant for a downstream writer, with numbers as display strings ([02 §9.1](02_kernel.md#91-numerics-and-randomness)). `events` carries the engine's events in their stored form and changes with the store's schema version. Ids and balance sheet paths are opaque text. The wording of an `error` is not part of the contract.
 
 ### 8.3 Public and admin surfaces

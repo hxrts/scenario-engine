@@ -8,6 +8,7 @@ module Schema.Run
   , runClassShape
   , Spec
   , emptySpec
+  , defaultRoundMonths
   , specShape
   , specKey
   , specPairs
@@ -65,6 +66,7 @@ type Spec =
   , playerSeed :: Maybe Int
   , overrides :: Maybe String
   , rounds :: Maybe Int
+  , roundMonths :: Maybe Int -- the in-game time one round stands for, in months; absent is `defaultRoundMonths`
   , model :: Maybe String
   , humans :: Maybe String
   , cast :: Maybe String -- the cast, as JSON text (`Schema.Cast`); absent is every seat on `preset`
@@ -74,9 +76,13 @@ type Spec =
   , metadata :: Maybe String -- an interactive run's metadata, as JSON text
   }
 
+-- | The in-game time one round stands for when a run does not say: two years.
+defaultRoundMonths :: Int
+defaultRoundMonths = 24
+
 -- | A specification with no field recorded.
 emptySpec :: Spec
-emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, model: Nothing, humans: Nothing, cast: Nothing, runClass: Nothing, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
+emptySpec = { gameId: Nothing, composition: Nothing, premises: Nothing, preset: Nothing, playerSeed: Nothing, overrides: Nothing, rounds: Nothing, roundMonths: Nothing, model: Nothing, humans: Nothing, cast: Nothing, runClass: Nothing, cacheKey: Nothing, tag: Nothing, metadata: Nothing }
 
 -- | A whole number stored as text, an absent key being Nothing.
 storedInt :: String -> Shape (Maybe Int)
@@ -87,8 +93,8 @@ storedInt what = partialIso (optionalOf stringShape) read (map show)
     Just text -> Just <$> note ("the stored spec's " <> what <> " is not an integer: " <> text) (Int.fromString text)
 
 -- | The keys of a stored specification, in one place.
-specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, model :: String, humans :: String, cast :: String, runClass :: String, cacheKey :: String, tag :: String, metadata :: String }
-specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", model: "model", humans: "humans", cast: "cast", runClass: "class", cacheKey: "cacheKey", tag: "runTag", metadata: "metadata" }
+specKey :: { gameId :: String, composition :: String, premises :: String, preset :: String, playerSeed :: String, overrides :: String, rounds :: String, roundMonths :: String, model :: String, humans :: String, cast :: String, runClass :: String, cacheKey :: String, tag :: String, metadata :: String }
+specKey = { gameId: "gameId", composition: "composition", premises: "premises", preset: "preset", playerSeed: "playerSeed", overrides: "overrides", rounds: "rounds", roundMonths: "roundMonths", model: "model", humans: "humans", cast: "cast", runClass: "class", cacheKey: "cacheKey", tag: "runTag", metadata: "metadata" }
 
 -- | The stored specification. Every value is stored as text, in the premise
 -- | format, so an absent field is not written.
@@ -101,6 +107,7 @@ specShape = object "Spec" ado
   playerSeed <- fieldOf specKey.playerSeed "the player seed the run was resolved to" (storedInt "player seed") _.playerSeed
   overrides <- fieldOf specKey.overrides "the overrides, as JSON text" (optionalOf stringShape) _.overrides
   rounds <- fieldOf specKey.rounds "the round count; absent is the configuration's" (storedInt "rounds") _.rounds
+  roundMonths <- fieldOf specKey.roundMonths "the in-game months one round stands for; absent is the default" (storedInt "round months") _.roundMonths
   model <- fieldOf specKey.model "a live session's model" (optionalOf stringShape) _.model
   humans <- fieldOf specKey.humans "a live session's human seats" (optionalOf stringShape) _.humans
   cast <- fieldOf specKey.cast "the cast: each castable Actor's role, as JSON text" (optionalOf stringShape) _.cast
@@ -108,7 +115,7 @@ specShape = object "Spec" ado
   cacheKey <- fieldOf specKey.cacheKey "a simulated run's suite cache key" (optionalOf stringShape) _.cacheKey
   tag <- fieldOf specKey.tag "an interactive run's tag: mock or production" (optionalOf stringShape) _.tag
   metadata <- fieldOf specKey.metadata "an interactive run's metadata, as JSON text" (optionalOf stringShape) _.metadata
-  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, model, humans, cast, runClass, cacheKey, tag, metadata }
+  in { gameId, composition, premises, preset, playerSeed, overrides, rounds, roundMonths, model, humans, cast, runClass, cacheKey, tag, metadata }
 
 -- | The recorded fields of a specification as key and text pairs, in the shape's order, for a
 -- | configuration diff.
