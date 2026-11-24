@@ -41,6 +41,7 @@ type SessionDevices =
   , countdown :: Int -> Effect Unit -- told the milliseconds the open round's window has left, as its clock runs
   , ending :: Effect Boolean
   , enteredBy :: ActorId -> RoundIndex -> Effect (Maybe String)
+  , recorded :: RoundIndex -> Effect Unit -- told each round once it is saved, whoever played it
   }
 
 -- | What the round loop is stopped with when the run is ended after a round: not a failure.
@@ -61,6 +62,7 @@ interpretLive d (PlayLive r k) = do
     , record: \result transcripts -> do
         marked <- traverse (\t -> (\by -> t { enteredBy = by <|> t.enteredBy }) <$> d.enteredBy t.seat result.record.round) transcripts
         save result marked
+        d.recorded result.record.round
         for_ (r.report result) d.say
         stop <- d.ending
         when stop (throwException (error endedMark))

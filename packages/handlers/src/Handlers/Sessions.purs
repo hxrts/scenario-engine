@@ -133,6 +133,7 @@ interpretSessions host = case _ of
 
 play :: SessionHost -> Hosted -> LiveRequest -> Aff Unit
 play host hosted request = do
+  let lastRound = request.game.world.round + request.game.rounds - 1
   out <- interpretLive
     { store: host.store
     , metricsOf: host.metricsOf
@@ -143,6 +144,9 @@ play host hosted request = do
     , countdown: \ms -> Ref.write ms hosted.remaining
     , ending: Ref.read hosted.ending
     , enteredBy: \seat round -> Map.lookup (Tuple seat round) <$> Ref.read hosted.entered
+    -- the next round opens once one is saved, so the state follows a run with no human seat to read; the last round
+    -- stays the run's round
+    , recorded: \round -> when (round < lastRound) (Ref.modify_ (max (round + 1)) hosted.current)
     }
     (PlayLive request identity)
   liftEffect do

@@ -73,6 +73,15 @@ spec = describe "The live run over the API" do
     overview <- api "GET" "/api/runs/run-1/overview" ""
     overview.body `shouldSatisfy` contains (Pattern "\"rounds\":2")
 
+  it "with every seat an agent, the state follows the rounds played and ends on the last one" do
+    { api } <- setup
+    started <- api "POST" "/api/live" "{\"cast\":{\"US\":\"agent\",\"CN\":\"agent\",\"US-firm\":\"agent\",\"CN-firm\":\"agent\"},\"rounds\":3,\"window\":0,\"playerSeed\":1,\"tag\":\"mock\",\"metadata\":{}}"
+    started.status `shouldEqual` 200
+    waitFor api "\"status\":\"completed\""
+    done <- api "GET" "/api/live" ""
+    done.body `shouldSatisfy` contains (Pattern "\"status\":\"completed\"")
+    done.body `shouldSatisfy` contains (Pattern "\"round\":3")
+
   it "one run at a time: a second start is refused while one is live, and replace clears it and starts the new one" do
     { api } <- setup
     _ <- api "POST" "/api/live" (startBody { window: 0, rounds: 4, extra: "" })
