@@ -12,7 +12,9 @@ import Data.String.CodeUnits (toCharArray, fromCharArray)
 import Handlers.Sql (SqlDevice)
 import Control.Promise (Promise, toAffE)
 import Data.Array (replicate)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Foldable (for_)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, bracket)
 import Effect.Class (liftEffect)
@@ -98,15 +100,34 @@ spec = describe "HTTP device" do
     withServer \port -> do
       a <- get port "/..%2fsecret.txt" []
       a.text `shouldSatisfy` (not <<< contains (Pattern "the secret"))
-  it "cache headers: bundle files immutable, the page revalidated, API replies never stored" do
+  it "cache headers: bundle files immutable, the page and API reads revalidated, writes and errors never stored" do
     withServer \port -> do
       asset <- get port "/assets/app.js" []
       asset.status `shouldEqual` 200
       header "cache-control" asset `shouldEqual` Just "public, max-age=31536000, immutable"
+      header "etag" asset `shouldEqual` Nothing
       page <- get port "/" []
       header "cache-control" page `shouldEqual` Just "no-cache"
       api <- get port "/api/runs" []
-      header "cache-control" api `shouldEqual` Just "no-store"
+      header "cache-control" api `shouldEqual` Just "private, no-cache"
+      missing <- get port "/api/nothing" []
+      header "cache-control" missing `shouldEqual` Just "no-store"
+      header "etag" missing `shouldEqual` Nothing
+      write <- toAffE (turnImpl port "POST" "/api/echo" Object.empty [ hexOf "{}" ])
+      header "cache-control" write `shouldEqual` Just "no-store"
+  it "a read that names its current entity tag is a 304 with no body, gzipped or not; another tag gets the reply" do
+    withServer \port -> do
+      for_ [ "/api/runs", "/index.html" ] \path -> do
+        first <- get port path []
+        let tag = fromMaybe "" (header "etag" first)
+        tag `shouldSatisfy` contains (Pattern "W/\"")
+        same <- toAffE (turnImpl port "GET" path (Object.singleton "if-none-match" tag) [])
+        zipped <- toAffE (turnImpl port "GET" path (Object.fromFoldable [ Tuple "if-none-match" tag, Tuple "accept-encoding" "gzip" ]) [])
+        other <- toAffE (turnImpl port "GET" path (Object.singleton "if-none-match" "W/\"stale\"") [])
+        map (\a -> Tuple a.status a.text) [ same, zipped ] `shouldEqual` [ Tuple 304 "", Tuple 304 "" ]
+        header "etag" same `shouldEqual` Just tag
+        other.status `shouldEqual` 200
+        other.text `shouldEqual` first.text
   it "content types cover the bundle's file kinds, and an unknown bundle file is a 404, not the page" do
     withServer \port -> do
       font <- get port "/assets/font.woff2" []

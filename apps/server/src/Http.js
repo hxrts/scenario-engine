@@ -2,10 +2,14 @@
 // built dashboard, falling back to index.html. Requests are bounded and static paths are
 // confined to the static directory. Text replies are gzipped for a client that accepts it, and the
 // bundle's hashed files (under /assets/) are marked immutable, so a browser fetches each once.
+// A successful GET of the API or of a revalidated file carries an entity tag, the digest of its body: a client that
+// names the current tag is answered 304 with no body, and new content has a new tag, so a kept copy is never used
+// once it is stale.
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
+import crypto from "node:crypto";
 
 const types = {
   ".html": "text/html",
@@ -28,6 +32,27 @@ const assetPrefix = "/assets/";
 const overrunGraceMs = 1000;
 
 const acceptsGzip = (req) => /(^|,)\s*gzip\s*(;|,|$)/.test(req.headers["accept-encoding"] || "");
+
+// The entity tag of a body: weak, because the same content is sent gzipped or not.
+const tagOf = (body) => `W/"${crypto.createHash("sha1").update(body).digest("base64url")}"`;
+
+// Whether the request's If-None-Match names the tag (or any tag, `*`), compared weakly.
+const fresh = (req, tag) =>
+  (req.headers["if-none-match"] || "")
+    .split(",")
+    .map((t) => t.trim().replace(/^W\//, ""))
+    .some((t) => t === "*" || t === tag.replace(/^W\//, ""));
+
+// A successful GET with its entity tag: 304 with no body when the client's copy is current, else the full reply.
+const sendTagged = (req, res, type, body, extra) => {
+  const tag = tagOf(body);
+  if (fresh(req, tag)) {
+    if (res.headersSent) return;
+    res.writeHead(304, { etag: tag, vary: "accept-encoding", ...extra });
+    return res.end();
+  }
+  send(req, res, 200, type, body, { etag: tag, ...extra });
+};
 
 // A reply as one body: gzipped when the client accepts it and the type is text. A reply already
 // started (a 413 whose request then errors) is left alone.
@@ -81,7 +106,11 @@ const serveFile = (req, res, root, file) => {
   if (file === null) return send(req, res, 404, "text/plain", "not found");
   fs.readFile(file, (err, data) => {
     if (err) return res.destroy();
-    send(req, res, 200, types[path.extname(file)] || "application/octet-stream", data, { "cache-control": cacheControl(root, file) });
+    const type = types[path.extname(file)] || "application/octet-stream";
+    const cache = cacheControl(root, file);
+    // an immutable file is never revalidated, so only a revalidated one needs a tag
+    if (cache === "no-cache") sendTagged(req, res, type, data, { "cache-control": cache });
+    else send(req, res, 200, type, data, { "cache-control": cache });
   });
 };
 
@@ -146,7 +175,10 @@ export const createServer = (staticDir, apiPrefix, handler, admin) => {
         } catch (e) {
           out = { status: 500, body: JSON.stringify({ error: String(e) }) };
         }
-        send(req, res, out.status, "application/json", out.body, { "cache-control": "no-store" });
+        // a successful read may be kept by the user's browser, never a shared cache, and is revalidated before each
+        // use; anything else (a write, an error) is never kept
+        if (req.method === "GET" && out.status === 200) sendTagged(req, res, "application/json", out.body, { "cache-control": "private, no-cache" });
+        else send(req, res, out.status, "application/json", out.body, { "cache-control": "no-store" });
       });
       return;
     }
@@ -156,7 +188,11 @@ export const createServer = (staticDir, apiPrefix, handler, admin) => {
     if (file === null) return send(req, res, 404, "text/plain", "not found");
     fs.readFile(file, (err, data) => {
       if (err) return res.destroy();
-      send(req, res, 200, types[path.extname(file)] || "application/octet-stream", data, { "cache-control": cacheControl(root, file) });
+      const type = types[path.extname(file)] || "application/octet-stream";
+    const cache = cacheControl(root, file);
+    // an immutable file is never revalidated, so only a revalidated one needs a tag
+    if (cache === "no-cache") sendTagged(req, res, type, data, { "cache-control": cache });
+    else send(req, res, 200, type, data, { "cache-control": cache });
     });
   });
 };

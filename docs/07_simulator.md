@@ -220,6 +220,8 @@ The Run Store is the persistent store of runs. Every run is persisted and surviv
 
 The server serves JSON through the `API` operations. Each operation below is one route of the endpoint table, which a browser client shares. Any other method or path under `/api/` is a 404, and a body over 1 MiB is a 413. Replies are 200 unless stated. Every operation is private by default and needs the admin session, unless its row says Open (§8.3). The server loads every PremiseComposition under the PremiseComposition root; an operation on a run uses the run's own PremiseComposition, and a run whose PremiseComposition is not loaded is refused with the reason. The server keeps each finished run once decoded, and each comparison whose runs are all finished once computed (`Server.Cache`); any write forgets both. At start it decodes every simulated run, so the first visit does not wait for it.
 
+Caching in the browser. A 200 reply to a `GET` carries a weak entity tag, the digest of its body, and `Cache-Control: private, no-cache`: the reader's own browser may keep it (a shared cache may not), and asks before each use. A request whose `If-None-Match` names the current tag is answered 304 with no body. New content has a new tag, so a kept copy is never used once it is stale. Writes and errors are `no-store`. The dashboard's hashed bundle files are immutable for a year, and its page is revalidated the same way as a read.
+
 | Operation | Purpose | Replies |
 |---|---|---|
 | `GET /api/runs/:id/balancesheets` | Every Actor's name, kind, and balance sheet path, for the admin page. | 200. 404 for an unknown run |
